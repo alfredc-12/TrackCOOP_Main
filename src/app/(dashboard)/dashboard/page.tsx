@@ -1,4 +1,5 @@
 import { CreditCard, FileCheck2, TrendingUp, UsersRound } from "lucide-react";
+import InventoryManagement from "../chairman_dashboard/chairman_pos";
 
 const cards = [
   { label: "Active members", value: "18,420", icon: UsersRound },
@@ -7,7 +8,23 @@ const cards = [
   { label: "Growth trend", value: "+12.4%", icon: TrendingUp },
 ];
 
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: { searchParams: { role?: string, tab?: string } }) {
+  const role = searchParams.role || "chairman";
+  const tab = searchParams.tab || "dashboard";
+
+  if (role === "chairman" && tab === "rental-pos") {
+    return <InventoryManagement />;
+  }
+
+  if (tab !== "dashboard" && tab) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] bg-white rounded-xl border border-gray-100 shadow-sm p-8">
+        <h2 className="text-3xl font-bold text-[#1e293b] capitalize">{tab.replace('-', ' ')}</h2>
+        <p className="text-gray-500 mt-3 text-lg">This module is currently under development.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
