@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TrackCOOP Main
 
-## Getting Started
+TrackCOOP is a cooperative management workspace for member services, announcements,
+documents, dashboards, and future operational workflows for farmers and
+fisherfolks cooperatives.
 
-First, run the development server:
+This repository is now a pnpm and Turborepo monorepo. It currently contains a
+preserved Next.js web application, a new Expo React Native starter app, and
+shared TypeScript packages. The backend is not implemented yet. The future
+backend is expected to be a Node.js and Express API.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Structure
+
+```text
+TrackCOOP_Main/
+├── apps/
+│   ├── web/       # Existing Next.js application
+│   └── mobile/    # Expo Router React Native application
+├── packages/
+│   ├── shared-types/
+│   ├── shared-utils/
+│   └── validation/
+├── package.json
+├── pnpm-workspace.yaml
+└── turbo.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Requirements
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Node.js 20.9 or newer
+- pnpm
+- Expo Go on a mobile device, or an Android emulator / iOS simulator
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Install pnpm with Corepack:
 
-## Learn More
+```bash
+corepack enable
+corepack prepare pnpm@latest --activate
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Install
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm install
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Run
 
-## Deploy on Vercel
+Run all development tasks through Turborepo:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run only the web application:
+
+```bash
+pnpm dev:web
+```
+
+Run only the Expo application:
+
+```bash
+pnpm dev:mobile
+```
+
+## Mobile Preview
+
+After `pnpm dev:mobile`, Expo will show options for:
+
+- Expo Go: scan the QR code from the terminal
+- Android emulator: press `a`
+- iOS simulator, where supported: press `i`
+- Web preview: press `w` or run `pnpm --filter @trackcoop/mobile web`
+
+## Validation
+
+```bash
+pnpm build
+pnpm lint
+pnpm typecheck
+```
+
+## Shared Packages
+
+- `@trackcoop/shared-types` contains reusable TypeScript types such as users,
+  roles, announcements, and services.
+- `@trackcoop/shared-utils` contains small cross-platform helpers such as
+  `formatFullName` and `formatRoleLabel`.
+- `@trackcoop/validation` contains shared Zod schemas, including the starter
+  login schema.
+
+Only platform-neutral code belongs in shared packages. Web and mobile UI
+components stay separate.
+
+## Environment Files
+
+Example-only environment files are provided:
+
+- `apps/web/.env.example`
+- `apps/mobile/.env.example`
+
+They contain placeholder API URLs for the future backend and do not include
+real secrets.
