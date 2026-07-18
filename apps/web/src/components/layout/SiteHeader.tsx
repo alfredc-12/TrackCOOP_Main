@@ -107,7 +107,7 @@ export default function SiteHeader({
             onActivate={() => activateNav("services")}
             items={[
               { label: "Membership Assistance", href: "/#services" },
-              { label: "Equipment Rental", href: "/#services" },
+              { label: "Equipment Rental", href: "/rental" },
               { label: "Cooperative Store", href: "/#services" },
             ]}
           />

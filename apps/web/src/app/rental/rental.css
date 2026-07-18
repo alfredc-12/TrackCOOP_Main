@@ -1,0 +1,6 @@
+@media print {
+  body * { visibility: hidden !important; }
+  [data-rental-print], [data-rental-print] * { visibility: visible !important; }
+  [data-rental-print] { position: absolute !important; inset: 0 !important; width: 100% !important; padding: 24px !important; background: white !important; }
+  [data-no-print] { display: none !important; }
+}
