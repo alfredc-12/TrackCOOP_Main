@@ -34,6 +34,8 @@ function createPoolOptions(): PoolOptions {
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
     decimalNumbers: false,
+    supportBigNumbers: true,
+    bigNumberStrings: true,
     namedPlaceholders: false,
   };
 }

@@ -18,5 +18,17 @@ API on port 5000. Use `npm run dev:web` or `npm run dev:api` to start one proces
 
 Copy `server/.env.example` to the ignored `server/.env` file before using live
 database routes. Database import and reference seeding are manual operations;
-see [`database.md`](database.md). Authentication and role portals are added in
-the next implementation phase.
+see [`database.md`](database.md).
+
+After importing the schema and reference seed, create the first portal accounts
+from an interactive terminal. The password is prompted without terminal echo
+and is never accepted as a command-line argument:
+
+```bash
+npm run user:create -- --email chair@example.com --name "Chair Person" --role chairman
+npm run user:create -- --email books@example.com --name "Book Keeper" --role bookkeeper
+```
+
+The root `SESSION_COOKIE_NAME` and `server/.env` value must match if the default
+cookie name is changed. See [`authentication.md`](authentication.md) for the
+session and lockout model.

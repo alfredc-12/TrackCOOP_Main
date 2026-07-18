@@ -13,9 +13,12 @@ import {
   createHealthRouter,
   type DatabaseProbe,
 } from "./modules/health/health.routes";
+import { createAuthRouter } from "./modules/auth/auth.routes";
+import type { AuthService } from "./modules/auth/auth.service";
 import { AppError } from "./utils/app-error";
 
 type CreateAppOptions = {
+  authService?: AuthService;
   databaseProbe?: DatabaseProbe;
   enableRequestLogging?: boolean;
   frontendUrl?: string;
@@ -68,6 +71,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(cookieParser());
 
   app.use("/api/health", createHealthRouter(options.databaseProbe));
+  app.use("/api/auth", createAuthRouter(options.authService));
 
   app.use(notFound);
   app.use(errorHandler);

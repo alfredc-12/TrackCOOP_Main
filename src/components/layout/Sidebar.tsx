@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -19,15 +19,14 @@ import {
   PhilippinePeso,
   User,
   Calendar,
-  Briefcase,
   Package,
-  BarChart,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { logout } from "@/lib/auth-client";
 
 const chairmanNavItems = [
   { href: "/chairman_dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -56,32 +55,22 @@ const memberNavItems = [
   { href: "/support", label: "Inquiry & Support", icon: MessageSquare },
 ];
 
-const managerNavItems = [
-  { href: "/manager_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/manager_dashboard?tab=operations", label: "Operations", icon: Briefcase },
-  { href: "/manager_dashboard?tab=staff", label: "Staff & Members", icon: Users },
-  { href: "/manager_dashboard?tab=inventory", label: "Inventory & Assets", icon: Package },
-  { href: "/manager_dashboard?tab=reports", label: "Reports & Analytics", icon: BarChart },
-  { href: "/manager_dashboard?tab=announcements", label: "Announcements", icon: Megaphone },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
 
   const roleFromPath = pathname.includes("bookkeeper") ? "bookkeeper"
     : pathname.includes("member") ? "member"
-      : pathname.includes("manager") ? "manager"
-        : "chairman";
+      : "chairman";
   const role = searchParams.get("role") || roleFromPath;
   const tab = searchParams.get("tab");
 
   const navItems =
     role === "bookkeeper" ? bookkeeperNavItems :
       role === "member" ? memberNavItems :
-        role === "manager" ? managerNavItems :
-          chairmanNavItems;
+        chairmanNavItems;
   const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
 
   const sidebarContent = (
@@ -136,13 +125,16 @@ export function Sidebar() {
       </div>
 
       <div className="mt-auto border-t border-white/10 pt-6">
-        <Link
-          href="/"
+        <button
+          type="button"
+          onClick={() => {
+            void logout().finally(() => router.replace("/login"));
+          }}
           className="flex items-center gap-4 rounded-2xl px-4 py-3.5 text-[15.5px] font-semibold text-white/60 transition-all hover:bg-white/5 hover:text-white"
         >
           <LogOut className="size-5" strokeWidth={2} />
           Logout
-        </Link>
+        </button>
       </div>
     </>
   );

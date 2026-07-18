@@ -1,5 +1,5 @@
-import { getDemoUser } from "@/features/auth/service";
+import { getAuthenticatedUser } from "@/features/auth/service";
 
 export function getCurrentUser() {
-  return getDemoUser();
+  return getAuthenticatedUser();
 }

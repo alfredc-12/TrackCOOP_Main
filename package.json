@@ -18,7 +18,8 @@
     "typecheck": "npm run typecheck:web && npm run typecheck:api",
     "test:api": "tsx --test server/src/**/*.test.ts",
     "test:e2e": "playwright test",
-    "db:check": "tsx server/src/scripts/check-database.ts"
+    "db:check": "tsx server/src/scripts/check-database.ts",
+    "user:create": "tsx server/src/scripts/create-user.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
