@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, Leaf, AlertCircle, History } from "lucide-react";
+import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, Leaf, AlertCircle, History, Activity } from "lucide-react";
+import { toast } from "sonner";
 
 type StockHistory = {
     type: "add" | "deduct";
@@ -9,8 +10,8 @@ type StockHistory = {
     date: string;
 };
 
-type InventoryItem = {
-    id: string;
+export type InventoryItem = {
+    id: number;
     name: string;
     category: string;
     price: number;
@@ -26,24 +27,49 @@ type EditableInventoryItem = Omit<InventoryItem, "price" | "stock"> & {
     stock: number | string;
 };
 
-const INITIAL_INVENTORY: InventoryItem[] = [
-    { id: "SKU019832", name: "Harvested Palay (per sack)", category: "Harvested Goods", price: 1100, stock: 12, sold: 40, status: "Available", img: "https://picsum.photos/seed/palay/500/300" },
-    { id: "SKU019833", name: "Organic Fertilizer (50kg)", category: "Fertilizers", price: 850, stock: 20, sold: 300, status: "Available", img: "https://picsum.photos/seed/fertilizer/500/300" },
-    { id: "SKU019834", name: "Pesticide Alpha (1L)", category: "Supplies", price: 1200, stock: 30, sold: 120, status: "Available", img: "https://picsum.photos/seed/pesticide/500/300" },
-    { id: "SKU019835", name: "Rice Seeds - Jasmine", category: "Seeds", price: 2100, stock: 7, sold: 500, status: "Available", img: "https://picsum.photos/seed/jasmine/500/300" },
-    { id: "SKU019836", name: "Corn Seeds - Yellow", category: "Seeds", price: 1800, stock: 156, sold: 400, status: "Available", img: "https://picsum.photos/seed/corn/500/300" },
-    { id: "SKU019837", name: "Tomato Seeds", category: "Seeds", price: 50, stock: 0, sold: 50, status: "Unavailable", img: "https://picsum.photos/seed/tomato/500/300" },
-    { id: "SKU019838", name: "Carrot Seeds", category: "Seeds", price: 150, stock: 3, sold: 10, status: "Available", img: "https://picsum.photos/seed/carrot/500/300" },
-    { id: "SKU019839", name: "Onion Seeds", category: "Seeds", price: 300, stock: 0, sold: 20, status: "Unavailable", img: "https://picsum.photos/seed/onion/500/300" }
-];
 
 export default function InventoryManagement() {
-    const [inventory, setInventory] = useState(INITIAL_INVENTORY);
+    const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+    const fetchInventory = async () => {
+        try {
+            const res = await fetch("/api/inventory");
+            if (res.ok) {
+                const data = await res.json();
+                setInventory(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch inventory", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchInventory();
+    }, []);
     const [editingItem, setEditingItem] = useState<EditableInventoryItem | null>(null);
     const [addingStockItem, setAddingStockItem] = useState<InventoryItem | null>(null);
+    const [stockActionType, setStockActionType] = useState<"add" | "deduct">("add");
     const [stockToAdd, setStockToAdd] = useState("");
     const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<EditableInventoryItem | null>(null);
+
+    const [isGlobalHistoryModalOpen, setIsGlobalHistoryModalOpen] = useState(false);
+    const [globalHistory, setGlobalHistory] = useState<any[]>([]);
+    const [pendingAction, setPendingAction] = useState<"add" | "edit" | "stock" | null>(null);
+
+    const fetchGlobalHistory = async () => {
+        try {
+            const res = await fetch("/api/inventory/history");
+            if (res.ok) {
+                const data = await res.json();
+                setGlobalHistory(data);
+                setIsGlobalHistoryModalOpen(true);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     // Filter and Sort State
     const [searchQuery, setSearchQuery] = useState("");
@@ -59,13 +85,13 @@ export default function InventoryManagement() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
     useEffect(() => {
-        if (isAddModalOpen || editingItem || addingStockItem || historyItem) {
+        if (isAddModalOpen || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isAddModalOpen, editingItem, addingStockItem, historyItem]);
+    }, [isAddModalOpen, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -78,33 +104,48 @@ export default function InventoryManagement() {
         }
     };
 
-    const handleAddItem = () => {
+    const handleAddItemClick = () => {
         if (!newItemName || !newItemStock || !newItemPrice) {
-            alert("Please fill in all fields.");
+            toast.error("Please fill in all fields.");
             return;
         }
+        setPendingAction("add");
+    };
+
+    const handleAddItem = async () => {
 
         const stockNum = Number(newItemStock);
         const newItem = {
-            id: `SKU0${Math.floor(Math.random() * 100000)}`,
             name: newItemName,
             category: newItemCategory,
             price: Number(newItemPrice),
             stock: stockNum,
-            sold: 0,
             status: newItemStatus,
             img: imagePreview || "",
-            history: [{ type: 'add' as const, amount: stockNum, date: new Date().toISOString() }]
         };
 
-        setInventory([newItem, ...inventory]);
-        setIsAddModalOpen(false);
-
-        setNewItemName("");
-        setNewItemStock("");
-        setNewItemPrice("");
-        setNewItemStatus("Available");
-        setImagePreview(null);
+        try {
+            const res = await fetch("/api/inventory", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newItem),
+            });
+            if (res.ok) {
+                fetchInventory();
+                setIsAddModalOpen(false);
+                setNewItemName("");
+                setNewItemStock("");
+                setNewItemPrice("");
+                setNewItemStatus("Available");
+                setImagePreview(null);
+                toast.success("Item added successfully!");
+            } else {
+                toast.error("Failed to add item.");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred.");
+        }
     };
 
     const handleEditChange = (
@@ -115,37 +156,89 @@ export default function InventoryManagement() {
         setEditingItem({ ...editingItem, [field]: value });
     };
 
-    const saveEditItem = () => {
+    const saveEditItemClick = () => {
         if (!editingItem) return;
-        if (!editingItem.name || !editingItem.stock || !editingItem.price) {
-            alert("Please fill in all fields.");
+        if (!editingItem.name || editingItem.stock === "" || !editingItem.price) {
+            toast.error("Please fill in all fields.");
             return;
         }
-        const oldItem = inventory.find((i) => i.id === editingItem.id);
-        const newHistory = oldItem && oldItem.history ? [...oldItem.history] : [];
-        if (oldItem && oldItem.stock !== Number(editingItem.stock)) {
-            const stockDiff = Number(editingItem.stock) - oldItem.stock;
-            newHistory.unshift({
-                type: stockDiff > 0 ? 'add' : 'deduct',
-                amount: Math.abs(stockDiff),
-                date: new Date().toISOString()
-            });
-        }
-        const updatedItem: InventoryItem = {
-            ...editingItem,
-            price: Number(editingItem.price),
-            stock: Number(editingItem.stock),
-            history: newHistory
-        };
-        setInventory(inventory.map((item) => item.id === updatedItem.id ? updatedItem : item));
-        setEditingItem(null);
+        setPendingAction("edit");
     };
 
-    const handleDeleteItem = () => {
+    const handleStockClick = () => {
+        if (!stockToAdd) {
+            toast.error("Please enter quantity.");
+            return;
+        }
+        setPendingAction("stock");
+    };
+
+    const processStockUpdate = async () => {
+        if (!addingStockItem || !stockToAdd) return;
+        try {
+            const res = await fetch(`/api/inventory/${addingStockItem.id}/stock`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ amount: stockToAdd, type: stockActionType }),
+            });
+            if (res.ok) {
+                fetchInventory();
+                setAddingStockItem(null);
+                setStockToAdd("");
+                setPendingAction(null);
+                toast.success(`Stock ${stockActionType === "add" ? "added" : "deducted"} successfully!`);
+            } else {
+                const err = await res.json();
+                toast.error(err.error || `Failed to ${stockActionType} stock.`);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred.");
+        }
+    };
+
+    const saveEditItem = async () => {
         if (!editingItem) return;
-        if (confirm("Are you sure you want to delete this item?")) {
-            setInventory(inventory.filter((item) => item.id !== editingItem.id));
-            setEditingItem(null);
+        
+        try {
+            const res = await fetch(`/api/inventory/${editingItem.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(editingItem),
+            });
+            if (res.ok) {
+                fetchInventory();
+                setEditingItem(null);
+                toast.success("Changes saved successfully!");
+            } else {
+                toast.error("Failed to save changes.");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred.");
+        }
+    };
+
+    const handleDeleteItem = async () => {
+        if (!editingItem) return;
+        setItemToDelete(editingItem);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const res = await fetch(`/api/inventory/${itemToDelete.id}`, { method: "DELETE" });
+            if (res.ok) {
+                fetchInventory();
+                setItemToDelete(null);
+                setEditingItem(null);
+                toast.success("Item deleted successfully!");
+            } else {
+                toast.error("Failed to delete item.");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred.");
         }
     };
 
@@ -223,8 +316,14 @@ export default function InventoryManagement() {
                 </div>
                 <div className="flex items-center gap-3">
                     <button
+                        onClick={fetchGlobalHistory}
+                        className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition"
+                    >
+                        <Activity className="size-4" /> Activity Log
+                    </button>
+                    <button
                         onClick={() => setIsAddModalOpen(true)}
-                        className="flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                        className="flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90 transition"
                     >
                         <Plus className="size-4" /> Add Item
                     </button>
@@ -320,13 +419,18 @@ export default function InventoryManagement() {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setEditingItem(item)}
-                                        className="flex-1 rounded-xl bg-[#f8fafc] py-2.5 text-sm font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] border border-gray-100">
+                                        className="flex-1 rounded-xl bg-[#f8fafc] py-2 text-xs font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] border border-gray-100">
                                         Edit
                                     </button>
                                     <button
-                                        onClick={() => setAddingStockItem(item)}
-                                        className="flex-1 rounded-xl bg-[#123D2A] py-2.5 text-sm font-semibold text-white transition hover:bg-[#123D2A]/90 shadow-sm">
-                                        Add Stock
+                                        onClick={() => { setStockActionType("add"); setAddingStockItem(item); }}
+                                        className="flex-1 rounded-xl bg-[#123D2A] py-2 text-xs font-semibold text-white transition hover:bg-[#123D2A]/90 shadow-sm">
+                                        + Stock
+                                    </button>
+                                    <button
+                                        onClick={() => { setStockActionType("deduct"); setAddingStockItem(item); }}
+                                        className="flex-1 rounded-xl bg-orange-100 text-orange-700 py-2 text-xs font-semibold transition hover:bg-orange-200 shadow-sm">
+                                        - Take
                                     </button>
                                 </div>
                             </div>
@@ -433,7 +537,7 @@ export default function InventoryManagement() {
                             </div>
 
                             <button
-                                onClick={handleAddItem}
+                                onClick={handleAddItemClick}
                                 className="mt-4 w-full rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90"
                             >
                                 Add to Inventory
@@ -524,7 +628,7 @@ export default function InventoryManagement() {
                                     Delete
                                 </button>
                                 <button
-                                    onClick={saveEditItem}
+                                    onClick={saveEditItemClick}
                                     className="w-2/3 rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90"
                                 >
                                     Save Changes
@@ -535,12 +639,14 @@ export default function InventoryManagement() {
                 </div>
             )}
 
-            {/* Quick Add Stock Modal */}
+            {/* Quick Add/Deduct Stock Modal */}
             {addingStockItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl">
                         <div className="mb-6 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-[#1e293b]">Add Stock</h2>
+                            <h2 className="text-xl font-bold text-[#1e293b]">
+                                {stockActionType === "add" ? "Add Stock" : "Deduct Stock"}
+                            </h2>
                             <button
                                 onClick={() => {
                                     setAddingStockItem(null);
@@ -559,7 +665,9 @@ export default function InventoryManagement() {
                         </div>
 
                         <div className="mb-6">
-                            <label className="mb-1 block text-sm font-medium text-[#64748b]">Quantity to Add</label>
+                            <label className="mb-1 block text-sm font-medium text-[#64748b]">
+                                Quantity to {stockActionType === "add" ? "Add" : "Deduct"}
+                            </label>
                             <input
                                 type="number"
                                 value={stockToAdd}
@@ -570,22 +678,14 @@ export default function InventoryManagement() {
                         </div>
 
                         <button
-                            onClick={() => {
-                                if (!stockToAdd) return;
-                                const newStock = addingStockItem.stock + Number(stockToAdd);
-                                const newHistoryEntry: StockHistory = { type: 'add', amount: Number(stockToAdd), date: new Date().toISOString() };
-                                const updatedItem = {
-                                    ...addingStockItem,
-                                    stock: newStock,
-                                    history: [newHistoryEntry, ...(addingStockItem.history || [])]
-                                };
-                                setInventory(inventory.map((item) => item.id === updatedItem.id ? updatedItem : item));
-                                setAddingStockItem(null);
-                                setStockToAdd("");
-                            }}
-                            className="w-full rounded-xl bg-[#22c55e] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#22c55e]/90"
+                            onClick={handleStockClick}
+                            className={`w-full rounded-xl py-3 text-sm font-bold text-white shadow-sm transition ${
+                                stockActionType === "add" 
+                                    ? "bg-[#123D2A] hover:bg-[#123D2A]/90" 
+                                    : "bg-orange-600 hover:bg-orange-700"
+                            }`}
                         >
-                            Confirm Add Stock
+                            Confirm {stockActionType === "add" ? "Add" : "Deduct"}
                         </button>
                     </div>
                 </div>
@@ -632,6 +732,139 @@ export default function InventoryManagement() {
                                     <p className="text-sm">No history records found.</p>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Delete Confirmation Modal */}
+            {itemToDelete && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
+                        <div className="mb-4 flex justify-center">
+                            <div className="flex size-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                <AlertCircle className="size-8" />
+                            </div>
+                        </div>
+                        <h3 className="mb-2 text-center text-xl font-bold text-gray-900">Delete Item?</h3>
+                        <p className="mb-6 text-center text-sm text-gray-500">
+                            Are you sure you want to delete <span className="font-bold text-gray-700">{itemToDelete.name}</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setItemToDelete(null)}
+                                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Global History Modal */}
+            {isGlobalHistoryModalOpen && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
+                    <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl bg-white shadow-xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-[#123D2A]/10 text-[#123D2A] rounded-lg">
+                                    <Activity className="size-5" />
+                                </div>
+                                <h2 className="text-xl font-bold text-[#1e293b]">Global Stock Activity Log</h2>
+                            </div>
+                            <button
+                                onClick={() => setIsGlobalHistoryModalOpen(false)}
+                                className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition"
+                            >
+                                <X className="size-5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-gray-50/50">
+                            {globalHistory.length > 0 ? (
+                                globalHistory.map((log) => (
+                                    <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                                        {log.inventoryItem?.img ? (
+                                            <img src={log.inventoryItem.img} alt="item" className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
+                                                <ImageIcon className="size-6" />
+                                            </div>
+                                        )}
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-gray-800 text-sm">{log.inventoryItem?.name || "Unknown Item"}</h3>
+                                            <p className="text-xs text-gray-500">{new Date(log.date).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`text-sm font-bold ${log.type === 'add' ? 'text-green-600' : 'text-orange-600'}`}>
+                                                {log.type === 'add' ? '+' : '-'}{log.amount} pcs
+                                            </span>
+                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">
+                                                {log.type === 'add' ? 'Added' : 'Deducted'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="py-12 text-center text-gray-500">
+                                    <Activity className="size-12 text-gray-300 mx-auto mb-3" />
+                                    <p className="text-base font-semibold text-gray-600">No stock activity yet.</p>
+                                    <p className="text-sm mt-1">Changes to stock will appear here.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Generic Action Confirmation Modal */}
+            {pendingAction && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
+                        <div className="mb-4 flex justify-center">
+                            <div className="flex size-16 items-center justify-center rounded-full bg-[#123D2A]/10 text-[#123D2A]">
+                                <AlertCircle className="size-8" />
+                            </div>
+                        </div>
+                        <h3 className="mb-2 text-center text-xl font-bold text-gray-900">
+                            {pendingAction === 'add' ? 'Confirm Addition' : pendingAction === 'edit' ? 'Confirm Changes' : `Confirm ${stockActionType === 'add' ? 'Add' : 'Deduct'} Stock`}
+                        </h3>
+                        <p className="mb-6 text-center text-sm text-gray-500">
+                            {pendingAction === 'add' && `Are you sure you want to add ${newItemName} to the inventory?`}
+                            {pendingAction === 'edit' && `Are you sure you want to save the changes for ${editingItem?.name}?`}
+                            {pendingAction === 'stock' && `Are you sure you want to ${stockActionType} ${stockToAdd} pcs to ${addingStockItem?.name}?`}
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setPendingAction(null)}
+                                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (pendingAction === 'add') {
+                                        handleAddItem();
+                                        setPendingAction(null);
+                                    } else if (pendingAction === 'edit') {
+                                        saveEditItem();
+                                        setPendingAction(null);
+                                    } else if (pendingAction === 'stock') {
+                                        processStockUpdate();
+                                    }
+                                }}
+                                className={`flex-1 rounded-xl py-3 text-sm font-bold text-white shadow-sm transition ${
+                                    (pendingAction === 'stock' && stockActionType === 'deduct')
+                                        ? "bg-orange-600 hover:bg-orange-700"
+                                        : "bg-[#123D2A] hover:bg-[#123D2A]/90"
+                                }`}
+                            >
+                                Confirm
+                            </button>
                         </div>
                     </div>
                 </div>
