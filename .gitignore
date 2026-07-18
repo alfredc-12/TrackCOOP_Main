@@ -9,7 +9,6 @@ node_modules/
 !.yarn/versions
 
 # package managers
-package-lock.json
 yarn.lock
 
 # build output
