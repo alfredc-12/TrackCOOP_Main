@@ -8,13 +8,14 @@ import type { AuthUser } from "@/features/auth/types";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 
 const destinations: Record<AuthUser["role"], string> = {
-  chairman: "/chairman_dashboard",
-  bookkeeper: "/bookkeeper_dashboard",
+  chairman: "/chairman/dashboard",
+  bookkeeper: "/bookkeeper/dashboard",
   member: "/member_dashboard",
 };
 
 function requiredRole(pathname: string): Role | null {
   if (
+    pathname.startsWith("/chairman") ||
     pathname.startsWith("/chairman_dashboard") ||
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/members")
@@ -22,7 +23,7 @@ function requiredRole(pathname: string): Role | null {
     return "chairman";
   }
 
-  if (pathname.startsWith("/bookkeeper_dashboard")) {
+  if (pathname.startsWith("/bookkeeper") || pathname.startsWith("/bookkeeper_dashboard")) {
     return "bookkeeper";
   }
 

@@ -16,8 +16,8 @@ import { login } from "@/lib/auth-client";
 import { ApiClientError } from "@/lib/api-client";
 
 const roleDestinations: Record<AuthUser["role"], string> = {
-  chairman: "/chairman_dashboard",
-  bookkeeper: "/bookkeeper_dashboard",
+  chairman: "/chairman/dashboard",
+  bookkeeper: "/bookkeeper/dashboard",
   member: "/member_dashboard",
 };
 

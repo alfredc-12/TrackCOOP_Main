@@ -7,8 +7,8 @@ import type { AuthUser } from "@/features/auth/types";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 
 const destinations: Record<AuthUser["role"], string> = {
-  chairman: "/chairman_dashboard",
-  bookkeeper: "/bookkeeper_dashboard",
+  chairman: "/chairman/dashboard",
+  bookkeeper: "/bookkeeper/dashboard",
   member: "/member_dashboard",
 };
 

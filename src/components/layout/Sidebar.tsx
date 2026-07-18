@@ -13,9 +13,7 @@ import {
   FileText,
   Megaphone,
   MessageSquare,
-  Landmark,
   LineChart,
-  Receipt,
   PhilippinePeso,
   User,
   Calendar,
@@ -29,26 +27,26 @@ import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth-client";
 
 const chairmanNavItems = [
-  { href: "/chairman_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chairman_dashboard?tab=members", label: "Members", icon: Users },
-  { href: "/chairman_dashboard?tab=finance", label: "Finance", icon: Wallet },
-  { href: "/chairman_dashboard?tab=payments", label: "Payments", icon: CreditCard },
-  { href: "/chairman_dashboard?tab=rental-pos", label: "Rental/POS", icon: Tractor },
-  { href: "/chairman_dashboard?tab=documents", label: "Documents", icon: FileText },
-  { href: "/chairman_dashboard?tab=announcements", label: "Announcements", icon: Megaphone },
-  { href: "/chairman_dashboard?tab=inquiries", label: "Public Inquiry", icon: MessageSquare },
+  { href: "/chairman/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/chairman/members", label: "Members", icon: Users },
+  { href: "/chairman/finance", label: "Finance", icon: Wallet },
+  { href: "/chairman/payments", label: "Payments", icon: CreditCard },
+  { href: "/chairman/pos", label: "POS Sales", icon: Tractor },
+  { href: "/chairman/documents", label: "Documents", icon: FileText },
+  { href: "/chairman/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/chairman/requests", label: "Requests", icon: MessageSquare },
 ];
 
 const bookkeeperNavItems = [
-  { href: "/bookkeeper_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/bookkeeper_dashboard?tab=share-capital", label: "Share Capital", icon: Wallet },
-  { href: "/bookkeeper_dashboard?tab=financial", label: "Financial", icon: LineChart },
-  { href: "/bookkeeper_dashboard?tab=expenditures", label: "Expenditures", icon: PhilippinePeso },
+  { href: "/bookkeeper/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/bookkeeper/share-capital", label: "Share Capital", icon: Wallet },
+  { href: "/bookkeeper/financial-ledger", label: "Financial Ledger", icon: LineChart },
+  { href: "/bookkeeper/financial-categories", label: "Categories", icon: PhilippinePeso },
 ];
 
 const memberNavItems = [
-  { href: "/dashboard?role=member", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard?role=member&tab=shop", label: "Cooperative Shop", icon: Package },
+  { href: "/member_dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/member_dashboard", label: "Cooperative Shop", icon: Package },
   { href: "/member-share-capital", label: "Member & Share Capital", icon: User },
   { href: "/activities-programs", label: "Activities & Programs", icon: Calendar },
   { href: "/announcements", label: "Communication & Announcements", icon: Megaphone },
@@ -102,7 +100,9 @@ export function Sidebar() {
         </p>
         <nav className="grid gap-1">
           {navItems.map((item) => {
-            const isActive = tab ? item.href.includes(`tab=${tab}`) : item.label === "Dashboard";
+            const isActive = tab
+              ? item.href.includes(tab)
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link
