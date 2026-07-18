@@ -9,10 +9,14 @@ import { notFound } from "./middleware/not-found";
 import { validateOrigin } from "./middleware/origin-validation";
 import { requestId } from "./middleware/request-id";
 import { requestLogger } from "./middleware/request-logger";
-import { healthRouter } from "./modules/health/health.routes";
+import {
+  createHealthRouter,
+  type DatabaseProbe,
+} from "./modules/health/health.routes";
 import { AppError } from "./utils/app-error";
 
 type CreateAppOptions = {
+  databaseProbe?: DatabaseProbe;
   enableRequestLogging?: boolean;
   frontendUrl?: string;
 };
@@ -63,7 +67,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }));
   app.use(cookieParser());
 
-  app.use("/api/health", healthRouter);
+  app.use("/api/health", createHealthRouter(options.databaseProbe));
 
   app.use(notFound);
   app.use(errorHandler);

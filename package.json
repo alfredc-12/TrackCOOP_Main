@@ -17,7 +17,8 @@
     "typecheck:api": "tsc -p server/tsconfig.json --noEmit",
     "typecheck": "npm run typecheck:web && npm run typecheck:api",
     "test:api": "tsx --test server/src/**/*.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:check": "tsx server/src/scripts/check-database.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

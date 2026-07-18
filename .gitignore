@@ -51,6 +51,10 @@ yarn-error.log*
 Thumbs.db
 *.pem
 
+# protected runtime uploads
+storage/uploads/*
+!storage/uploads/.gitkeep
+
 # TypeScript / Next generated
 *.tsbuildinfo
 next-env.d.ts
