@@ -15,6 +15,9 @@ import {
 } from "./modules/health/health.routes";
 import { createAuthRouter } from "./modules/auth/auth.routes";
 import type { AuthService } from "./modules/auth/auth.service";
+import { createMemberIndicatorRouter } from "./modules/member-indicators/member-indicator.routes";
+import { createMemberRouter } from "./modules/members/member.routes";
+import { createUserRouter } from "./modules/users/user.routes";
 import { AppError } from "./utils/app-error";
 
 type CreateAppOptions = {
@@ -72,6 +75,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   app.use("/api/health", createHealthRouter(options.databaseProbe));
   app.use("/api/auth", createAuthRouter(options.authService));
+  app.use("/api", createUserRouter(options.authService));
+  app.use("/api", createMemberRouter(options.authService));
+  app.use("/api", createMemberIndicatorRouter(options.authService));
 
   app.use(notFound);
   app.use(errorHandler);

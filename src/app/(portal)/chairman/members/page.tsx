@@ -1,13 +1,5 @@
-import { UsersRound } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import { MembersClient } from "./MembersClient";
 
 export default function ChairmanMembersPage() {
-  return (
-    <PortalRoutePage
-      eyebrow="People"
-      title="Members"
-      description="Member records, approval status, profile details, and status history."
-      icon={UsersRound}
-    />
-  );
+  return <MembersClient />;
 }
