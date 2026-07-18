@@ -1,13 +1,5 @@
-import { ReceiptText } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import { PaymentReferencesView } from "@/features/finance/FinanceViews";
 
 export default function BookkeeperPaymentValidationPage() {
-  return (
-    <PortalRoutePage
-      eyebrow="Payments"
-      title="Payment Validation"
-      description="Validate, reject, or request clarification for submitted member payment references."
-      icon={ReceiptText}
-    />
-  );
+  return <PaymentReferencesView role="bookkeeper" />;
 }
