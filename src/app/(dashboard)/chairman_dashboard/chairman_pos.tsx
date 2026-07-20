@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, Leaf, AlertCircle, History, Activity } from "lucide-react";
+import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, Leaf, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 type StockHistory = {
@@ -15,20 +15,25 @@ export type InventoryItem = {
     name: string;
     category: string;
     price: number;
+    cost_price: number;
+    description: string;
     stock: number;
+    pending_qty?: number;
     sold: number;
     status: string;
     img: string;
     history?: StockHistory[];
 };
 
-type EditableInventoryItem = Omit<InventoryItem, "price" | "stock"> & {
+type EditableInventoryItem = Omit<InventoryItem, "price" | "cost_price" | "stock"> & {
     price: number | string;
+    cost_price: number | string;
     stock: number | string;
 };
 
 
 export default function InventoryManagement() {
+    const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -44,8 +49,29 @@ export default function InventoryManagement() {
         }
     };
 
+    const fetchOrdersQuietly = async () => {
+        try {
+            const res = await fetch("/api/pos/orders");
+            if (res.ok) {
+                const data = await res.json();
+                setOrders(data);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     useEffect(() => {
+        setIsMounted(true);
         fetchInventory();
+        fetchOrdersQuietly();
+
+        const interval = setInterval(() => {
+            fetchInventory();
+            fetchOrdersQuietly();
+        }, 5000); // 5 seconds auto-refresh
+
+        return () => clearInterval(interval);
     }, []);
     const [editingItem, setEditingItem] = useState<EditableInventoryItem | null>(null);
     const [addingStockItem, setAddingStockItem] = useState<InventoryItem | null>(null);
@@ -57,6 +83,10 @@ export default function InventoryManagement() {
     const [isGlobalHistoryModalOpen, setIsGlobalHistoryModalOpen] = useState(false);
     const [globalHistory, setGlobalHistory] = useState<any[]>([]);
     const [pendingAction, setPendingAction] = useState<"add" | "edit" | "stock" | null>(null);
+    const [stockErrorMsg, setStockErrorMsg] = useState<string | null>(null);
+    const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
+    const [orders, setOrders] = useState<any[]>([]);
+    const [orderSearchQuery, setOrderSearchQuery] = useState("");
 
     const fetchGlobalHistory = async () => {
         try {
@@ -71,6 +101,67 @@ export default function InventoryManagement() {
         }
     };
 
+    const fetchOrders = async () => {
+        try {
+            const res = await fetch("/api/pos/orders");
+            if (res.ok) {
+                const data = await res.json();
+                setOrders(data);
+                setOrderSearchQuery(""); // Reset search on open
+                setIsOrdersModalOpen(true);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+
+
+    const confirmPayment = async (orderId: number) => {
+        setOrderToConfirmId(orderId);
+    };
+
+    const processConfirmPayment = async () => {
+        if (orderToConfirmId === null) return;
+        try {
+            const res = await fetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
+                method: "PUT"
+            });
+            if (res.ok) {
+                toast.success("Payment confirmed!");
+                setOrderToConfirmId(null);
+                fetchOrdersQuietly();
+                fetchInventory(); // Immediately update the inventory table since stock is deducted
+            } else {
+                toast.error("Failed to confirm payment.");
+            }
+        } catch (error) {
+            toast.error("An error occurred.");
+        }
+    };
+
+    const rejectPayment = (orderId: number) => {
+        setOrderToRejectId(orderId);
+    };
+
+    const processRejectPayment = async () => {
+        if (orderToRejectId === null) return;
+        try {
+            const res = await fetch(`/api/pos/orders/${orderToRejectId}/reject`, {
+                method: "PUT"
+            });
+            if (res.ok) {
+                toast.success("Order rejected successfully!");
+                setOrderToRejectId(null);
+                fetchOrdersQuietly();
+            } else {
+                toast.error("Failed to reject order.");
+            }
+        } catch (error) {
+            toast.error("An error occurred.");
+        }
+    };
+
     // Filter and Sort State
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
@@ -81,17 +172,22 @@ export default function InventoryManagement() {
     const [newItemCategory, setNewItemCategory] = useState("Harvested Goods");
     const [newItemStock, setNewItemStock] = useState("");
     const [newItemPrice, setNewItemPrice] = useState("");
+    const [newItemCostPrice, setNewItemCostPrice] = useState("");
+    const [newItemDescription, setNewItemDescription] = useState("");
     const [newItemStatus, setNewItemStatus] = useState("Available");
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [orderToConfirmId, setOrderToConfirmId] = useState<number | null>(null);
+    const [orderToRejectId, setOrderToRejectId] = useState<number | null>(null);
+    const [receiptOrder, setReceiptOrder] = useState<any>(null);
 
     useEffect(() => {
-        if (isAddModalOpen || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction) {
+        if (isAddModalOpen || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isAddModalOpen, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction]);
+    }, [isAddModalOpen, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -105,8 +201,8 @@ export default function InventoryManagement() {
     };
 
     const handleAddItemClick = () => {
-        if (!newItemName || !newItemStock || !newItemPrice) {
-            toast.error("Please fill in all fields.");
+        if (!newItemName || !newItemStock || !newItemPrice || !newItemCostPrice) {
+            toast.error("Please fill in all required fields.");
             return;
         }
         setPendingAction("add");
@@ -119,6 +215,8 @@ export default function InventoryManagement() {
             name: newItemName,
             category: newItemCategory,
             price: Number(newItemPrice),
+            cost_price: Number(newItemCostPrice),
+            description: newItemDescription,
             stock: stockNum,
             status: newItemStatus,
             img: imagePreview || "",
@@ -136,6 +234,8 @@ export default function InventoryManagement() {
                 setNewItemName("");
                 setNewItemStock("");
                 setNewItemPrice("");
+                setNewItemCostPrice("");
+                setNewItemDescription("");
                 setNewItemStatus("Available");
                 setImagePreview(null);
                 toast.success("Item added successfully!");
@@ -158,8 +258,8 @@ export default function InventoryManagement() {
 
     const saveEditItemClick = () => {
         if (!editingItem) return;
-        if (!editingItem.name || editingItem.stock === "" || !editingItem.price) {
-            toast.error("Please fill in all fields.");
+        if (!editingItem.name || editingItem.stock === "" || !editingItem.price || !editingItem.cost_price) {
+            toast.error("Please fill in all required fields.");
             return;
         }
         setPendingAction("edit");
@@ -170,6 +270,15 @@ export default function InventoryManagement() {
             toast.error("Please enter quantity.");
             return;
         }
+
+        if (stockActionType === "deduct" && addingStockItem) {
+            const availableToTake = addingStockItem.stock - (addingStockItem.pending_qty || 0);
+            if (Number(stockToAdd) > availableToTake) {
+                setStockErrorMsg(`Cannot take ${stockToAdd} pcs.\n\nOnly ${availableToTake} items are currently available because some are reserved for pending orders.`);
+                return;
+            }
+        }
+
         setPendingAction("stock");
     };
 
@@ -242,8 +351,14 @@ export default function InventoryManagement() {
     };
 
     const totalValue = inventory.reduce((sum, item) => sum + (item.price * item.stock), 0);
-    const availableCount = inventory.filter(item => item.status === "Available").length;
-    const unavailableCount = inventory.filter(item => item.status === "Unavailable").length;
+    
+    const totalCashSales = orders
+        .filter(o => o.sale_status === 'Paid' && !o.payment_reference_id)
+        .reduce((sum, o) => sum + Number(o.total_amount), 0);
+
+    const totalGCashSales = orders
+        .filter(o => o.sale_status === 'Paid' && o.payment_reference_id)
+        .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
     const filteredAndSortedInventory = inventory
         .filter((item) => {
@@ -260,6 +375,10 @@ export default function InventoryManagement() {
                 case "name-asc": default: return a.name.localeCompare(b.name);
             }
         });
+
+    if (!isMounted) {
+        return null; // Prevent hydration mismatches from browser extensions (e.g., password managers adding fdprocessedid)
+    }
 
     return (
         <div className="flex-1 overflow-y-auto bg-white sm:p-8 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[calc(100vh-6rem)]">
@@ -288,21 +407,21 @@ export default function InventoryManagement() {
 
                 <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
                     <div className="p-3 mr-4 text-green-600 bg-green-50 rounded-xl">
-                        <Leaf className="w-6 h-6" />
+                        <Banknote className="w-6 h-6" />
                     </div>
                     <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Available Items</p>
-                        <p className="text-2xl font-bold text-gray-900">{availableCount}</p>
+                        <p className="mb-1 text-sm font-medium text-gray-500">Total Cash Sales</p>
+                        <p className="text-2xl font-bold text-gray-900">₱ {totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
 
                 <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
-                    <div className="p-3 mr-4 text-red-600 bg-red-50 rounded-xl">
-                        <AlertCircle className="w-6 h-6" />
+                    <div className="p-3 mr-4 text-blue-600 bg-blue-50 rounded-xl">
+                        <Smartphone className="w-6 h-6" />
                     </div>
                     <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Unavailable</p>
-                        <p className="text-2xl font-bold text-gray-900">{unavailableCount}</p>
+                        <p className="mb-1 text-sm font-medium text-gray-500">Total GCash Sales</p>
+                        <p className="text-2xl font-bold text-gray-900">₱ {totalGCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
             </div>
@@ -314,6 +433,17 @@ export default function InventoryManagement() {
                     <p className="text-sm text-[#64748b] mt-1">Manage all inventory across warehouses in real-time.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={fetchOrders}
+                        className="relative flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition"
+                    >
+                        <ShoppingBag className="size-4" /> Orders & Payments
+                        {orders.filter(o => o.sale_status === 'Pending Payment').length > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                                {orders.filter(o => o.sale_status === 'Pending Payment').length}
+                            </span>
+                        )}
+                    </button>
                     <button
                         onClick={fetchGlobalHistory}
                         className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition"
@@ -406,8 +536,11 @@ export default function InventoryManagement() {
 
                                 <div className="flex justify-between items-center text-sm mb-3">
                                     <span className="text-[#94a3b8]">Quantity</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-[#1e293b]">{item.stock} pcs</span>
+                                    <div className="flex flex-col items-end">
+                                        <span className="font-bold text-[#1e293b]">{item.stock - (item.pending_qty || 0)} pcs</span>
+                                        {item.pending_qty ? (
+                                            <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({item.pending_qty} pending)</span>
+                                        ) : null}
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center text-sm mb-5">
@@ -447,7 +580,7 @@ export default function InventoryManagement() {
             {/* Add Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
                         <div className="mb-6 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-[#1e293b]">Add New Item</h2>
                             <button
@@ -513,7 +646,7 @@ export default function InventoryManagement() {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Price (₱)</label>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Selling Price (₱)</label>
                                     <input
                                         type="number"
                                         value={newItemPrice}
@@ -522,6 +655,19 @@ export default function InventoryManagement() {
                                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                                     />
                                 </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Cost Price (₱)</label>
+                                    <input
+                                        type="number"
+                                        value={newItemCostPrice}
+                                        onChange={(e) => setNewItemCostPrice(e.target.value)}
+                                        placeholder="e.g. 1200"
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Status</label>
                                     <select
@@ -533,6 +679,16 @@ export default function InventoryManagement() {
                                         <option>Unavailable</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-[#64748b]">Description (Optional)</label>
+                                <textarea
+                                    value={newItemDescription}
+                                    onChange={(e) => setNewItemDescription(e.target.value)}
+                                    placeholder="Enter item description..."
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58] resize-none h-24"
+                                />
                             </div>
 
                             <button
@@ -549,7 +705,7 @@ export default function InventoryManagement() {
             {/* Edit Modal */}
             {editingItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
                         <div className="mb-6 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-[#1e293b]">Edit Item Details</h2>
                             <button
@@ -598,7 +754,7 @@ export default function InventoryManagement() {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Price (₱)</label>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Selling Price (₱)</label>
                                     <input
                                         type="number"
                                         value={editingItem.price}
@@ -606,6 +762,18 @@ export default function InventoryManagement() {
                                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                                     />
                                 </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Cost Price (₱)</label>
+                                    <input
+                                        type="number"
+                                        value={editingItem.cost_price}
+                                        onChange={(e) => handleEditChange('cost_price', e.target.value)}
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Status</label>
                                     <select
@@ -617,6 +785,15 @@ export default function InventoryManagement() {
                                         <option>Unavailable</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-[#64748b]">Description (Optional)</label>
+                                <textarea
+                                    value={editingItem.description || ""}
+                                    onChange={(e) => handleEditChange('description', e.target.value)}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58] resize-none h-24"
+                                />
                             </div>
 
                             <div className="flex gap-3 mt-4">
@@ -641,8 +818,8 @@ export default function InventoryManagement() {
             {/* Quick Add/Deduct Stock Modal */}
             {addingStockItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl">
-                        <div className="mb-6 flex items-center justify-between">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200 h-[380px] flex flex-col">
+                        <div className="mb-4 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-[#1e293b]">
                                 {stockActionType === "add" ? "Add Stock" : "Deduct Stock"}
                             </h2>
@@ -657,23 +834,25 @@ export default function InventoryManagement() {
                             </button>
                         </div>
 
-                        <div className="mb-4">
-                            <p className="text-sm text-gray-500 mb-1">Item:</p>
-                            <p className="font-bold text-gray-900">{addingStockItem.name}</p>
-                            <p className="text-xs text-gray-400 mt-1">Current Stock: {addingStockItem.stock} pcs</p>
-                        </div>
+                        <div className="flex-1">
+                            <div className="mb-4">
+                                <p className="text-sm text-gray-500 mb-1">Item:</p>
+                                <p className="font-bold text-gray-900">{addingStockItem.name}</p>
+                                <p className="text-xs text-gray-400 mt-1">Current Stock: {addingStockItem.stock} pcs</p>
+                            </div>
 
-                        <div className="mb-6">
-                            <label className="mb-1 block text-sm font-medium text-[#64748b]">
-                                Quantity to {stockActionType === "add" ? "Add" : "Deduct"}
-                            </label>
-                            <input
-                                type="number"
-                                value={stockToAdd}
-                                onChange={(e) => setStockToAdd(e.target.value)}
-                                placeholder="e.g. 50"
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                            />
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-[#64748b]">
+                                    Quantity to {stockActionType === "add" ? "Add" : "Deduct"}
+                                </label>
+                                <input
+                                    type="number"
+                                    value={stockToAdd}
+                                    onChange={(e) => setStockToAdd(e.target.value)}
+                                    placeholder="e.g. 50"
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                />
+                            </div>
                         </div>
 
                         <button
@@ -682,7 +861,7 @@ export default function InventoryManagement() {
                                 stockActionType === "add"
                                     ? "bg-[#123D2A] hover:bg-[#123D2A]/90"
                                     : "bg-orange-600 hover:bg-orange-700"
-                            }`}
+                                }`}
                         >
                             Confirm {stockActionType === "add" ? "Add" : "Deduct"}
                         </button>
@@ -692,7 +871,7 @@ export default function InventoryManagement() {
             {/* Item History Modal */}
             {historyItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] flex flex-col">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
                         <div className="mb-6 flex items-center justify-between">
                             <div>
                                 <h2 className="text-xl font-bold text-[#1e293b]">Stock History</h2>
@@ -715,7 +894,7 @@ export default function InventoryManagement() {
                                                 <span className={`text-sm font-bold ${log.type === 'add' ? 'text-green-600' : 'text-orange-600'}`}>
                                                     {log.type === 'add' ? '+' : '-'}{log.amount} pcs
                                                 </span>
-                                                <span className="text-xs text-gray-500 mt-0.5">
+                                                <span suppressHydrationWarning className="text-xs text-gray-500 mt-0.5">
                                                     {new Date(log.date).toLocaleString()}
                                                 </span>
                                             </div>
@@ -738,7 +917,7 @@ export default function InventoryManagement() {
             {/* Delete Confirmation Modal */}
             {itemToDelete && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
                         <div className="mb-4 flex justify-center">
                             <div className="flex size-16 items-center justify-center rounded-full bg-red-100 text-red-600">
                                 <AlertCircle className="size-8" />
@@ -757,7 +936,7 @@ export default function InventoryManagement() {
                             </button>
                             <button
                                 onClick={handleConfirmDelete}
-                                className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
+                                className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
                             >
                                 Delete
                             </button>
@@ -797,7 +976,7 @@ export default function InventoryManagement() {
                                         )}
                                         <div className="flex-1">
                                             <h3 className="font-bold text-gray-800 text-sm">{log.inventoryItem?.name || "Unknown Item"}</h3>
-                                            <p className="text-xs text-gray-500">{new Date(log.date).toLocaleString()}</p>
+                                            <p suppressHydrationWarning className="text-xs text-gray-500">{new Date(log.date).toLocaleString()}</p>
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <span className={`text-sm font-bold ${log.type === 'add' ? 'text-green-600' : 'text-orange-600'}`}>
@@ -820,24 +999,50 @@ export default function InventoryManagement() {
                     </div>
                 </div>
             )}
-            {/* Generic Action Confirmation Modal */}
-            {pendingAction && (
+
+            {/* Stock Error Modal */}
+            {stockErrorMsg && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200 text-center">
                         <div className="mb-4 flex justify-center">
-                            <div className="flex size-16 items-center justify-center rounded-full bg-[#123D2A]/10 text-[#123D2A]">
+                            <div className="flex size-16 items-center justify-center rounded-full bg-red-100 text-red-600">
                                 <AlertCircle className="size-8" />
                             </div>
                         </div>
-                        <h3 className="mb-2 text-center text-xl font-bold text-gray-900">
-                            {pendingAction === 'add' ? 'Confirm Addition' : pendingAction === 'edit' ? 'Confirm Changes' : `Confirm ${stockActionType === 'add' ? 'Add' : 'Deduct'} Stock`}
-                        </h3>
-                        <p className="mb-6 text-center text-sm text-gray-500">
-                            {pendingAction === 'add' && `Are you sure you want to add ${newItemName} to the inventory?`}
-                            {pendingAction === 'edit' && `Are you sure you want to save the changes for ${editingItem?.name}?`}
-                            {pendingAction === 'stock' && `Are you sure you want to ${stockActionType} ${stockToAdd} pcs to ${addingStockItem?.name}?`}
+                        <h3 className="mb-2 text-xl font-bold text-gray-900">Not Enough Stock</h3>
+                        <p className="mb-6 text-sm text-gray-500 whitespace-pre-line">
+                            {stockErrorMsg}
                         </p>
-                        <div className="flex gap-3">
+                        <button
+                            onClick={() => setStockErrorMsg(null)}
+                            className="w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-gray-800"
+                        >
+                            Got it
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Generic Action Confirmation Modal */}
+            {pendingAction && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200 h-[380px] flex flex-col justify-between">
+                        <div className="flex-1 flex flex-col justify-center">
+                            <div className="mb-4 flex justify-center">
+                                <div className="flex size-16 items-center justify-center rounded-full bg-[#123D2A]/10 text-[#123D2A]">
+                                    <AlertCircle className="size-8" />
+                                </div>
+                            </div>
+                            <h3 className="mb-2 text-center text-xl font-bold text-gray-900">
+                                {pendingAction === 'add' ? 'Confirm Addition' : pendingAction === 'edit' ? 'Confirm Changes' : `Confirm ${stockActionType === 'add' ? 'Add' : 'Deduct'} Stock`}
+                            </h3>
+                            <p className="text-center text-sm text-gray-500">
+                                {pendingAction === 'add' && `Are you sure you want to add ${newItemName} to the inventory?`}
+                                {pendingAction === 'edit' && `Are you sure you want to save the changes for ${editingItem?.name}?`}
+                                {pendingAction === 'stock' && `Are you sure you want to ${stockActionType === 'add' ? 'add' : 'deduct'} ${stockToAdd} pcs to ${addingStockItem?.name}?`}
+                            </p>
+                        </div>
+                        <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setPendingAction(null)}
                                 className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
@@ -856,13 +1061,299 @@ export default function InventoryManagement() {
                                         processStockUpdate();
                                     }
                                 }}
-                                className={`flex-1 rounded-xl py-3 text-sm font-bold text-white shadow-sm transition ${
-                                    (pendingAction === 'stock' && stockActionType === 'deduct')
+                                className={`flex-1 rounded-xl border border-transparent py-3 text-sm font-bold text-white shadow-sm transition ${(pendingAction === 'stock' && stockActionType === 'deduct')
                                         ? "bg-orange-600 hover:bg-orange-700"
                                         : "bg-[#123D2A] hover:bg-[#123D2A]/90"
-                                }`}
+                                    }`}
                             >
                                 Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Orders & Payments Modal */}
+            {isOrdersModalOpen && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-6">
+                    <div className="flex h-full max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between border-b border-gray-100 bg-[#f8fafc] px-6 py-5">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                    <ShoppingBag className="size-5 text-[#123D2A]" />
+                                    Orders & Payments
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">Manage member orders and confirm payments.</p>
+                            </div>
+                            <button
+                                onClick={() => setIsOrdersModalOpen(false)}
+                                className="rounded-full p-2 text-gray-400 transition hover:bg-white hover:text-gray-600 hover:shadow-sm"
+                            >
+                                <X className="size-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar">
+                            <div className="mb-6 relative w-full">
+                                <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={orderSearchQuery}
+                                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                                    placeholder="Search by Order Number or Customer Name..."
+                                    className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58] shadow-sm"
+                                />
+                            </div>
+
+                            {orders.filter(order => order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase())).length > 0 ? (
+                                <div className="grid gap-4">
+                                    {orders.filter(order => order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase())).map((order) => (
+                                        <div key={order.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-gray-100 pb-4">
+                                                <div>
+                                                    <p className="font-bold text-[#1e293b] text-lg">{order.sale_number}</p>
+                                                    <p className="text-sm font-medium text-gray-600 mt-1">Customer: {order.customer_name || 'Walk-in'}</p>
+                                                    <p className="text-xs text-gray-500">Email: {order.customer_email || 'N/A'} | Contact: {order.customer_contact || 'N/A'}</p>
+                                                    <p suppressHydrationWarning className="text-xs text-gray-400 mt-0.5">{new Date(order.sale_date).toLocaleString()}</p>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${order.sale_status === 'Pending Payment' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                                                            order.sale_status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-700'
+                                                        }`}>
+                                                        {order.sale_status}
+                                                    </span>
+                                                    {order.sale_status === 'Pending Payment' && (
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={() => rejectPayment(order.id)}
+                                                                className="text-xs font-bold text-red-600 px-3 py-1.5 rounded-lg transition border border-red-200 hover:bg-red-50 shadow-sm"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => confirmPayment(order.id)}
+                                                                className="text-xs font-bold text-white px-3 py-1.5 rounded-lg transition shadow-sm bg-[#123D2A] hover:bg-[#123D2A]/90"
+                                                            >
+                                                                {order.payment_reference_id ? 'Verify Payment' : 'Confirm Payment'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {order.sale_status === 'Paid' && (
+                                                        <button 
+                                                            onClick={() => setReceiptOrder(order)}
+                                                            className="text-xs font-bold text-[#123D2A] px-3 py-1.5 rounded-lg transition border border-[#123D2A]/20 hover:bg-[#123D2A]/10 shadow-sm flex items-center gap-1.5"
+                                                        >
+                                                            <Printer className="size-3.5" />
+                                                            View Receipt
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2 mb-4 bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Order Items</p>
+                                                {order.items?.map((item: any, idx: number) => (
+                                                    <div key={idx} className="flex justify-between items-center text-sm">
+                                                        <span className="text-gray-700 font-medium">{item.quantity}x {item.name}</span>
+                                                        <span className="text-gray-600">₱{(Number(item.price) * Number(item.quantity)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            
+                                            {order.payment_reference_id && (
+                                                <div className="mb-4 bg-blue-50 rounded-xl p-4 border border-blue-100 flex justify-between items-center">
+                                                    <div>
+                                                        <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">Online Payment Details</p>
+                                                        <p className="text-sm font-semibold text-gray-800">Provider: {order.provider}</p>
+                                                        <p className="text-sm text-gray-600">Ref No: <span className="font-mono font-bold">{order.reference_number}</span></p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-between items-center bg-[#f8fafc] p-3 rounded-xl border border-gray-100">
+                                                <span className="font-bold text-gray-700">Total Amount</span>
+                                                <span className="font-bold text-[#123D2A] text-xl">₱{Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="py-20 text-center flex flex-col items-center">
+                                    <div className="bg-gray-100 p-4 rounded-full mb-4">
+                                        <ShoppingBag className="size-12 text-gray-300" />
+                                    </div>
+                                    <p className="text-lg font-semibold text-gray-600">No orders found.</p>
+                                    <p className="text-sm text-gray-500 mt-1">Pending and completed orders will appear here.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirm Payment Modal */}
+            {orderToConfirmId !== null && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
+                        <h2 className="mb-2 text-xl font-bold text-gray-900">Verify Payment</h2>
+                        <p className="mb-6 text-sm text-gray-500">
+                            Are you sure you want to verify this payment? This will finalize the order and deduct the items from stock.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setOrderToConfirmId(null)}
+                                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={processConfirmPayment}
+                                className="flex-1 rounded-xl border border-transparent bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90"
+                            >
+                                Verify
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reject Payment Modal */}
+            {orderToRejectId !== null && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
+                        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+                            <AlertCircle className="size-6" />
+                        </div>
+                        <h2 className="mb-2 text-xl font-bold text-gray-900">Reject Order</h2>
+                        <p className="mb-6 text-sm text-gray-500">
+                            Are you sure you want to reject this order? This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setOrderToRejectId(null)}
+                                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={processRejectPayment}
+                                className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
+                            >
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Receipt Modal */}
+            {receiptOrder && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+                            <h2 className="text-lg font-bold text-gray-900">Receipt</h2>
+                            <button onClick={() => setReceiptOrder(null)} className="text-gray-400 hover:text-gray-900 transition">
+                                <X className="size-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6" id="printable-receipt">
+                            <div className="text-center mb-6">
+                                <h1 className="text-xl font-black text-gray-900 mb-1 tracking-tight">TRACKCOOP</h1>
+                                <p className="text-xs text-gray-500">Cooperative POS & Inventory</p>
+                                <div className="mt-4 text-sm text-gray-600">
+                                    <p>Order #: {receiptOrder.sale_number}</p>
+                                    <p>{new Date(receiptOrder.sale_date).toLocaleString()}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="border-t border-b border-dashed border-gray-300 py-4 mb-4">
+                                <div className="text-xs text-gray-500 mb-2 font-semibold">CUSTOMER</div>
+                                <p className="text-sm font-bold text-gray-900">{receiptOrder.customer_name || 'Walk-in'}</p>
+                                {receiptOrder.customer_email && <p className="text-xs text-gray-600">{receiptOrder.customer_email}</p>}
+                                {receiptOrder.customer_contact && <p className="text-xs text-gray-600">{receiptOrder.customer_contact}</p>}
+                            </div>
+
+                            <div className="mb-4">
+                                <div className="text-xs text-gray-500 mb-2 font-semibold">ITEMS</div>
+                                <div className="space-y-2">
+                                    {receiptOrder.items?.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex justify-between items-start text-sm">
+                                            <div>
+                                                <p className="font-medium text-gray-800">{item.name}</p>
+                                                <p className="text-xs text-gray-500">{item.quantity} x ₱{Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                            </div>
+                                            <p className="font-bold text-gray-900">₱{(Number(item.price) * Number(item.quantity)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="border-t border-dashed border-gray-300 pt-4 mb-4">
+                                <div className="flex justify-between items-center text-sm font-bold text-gray-900">
+                                    <span>TOTAL</span>
+                                    <span>₱{Number(receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            </div>
+
+                            <div className="text-center">
+                                <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Payment Method</p>
+                                <p className="text-sm font-bold text-gray-900">
+                                    {receiptOrder.payment_reference_id ? `GCash (${receiptOrder.reference_number})` : 'Cash'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 bg-gray-50">
+                            <button
+                                onClick={() => {
+                                    const printContent = document.getElementById('printable-receipt');
+                                    if (printContent) {
+                                        const originalContent = document.body.innerHTML;
+                                        // A simple print approach for React without a library
+                                        const printWindow = window.open('', '_blank');
+                                        if (printWindow) {
+                                            printWindow.document.write(`
+                                                <html>
+                                                    <head>
+                                                        <title>Receipt - ${receiptOrder.sale_number}</title>
+                                                        <style>
+                                                            body { font-family: monospace; padding: 20px; color: #000; }
+                                                            h1 { text-align: center; font-size: 24px; margin: 0 0 5px 0; }
+                                                            p { margin: 2px 0; }
+                                                            .text-center { text-align: center; }
+                                                            .mb-6 { margin-bottom: 24px; }
+                                                            .mb-4 { margin-bottom: 16px; }
+                                                            .border-t { border-top: 1px dashed #ccc; }
+                                                            .border-b { border-bottom: 1px dashed #ccc; }
+                                                            .py-4 { padding-top: 16px; padding-bottom: 16px; }
+                                                            .pt-4 { padding-top: 16px; }
+                                                            .flex { display: flex; justify-content: space-between; }
+                                                            .text-xs { font-size: 12px; }
+                                                            .text-sm { font-size: 14px; }
+                                                            .font-bold { font-weight: bold; }
+                                                            .font-semibold { font-weight: 600; }
+                                                            .text-gray-500 { color: #666; }
+                                                        </style>
+                                                    </head>
+                                                    <body>
+                                                        ${printContent.innerHTML}
+                                                        <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #666;">
+                                                            Thank you for your business!
+                                                        </div>
+                                                        <script>
+                                                            window.onload = () => { window.print(); window.close(); }
+                                                        </script>
+                                                    </body>
+                                                </html>
+                                            `);
+                                            printWindow.document.close();
+                                        }
+                                    }
+                                }}
+                                className="w-full rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90 flex items-center justify-center gap-2"
+                            >
+                                <Printer className="size-4" />
+                                Print Receipt
                             </button>
                         </div>
                     </div>
