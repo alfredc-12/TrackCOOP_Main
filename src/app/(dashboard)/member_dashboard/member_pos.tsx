@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, QrCode, Printer } from "lucide-react";
 
 type InventoryItem = {
@@ -25,7 +26,11 @@ interface CartItem {
     category: string;
 }
 
-export default function MemberPOS() {
+interface MemberPOSProps {
+    isPublicView?: boolean;
+}
+
+export default function MemberPOS({ isPublicView = false }: MemberPOSProps) {
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -38,9 +43,9 @@ export default function MemberPOS() {
     const [checkoutStep, setCheckoutStep] = useState<"cart" | "payment">("cart");
     const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
     const [paymentReference, setPaymentReference] = useState("");
-    const [paymentName, setPaymentName] = useState("Juan Dela Cruz");
-    const [paymentEmail, setPaymentEmail] = useState("juandelacruz@gmail.com");
-    const [paymentContact, setPaymentContact] = useState("09123456789");
+    const [paymentName, setPaymentName] = useState(isPublicView ? "" : "Juan Dela Cruz");
+    const [paymentEmail, setPaymentEmail] = useState(isPublicView ? "" : "juandelacruz@gmail.com");
+    const [paymentContact, setPaymentContact] = useState(isPublicView ? "" : "09123456789");
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<any>(null);
 
@@ -48,6 +53,9 @@ export default function MemberPOS() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [sortBy, setSortBy] = useState("name-asc");
+
+    const [cartSlot, setCartSlot] = useState<Element | null>(null);
+    const [mobileCartSlot, setMobileCartSlot] = useState<Element | null>(null);
 
     useEffect(() => {
         fetchInventory();
@@ -58,6 +66,13 @@ export default function MemberPOS() {
 
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (isPublicView) {
+            setCartSlot(document.getElementById('store-header-cart-slot'));
+            setMobileCartSlot(document.getElementById('store-header-cart-slot-mobile'));
+        }
+    }, [isPublicView]);
 
     const fetchInventory = async () => {
         try {
@@ -245,39 +260,98 @@ export default function MemberPOS() {
                     <h2 className="text-3xl font-bold text-[#1e293b]">Cooperative Shop</h2>
                     <p className="text-sm text-[#64748b] mt-1">Order agricultural supplies directly from the cooperative.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            fetchHistory();
-                            setIsHistoryOpen(true);
-                        }}
-                        className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition relative"
-                    >
-                        <History className="size-4" />
-                        Order History
-                    </button>
-                    <button
-                        onClick={() => {
-                            setIsCartOpen(true);
-                            setCheckoutStep("cart");
-                        }}
-                        className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
-                    >
-                        <ShoppingCart className="size-4" />
-                        My Cart
-                        {totalCartItems > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm">
-                                {totalCartItems}
-                            </span>
-                        )}
-                    </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Sort Dropdown moved here */}
+                    <div className="relative">
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-10 text-sm font-medium text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                        >
+                            <option value="name-asc">Sort by: Name (A-Z)</option>
+                            <option value="price-asc">Sort by: Price (Low to High)</option>
+                            <option value="price-desc">Sort by: Price (High to Low)</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+
+                    {!isPublicView && (
+                        <button
+                            onClick={() => {
+                                fetchHistory();
+                                setIsHistoryOpen(true);
+                            }}
+                            className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition relative"
+                        >
+                            <History className="size-4" />
+                            Order History
+                        </button>
+                    )}
+                    
+                    {/* In Member Dashboard, render normally. In Public View, it will be portaled! */}
+                    {!isPublicView && (
+                        <button
+                            onClick={() => {
+                                setIsCartOpen(true);
+                                setCheckoutStep("cart");
+                            }}
+                            className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                        >
+                            <ShoppingCart className="size-4" />
+                            My Cart
+                            {cart.length > 0 && (
+                                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-in zoom-in duration-200">
+                                    {cart.reduce((total, item) => total + item.quantity, 0)}
+                                </span>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Portals for Public View Navbar */}
+            {isPublicView && cartSlot && createPortal(
+                <button
+                    onClick={() => {
+                        setIsCartOpen(true);
+                        setCheckoutStep("cart");
+                    }}
+                    className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90 mr-2"
+                >
+                    <ShoppingCart className="size-4" />
+                    My Cart
+                    {cart.length > 0 && (
+                        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-in zoom-in duration-200">
+                            {cart.reduce((total, item) => total + item.quantity, 0)}
+                        </span>
+                    )}
+                </button>,
+                cartSlot
+            )}
+            
+            {isPublicView && mobileCartSlot && createPortal(
+                <button
+                    onClick={() => {
+                        setIsCartOpen(true);
+                        setCheckoutStep("cart");
+                    }}
+                    className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                >
+                    <ShoppingCart className="size-4" />
+                    My Cart
+                    {cart.length > 0 && (
+                        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-in zoom-in duration-200">
+                            {cart.reduce((total, item) => total + item.quantity, 0)}
+                        </span>
+                    )}
+                </button>,
+                mobileCartSlot
+            )}
 
             {/* Toolbar */}
             <div className="flex flex-col gap-4 mb-6 border-b border-gray-100 pb-6 mt-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="relative w-full max-w-md">
+                    <div className="relative w-full">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
@@ -286,20 +360,6 @@ export default function MemberPOS() {
                             placeholder="Search Products..."
                             className="w-full rounded-full border border-gray-200 bg-[#f8fafc] py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                         />
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className="appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                            >
-                                <option value="name-asc">Sort by: Name (A-Z)</option>
-                                <option value="price-asc">Sort by: Price (Low to High)</option>
-                                <option value="price-desc">Sort by: Price (High to Low)</option>
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        </div>
                     </div>
                 </div>
 

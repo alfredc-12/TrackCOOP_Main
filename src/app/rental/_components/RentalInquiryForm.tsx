@@ -74,7 +74,7 @@ const rentalFields: FieldPath<InquiryFormValues>[] = [
   "additionalNotes",
 ];
 
-export function RentalInquiryForm({ member = false }: { member?: boolean }) {
+export function RentalInquiryForm({ member = false, hideBackButton = false }: { member?: boolean; hideBackButton?: boolean }) {
   const router = useRouter();
   const { services, saveInquiryDraft, getInquiryDraft } = useRental();
   const [step, setStep] = useState<1 | 2>(1);
@@ -249,15 +249,17 @@ export function RentalInquiryForm({ member = false }: { member?: boolean }) {
             </Field>
           </div>
 
-          <FormActions>
-            <button
-              type="button"
-              onClick={() => router.push("/rental")}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold text-[#66756c] hover:bg-[#f1f4ef]"
-            >
-              <ArrowLeft className="size-4" />
-              Back to Services
-            </button>
+          <FormActions center={hideBackButton}>
+            {!hideBackButton && (
+              <button
+                type="button"
+                onClick={() => router.push("/rental")}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold text-[#66756c] hover:bg-[#f1f4ef]"
+              >
+                <ArrowLeft className="size-4" />
+                Back to Services
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void goToRentalDetails()}
@@ -459,9 +461,9 @@ function FormSection({
   );
 }
 
-function FormActions({ children }: { children: React.ReactNode }) {
+function FormActions({ children, center }: { children: React.ReactNode; center?: boolean }) {
   return (
-    <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-[#e3e9e5] pt-5 sm:flex-row sm:items-center">
+    <div className={`mt-8 flex flex-col-reverse gap-3 border-t border-[#e3e9e5] pt-5 sm:flex-row sm:items-center ${center ? "sm:justify-center" : "sm:justify-between"}`}>
       {children}
     </div>
   );

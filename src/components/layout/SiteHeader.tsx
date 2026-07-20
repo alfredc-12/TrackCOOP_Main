@@ -108,7 +108,7 @@ export default function SiteHeader({
             items={[
               { label: "Membership Assistance", href: "/#services" },
               { label: "Equipment Rental", href: "/rental" },
-              { label: "Cooperative Store", href: "/#services" },
+              { label: "Cooperative Store", href: "/store" },
             ]}
           />
           <Link
@@ -170,7 +170,7 @@ function HeaderDropdown({
   href: string;
   active: boolean;
   onActivate: () => void;
-  items: { label: string; href: string }[];
+  items: { label: string; href: string; target?: string }[];
 }) {
   return (
     <div className="group relative">
@@ -192,6 +192,7 @@ function HeaderDropdown({
             <Link
               key={item.label}
               href={item.href}
+              target={item.target}
               onClick={onActivate}
               className="block rounded-lg px-3 py-2.5 text-sm text-[#365f4a] transition hover:bg-[#EAF3E8] hover:text-[#123D2A] focus:bg-[#EAF3E8] focus:text-[#123D2A] focus:outline-none"
             >

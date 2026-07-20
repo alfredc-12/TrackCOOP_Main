@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SiteFooter from "@/components/layout/SiteFooter";
+import RentalLandingPage from "@/app/rental/page";
+import { RentalProvider } from "@/app/rental/_context/RentalProvider";
 import {
   Bell,
   Search,
@@ -42,6 +44,13 @@ import MemberPOS from "./member_pos";
 
 export default function MemberDashboardPage() {
   const [activeTab, setActiveTab] = useState("Dashboard");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "Store") {
+      setActiveTab("Store");
+    }
+  }, []);
 
   const navClass = (id: string) =>
     `inline-flex h-9 items-center border-b-2 px-1 text-sm font-semibold transition ${activeTab === id
@@ -756,18 +765,10 @@ export default function MemberDashboardPage() {
 
           {/* ======================= RENTAL TAB ======================= */}
           {activeTab === "Rental" && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <section className="text-center">
-                <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-[#2F7D57]">Services</h2>
-                <h3 className="mt-2 text-3xl font-bold text-[#173626]">Equipment Rental</h3>
-                <p className="mt-2 text-[#6B7280]">Rent farming equipment and machineries at cooperative rates.</p>
-
-                <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#E5E7EB] bg-white py-16 shadow-sm">
-                  <Briefcase className="h-12 w-12 text-[#94A3B8]" />
-                  <h4 className="mt-4 text-lg font-bold text-[#173626]">Coming Soon</h4>
-                  <p className="mt-1 text-sm text-[#6B7280]">Equipment catalog will be available shortly.</p>
-                </div>
-              </section>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm mt-6">
+              <RentalProvider>
+                <RentalLandingPage useModals={true} />
+              </RentalProvider>
             </div>
           )}
 
