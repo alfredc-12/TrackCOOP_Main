@@ -28,9 +28,9 @@ export const inquirySchema = z
     additionalNotes: optionalText,
     attachmentName: optionalText,
     membershipProofName: optionalText,
-    dataPrivacyConsent: z.boolean().refine(Boolean, "Data privacy consent is required."),
-    accuracyConfirmation: z.boolean().refine(Boolean, "Confirm that the information is accurate."),
-    contactConsent: z.boolean().refine(Boolean, "Contact consent is required."),
+    dataPrivacyConsent: z.boolean(),
+    accuracyConfirmation: z.boolean(),
+    contactConsent: z.boolean(),
   })
   .refine((data) => !data.alternativeDate || data.alternativeDate !== data.preferredDate, {
     message: "Alternative date must differ from the preferred date.",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, Leaf, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer } from "lucide-react";
+import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 type StockHistory = {
@@ -31,11 +31,46 @@ type EditableInventoryItem = Omit<InventoryItem, "price" | "cost_price" | "stock
     stock: number | string;
 };
 
+type InventoryHistoryEntry = {
+    id: number;
+    type: "add" | "deduct";
+    amount: number;
+    date: string;
+    inventoryItem?: {
+        name?: string | null;
+        img?: string | null;
+    };
+};
+
+type PosOrderItem = {
+    name: string;
+    quantity: number | string;
+    price: number | string;
+};
+
+type PosOrder = {
+    id: number;
+    sale_number: string;
+    sale_date: string;
+    sale_status: "Pending Payment" | "Paid" | string;
+    payment_status?: string | null;
+    total_amount: number | string;
+    customer_name?: string | null;
+    customer_email?: string | null;
+    customer_contact?: string | null;
+    payment_reference_id?: number | null;
+    reference_number?: string | null;
+    provider?: string | null;
+    items?: PosOrderItem[];
+};
+
 
 export default function InventoryManagement() {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [orders, setOrders] = useState<PosOrder[]>([]);
+    const [orderSearchQuery, setOrderSearchQuery] = useState("");
 
     const fetchInventory = async () => {
         try {
@@ -62,16 +97,21 @@ export default function InventoryManagement() {
     };
 
     useEffect(() => {
-        setIsMounted(true);
-        fetchInventory();
-        fetchOrdersQuietly();
+        const mountFrame = requestAnimationFrame(() => {
+            setIsMounted(true);
+            fetchInventory();
+            fetchOrdersQuietly();
+        });
 
         const interval = setInterval(() => {
             fetchInventory();
             fetchOrdersQuietly();
         }, 5000); // 5 seconds auto-refresh
 
-        return () => clearInterval(interval);
+        return () => {
+            cancelAnimationFrame(mountFrame);
+            clearInterval(interval);
+        };
     }, []);
     const [editingItem, setEditingItem] = useState<EditableInventoryItem | null>(null);
     const [addingStockItem, setAddingStockItem] = useState<InventoryItem | null>(null);
@@ -81,12 +121,10 @@ export default function InventoryManagement() {
     const [itemToDelete, setItemToDelete] = useState<EditableInventoryItem | null>(null);
 
     const [isGlobalHistoryModalOpen, setIsGlobalHistoryModalOpen] = useState(false);
-    const [globalHistory, setGlobalHistory] = useState<any[]>([]);
+    const [globalHistory, setGlobalHistory] = useState<InventoryHistoryEntry[]>([]);
     const [pendingAction, setPendingAction] = useState<"add" | "edit" | "stock" | null>(null);
     const [stockErrorMsg, setStockErrorMsg] = useState<string | null>(null);
     const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
-    const [orders, setOrders] = useState<any[]>([]);
-    const [orderSearchQuery, setOrderSearchQuery] = useState("");
 
     const fetchGlobalHistory = async () => {
         try {
@@ -135,7 +173,7 @@ export default function InventoryManagement() {
             } else {
                 toast.error("Failed to confirm payment.");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred.");
         }
     };
@@ -157,7 +195,7 @@ export default function InventoryManagement() {
             } else {
                 toast.error("Failed to reject order.");
             }
-        } catch (error) {
+        } catch {
             toast.error("An error occurred.");
         }
     };
@@ -178,7 +216,7 @@ export default function InventoryManagement() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [orderToConfirmId, setOrderToConfirmId] = useState<number | null>(null);
     const [orderToRejectId, setOrderToRejectId] = useState<number | null>(null);
-    const [receiptOrder, setReceiptOrder] = useState<any>(null);
+    const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
 
     useEffect(() => {
         if (isAddModalOpen || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
@@ -187,7 +225,7 @@ export default function InventoryManagement() {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isAddModalOpen, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId]);
+    }, [isAddModalOpen, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -1151,7 +1189,7 @@ export default function InventoryManagement() {
                                             </div>
                                             <div className="space-y-2 mb-4 bg-gray-50 rounded-xl p-4 border border-gray-100">
                                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Order Items</p>
-                                                {order.items?.map((item: any, idx: number) => (
+                                                {order.items?.map((item, idx) => (
                                                     <div key={idx} className="flex justify-between items-center text-sm">
                                                         <span className="text-gray-700 font-medium">{item.quantity}x {item.name}</span>
                                                         <span className="text-gray-600">₱{(Number(item.price) * Number(item.quantity)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
@@ -1276,7 +1314,7 @@ export default function InventoryManagement() {
                             <div className="mb-4">
                                 <div className="text-xs text-gray-500 mb-2 font-semibold">ITEMS</div>
                                 <div className="space-y-2">
-                                    {receiptOrder.items?.map((item: any, idx: number) => (
+                                    {receiptOrder.items?.map((item, idx) => (
                                         <div key={idx} className="flex justify-between items-start text-sm">
                                             <div>
                                                 <p className="font-medium text-gray-800">{item.name}</p>
@@ -1308,7 +1346,6 @@ export default function InventoryManagement() {
                                 onClick={() => {
                                     const printContent = document.getElementById('printable-receipt');
                                     if (printContent) {
-                                        const originalContent = document.body.innerHTML;
                                         // A simple print approach for React without a library
                                         const printWindow = window.open('', '_blank');
                                         if (printWindow) {

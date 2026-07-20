@@ -28,7 +28,7 @@ export class RentalApiError extends Error {
   }
 }
 
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "/api";
 
 function codeForStatus(status: number): RentalApiError["code"] {
   if (status === 401) return "UNAUTHORIZED";
@@ -40,7 +40,6 @@ function codeForStatus(status: number): RentalApiError["code"] {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  if (!apiBase) throw new RentalApiError("Rental API is not configured.", 0, "NETWORK");
   try {
     const response = await fetch(`${apiBase}/rental${path}`, {
       ...options,

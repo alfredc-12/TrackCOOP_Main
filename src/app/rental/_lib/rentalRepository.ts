@@ -1,9 +1,9 @@
 import { rentalApiRepository } from "./rentalApi";
 import { rentalLocalRepository } from "./rentalLocalRepository";
 
-// Replace demo repository with the TrackCOOP Express API by configuring NEXT_PUBLIC_API_BASE_URL.
-export const rentalRepository = process.env.NEXT_PUBLIC_API_BASE_URL
-  ? rentalApiRepository
-  : rentalLocalRepository;
+// Uses the local Next.js MySQL API by default. Set NEXT_PUBLIC_RENTAL_DEMO=1 to return to browser-only demo data.
+export const rentalRepository = process.env.NEXT_PUBLIC_RENTAL_DEMO === "1"
+  ? rentalLocalRepository
+  : rentalApiRepository;
 
-export const rentalRepositoryMode = process.env.NEXT_PUBLIC_API_BASE_URL ? "api" : "demo";
+export const rentalRepositoryMode = process.env.NEXT_PUBLIC_RENTAL_DEMO === "1" ? "demo" : "api";
