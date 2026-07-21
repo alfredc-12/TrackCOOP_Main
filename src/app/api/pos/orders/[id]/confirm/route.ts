@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
+import { requireApiUser } from "@/lib/next-api-auth";
 
 type PosSaleStatusRow = RowDataPacket & {
     sale_status: string;
@@ -12,17 +13,23 @@ type PosSaleItemRow = RowDataPacket & {
     quantity: number;
 };
 
+type InventoryBalanceRow = RowDataPacket & {
+    stock: number | string | null;
+};
+
 export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const auth = await requireApiUser(["chairman", "bookkeeper"]);
+        if (auth.response) return auth.response;
+
         const { id: orderId } = await params;
 
         const connection = await db.getConnection();
         await connection.beginTransaction();
         try {
-            // Check if already paid
             const [sales] = await connection.query<PosSaleStatusRow[]>(
                 `SELECT sale_status FROM pos_sales WHERE pos_sale_id = ?`,
                 [orderId]
@@ -33,9 +40,9 @@ export async function PUT(
                 return NextResponse.json({ error: "Order not found" }, { status: 404 });
             }
 
-            if (sales[0].sale_status === 'Paid') {
+            if (sales[0].sale_status !== 'Pending Payment') {
                 await connection.rollback();
-                return NextResponse.json({ error: "Order is already paid" }, { status: 400 });
+                return NextResponse.json({ error: "Only pending orders can be confirmed." }, { status: 400 });
             }
 
             // Fetch items to deduct stock
@@ -45,11 +52,23 @@ export async function PUT(
             );
 
             for (const item of items) {
+                const [balances] = await connection.query<InventoryBalanceRow[]>(
+                    `SELECT COALESCE(SUM(quantity_change), 0) AS stock
+                       FROM inventory_movements
+                      WHERE product_id = ?`,
+                    [item.product_id],
+                );
+                const currentStock = Number(balances[0]?.stock ?? 0);
+                if (currentStock < Number(item.quantity)) {
+                    await connection.rollback();
+                    return NextResponse.json({ error: "Order quantity exceeds available stock." }, { status: 409 });
+                }
+
                 await connection.query(
                     `INSERT INTO inventory_movements 
                      (product_id, movement_type, quantity_change, pos_sale_id, pos_sale_item_id, recorded_by) 
-                     VALUES (?, 'Sale', ?, ?, ?, 1)`,
-                    [item.product_id, -item.quantity, orderId, item.pos_sale_item_id]
+                     VALUES (?, 'Sale', ?, ?, ?, ?)`,
+                    [item.product_id, -item.quantity, orderId, item.pos_sale_item_id, auth.user.numericId]
                 );
             }
 
@@ -66,12 +85,11 @@ export async function PUT(
                 `UPDATE payment_references pr 
                  JOIN pos_sales s ON s.payment_reference_id = pr.payment_reference_id
                  SET pr.validation_status = 'Validated', 
-                     pr.validated_by = 1, 
+                     pr.validated_by = ?, 
                      pr.validated_at = NOW(),
-                     pr.payer_email = s.customer_email,
-                     pr.payer_contact = s.customer_contact
+                     pr.payer_contact = COALESCE(pr.payer_contact, s.customer_contact)
                  WHERE s.pos_sale_id = ?`,
-                [orderId]
+                [auth.user.numericId, orderId]
             );
 
             await connection.commit();

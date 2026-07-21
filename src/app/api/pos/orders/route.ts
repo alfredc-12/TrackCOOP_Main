@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
+import { requireApiUser } from "@/lib/next-api-auth";
 
 type PosOrderRow = RowDataPacket & {
   items?: string | unknown[];
@@ -8,6 +9,9 @@ type PosOrderRow = RowDataPacket & {
 
 export async function GET() {
   try {
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
+
     const connection = await db.getConnection();
     try {
       const [rows] = await connection.query<PosOrderRow[]>(
@@ -19,9 +23,9 @@ export async function GET() {
              s.payment_status,
              s.total_amount,
              s.customer_name,
-             s.customer_email,
              s.customer_contact,
              s.payment_reference_id,
+             pr.payer_email as customer_email,
              pr.reference_number,
              pr.provider,
              (

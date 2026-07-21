@@ -2,9 +2,24 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 import { processAndSaveImage } from "@/lib/imageUpload";
+import { requireApiUser } from "@/lib/next-api-auth";
+
+type InventoryProductInput = {
+  name?: string;
+  category?: string;
+  price?: number | string;
+  cost_price?: number | string;
+  description?: string;
+  stock?: number | string;
+  status?: string;
+  img?: string;
+};
 
 export async function GET() {
   try {
+    const auth = await requireApiUser(["chairman", "bookkeeper", "member"]);
+    if (auth.response) return auth.response;
+
     const [rows] = await db.query<RowDataPacket[]>(`
       SELECT 
         p.product_id as id,
@@ -25,6 +40,7 @@ export async function GET() {
         p.image_path as img
       FROM products p
       LEFT JOIN v_product_inventory_balance v ON p.product_id = v.product_id
+      WHERE p.product_status <> 'Archived'
       ORDER BY p.product_name ASC
     `);
 
@@ -69,35 +85,55 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
+
+    const body = await req.json() as InventoryProductInput;
     const { name, category, price, cost_price, description, stock, status, img } = body;
+    const sellingPrice = Number(price);
+    const costPrice = Number(cost_price ?? 0);
+    const openingStock = Number(stock ?? 0);
+
+    if (!name || !Number.isFinite(sellingPrice) || sellingPrice < 0 || !Number.isFinite(openingStock) || openingStock < 0) {
+      return NextResponse.json({ error: "Product name, price, and stock are required." }, { status: 400 });
+    }
 
     // Save image to file system if it's a new upload
-    const imagePath = await processAndSaveImage(img);
+    const imagePath = await processAndSaveImage(img ?? "");
 
     // Default SKU since it's required in the table
     const sku = `SKU-${Date.now()}`;
     const dbStatus = status === 'Available' ? 'Active' : 'Out of Stock';
 
-    // Insert product
-    const [productResult] = await db.query<ResultSetHeader>(
-      `INSERT INTO products (sku, product_name, category, selling_price, cost_price, description, product_status, image_path, created_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      [sku, name, category, price, cost_price, description, dbStatus, imagePath]
-    );
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-    const productId = productResult.insertId;
-
-    // Insert initial stock if greater than 0
-    if (stock > 0) {
-      await db.query(
-        `INSERT INTO inventory_movements (product_id, movement_type, quantity_change, recorded_by) 
-         VALUES (?, 'Opening Stock', ?, 1)`,
-        [productId, stock]
+    try {
+      const [productResult] = await connection.query<ResultSetHeader>(
+        `INSERT INTO products (sku, product_name, category, selling_price, cost_price, description, product_status, image_path, created_by) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sku, name, category ?? null, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, auth.user.numericId]
       );
-    }
 
-    return NextResponse.json({ success: true, id: productId }, { status: 201 });
+      const productId = productResult.insertId;
+
+      if (openingStock > 0) {
+        await connection.query(
+          `INSERT INTO inventory_movements (product_id, movement_type, quantity_change, recorded_by) 
+           VALUES (?, 'Opening Stock', ?, ?)`,
+          [productId, openingStock, auth.user.numericId]
+        );
+      }
+
+      await connection.commit();
+
+      return NextResponse.json({ success: true, id: productId }, { status: 201 });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     console.error("Failed to add product:", error);
     return NextResponse.json({ error: "Failed to add product" }, { status: 500 });

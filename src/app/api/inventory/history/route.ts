@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
+import { requireApiUser } from "@/lib/next-api-auth";
 
 export async function GET() {
   try {
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
+
     const [rows] = await db.query<RowDataPacket[]>(`
       SELECT 
         m.inventory_movement_id as id,

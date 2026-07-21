@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
+import { requireApiUser } from "@/lib/next-api-auth";
 
 type PosSaleRejectRow = RowDataPacket & {
     sale_status: string;
@@ -12,6 +13,9 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const auth = await requireApiUser(["chairman", "bookkeeper"]);
+        if (auth.response) return auth.response;
+
         const { id: orderId } = await params;
 
         const connection = await db.getConnection();
@@ -46,10 +50,10 @@ export async function PUT(
                 await connection.query(
                     `UPDATE payment_references 
                      SET validation_status = 'Rejected', 
-                         validated_by = 1, 
+                         validated_by = ?, 
                          validated_at = NOW()
                      WHERE payment_reference_id = ?`,
-                    [sales[0].payment_reference_id]
+                    [auth.user.numericId, sales[0].payment_reference_id]
                 );
             }
 
