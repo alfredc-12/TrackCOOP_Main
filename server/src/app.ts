@@ -15,6 +15,7 @@ import {
 } from "./modules/health/health.routes";
 import { createAuthRouter } from "./modules/auth/auth.routes";
 import type { AuthService } from "./modules/auth/auth.service";
+import { createCommunicationRouter } from "./modules/communication/communication.routes";
 import { createFinanceRouter } from "./modules/finance/finance.routes";
 import { createMemberIndicatorRouter } from "./modules/member-indicators/member-indicator.routes";
 import { createMemberRouter } from "./modules/members/member.routes";
@@ -84,6 +85,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createPaymentReferenceRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
+  app.use("/api", createCommunicationRouter(options.authService));
 
   app.use(notFound);
   app.use(errorHandler);
