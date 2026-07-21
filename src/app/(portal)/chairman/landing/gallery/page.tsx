@@ -1,13 +1,27 @@
-import { Images } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import { LandingAdminCollectionView } from "@/features/landing-admin/LandingAdminViews";
 
 export default function ChairmanLandingGalleryPage() {
   return (
-    <PortalRoutePage
+    <LandingAdminCollectionView
+      collection="gallery"
       eyebrow="Public Website"
       title="Gallery"
       description="Published cooperative photos for events, projects, meetings, and field work."
-      icon={Images}
+      statusKey="galleryStatus"
+      primaryKey="title"
+      template={{
+        title: "Cooperative activity",
+        caption: "",
+        category: "Community",
+        imagePath: "/images/Other%20Landing%20Page/About.jpg",
+        thumbnailPath: "",
+        activityDate: null,
+        location: "Nasugbu, Batangas",
+        altText: "Cooperative activity photo",
+        publicVisibility: true,
+        galleryStatus: "Draft",
+        displayOrder: 0,
+      }}
     />
   );
 }

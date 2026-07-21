@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Images, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePublishedLandingContent } from "@/features/landing-public/usePublishedLandingContent";
 
 const photos = [
   "/images/Hero%20Page/Main%20Photo%201.jpg",
@@ -35,12 +36,20 @@ const photosPerPage = 9;
 export default function GalleryGrid() {
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const totalPages = Math.ceil(photos.length / photosPerPage);
+  const published = usePublishedLandingContent();
+  const galleryPhotos = useMemo(() => {
+    const publishedPhotos = published.gallery
+      .map((item) => (typeof item.imagePath === "string" ? item.imagePath : ""))
+      .filter(Boolean);
+    return publishedPhotos.length ? publishedPhotos : photos;
+  }, [published.gallery]);
+  const totalPages = Math.max(1, Math.ceil(galleryPhotos.length / photosPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages - 1);
 
   const visiblePhotos = useMemo(() => {
-    const start = currentPage * photosPerPage;
-    return photos.slice(start, start + photosPerPage);
-  }, [currentPage]);
+    const start = safeCurrentPage * photosPerPage;
+    return galleryPhotos.slice(start, start + photosPerPage);
+  }, [safeCurrentPage, galleryPhotos]);
 
   function nextPage() {
     setCurrentPage((page) => (page + 1) % totalPages);
@@ -93,13 +102,13 @@ export default function GalleryGrid() {
               <button
                 key={photo}
                 type="button"
-                aria-label={`Open gallery photo ${currentPage * photosPerPage + index + 1}`}
+                aria-label={`Open gallery photo ${safeCurrentPage * photosPerPage + index + 1}`}
                 onClick={() => setSelectedPhoto(photo)}
                 className="group relative aspect-square overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_18px_52px_rgba(31,107,67,0.12)] transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(31,107,67,0.22)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
               >
                 <Image
                   src={photo}
-                  alt={`Cooperative gallery photo ${currentPage * photosPerPage + index + 1}`}
+                  alt={`Cooperative gallery photo ${safeCurrentPage * photosPerPage + index + 1}`}
                   fill
                   unoptimized
                   sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
@@ -112,7 +121,7 @@ export default function GalleryGrid() {
 
           <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-[#DDE8D8] pt-6 sm:flex-row">
             <p className="text-sm font-semibold text-[#5d6b63]">
-              Page {currentPage + 1} of {totalPages}
+              Page {safeCurrentPage + 1} of {totalPages}
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -130,10 +139,10 @@ export default function GalleryGrid() {
                     key={index}
                     type="button"
                     aria-label={`Go to gallery page ${index + 1}`}
-                    aria-current={currentPage === index ? "true" : undefined}
+                    aria-current={safeCurrentPage === index ? "true" : undefined}
                     onClick={() => setCurrentPage(index)}
                     className={`size-2.5 rounded-full transition ${
-                      currentPage === index
+                      safeCurrentPage === index
                         ? "w-8 bg-[#123D2A]"
                         : "bg-[#C9D8C8]"
                     }`}

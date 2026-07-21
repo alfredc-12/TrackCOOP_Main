@@ -1,13 +1,5 @@
-import { Settings } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import { LandingSettingsView } from "@/features/landing-admin/LandingAdminViews";
 
 export default function ChairmanSettingsPage() {
-  return (
-    <PortalRoutePage
-      eyebrow="System"
-      title="Settings"
-      description="System-level cooperative settings, defaults, and controlled configuration."
-      icon={Settings}
-    />
-  );
+  return <LandingSettingsView />;
 }
