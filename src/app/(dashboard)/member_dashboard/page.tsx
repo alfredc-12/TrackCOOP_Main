@@ -38,7 +38,7 @@ import {
   AlertCircle,
   Info
 } from "lucide-react";
-import MemberPOS from "./member_pos";
+import MemberPosClient from "@/features/pos/components/MemberPosClient";
 
 export default function MemberDashboardPage() {
   const [activeTab, setActiveTab] = useState("Dashboard");
@@ -774,7 +774,7 @@ export default function MemberDashboardPage() {
           {/* ======================= STORE TAB ======================= */}
           {activeTab === "Store" && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <MemberPOS />
+              <MemberPosClient />
             </div>
           )}
 

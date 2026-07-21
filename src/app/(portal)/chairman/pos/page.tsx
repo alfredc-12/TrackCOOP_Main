@@ -1,5 +1,5 @@
-import InventoryManagement from "@/app/(dashboard)/chairman_dashboard/chairman_pos";
+import ChairmanPosInventoryClient from "@/features/pos/components/ChairmanPosInventoryClient";
 
 export default function ChairmanPosPage() {
-  return <InventoryManagement />;
+  return <ChairmanPosInventoryClient />;
 }

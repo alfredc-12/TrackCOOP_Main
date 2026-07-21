@@ -45,7 +45,7 @@ type PosOrder = {
     items?: PosOrderItem[];
 };
 
-export default function MemberPOS() {
+export default function MemberPosClient() {
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);

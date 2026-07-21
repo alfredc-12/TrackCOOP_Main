@@ -61,7 +61,7 @@ type PosOrder = {
     items?: PosOrderItem[];
 };
 
-export default function InventoryManagement() {
+export default function ChairmanPosInventoryClient() {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);

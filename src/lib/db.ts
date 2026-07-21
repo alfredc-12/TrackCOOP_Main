@@ -51,7 +51,11 @@ function createPoolOptions(): mysql.PoolOptions {
   }
 
   return {
-    uri: "mysql://root:@localhost:3306/trackcoopdb",
+    host: "127.0.0.1",
+    port: 3307,
+    user: "root",
+    password: "",
+    database: "trackcoop",
     ...sharedOptions,
   };
 }
