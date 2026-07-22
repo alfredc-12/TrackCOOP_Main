@@ -47,3 +47,22 @@ startup, tests, or builds.
 
 Automated tests use injected database doubles. Never point automated tests at
 the production RDS database.
+
+## Runtime Data Boundaries
+
+- `user_sessions` stores only hashed opaque session tokens.
+- `audit_logs` records administrative actions without passwords, raw tokens, or
+  payment proof contents.
+- `documents`, `reports`, and protected upload references store metadata and
+  file paths, not public file contents.
+- Landing tables (`site_content_blocks`, `services`, `programs_projects`,
+  `partners_certifications`, `gallery_items`, `system_settings`) are edited by
+  Chairman-only APIs and read publicly only through published/visible rows.
+
+## Backup Baseline
+
+Take database backups before schema imports, before large data imports, and
+before production deployments. Store SQL dumps and upload archives separately
+from the Git repository. Restore into a non-production database first, run
+`npm run db:check`, then validate login, member lists, payment summaries,
+reports, landing content, and representative uploaded documents.
