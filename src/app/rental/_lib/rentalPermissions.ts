@@ -17,19 +17,19 @@ export type RentalCapability =
   | "member";
 
 const access: Record<RentalCapability, UserRole[]> = {
-  public: ["Chairman", "Admin", "Bookkeeper", "Member", "Public"],
-  dashboard: ["Chairman", "Admin", "Bookkeeper"],
-  services: ["Admin"],
-  inquiries: ["Chairman", "Admin"],
-  schedule: ["Chairman", "Admin"],
-  availability: ["Admin"],
-  operations: ["Admin"],
+  public: ["Chairman", "Bookkeeper", "Member", "Public"],
+  dashboard: ["Chairman", "Bookkeeper"],
+  services: ["Chairman"],
+  inquiries: ["Chairman"],
+  schedule: ["Chairman"],
+  availability: ["Chairman"],
+  operations: ["Chairman"],
   payments: ["Bookkeeper"],
   expenses: ["Bookkeeper"],
   reports: ["Chairman", "Bookkeeper"],
   analytics: ["Chairman"],
   audit: ["Chairman"],
-  settings: ["Admin"],
+  settings: ["Chairman"],
   member: ["Member"],
 };
 
@@ -37,9 +37,7 @@ export function canAccessRental(role: UserRole, capability: RentalCapability) {
   return access[capability].includes(role);
 }
 
-// Adapter for TrackCOOP's current demo authentication. Replace when authenticated role claims are available.
 export function adaptTrackCoopRole(role?: string): UserRole {
-  if (role === "admin" || role === "staff") return "Admin";
   if (role === "chairman") return "Chairman";
   if (role === "bookkeeper") return "Bookkeeper";
   if (role === "member") return "Member";
@@ -47,6 +45,6 @@ export function adaptTrackCoopRole(role?: string): UserRole {
 }
 
 export function roleFromQuery(value: string | null): UserRole | undefined {
-  const roles: UserRole[] = ["Chairman", "Admin", "Bookkeeper", "Member", "Public"];
+  const roles: UserRole[] = ["Chairman", "Bookkeeper", "Member", "Public"];
   return roles.find((role) => role.toLowerCase() === value?.toLowerCase());
 }

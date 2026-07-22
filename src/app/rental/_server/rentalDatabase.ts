@@ -553,8 +553,8 @@ function mapAudit(row: AuditRow): RentalAuditEntry {
   return {
     auditId: `AUD-${String(row.audit_log_id).padStart(3, "0")}`,
     createdAt: isoDateTime(row.action_time),
-    user: row.display_name ?? "TrackCOOP Admin",
-    role: row.action.toLowerCase().includes("payment") ? "Bookkeeper" : "Admin",
+    user: row.display_name ?? "NFFAC Chairman",
+    role: row.action.toLowerCase().includes("payment") ? "Bookkeeper" : "Chairman",
     action: row.action,
     rentalId,
     equipmentName: stringValue(newValues, "asset_name") || undefined,
@@ -568,18 +568,16 @@ function mapAudit(row: AuditRow): RentalAuditEntry {
 
 async function systemUserId() {
   const rows = await queryRows<Array<RowDataPacket & { user_id: number }>>(
-    "SELECT user_id FROM users WHERE email = 'admin@trackcoop.local' LIMIT 1",
+    `SELECT u.user_id
+       FROM users u
+       JOIN roles r ON r.role_id = u.role_id
+      WHERE r.role_slug = 'chairman'
+        AND u.account_status = 'Active'
+      ORDER BY u.user_id ASC
+      LIMIT 1`,
   );
   if (rows[0]) return rows[0].user_id;
-  const roleRows = await queryRows<Array<RowDataPacket & { role_id: number }>>(
-    "SELECT role_id FROM roles WHERE role_slug = 'chairman_admin' LIMIT 1",
-  );
-  const roleId = roleRows[0]?.role_id ?? 1;
-  const result = await execute(
-    "INSERT INTO users (role_id, username, email, password_hash, display_name, account_status, email_verified_at) VALUES (?, 'trackcoop_admin', 'admin@trackcoop.local', ?, 'TrackCOOP Admin', 'Active', NOW())",
-    [roleId, "$2y$10$trackcoopplaceholderhashnotforlogin0000000000000000000000"],
-  );
-  return result.insertId;
+  throw new Error("A live Chairman account is required before rental records can be mutated.");
 }
 
 async function assetRows(where = "", params: DbValue[] = []) {
@@ -848,7 +846,7 @@ export const rentalDatabase = {
     const meta = parseJson(row.purpose);
     meta.publicNote = publicNote;
     meta.internalNote = internalNote ?? "";
-    meta.assignedReviewer = "TrackCOOP Admin";
+    meta.assignedReviewer = "NFFAC Chairman";
     meta.statusOverride = decision;
     const nextStatus = bookingStatusFromRental(decision);
     await execute(

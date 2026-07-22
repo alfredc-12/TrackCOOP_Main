@@ -4,17 +4,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { getCurrentUser } from "@/lib/auth";
 import type { InquiryDraft, RentalInquiry, RentalService, UserRole } from "../_types/rental";
 import { adaptTrackCoopRole } from "../_lib/rentalPermissions";
-import { rentalRepository, rentalRepositoryMode } from "../_lib/rentalRepository";
+import { rentalRepository } from "../_lib/rentalRepository";
 
 const DRAFT_KEY = "trackcoop-rental-inquiry-draft";
 const RESULT_KEY = "trackcoop-rental-inquiry-result";
-const ROLE_KEY = "trackcoop-rental-demo-role";
 
 interface RentalContextValue {
   services: RentalService[];
   loading: boolean;
   error?: string;
-  mode: "api" | "demo";
   role: UserRole;
   setRole: (role: UserRole) => void;
   refreshServices: () => Promise<void>;
@@ -68,14 +66,12 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
 
   const setRole = useCallback((nextRole: UserRole) => {
     setRoleState(nextRole);
-    window.sessionStorage.setItem(ROLE_KEY, nextRole);
   }, []);
 
   const value = useMemo<RentalContextValue>(() => ({
     services,
     loading,
     error,
-    mode: rentalRepositoryMode,
     role,
     setRole,
     refreshServices,
