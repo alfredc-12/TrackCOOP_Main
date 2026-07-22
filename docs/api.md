@@ -62,5 +62,5 @@ session tokens, or database errors. Forgot-password delivery is deferred; no
 placeholder reset endpoint returns or logs a reset token.
 
 All auth mutations must be sent with credentials and, for browser requests, the
-configured frontend Origin. Protected feature endpoints added in later phases
-must use backend authentication and role middleware.
+configured frontend Origin. Protected feature endpoints use backend
+authentication and role middleware.
