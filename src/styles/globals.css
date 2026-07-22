@@ -3,6 +3,15 @@
 :root {
   --background: #f7f8f3;
   --foreground: #17211c;
+  --portal-cream: #f8f1e5;
+  --portal-surface: #ffffff;
+  --portal-field: #f7f8f3;
+  --portal-forest: #123d2a;
+  --portal-green: #1f6b43;
+  --portal-muted: #5d6d63;
+  --portal-border: #cad8cb;
+  --portal-accent: #82e6a7;
+  --portal-harvest: #d8a011;
 }
 
 @theme inline {

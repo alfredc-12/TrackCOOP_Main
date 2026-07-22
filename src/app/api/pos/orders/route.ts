@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { RowDataPacket } from "mysql2";
+import { requireApiUser } from "@/lib/next-api-auth";
+
+type PosOrderRow = RowDataPacket & {
+  items?: string | unknown[];
+};
 
 export async function GET() {
   try {
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
+
     const connection = await db.getConnection();
     try {
-      const [rows] = await connection.query<RowDataPacket[]>(
+      const [rows] = await connection.query<PosOrderRow[]>(
         `SELECT 
              s.pos_sale_id as id, 
              s.sale_number, 
@@ -15,9 +23,9 @@ export async function GET() {
              s.payment_status,
              s.total_amount,
              s.customer_name,
-             s.customer_email,
              s.customer_contact,
              s.payment_reference_id,
+             pr.payer_email as customer_email,
              pr.reference_number,
              pr.provider,
              (
@@ -45,7 +53,7 @@ export async function GET() {
     } finally {
       connection.release();
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to fetch orders:", error);
     return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
   }

@@ -1,20 +1,19 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import type { InquiryDraft, RentalInquiry, RentalService, UserRole } from "../_types/rental";
 import { adaptTrackCoopRole } from "../_lib/rentalPermissions";
-import { rentalRepository, rentalRepositoryMode } from "../_lib/rentalRepository";
+import { rentalRepository } from "../_lib/rentalRepository";
 
 const DRAFT_KEY = "trackcoop-rental-inquiry-draft";
 const RESULT_KEY = "trackcoop-rental-inquiry-result";
-const ROLE_KEY = "trackcoop-rental-demo-role";
 
 interface RentalContextValue {
   services: RentalService[];
   loading: boolean;
   error?: string;
-  mode: "api" | "demo";
   role: UserRole;
   setRole: (role: UserRole) => void;
   refreshServices: () => Promise<void>;
@@ -27,11 +26,19 @@ interface RentalContextValue {
 
 const RentalContext = createContext<RentalContextValue | undefined>(undefined);
 
+function isPublicRentalPath(pathname: string) {
+  if (pathname === "/rental" || pathname === "/rental/services") return true;
+  if (pathname === "/rental/services/new" || pathname.endsWith("/edit")) return false;
+  if (/^\/rental\/services\/[^/]+$/.test(pathname)) return true;
+  return pathname === "/rental/inquiry" || pathname.startsWith("/rental/inquiry/");
+}
+
 export function RentalProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [services, setServices] = useState<RentalService[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [role, setRoleState] = useState<UserRole>(() => adaptTrackCoopRole(getCurrentUser()?.role));
+  const [role, setRoleState] = useState<UserRole>("Public");
 
   const refreshServices = useCallback(async () => {
     setLoading(true);
@@ -50,16 +57,38 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [refreshServices]);
 
+  useEffect(() => {
+    if (isPublicRentalPath(pathname)) {
+      const frameId = window.requestAnimationFrame(() => {
+        setRoleState("Public");
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
+    let active = true;
+
+    void getCurrentUser()
+      .then((user) => {
+        if (active) setRoleState(adaptTrackCoopRole(user?.role));
+      })
+      .catch(() => {
+        if (active) setRoleState("Public");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
   const setRole = useCallback((nextRole: UserRole) => {
     setRoleState(nextRole);
-    window.sessionStorage.setItem(ROLE_KEY, nextRole);
   }, []);
 
   const value = useMemo<RentalContextValue>(() => ({
     services,
     loading,
     error,
-    mode: rentalRepositoryMode,
     role,
     setRole,
     refreshServices,

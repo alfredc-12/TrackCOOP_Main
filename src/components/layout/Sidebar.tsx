@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -13,75 +13,62 @@ import {
   FileText,
   Megaphone,
   MessageSquare,
-  Landmark,
   LineChart,
-  Receipt,
   PhilippinePeso,
   User,
   Calendar,
-  Briefcase,
   Package,
-  BarChart,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { logout } from "@/lib/auth-client";
 
 const chairmanNavItems = [
-  { href: "/chairman_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chairman_dashboard?tab=members", label: "Members", icon: Users },
-  { href: "/chairman_dashboard?tab=finance", label: "Finance", icon: Wallet },
-  { href: "/chairman_dashboard?tab=payments", label: "Payments", icon: CreditCard },
-  { href: "/chairman_dashboard?tab=rental-pos", label: "Rental/POS", icon: Tractor },
-  { href: "/chairman_dashboard?tab=documents", label: "Documents", icon: FileText },
-  { href: "/chairman_dashboard?tab=announcements", label: "Announcements", icon: Megaphone },
-  { href: "/chairman_dashboard?tab=inquiries", label: "Public Inquiry", icon: MessageSquare },
+  { href: "/portal/chairman/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/chairman/members", label: "Members", icon: Users },
+  { href: "/portal/chairman/finance", label: "Finance", icon: Wallet },
+  { href: "/portal/chairman/payments", label: "Payments", icon: CreditCard },
+  { href: "/portal/chairman/pos", label: "POS Sales", icon: Tractor },
+  { href: "/portal/chairman/documents", label: "Documents", icon: FileText },
+  { href: "/portal/chairman/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/portal/chairman/requests", label: "Requests", icon: MessageSquare },
 ];
 
 const bookkeeperNavItems = [
-  { href: "/bookkeeper_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/bookkeeper_dashboard?tab=share-capital", label: "Share Capital", icon: Wallet },
-  { href: "/bookkeeper_dashboard?tab=financial", label: "Financial", icon: LineChart },
-  { href: "/bookkeeper_dashboard?tab=expenditures", label: "Expenditures", icon: PhilippinePeso },
+  { href: "/portal/bookkeeper/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/bookkeeper/share-capital", label: "Share Capital", icon: Wallet },
+  { href: "/portal/bookkeeper/financial-ledger", label: "Financial Ledger", icon: LineChart },
+  { href: "/portal/bookkeeper/financial-categories", label: "Categories", icon: PhilippinePeso },
 ];
 
 const memberNavItems = [
-  { href: "/dashboard?role=member", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard?role=member&tab=shop", label: "Cooperative Shop", icon: Package },
+  { href: "/portal/member/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/member/dashboard", label: "Cooperative Shop", icon: Package },
   { href: "/member-share-capital", label: "Member & Share Capital", icon: User },
   { href: "/activities-programs", label: "Activities & Programs", icon: Calendar },
   { href: "/announcements", label: "Communication & Announcements", icon: Megaphone },
   { href: "/support", label: "Inquiry & Support", icon: MessageSquare },
 ];
 
-const managerNavItems = [
-  { href: "/manager_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/manager_dashboard?tab=operations", label: "Operations", icon: Briefcase },
-  { href: "/manager_dashboard?tab=staff", label: "Staff & Members", icon: Users },
-  { href: "/manager_dashboard?tab=inventory", label: "Inventory & Assets", icon: Package },
-  { href: "/manager_dashboard?tab=reports", label: "Reports & Analytics", icon: BarChart },
-  { href: "/manager_dashboard?tab=announcements", label: "Announcements", icon: Megaphone },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
 
   const roleFromPath = pathname.includes("bookkeeper") ? "bookkeeper"
     : pathname.includes("member") ? "member"
-      : pathname.includes("manager") ? "manager"
-        : "chairman";
+      : "chairman";
   const role = searchParams.get("role") || roleFromPath;
   const tab = searchParams.get("tab");
 
   const navItems =
     role === "bookkeeper" ? bookkeeperNavItems :
       role === "member" ? memberNavItems :
-        role === "manager" ? managerNavItems :
-          chairmanNavItems;
+        chairmanNavItems;
   const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
 
   const sidebarContent = (
@@ -113,7 +100,9 @@ export function Sidebar() {
         </p>
         <nav className="grid gap-1">
           {navItems.map((item) => {
-            const isActive = tab ? item.href.includes(`tab=${tab}`) : item.label === "Dashboard";
+            const isActive = tab
+              ? item.href.includes(tab)
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link
@@ -136,13 +125,16 @@ export function Sidebar() {
       </div>
 
       <div className="mt-auto border-t border-white/10 pt-6">
-        <Link
-          href="/"
+        <button
+          type="button"
+          onClick={() => {
+            void logout().finally(() => router.replace("/login"));
+          }}
           className="flex items-center gap-4 rounded-2xl px-4 py-3.5 text-[15.5px] font-semibold text-white/60 transition-all hover:bg-white/5 hover:text-white"
         >
           <LogOut className="size-5" strokeWidth={2} />
           Logout
-        </Link>
+        </button>
       </div>
     </>
   );

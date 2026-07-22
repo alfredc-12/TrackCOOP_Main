@@ -1,64 +1,65 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import mysql from "mysql2/promise";
+import {
+  getDatabaseConfig,
+  type DatabaseConfig,
+} from "../../server/src/config/database";
 
 declare global {
   var trackCoopMysqlPool: mysql.Pool | undefined;
+  var trackCoopMysqlPoolConfigKey: string | undefined;
 }
 
-const databaseUrl = process.env.DATABASE_URL;
-
-function numberFromEnv(value: string | undefined, fallback: number) {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function hasDiscreteDatabaseConfig() {
-  return Boolean(
-    process.env.MYSQL_HOST ||
-      process.env.DB_HOST ||
-      process.env.MYSQL_PORT ||
-      process.env.DB_PORT ||
-      process.env.MYSQL_USER ||
-      process.env.DB_USER ||
-      process.env.MYSQL_DATABASE ||
-      process.env.DB_NAME,
-  );
-}
-
-function createPoolOptions(): mysql.PoolOptions {
-  const sharedOptions = {
-    waitForConnections: true,
-    connectionLimit: numberFromEnv(process.env.DB_CONNECTION_LIMIT, 10),
-    dateStrings: true,
-  };
-
-  if (databaseUrl) {
-    return {
-      uri: databaseUrl,
-      ...sharedOptions,
-    };
-  }
-
-  if (hasDiscreteDatabaseConfig()) {
-    return {
-      host: process.env.MYSQL_HOST ?? process.env.DB_HOST ?? "127.0.0.1",
-      port: numberFromEnv(process.env.MYSQL_PORT ?? process.env.DB_PORT, 3307),
-      user: process.env.MYSQL_USER ?? process.env.DB_USER ?? "root",
-      password: process.env.MYSQL_PASSWORD ?? process.env.DB_PASSWORD ?? "",
-      database: process.env.MYSQL_DATABASE ?? process.env.DB_NAME ?? "trackcoop",
-      ...sharedOptions,
-    };
+function sslOptions(config: DatabaseConfig) {
+  if (!config.ssl) {
+    return undefined;
   }
 
   return {
-    uri: "mysql://root:@localhost:3306/trackcoopdb",
-    ...sharedOptions,
+    rejectUnauthorized: true,
+    ...(config.sslCaPath
+      ? {
+          ca: readFileSync(path.resolve(config.sslCaPath), "utf8"),
+        }
+      : {}),
   };
 }
 
+function createPoolConfigKey(config: DatabaseConfig) {
+  return JSON.stringify({
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    database: config.database,
+    ssl: config.ssl,
+    sslCaPath: config.sslCaPath ?? "",
+  });
+}
+
+function createPoolOptions(config: DatabaseConfig): mysql.PoolOptions {
+  return {
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    waitForConnections: true,
+    connectionLimit: config.connectionLimit,
+    dateStrings: true,
+    ssl: sslOptions(config),
+  };
+}
+
+const databaseConfig = getDatabaseConfig();
+const poolConfigKey = createPoolConfigKey(databaseConfig);
+
 export const db =
-  globalThis.trackCoopMysqlPool ?? mysql.createPool(createPoolOptions());
+  globalThis.trackCoopMysqlPool && globalThis.trackCoopMysqlPoolConfigKey === poolConfigKey
+    ? globalThis.trackCoopMysqlPool
+    : mysql.createPool(createPoolOptions(databaseConfig));
 
 if (process.env.NODE_ENV !== "production") {
   globalThis.trackCoopMysqlPool = db;
+  globalThis.trackCoopMysqlPoolConfigKey = poolConfigKey;
 }

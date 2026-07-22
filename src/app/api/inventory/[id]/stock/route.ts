@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { RowDataPacket } from "mysql2";
+import { requireApiUser } from "@/lib/next-api-auth";
+
+type InventoryBalanceRow = RowDataPacket & {
+  stock: number | string | null;
+};
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
+
     const productId = (await params).id;
     const body = await req.json();
     const { amount, type } = body;
@@ -28,11 +37,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Invalid operation type" }, { status: 400 });
     }
 
-    await db.query(
-      `INSERT INTO inventory_movements (product_id, movement_type, quantity_change, recorded_by) 
-       VALUES (?, ?, ?, 1)`,
-      [productId, movementType, quantityChange]
-    );
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const [balances] = await connection.query<InventoryBalanceRow[]>(
+        `SELECT COALESCE(SUM(quantity_change), 0) AS stock
+           FROM inventory_movements
+          WHERE product_id = ?`,
+        [productId],
+      );
+
+      const currentStock = Number(balances[0]?.stock ?? 0);
+      if (quantityChange < 0 && currentStock < Math.abs(quantityChange)) {
+        await connection.rollback();
+        return NextResponse.json({ error: "Stock deduction exceeds available quantity." }, { status: 409 });
+      }
+
+      await connection.query(
+        `INSERT INTO inventory_movements (product_id, movement_type, quantity_change, recorded_by) 
+         VALUES (?, ?, ?, ?)`,
+        [productId, movementType, quantityChange, auth.user.numericId]
+      );
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

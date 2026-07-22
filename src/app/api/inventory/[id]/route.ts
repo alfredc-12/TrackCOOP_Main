@@ -2,21 +2,43 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ResultSetHeader } from "mysql2";
 import { processAndSaveImage } from "@/lib/imageUpload";
+import { requireApiUser } from "@/lib/next-api-auth";
+
+type InventoryProductUpdateInput = {
+  name?: string;
+  category?: string;
+  price?: number | string;
+  cost_price?: number | string;
+  description?: string;
+  unit?: string;
+  status?: string;
+  img?: string;
+};
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
+
     const productId = (await params).id;
-    const body = await req.json();
-    const { name, category, price, cost_price, description, status, img } = body;
+    const body = await req.json() as InventoryProductUpdateInput;
+    const { name, category, price, cost_price, description, unit, status, img } = body;
+    const sellingPrice = Number(price);
+    const costPrice = Number(cost_price ?? 0);
+    const productUnit = unit?.trim() || "piece";
+
+    if (!name || !productUnit || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
+      return NextResponse.json({ error: "Product name, unit, and valid price are required." }, { status: 400 });
+    }
     
     const dbStatus = status === 'Available' ? 'Active' : 'Out of Stock';
-    const imagePath = await processAndSaveImage(img);
+    const imagePath = await processAndSaveImage(img ?? "");
 
     await db.query(
       `UPDATE products 
-       SET product_name = ?, category = ?, selling_price = ?, cost_price = ?, description = ?, product_status = ?, image_path = ? 
+       SET product_name = ?, category = ?, unit = ?, selling_price = ?, cost_price = ?, description = ?, product_status = ?, image_path = ? 
        WHERE product_id = ?`,
-      [name, category, price, cost_price, description, dbStatus, imagePath, productId]
+      [name, category ?? null, productUnit, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, productId]
     );
 
     return NextResponse.json({ success: true });
@@ -28,14 +50,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const productId = (await params).id;
+    const auth = await requireApiUser(["chairman", "bookkeeper"]);
+    if (auth.response) return auth.response;
 
-    // We need to delete associated inventory movements first due to foreign key constraints,
-    // or we can soft delete if there are foreign keys. Assuming hard delete for now:
-    await db.query(`DELETE FROM inventory_movements WHERE product_id = ?`, [productId]);
+    const productId = (await params).id;
     
     const [result] = await db.query<ResultSetHeader>(
-      `DELETE FROM products WHERE product_id = ?`,
+      `UPDATE products SET product_status = 'Archived' WHERE product_id = ?`,
       [productId]
     );
 

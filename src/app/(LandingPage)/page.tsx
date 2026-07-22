@@ -27,6 +27,12 @@ import StatsParallaxSection from "@/components/shared/StatsParallaxSection";
 import AnnouncementsSection from "@/features/announcements/components/AnnouncementsSection";
 import SiteHeader from "@/components/layout/SiteHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
+import {
+  mapPublishedCertifications,
+  mapPublishedProjects,
+  mapPublishedServices,
+  usePublishedLandingContent,
+} from "@/features/landing-public/usePublishedLandingContent";
 
 const cooperativeName =
   "Nasugbu Farmers and Fisherfolks Agriculture Cooperative";
@@ -173,6 +179,8 @@ const projects = [
   },
 ];
 
+const projectAreaClasses = projects.map((project) => project.areaClass);
+
 const certifications = [
   {
     title: "Certificate of Compliance",
@@ -212,15 +220,20 @@ const fadeUp = {
 } as const;
 
 export default function Home() {
+  const published = usePublishedLandingContent();
+  const publishedServices = mapPublishedServices(published.services);
+  const publishedProjects = mapPublishedProjects(published.programs, projectAreaClasses);
+  const publishedCertifications = mapPublishedCertifications(published.partners);
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#F8F1E5] text-[#1E1E1E]">
       <SiteHeader initialActive="home" />
       <Hero />
-      <ServicesSection />
+      <ServicesSection items={publishedServices.length ? publishedServices : services} />
       <AboutSection />
       <StatsParallaxSection />
-      <ProjectsSection />
-      <CertificationsSection />
+      <ProjectsSection items={publishedProjects.length ? publishedProjects : projects} />
+      <CertificationsSection slides={publishedCertifications.length ? publishedCertifications : certifications} />
       <ContactSection />
       <SiteFooter />
     </main>
@@ -304,7 +317,7 @@ function Header() {
               { label: "Our Cooperative", href: "/about/our-cooperative" },
               {
                 label: "Board of Directors",
-                href: "/about/our-cooperative#board-directors",
+                href: "/about/board-of-directors",
               },
             ]}
           />
@@ -315,7 +328,7 @@ function Header() {
             onActivate={() => setActiveNav("services")}
             items={[
               { label: "Membership Assistance", href: "#services" },
-              { label: "Equipment Rental", href: "#services" },
+              { label: "Equipment Rental", href: "/rental" },
               { label: "Cooperative Store", href: "/store" },
             ]}
           />
@@ -607,7 +620,7 @@ function HeroBottomDecor() {
   );
 }
 
-function ServicesSection() {
+function ServicesSection({ items }: { items: Service[] }) {
   return (
     <section
       id="services"
@@ -625,7 +638,7 @@ function ServicesSection() {
         </motion.div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {services.map((service, index) => (
+          {items.map((service, index) => (
             <ServiceCard key={service.title} service={service} index={index} />
           ))}
         </div>
@@ -739,7 +752,7 @@ function AboutSection() {
   );
 }
 
-function ProjectsSection() {
+function ProjectsSection({ items }: { items: Project[] }) {
   return (
     <section
       id="projects"
@@ -758,7 +771,7 @@ function ProjectsSection() {
 
       <div className="relative left-1/2 mt-10 w-screen -translate-x-1/2 overflow-hidden px-6 lg:mt-12 lg:px-8">
         <div className="projects-mosaic grid h-auto grid-cols-1 gap-4 md:grid-cols-2 lg:h-[720px] lg:grid-cols-12 lg:grid-rows-6 lg:gap-4">
-          {projects.map((project, index) => (
+          {items.map((project, index) => (
             <ProjectCard
               key={project.title}
               project={project}
@@ -828,7 +841,7 @@ function ProjectCard({
   );
 }
 
-function CertificationsSection() {
+function CertificationsSection({ slides }: { slides: CertificationSlide[] }) {
   return (
     <section id="certifications" className="bg-[#F8F1E5] py-12 lg:py-16">
       <div className="px-5 sm:px-8">
@@ -842,7 +855,7 @@ function CertificationsSection() {
         </motion.div>
       </div>
 
-      <CertificationCarousel slides={certifications} />
+      <CertificationCarousel slides={slides} />
     </section>
   );
 }

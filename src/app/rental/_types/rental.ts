@@ -29,7 +29,7 @@ export const PAYMENT_STATUSES = [
 export type RentalStatus = (typeof RENTAL_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type RequesterType = "Member" | "Public or Non-member";
-export type UserRole = "Chairman" | "Admin" | "Bookkeeper" | "Member" | "Public";
+export type UserRole = "Chairman" | "Bookkeeper" | "Member" | "Public";
 export type AvailabilityStatus =
   | "Available"
   | "Limited Availability"
@@ -305,17 +305,6 @@ export interface RentalAnalytics {
   monthlyIncome: Array<{ label: string; value: number }>;
   incomeByEquipment: Array<{ label: string; value: number }>;
   expensesByMonth: Array<{ label: string; value: number }>;
-}
-
-export interface RentalDemoState {
-  services: RentalService[];
-  inquiries: RentalInquiry[];
-  schedules: RentalSchedule[];
-  payments: RentalPayment[];
-  expenses: RentalExpense[];
-  receipts: RentalReceipt[];
-  notifications: RentalNotification[];
-  auditEntries: RentalAuditEntry[];
 }
 
 export interface IncomeLedgerPayload {

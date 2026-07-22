@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TrackCOOP
 
-## Getting Started
+TrackCOOP is a cooperative management system for NFFAC with a Next.js web
+application and an Express TypeScript API. The current implementation includes
+public landing pages, Chairman and Bookkeeper portals, authentication/RBAC,
+membership workflows, payments/share capital/finance, POS/inventory/rentals,
+documents, reports, announcements, requests, notifications, and landing content
+administration.
 
-First, run the development server:
+## Quick Start
 
 ```bash
+npm install
+npm run typecheck
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The Express API defaults to
+[http://localhost:5000](http://localhost:5000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run typecheck
+npm run lint
+npm run test:api
+npm run test:e2e
+npm run build
+```
 
-## Learn More
+Run `npx playwright install chromium` once on a machine before
+`npm run test:e2e`.
 
-To learn more about Next.js, take a look at the following resources:
+## Documentation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- [Setup](docs/setup.md)
+- [API](docs/api.md)
+- [Authentication and roles](docs/authentication.md)
+- [Database](docs/database.md)
+- [Operations, deployment, uploads, reporting, backups, and security](docs/operations.md)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Safety Notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Never commit `.env`, database credentials, raw session tokens, password reset
+tokens, payment proofs, or protected uploads. Schema import and reference seeds
+are manual operator actions; the app never migrates or seeds the database on
+startup.
