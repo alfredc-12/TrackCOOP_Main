@@ -1,5 +1,6 @@
 import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
+import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext, RoleSlug } from "../auth/auth.types";
@@ -128,8 +129,8 @@ export function createUserRepository(pool?: Pool): UserRepository {
         `${userSelect()}
          ${whereSql}
          ORDER BY ${orderBy} ${orderDirection}, u.user_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [countRows] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total

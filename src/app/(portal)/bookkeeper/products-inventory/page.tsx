@@ -1,13 +1,5 @@
-import { Boxes } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import ChairmanPosInventoryClient from "@/features/pos/components/ChairmanPosInventoryClient";
 
 export default function BookkeeperProductsInventoryPage() {
-  return (
-    <PortalRoutePage
-      eyebrow="Operations"
-      title="Products and Inventory"
-      description="Manage product records, stock movements, and inventory availability for operations."
-      icon={Boxes}
-    />
-  );
+  return <ChairmanPosInventoryClient />;
 }

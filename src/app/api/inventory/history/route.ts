@@ -16,6 +16,7 @@ export async function GET() {
         m.movement_date as date,
         p.product_id,
         p.product_name,
+        p.unit,
         p.image_path as img
       FROM inventory_movements m
       JOIN products p ON m.product_id = p.product_id
@@ -31,6 +32,7 @@ export async function GET() {
       date: log.date,
       inventoryItem: {
         name: log.product_name,
+        unit: log.unit,
         img: log.img
       }
     }));

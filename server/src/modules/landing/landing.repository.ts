@@ -1,4 +1,5 @@
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { limitOffsetSql } from "../../db/pagination";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
@@ -335,8 +336,8 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
         `${meta.select}
          ${whereSql}
          ORDER BY ${meta.orderColumn} ASC, ${meta.idColumn} DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total FROM ${meta.table} ${whereSql}`,
@@ -416,8 +417,8 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
            FROM system_settings
            ${whereSql}
           ORDER BY setting_group ASC, setting_key ASC
-          LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+          ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total FROM system_settings ${whereSql}`,
@@ -503,8 +504,8 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
       LEFT JOIN users u ON u.user_id = a.user_id
            ${whereSql}
           ORDER BY a.action_time DESC, a.audit_log_id DESC
-          LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+          ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total FROM audit_logs a LEFT JOIN users u ON u.user_id = a.user_id ${whereSql}`,

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
-import { getMemberProfileIdForUser, requireApiUser } from "@/lib/next-api-auth";
+import { getServerAuthUser } from "@/lib/auth-server";
+import { getMemberProfileIdForUser } from "@/lib/next-api-auth";
 
 type CheckoutItem = {
   id: number;
@@ -31,14 +32,34 @@ type CheckoutProductRow = RowDataPacket & {
   pending_qty: number | string;
 };
 
+type StaffRecorderRow = RowDataPacket & {
+  user_id: number | string;
+};
+
 export async function POST(req: Request) {
   try {
-    const auth = await requireApiUser(["member"]);
-    if (auth.response) return auth.response;
+    const user = await getServerAuthUser();
+    let memberId: number | null = null;
+    let submittedBy: number | null = null;
+    let saleType = "Walk-in";
 
-    const memberId = await getMemberProfileIdForUser(auth.user.numericId);
-    if (!memberId) {
-      return NextResponse.json({ error: "Member profile is required before checkout." }, { status: 403 });
+    if (user) {
+      if (user.role !== "member") {
+        return NextResponse.json({ error: "Use the POS Sales portal to process staff sales." }, { status: 403 });
+      }
+
+      const numericUserId = Number(user.id);
+      if (!Number.isInteger(numericUserId) || numericUserId <= 0) {
+        return NextResponse.json({ error: "Authenticated user is not linked to a valid account." }, { status: 403 });
+      }
+
+      memberId = await getMemberProfileIdForUser(numericUserId);
+      if (!memberId) {
+        return NextResponse.json({ error: "Member profile is required before checkout." }, { status: 403 });
+      }
+
+      submittedBy = numericUserId;
+      saleType = "Member Sale";
     }
 
     const { items, paymentMethod, paymentReference, paymentName, paymentEmail, paymentContact } = await req.json() as CheckoutPayload;
@@ -113,13 +134,36 @@ export async function POST(req: Request) {
       const saleNumber = `SALE-${Date.now()}`;
 
       let paymentRefId: number | null = null;
+      let recordedBy = submittedBy;
+
+      if (!recordedBy) {
+        const [staffRecorders] = await connection.query<StaffRecorderRow[]>(
+          `SELECT u.user_id
+             FROM users u
+             JOIN roles r ON r.role_id = u.role_id
+            WHERE u.account_status = 'Active'
+              AND r.role_slug IN ('chairman', 'bookkeeper')
+            ORDER BY CASE r.role_slug WHEN 'chairman' THEN 1 WHEN 'bookkeeper' THEN 2 ELSE 3 END,
+                     u.user_id ASC
+            LIMIT 1`,
+        );
+
+        recordedBy = Number(staffRecorders[0]?.user_id);
+        if (!Number.isInteger(recordedBy) || recordedBy <= 0) {
+          await connection.rollback();
+          return NextResponse.json(
+            { error: "Checkout needs an active staff account to record public orders." },
+            { status: 500 },
+          );
+        }
+      }
 
       if (normalizedPaymentMethod === "Online") {
         const [refResult] = await connection.query<ResultSetHeader>(
           `INSERT INTO payment_references 
            (member_id, submitted_by, payer_name, payer_email, payer_contact, provider, reference_number, payment_purpose, amount, validation_status) 
            VALUES (?, ?, ?, ?, ?, 'GCash', ?, 'POS/Product', ?, 'Pending')`,
-          [memberId, auth.user.numericId, paymentName, paymentEmail, paymentContact, paymentReference, subtotal]
+          [memberId, submittedBy, paymentName, paymentEmail, paymentContact, paymentReference, subtotal]
         );
         paymentRefId = refResult.insertId;
       }
@@ -127,8 +171,8 @@ export async function POST(req: Request) {
       const [saleResult] = await connection.query<ResultSetHeader>(
         `INSERT INTO pos_sales 
          (sale_number, member_id, customer_name, customer_contact, sale_type, sale_status, payment_status, payment_reference_id, subtotal_amount, total_amount, recorded_by) 
-         VALUES (?, ?, ?, ?, 'Member Sale', 'Pending Payment', 'Unpaid', ?, ?, ?, ?)`,
-        [saleNumber, memberId, paymentName, paymentContact, paymentRefId, subtotal, subtotal, auth.user.numericId]
+         VALUES (?, ?, ?, ?, ?, 'Pending Payment', 'Unpaid', ?, ?, ?, ?)`,
+        [saleNumber, memberId, paymentName, paymentContact, saleType, paymentRefId, subtotal, subtotal, recordedBy]
       );
       
       const saleId = saleResult.insertId;

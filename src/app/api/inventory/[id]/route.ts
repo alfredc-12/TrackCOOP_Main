@@ -10,6 +10,7 @@ type InventoryProductUpdateInput = {
   price?: number | string;
   cost_price?: number | string;
   description?: string;
+  unit?: string;
   status?: string;
   img?: string;
 };
@@ -21,12 +22,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const productId = (await params).id;
     const body = await req.json() as InventoryProductUpdateInput;
-    const { name, category, price, cost_price, description, status, img } = body;
+    const { name, category, price, cost_price, description, unit, status, img } = body;
     const sellingPrice = Number(price);
     const costPrice = Number(cost_price ?? 0);
+    const productUnit = unit?.trim() || "piece";
 
-    if (!name || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
-      return NextResponse.json({ error: "Product name and valid price are required." }, { status: 400 });
+    if (!name || !productUnit || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
+      return NextResponse.json({ error: "Product name, unit, and valid price are required." }, { status: 400 });
     }
     
     const dbStatus = status === 'Available' ? 'Active' : 'Out of Stock';
@@ -34,9 +36,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     await db.query(
       `UPDATE products 
-       SET product_name = ?, category = ?, selling_price = ?, cost_price = ?, description = ?, product_status = ?, image_path = ? 
+       SET product_name = ?, category = ?, unit = ?, selling_price = ?, cost_price = ?, description = ?, product_status = ?, image_path = ? 
        WHERE product_id = ?`,
-      [name, category ?? null, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, productId]
+      [name, category ?? null, productUnit, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, productId]
     );
 
     return NextResponse.json({ success: true });

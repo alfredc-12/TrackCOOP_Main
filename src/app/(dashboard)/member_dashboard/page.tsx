@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import SiteFooter from "@/components/layout/SiteFooter";
+import { logout } from "@/lib/auth-client";
 import {
   Bell,
   Search,
@@ -41,13 +43,27 @@ import {
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 
 export default function MemberDashboardPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const navClass = (id: string) =>
     `inline-flex h-9 items-center border-b-2 px-1 text-sm font-semibold transition ${activeTab === id
       ? "border-[#1F6B43] text-[#123D2A]"
       : "border-transparent text-[#365f4a] hover:border-[#1F6B43]/55 hover:text-[#123D2A]"
     }`;
+
+  async function handleLogout() {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="flex min-h-[101vh] flex-col bg-[#F8F6EF] font-sans">
@@ -95,10 +111,15 @@ export default function MemberDashboardPage() {
             <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Announcements">
               <Bell className="size-5" />
             </button>
-            <Link href="/login" className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1F6B43]">
-              Logout
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isSigningOut}
+              className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1F6B43] disabled:cursor-wait disabled:opacity-70"
+            >
+              {isSigningOut ? "Logging out" : "Logout"}
               <LogOut className="size-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </header>

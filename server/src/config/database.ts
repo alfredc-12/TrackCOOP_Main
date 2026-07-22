@@ -1,11 +1,14 @@
 import { z } from "zod";
+import { loadServerEnv } from "./load-env";
+
+loadServerEnv();
 
 const databaseEnvSchema = z.object({
   DB_HOST: z.string().trim().min(1),
   DB_PORT: z.coerce.number().int().min(1).max(65535).default(3306),
   DB_NAME: z.string().trim().min(1),
   DB_USER: z.string().trim().min(1),
-  DB_PASSWORD: z.string().min(1),
+  DB_PASSWORD: z.string().default(""),
   DB_SSL: z
     .enum(["true", "false"])
     .default("true")

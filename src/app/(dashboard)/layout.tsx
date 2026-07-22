@@ -9,7 +9,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   
   // Kung nasa member_dashboard tayo, huwag ipakita ang Admin Sidebar at Header
-  if (pathname === "/member_dashboard") {
+  if (pathname === "/member_dashboard" || pathname.startsWith("/portal/member")) {
     return <PortalAuthGuard>{children}</PortalAuthGuard>;
   }
 

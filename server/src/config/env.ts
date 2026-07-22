@@ -1,11 +1,7 @@
-import path from "node:path";
-import { config as loadEnv } from "dotenv";
 import { z } from "zod";
+import { loadServerEnv } from "./load-env";
 
-loadEnv({
-  path: path.resolve(process.cwd(), "server", ".env"),
-  quiet: true,
-});
+loadServerEnv();
 
 const booleanString = z
   .enum(["true", "false"])

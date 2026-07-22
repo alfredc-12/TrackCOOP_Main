@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, QrCode, Printer } from "lucide-react";
 
 type InventoryItem = {
     id: number;
     name: string;
     category: string;
+    unit: string;
     price: number;
     stock: number;
     sold: number;
@@ -23,6 +25,11 @@ interface CartItem {
     maxStock: number;
     img: string;
     category: string;
+    unit: string;
+}
+
+function formatQuantityUnit(quantity: number | string, unit?: string) {
+    return `${Number(quantity).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${unit || "piece"}`;
 }
 
 type PosOrderItem = {
@@ -45,7 +52,51 @@ type PosOrder = {
     items?: PosOrderItem[];
 };
 
-export default function MemberPosClient() {
+type MemberPosClientProps = {
+    isPublicView?: boolean;
+};
+
+type StoreCartPortalProps = {
+    targetId: string;
+    className: string;
+    totalCartItems: number;
+    onOpenCart: () => void;
+};
+
+function StoreCartPortal({ targetId, className, totalCartItems, onOpenCart }: StoreCartPortalProps) {
+    const [target, setTarget] = useState<Element | null>(null);
+
+    useEffect(() => {
+        const frameId = window.requestAnimationFrame(() => {
+            setTarget(document.getElementById(targetId));
+        });
+
+        return () => window.cancelAnimationFrame(frameId);
+    }, [targetId]);
+
+    if (!target) {
+        return null;
+    }
+
+    return createPortal(
+        <button
+            type="button"
+            onClick={onOpenCart}
+            className={className}
+        >
+            <ShoppingCart className="size-4" />
+            My Cart
+            {totalCartItems > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm">
+                    {totalCartItems}
+                </span>
+            )}
+        </button>,
+        target,
+    );
+}
+
+export default function MemberPosClient({ isPublicView = false }: MemberPosClientProps) {
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -58,9 +109,9 @@ export default function MemberPosClient() {
     const [checkoutStep, setCheckoutStep] = useState<"cart" | "payment">("cart");
     const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
     const [paymentReference, setPaymentReference] = useState("");
-    const [paymentName, setPaymentName] = useState("Juan Dela Cruz");
-    const [paymentEmail, setPaymentEmail] = useState("juandelacruz@gmail.com");
-    const [paymentContact, setPaymentContact] = useState("09123456789");
+    const [paymentName, setPaymentName] = useState(isPublicView ? "" : "Juan Dela Cruz");
+    const [paymentEmail, setPaymentEmail] = useState(isPublicView ? "" : "juandelacruz@gmail.com");
+    const [paymentContact, setPaymentContact] = useState(isPublicView ? "" : "09123456789");
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
 
@@ -71,15 +122,17 @@ export default function MemberPosClient() {
 
     const fetchInventory = useCallback(async () => {
         try {
-            const res = await fetch("/api/inventory");
+            const res = await fetch(isPublicView ? "/api/public/store-products" : "/api/inventory");
             if (res.ok) {
                 const data = await res.json();
                 setInventory(data as InventoryItem[]);
+            } else {
+                setInventory([]);
             }
         } catch (error) {
             console.error("Failed to fetch inventory", error);
         }
-    }, []);
+    }, [isPublicView]);
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
@@ -142,6 +195,20 @@ export default function MemberPosClient() {
 
     // Derived states
     const availableInventory = inventory.filter(item => item.status === "Available" && item.stock > 0);
+    const categoryTabs = useMemo(() => {
+        const categories = new Map<string, string>();
+
+        inventory
+            .filter((item) => item.status === "Available" && item.stock > 0)
+            .forEach((item) => {
+            const category = item.category.trim();
+            if (category) {
+                categories.set(category.toLowerCase(), category);
+            }
+        });
+
+        return ["All", ...Array.from(categories.values()).sort((a, b) => a.localeCompare(b))];
+    }, [inventory]);
 
     const filteredAndSortedInventory = availableInventory
         .filter((item) => {
@@ -160,6 +227,11 @@ export default function MemberPosClient() {
     const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalCartPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+    const openCart = useCallback(() => {
+        setIsCartOpen(true);
+        setCheckoutStep("cart");
+    }, []);
+
     const addToCart = (product: InventoryItem, qty: number = 1) => {
         setCart(prevCart => {
             const existingItem = prevCart.find(item => item.id === product.id);
@@ -167,7 +239,7 @@ export default function MemberPosClient() {
             const availableToSell = product.stock - (product.pending_qty || 0);
 
             if (currentQty + qty > availableToSell) {
-                alert(`Cannot add more. Only ${availableToSell} items are currently available to buy (some are pending).`);
+                alert(`Cannot add more. Only ${formatQuantityUnit(availableToSell, product.unit)} are currently available to buy (some are pending).`);
                 return prevCart;
             }
 
@@ -181,9 +253,10 @@ export default function MemberPosClient() {
                 name: product.name,
                 price: product.price,
                 quantity: qty,
-                maxStock: product.stock,
+                maxStock: availableToSell,
                 img: product.img,
-                category: product.category
+                category: product.category,
+                unit: product.unit
             }];
         });
     };
@@ -193,7 +266,7 @@ export default function MemberPosClient() {
             if (item.id === id) {
                 const newQuantity = item.quantity + delta;
                 if (newQuantity > item.maxStock) {
-                    alert(`Maximum stock reached for ${item.name}.`);
+                    alert(`Maximum stock reached for ${item.name}: ${formatQuantityUnit(item.maxStock, item.unit)}.`);
                     return item;
                 }
                 if (newQuantity > 0) {
@@ -247,8 +320,9 @@ export default function MemberPosClient() {
                 setCheckoutStep("cart");
                 setPaymentMethod("Cash");
                 setPaymentReference("");
-                setPaymentEmail("juandelacruz@gmail.com");
-                setPaymentContact("09123456789");
+                setPaymentName(isPublicView ? "" : "Juan Dela Cruz");
+                setPaymentEmail(isPublicView ? "" : "juandelacruz@gmail.com");
+                setPaymentContact(isPublicView ? "" : "09123456789");
                 fetchInventory(); // Refresh stock
             } else {
                 const data = await res.json();
@@ -270,34 +344,52 @@ export default function MemberPosClient() {
                     <h2 className="text-3xl font-bold text-[#1e293b]">Cooperative Shop</h2>
                     <p className="text-sm text-[#64748b] mt-1">Order agricultural supplies directly from the cooperative.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            fetchHistory();
-                            setIsHistoryOpen(true);
-                        }}
-                        className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition relative"
-                    >
-                        <History className="size-4" />
-                        Order History
-                    </button>
-                    <button
-                        onClick={() => {
-                            setIsCartOpen(true);
-                            setCheckoutStep("cart");
-                        }}
-                        className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
-                    >
-                        <ShoppingCart className="size-4" />
-                        My Cart
-                        {totalCartItems > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm">
-                                {totalCartItems}
-                            </span>
-                        )}
-                    </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    {!isPublicView && (
+                        <button
+                            onClick={() => {
+                                fetchHistory();
+                                setIsHistoryOpen(true);
+                            }}
+                            className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition relative"
+                        >
+                            <History className="size-4" />
+                            Order History
+                        </button>
+                    )}
+                    {!isPublicView && (
+                        <button
+                            onClick={openCart}
+                            className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                        >
+                            <ShoppingCart className="size-4" />
+                            My Cart
+                            {totalCartItems > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm">
+                                    {totalCartItems}
+                                </span>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {isPublicView && (
+                <>
+                    <StoreCartPortal
+                        targetId="store-header-cart-slot"
+                        className="relative mr-2 flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                        totalCartItems={totalCartItems}
+                        onOpenCart={openCart}
+                    />
+                    <StoreCartPortal
+                        targetId="store-header-cart-slot-mobile"
+                        className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                        totalCartItems={totalCartItems}
+                        onOpenCart={openCart}
+                    />
+                </>
+            )}
 
             {/* Toolbar */}
             <div className="flex flex-col gap-4 mb-6 border-b border-gray-100 pb-6 mt-4">
@@ -330,7 +422,7 @@ export default function MemberPosClient() {
 
                 {/* Category Tabs */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                    {["All", "Harvested Goods", "Supplies", "Seeds", "Fertilizers"].map(cat => (
+                    {categoryTabs.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
@@ -370,9 +462,9 @@ export default function MemberPosClient() {
                                     <div className="flex justify-between items-center text-sm mb-3">
                                         <span className="text-[#94a3b8]">Quantity</span>
                                         <div className="flex flex-col items-end">
-                                            <span className="font-bold text-[#1e293b]">{item.stock - (item.pending_qty || 0)} pcs</span>
+                                            <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
                                             {item.pending_qty ? (
-                                                <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({item.pending_qty} pending)</span>
+                                                <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
                                             ) : null}
                                         </div>
                                     </div>
@@ -390,7 +482,7 @@ export default function MemberPosClient() {
                                                 >
                                                     <Minus className="size-4" />
                                                 </button>
-                                                <span className="font-bold text-[#1e293b] text-sm">{cartItem.quantity} In Cart</span>
+                                                <span className="font-bold text-[#1e293b] text-sm">{formatQuantityUnit(cartItem.quantity, cartItem.unit)} In Cart</span>
                                                 <button
                                                     onClick={() => updateCartQuantity(item.id, 1)}
                                                     disabled={cartItem.quantity >= (item.stock - (item.pending_qty || 0))}
@@ -412,7 +504,7 @@ export default function MemberPosClient() {
                                                     setActiveAdjustItemId(item.id);
                                                 }}
                                                 className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition shadow-sm ${cartItem ? 'bg-white border border-[#123D2A] text-[#123D2A] hover:bg-gray-50' : 'bg-[#123D2A] text-white hover:bg-[#123D2A]/90'}`}>
-                                                {cartItem ? `${cartItem.quantity} In Cart - Edit` : 'Add to Cart'}
+                                                {cartItem ? `${formatQuantityUnit(cartItem.quantity, cartItem.unit)} In Cart - Edit` : 'Add to Cart'}
                                             </button>
                                         )}
                                     </div>
@@ -547,7 +639,7 @@ export default function MemberPosClient() {
                                                         >
                                                             <Minus className="size-3" />
                                                         </button>
-                                                        <span className="font-bold text-xs px-3 text-[#1e293b]">{item.quantity}</span>
+                                                        <span className="font-bold text-xs px-3 text-[#1e293b]">{formatQuantityUnit(item.quantity, item.unit)}</span>
                                                         <button
                                                             onClick={() => updateCartQuantity(item.id, 1)}
                                                             disabled={item.quantity >= item.maxStock}

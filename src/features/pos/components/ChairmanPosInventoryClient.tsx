@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer } from "lucide-react";
 import { toast } from "sonner";
 
@@ -10,10 +10,35 @@ type StockHistory = {
     date: string;
 };
 
+const STOCK_UNIT_OPTIONS = [
+    "piece",
+    "sack",
+    "bag",
+    "kg",
+    "g",
+    "liter",
+    "ml",
+    "bundle",
+    "box",
+    "pack",
+    "bottle",
+    "can",
+    "tray",
+    "crate",
+    "roll",
+    "set",
+    "unit",
+];
+
+function formatQuantityUnit(quantity: number | string, unit?: string) {
+    return `${Number(quantity).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${unit || "piece"}`;
+}
+
 export type InventoryItem = {
     id: number;
     name: string;
     category: string;
+    unit: string;
     price: number;
     cost_price: number;
     description: string;
@@ -36,7 +61,7 @@ type StockActivityLog = {
     type: "add" | "deduct";
     amount: number;
     date: string;
-    inventoryItem?: Pick<InventoryItem, "name" | "img"> | null;
+    inventoryItem?: Pick<InventoryItem, "name" | "img" | "unit"> | null;
 };
 
 type PosOrderItem = {
@@ -60,6 +85,101 @@ type PosOrder = {
     reference_number?: string | null;
     items?: PosOrderItem[];
 };
+
+function uniqueCategories(categories: string[]) {
+    const categoryMap = new Map<string, string>();
+
+    categories.forEach((category) => {
+        const trimmedCategory = category.trim();
+        if (!trimmedCategory) return;
+        categoryMap.set(trimmedCategory.toLowerCase(), trimmedCategory);
+    });
+
+    return Array.from(categoryMap.values()).sort((a, b) => a.localeCompare(b));
+}
+
+type CategoryComboboxProps = {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    categories: string[];
+    placeholder?: string;
+};
+
+function CategoryCombobox({ label, value, onChange, categories, placeholder = "Select or type category" }: CategoryComboboxProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isAddingCustom, setIsAddingCustom] = useState(false);
+    const searchValue = value.trim().toLowerCase();
+    const selectedExistingCategory = categories.find((category) => category.toLowerCase() === searchValue);
+    const matchingCategories = (isAddingCustom
+        ? categories.filter((category) => !searchValue || category.toLowerCase().includes(searchValue))
+        : categories
+    ).slice(0, 8);
+
+    return (
+        <div className="relative">
+            <label className="mb-1 block text-sm font-medium text-[#64748b]">{label}</label>
+            <div className="relative">
+                <input
+                    type="text"
+                    value={value}
+                    readOnly={!isAddingCustom}
+                    onChange={(event) => {
+                        onChange(event.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+                    placeholder={placeholder}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+            </div>
+
+            {isOpen && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-xl">
+                    <button
+                        type="button"
+                        onMouseDown={(event) => {
+                            event.preventDefault();
+                            onChange("");
+                            setIsAddingCustom(true);
+                            setIsOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#0F9D58] transition hover:bg-[#F8F1E5]"
+                    >
+                        <Plus className="size-4" />
+                        Add category
+                    </button>
+
+                    {matchingCategories.map((category) => (
+                        <button
+                            key={category}
+                            type="button"
+                            onMouseDown={(event) => {
+                                event.preventDefault();
+                                onChange(category);
+                                setIsAddingCustom(false);
+                                setIsOpen(false);
+                            }}
+                            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#1e293b] transition hover:bg-[#F8F1E5] ${
+                                selectedExistingCategory === category ? "bg-[#F8F1E5] font-semibold" : ""
+                            }`}
+                        >
+                            <span className="font-medium">{category}</span>
+                        </button>
+                    ))}
+
+                    {isAddingCustom && value.trim() && !selectedExistingCategory && (
+                        <div className="px-3 py-2 text-xs font-semibold text-[#c78800]">
+                            New category: {value.trim()}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function ChairmanPosInventoryClient() {
     const [isMounted, setIsMounted] = useState(false);
@@ -202,7 +322,8 @@ export default function ChairmanPosInventoryClient() {
 
     // Form State
     const [newItemName, setNewItemName] = useState("");
-    const [newItemCategory, setNewItemCategory] = useState("Harvested Goods");
+    const [newItemCategory, setNewItemCategory] = useState("");
+    const [newItemUnit, setNewItemUnit] = useState("piece");
     const [newItemStock, setNewItemStock] = useState("");
     const [newItemPrice, setNewItemPrice] = useState("");
     const [newItemCostPrice, setNewItemCostPrice] = useState("");
@@ -233,8 +354,20 @@ export default function ChairmanPosInventoryClient() {
         }
     };
 
+    const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !editingItem) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const nextImage = reader.result as string;
+            setEditingItem((current) => current ? { ...current, img: nextImage } : current);
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleAddItemClick = () => {
-        if (!newItemName || !newItemStock || !newItemPrice || !newItemCostPrice) {
+        if (!newItemName || !newItemCategory.trim() || !newItemUnit || !newItemStock || !newItemPrice || !newItemCostPrice) {
             toast.error("Please fill in all required fields.");
             return;
         }
@@ -246,7 +379,8 @@ export default function ChairmanPosInventoryClient() {
         const stockNum = Number(newItemStock);
         const newItem = {
             name: newItemName,
-            category: newItemCategory,
+            category: newItemCategory.trim(),
+            unit: newItemUnit,
             price: Number(newItemPrice),
             cost_price: Number(newItemCostPrice),
             description: newItemDescription,
@@ -266,9 +400,11 @@ export default function ChairmanPosInventoryClient() {
                 setIsAddModalOpen(false);
                 setNewItemName("");
                 setNewItemStock("");
+                setNewItemUnit("piece");
                 setNewItemPrice("");
                 setNewItemCostPrice("");
                 setNewItemDescription("");
+                setNewItemCategory("");
                 setNewItemStatus("Available");
                 setImagePreview(null);
                 toast.success("Item added successfully!");
@@ -291,7 +427,7 @@ export default function ChairmanPosInventoryClient() {
 
     const saveEditItemClick = () => {
         if (!editingItem) return;
-        if (!editingItem.name || editingItem.stock === "" || !editingItem.price || !editingItem.cost_price) {
+        if (!editingItem.name || !editingItem.category.trim() || !editingItem.unit || editingItem.stock === "" || !editingItem.price || !editingItem.cost_price) {
             toast.error("Please fill in all required fields.");
             return;
         }
@@ -307,7 +443,7 @@ export default function ChairmanPosInventoryClient() {
         if (stockActionType === "deduct" && addingStockItem) {
             const availableToTake = addingStockItem.stock - (addingStockItem.pending_qty || 0);
             if (Number(stockToAdd) > availableToTake) {
-                setStockErrorMsg(`Cannot take ${stockToAdd} pcs.\n\nOnly ${availableToTake} items are currently available because some are reserved for pending orders.`);
+                setStockErrorMsg(`Cannot take ${formatQuantityUnit(stockToAdd, addingStockItem.unit)}.\n\nOnly ${formatQuantityUnit(availableToTake, addingStockItem.unit)} are currently available because some are reserved for pending orders.`);
                 return;
             }
         }
@@ -393,6 +529,21 @@ export default function ChairmanPosInventoryClient() {
     const totalGCashSales = orders
         .filter(o => o.sale_status === 'Paid' && o.payment_reference_id)
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
+
+    const existingCategories = useMemo(
+        () => uniqueCategories(inventory.map((item) => item.category)),
+        [inventory],
+    );
+
+    const categoryOptions = useMemo(
+        () => existingCategories,
+        [existingCategories],
+    );
+
+    const categoryTabs = useMemo(
+        () => ["All", ...existingCategories],
+        [existingCategories],
+    );
 
     const filteredAndSortedInventory = inventory
         .filter((item) => {
@@ -526,7 +677,7 @@ export default function ChairmanPosInventoryClient() {
 
                 {/* Category Tabs */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                    {["All", "Harvested Goods", "Supplies", "Seeds", "Fertilizers"].map(cat => (
+                    {categoryTabs.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
@@ -571,9 +722,9 @@ export default function ChairmanPosInventoryClient() {
                                 <div className="flex justify-between items-center text-sm mb-3">
                                     <span className="text-[#94a3b8]">Quantity</span>
                                     <div className="flex flex-col items-end">
-                                        <span className="font-bold text-[#1e293b]">{item.stock - (item.pending_qty || 0)} pcs</span>
+                                        <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
                                         {item.pending_qty ? (
-                                            <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({item.pending_qty} pending)</span>
+                                            <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
                                         ) : null}
                                     </div>
                                 </div>
@@ -653,21 +804,29 @@ export default function ChairmanPosInventoryClient() {
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <CategoryCombobox
+                                    label="Category"
+                                    value={newItemCategory}
+                                    onChange={setNewItemCategory}
+                                    categories={categoryOptions}
+                                />
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Category</label>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Unit</label>
                                     <select
-                                        value={newItemCategory}
-                                        onChange={(e) => setNewItemCategory(e.target.value)}
+                                        value={newItemUnit}
+                                        onChange={(e) => setNewItemUnit(e.target.value)}
                                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                                     >
-                                        <option>Harvested Goods</option>
-                                        <option>Supplies</option>
-                                        <option>Seeds</option>
-                                        <option>Fertilizers</option>
+                                        {STOCK_UNIT_OPTIONS.map((unit) => (
+                                            <option key={unit} value={unit}>{unit}</option>
+                                        ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Initial Stock (pcs)</label>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Initial Stock ({newItemUnit})</label>
                                     <input
                                         type="number"
                                         value={newItemStock}
@@ -751,6 +910,38 @@ export default function ChairmanPosInventoryClient() {
                         </div>
 
                         <div className="grid gap-4">
+                            <div className="relative flex min-h-48 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 transition hover:border-[#0F9D58] hover:bg-[#F8F1E5]/50">
+                                <input type="file" accept="image/*" onChange={handleEditImageChange} className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0" />
+
+                                {editingItem.img ? (
+                                    <>
+                                        <img src={editingItem.img} alt={`${editingItem.name} preview`} className="absolute inset-0 z-10 h-full w-full object-cover" />
+                                        <div className="absolute inset-0 z-10 bg-black/35" />
+                                        <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[#123D2A] shadow-sm">
+                                            <Camera className="size-6" />
+                                        </div>
+                                        <p className="relative z-10 mt-3 text-sm font-semibold text-white">Change item photo</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-[#123D2A]/10 text-[#0F9D58]">
+                                            <Camera className="size-6" />
+                                        </div>
+                                        <p className="relative z-10 mt-3 text-sm font-semibold text-[#1e293b]">Upload item photo</p>
+                                    </>
+                                )}
+                            </div>
+
+                            {editingItem.img && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleEditChange("img", "")}
+                                    className="-mt-1 justify-self-start rounded-lg border border-red-100 bg-white px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50"
+                                >
+                                    Remove Photo
+                                </button>
+                            )}
+
                             <div>
                                 <label className="mb-1 block text-sm font-medium text-[#64748b]">Item Name</label>
                                 <input
@@ -762,26 +953,34 @@ export default function ChairmanPosInventoryClient() {
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <CategoryCombobox
+                                    label="Category"
+                                    value={editingItem.category}
+                                    onChange={(value) => handleEditChange("category", value)}
+                                    categories={categoryOptions}
+                                />
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Category</label>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Unit</label>
                                     <select
-                                        value={editingItem.category}
-                                        onChange={(e) => handleEditChange('category', e.target.value)}
+                                        value={editingItem.unit || "piece"}
+                                        onChange={(e) => handleEditChange("unit", e.target.value)}
                                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                                     >
-                                        <option>Harvested Goods</option>
-                                        <option>Supplies</option>
-                                        <option>Seeds</option>
-                                        <option>Fertilizers</option>
+                                        {STOCK_UNIT_OPTIONS.map((unit) => (
+                                            <option key={unit} value={unit}>{unit}</option>
+                                        ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Stock (pcs)</label>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Current Stock ({editingItem.unit || "piece"})</label>
                                     <input
                                         type="number"
                                         value={editingItem.stock}
-                                        onChange={(e) => handleEditChange('stock', e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                        readOnly
+                                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-[#64748b] outline-none"
                                     />
                                 </div>
                             </div>
@@ -872,7 +1071,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="mb-4">
                                 <p className="text-sm text-gray-500 mb-1">Item:</p>
                                 <p className="font-bold text-gray-900">{addingStockItem.name}</p>
-                                <p className="text-xs text-gray-400 mt-1">Current Stock: {addingStockItem.stock} pcs</p>
+                                <p className="text-xs text-gray-400 mt-1">Current Stock: {formatQuantityUnit(addingStockItem.stock, addingStockItem.unit)}</p>
                             </div>
 
                             <div className="mb-4">
@@ -925,7 +1124,7 @@ export default function ChairmanPosInventoryClient() {
                                         <div key={idx} className="flex items-center justify-between border-b border-gray-100 pb-3">
                                             <div className="flex flex-col">
                                                 <span className={`text-sm font-bold ${log.type === 'add' ? 'text-green-600' : 'text-orange-600'}`}>
-                                                    {log.type === 'add' ? '+' : '-'}{log.amount} pcs
+                                                    {log.type === 'add' ? '+' : '-'}{formatQuantityUnit(log.amount, historyItem.unit)}
                                                 </span>
                                                 <span suppressHydrationWarning className="text-xs text-gray-500 mt-0.5">
                                                     {new Date(log.date).toLocaleString()}
@@ -1013,7 +1212,7 @@ export default function ChairmanPosInventoryClient() {
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <span className={`text-sm font-bold ${log.type === 'add' ? 'text-green-600' : 'text-orange-600'}`}>
-                                                {log.type === 'add' ? '+' : '-'}{log.amount} pcs
+                                                {log.type === 'add' ? '+' : '-'}{formatQuantityUnit(log.amount, log.inventoryItem?.unit)}
                                             </span>
                                             <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">
                                                 {log.type === 'add' ? 'Added' : 'Deducted'}
@@ -1072,7 +1271,7 @@ export default function ChairmanPosInventoryClient() {
                             <p className="text-center text-sm text-gray-500">
                                 {pendingAction === 'add' && `Are you sure you want to add ${newItemName} to the inventory?`}
                                 {pendingAction === 'edit' && `Are you sure you want to save the changes for ${editingItem?.name}?`}
-                                {pendingAction === 'stock' && `Are you sure you want to ${stockActionType === 'add' ? 'add' : 'deduct'} ${stockToAdd} pcs to ${addingStockItem?.name}?`}
+                                {pendingAction === 'stock' && `Are you sure you want to ${stockActionType === 'add' ? 'add' : 'deduct'} ${formatQuantityUnit(stockToAdd, addingStockItem?.unit)} to ${addingStockItem?.name}?`}
                             </p>
                         </div>
                         <div className="flex gap-3 mt-6">

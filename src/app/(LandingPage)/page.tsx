@@ -317,7 +317,7 @@ function Header() {
               { label: "Our Cooperative", href: "/about/our-cooperative" },
               {
                 label: "Board of Directors",
-                href: "/about/our-cooperative#board-directors",
+                href: "/about/board-of-directors",
               },
             ]}
           />
@@ -328,8 +328,8 @@ function Header() {
             onActivate={() => setActiveNav("services")}
             items={[
               { label: "Membership Assistance", href: "#services" },
-              { label: "Equipment Rental", href: "#services" },
-              { label: "Cooperative Store", href: "#services" },
+              { label: "Equipment Rental", href: "/rental" },
+              { label: "Cooperative Store", href: "/store" },
             ]}
           />
           <a

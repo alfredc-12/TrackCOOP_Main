@@ -1,4 +1,5 @@
 import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { limitOffsetSql } from "../../db/pagination";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
@@ -617,8 +618,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         `${documentSelect()}
          ${whereSql}
          ORDER BY ${documentSortColumns[query.sortBy]} ${orderDirection}, d.document_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         countSql("documents d", "JOIN users u ON u.user_id = d.uploaded_by", whereSql),
@@ -774,8 +775,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         `${reportSelect()}
          ${whereSql}
          ORDER BY ${reportSortColumns[query.sortBy]} ${orderDirection}, r.report_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         countSql("reports r", "JOIN users u ON u.user_id = r.generated_by", whereSql),
@@ -866,8 +867,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         `${announcementSelect()}
          ${whereSql}
          ORDER BY ${announcementSortColumns[query.sortBy]} ${orderDirection}, a.announcement_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         countSql("announcements a", "JOIN users u ON u.user_id = a.posted_by", whereSql),
@@ -1034,8 +1035,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         `${requestSelect()}
          ${whereSql}
          ORDER BY ${requestSortColumns[query.sortBy]} ${orderDirection}, ri.request_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         countSql("requests_inquiries ri", "LEFT JOIN users assignee ON assignee.user_id = ri.assigned_to", whereSql),
@@ -1198,8 +1199,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         `${notificationSelect()}
          ${whereSql}
          ORDER BY ${notificationSortColumns[query.sortBy]} ${orderDirection}, n.notification_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total FROM notifications n ${whereSql}`,

@@ -40,9 +40,9 @@ export type PortalNavGroup = {
 };
 
 export const roleHomePaths: Record<Role, string> = {
-  chairman: "/chairman/dashboard",
-  bookkeeper: "/bookkeeper/dashboard",
-  member: "/member_dashboard",
+  chairman: "/portal/chairman/dashboard",
+  bookkeeper: "/portal/bookkeeper/dashboard",
+  member: "/portal/member/dashboard",
 };
 
 export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
@@ -52,7 +52,7 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Dashboard",
-          href: "/chairman/dashboard",
+          href: "/portal/chairman/dashboard",
           icon: LayoutDashboard,
           summary: "Chairman oversight and cooperative health signals.",
         },
@@ -63,19 +63,19 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "User Accounts",
-          href: "/chairman/users",
+          href: "/portal/chairman/users",
           icon: UserRoundCog,
           summary: "Create and manage staff and member access.",
         },
         {
           label: "Members",
-          href: "/chairman/members",
+          href: "/portal/chairman/members",
           icon: UsersRound,
           summary: "Review member records, status, and profile history.",
         },
         {
           label: "Member Indicators",
-          href: "/chairman/member-indicators",
+          href: "/portal/chairman/member-indicators",
           icon: Gauge,
           summary: "Track membership status indicators and recalculations.",
         },
@@ -86,19 +86,19 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Payments",
-          href: "/chairman/payments",
+          href: "/portal/chairman/payments",
           icon: ReceiptText,
           summary: "Review validated member payment references.",
         },
         {
           label: "Share Capital",
-          href: "/chairman/share-capital",
+          href: "/portal/chairman/share-capital",
           icon: WalletCards,
           summary: "Monitor share capital progress and summaries.",
         },
         {
           label: "Financial Overview",
-          href: "/chairman/finance",
+          href: "/portal/chairman/finance",
           icon: Landmark,
           summary: "View ledger performance and financial totals.",
         },
@@ -109,31 +109,31 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Products",
-          href: "/chairman/products",
+          href: "/portal/chairman/products",
           icon: Package,
           summary: "Oversee products available to cooperative members.",
         },
         {
           label: "POS Sales",
-          href: "/chairman/pos",
+          href: "/portal/chairman/pos",
           icon: ShoppingCart,
           summary: "Process and review cooperative sales activity.",
         },
         {
           label: "Inventory",
-          href: "/chairman/inventory",
+          href: "/portal/chairman/inventory",
           icon: Boxes,
           summary: "Track stock levels and inventory movements.",
         },
         {
           label: "Rental Assets",
-          href: "/chairman/rentals/assets",
+          href: "/portal/chairman/rentals/assets",
           icon: Tractor,
           summary: "Manage cooperative rental equipment and assets.",
         },
         {
           label: "Rental Bookings",
-          href: "/chairman/rentals/bookings",
+          href: "/portal/chairman/rentals/bookings",
           icon: CalendarCheck2,
           summary: "Review rental schedules, bookings, and statuses.",
         },
@@ -144,13 +144,13 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Announcements",
-          href: "/chairman/announcements",
+          href: "/portal/chairman/announcements",
           icon: Megaphone,
           summary: "Create, publish, and archive cooperative notices.",
         },
         {
           label: "Requests and Inquiries",
-          href: "/chairman/requests",
+          href: "/portal/chairman/requests",
           icon: Inbox,
           summary: "Assign and respond to cooperative requests.",
         },
@@ -161,13 +161,13 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Documents",
-          href: "/chairman/documents",
+          href: "/portal/chairman/documents",
           icon: FileText,
           summary: "Manage documents and access permissions.",
         },
         {
           label: "Reports",
-          href: "/chairman/reports",
+          href: "/portal/chairman/reports",
           icon: BarChart3,
           summary: "Generate allowed operational and financial reports.",
         },
@@ -178,31 +178,31 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Page Content",
-          href: "/chairman/landing/content",
+          href: "/portal/chairman/landing/content",
           icon: Globe2,
           summary: "Manage published landing page content blocks.",
         },
         {
           label: "Services",
-          href: "/chairman/landing/services",
+          href: "/portal/chairman/landing/services",
           icon: ClipboardList,
           summary: "Maintain public cooperative service information.",
         },
         {
           label: "Programs and Projects",
-          href: "/chairman/landing/programs",
+          href: "/portal/chairman/landing/programs",
           icon: Tractor,
           summary: "Maintain public programs and project highlights.",
         },
         {
           label: "Partners and Certifications",
-          href: "/chairman/landing/partners",
+          href: "/portal/chairman/landing/partners",
           icon: ShieldCheck,
           summary: "Manage partner and certification records for the site.",
         },
         {
           label: "Gallery",
-          href: "/chairman/landing/gallery",
+          href: "/portal/chairman/landing/gallery",
           icon: Tags,
           summary: "Manage published cooperative gallery photos.",
         },
@@ -213,13 +213,13 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Settings",
-          href: "/chairman/settings",
+          href: "/portal/chairman/settings",
           icon: Settings,
           summary: "Manage system-level cooperative configuration.",
         },
         {
           label: "Audit Logs",
-          href: "/chairman/audit-logs",
+          href: "/portal/chairman/audit-logs",
           icon: History,
           summary: "Review security and system activity logs.",
         },
@@ -232,7 +232,7 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Dashboard",
-          href: "/bookkeeper/dashboard",
+          href: "/portal/bookkeeper/dashboard",
           icon: LayoutDashboard,
           summary: "Bookkeeper workload and financial operations overview.",
         },
@@ -243,13 +243,13 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Payment Validation",
-          href: "/bookkeeper/payment-validation",
+          href: "/portal/bookkeeper/payment-validation",
           icon: ReceiptText,
           summary: "Validate, reject, or clarify member payment references.",
         },
         {
           label: "Share Capital",
-          href: "/bookkeeper/share-capital",
+          href: "/portal/bookkeeper/share-capital",
           icon: WalletCards,
           summary: "Record and correct share capital transactions.",
         },
@@ -260,13 +260,13 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Financial Ledger",
-          href: "/bookkeeper/financial-ledger",
+          href: "/portal/bookkeeper/financial-ledger",
           icon: Landmark,
           summary: "Post, review, and void controlled financial entries.",
         },
         {
           label: "Financial Categories",
-          href: "/bookkeeper/financial-categories",
+          href: "/portal/bookkeeper/financial-categories",
           icon: Tags,
           summary: "Maintain financial categories for ledger entries.",
         },
@@ -277,19 +277,19 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "POS Sales",
-          href: "/bookkeeper/pos-sales",
+          href: "/portal/bookkeeper/pos-sales",
           icon: ShoppingCart,
           summary: "Process cooperative POS sales and receipts.",
         },
         {
           label: "Products and Inventory",
-          href: "/bookkeeper/products-inventory",
+          href: "/portal/bookkeeper/products-inventory",
           icon: Boxes,
           summary: "Manage products, stock, and inventory movement records.",
         },
         {
           label: "Rental Transactions",
-          href: "/bookkeeper/rental-transactions",
+          href: "/portal/bookkeeper/rental-transactions",
           icon: Tractor,
           summary: "Record rental charges, payments, and financial status.",
         },
@@ -300,13 +300,13 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Documents",
-          href: "/bookkeeper/documents",
+          href: "/portal/bookkeeper/documents",
           icon: FileText,
           summary: "Upload and manage financial supporting documents.",
         },
         {
           label: "Reports",
-          href: "/bookkeeper/reports",
+          href: "/portal/bookkeeper/reports",
           icon: BarChart3,
           summary: "Generate financial, rental, POS, and inventory reports.",
         },
@@ -317,7 +317,7 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       items: [
         {
           label: "Assigned Requests",
-          href: "/bookkeeper/requests",
+          href: "/portal/bookkeeper/requests",
           icon: Inbox,
           summary: "Review and respond to assigned requests.",
         },
@@ -341,7 +341,7 @@ export function findPortalNavItem(pathname: string): PortalNavItem | null {
 }
 
 export function getPortalRoleFromPath(pathname: string): StaffRole | null {
-  if (pathname.startsWith("/chairman")) return "chairman";
-  if (pathname.startsWith("/bookkeeper")) return "bookkeeper";
+  if (pathname.startsWith("/portal/chairman") || pathname.startsWith("/chairman")) return "chairman";
+  if (pathname.startsWith("/portal/bookkeeper") || pathname.startsWith("/bookkeeper")) return "bookkeeper";
   return null;
 }

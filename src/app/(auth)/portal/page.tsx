@@ -7,9 +7,9 @@ import type { AuthUser } from "@/features/auth/types";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 
 const destinations: Record<AuthUser["role"], string> = {
-  chairman: "/chairman/dashboard",
-  bookkeeper: "/bookkeeper/dashboard",
-  member: "/member_dashboard",
+  chairman: "/portal/chairman/dashboard",
+  bookkeeper: "/portal/bookkeeper/dashboard",
+  member: "/portal/member/dashboard",
 };
 
 export default function PortalRedirectPage() {

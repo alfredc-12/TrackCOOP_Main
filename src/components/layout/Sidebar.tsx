@@ -27,26 +27,26 @@ import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth-client";
 
 const chairmanNavItems = [
-  { href: "/chairman/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chairman/members", label: "Members", icon: Users },
-  { href: "/chairman/finance", label: "Finance", icon: Wallet },
-  { href: "/chairman/payments", label: "Payments", icon: CreditCard },
-  { href: "/chairman/pos", label: "POS Sales", icon: Tractor },
-  { href: "/chairman/documents", label: "Documents", icon: FileText },
-  { href: "/chairman/announcements", label: "Announcements", icon: Megaphone },
-  { href: "/chairman/requests", label: "Requests", icon: MessageSquare },
+  { href: "/portal/chairman/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/chairman/members", label: "Members", icon: Users },
+  { href: "/portal/chairman/finance", label: "Finance", icon: Wallet },
+  { href: "/portal/chairman/payments", label: "Payments", icon: CreditCard },
+  { href: "/portal/chairman/pos", label: "POS Sales", icon: Tractor },
+  { href: "/portal/chairman/documents", label: "Documents", icon: FileText },
+  { href: "/portal/chairman/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/portal/chairman/requests", label: "Requests", icon: MessageSquare },
 ];
 
 const bookkeeperNavItems = [
-  { href: "/bookkeeper/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/bookkeeper/share-capital", label: "Share Capital", icon: Wallet },
-  { href: "/bookkeeper/financial-ledger", label: "Financial Ledger", icon: LineChart },
-  { href: "/bookkeeper/financial-categories", label: "Categories", icon: PhilippinePeso },
+  { href: "/portal/bookkeeper/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/bookkeeper/share-capital", label: "Share Capital", icon: Wallet },
+  { href: "/portal/bookkeeper/financial-ledger", label: "Financial Ledger", icon: LineChart },
+  { href: "/portal/bookkeeper/financial-categories", label: "Categories", icon: PhilippinePeso },
 ];
 
 const memberNavItems = [
-  { href: "/member_dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/member_dashboard", label: "Cooperative Shop", icon: Package },
+  { href: "/portal/member/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/member/dashboard", label: "Cooperative Shop", icon: Package },
   { href: "/member-share-capital", label: "Member & Share Capital", icon: User },
   { href: "/activities-programs", label: "Activities & Programs", icon: Calendar },
   { href: "/announcements", label: "Communication & Announcements", icon: Megaphone },

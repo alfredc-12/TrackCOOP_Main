@@ -1,5 +1,6 @@
 import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
+import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
@@ -146,8 +147,8 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
         `${shareSelect()}
          ${whereSql}
          ORDER BY ${sortColumns[query.sortBy]} ${orderDirection}, s.share_payment_id DESC
-         LIMIT ? OFFSET ?`,
-        [...values, query.pageSize, offset],
+         ${limitOffsetSql(query.pageSize, offset)}`,
+        values,
       );
       const [countRows] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total

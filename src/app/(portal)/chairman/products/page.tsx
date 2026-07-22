@@ -1,13 +1,5 @@
-import { Package } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import ProductCatalogClient from "@/features/pos/components/ProductCatalogClient";
 
 export default function ChairmanProductsPage() {
-  return (
-    <PortalRoutePage
-      eyebrow="Operations"
-      title="Products"
-      description="Cooperative product catalog oversight for store and POS workflows."
-      icon={Package}
-    />
-  );
+  return <ProductCatalogClient />;
 }

@@ -8,26 +8,26 @@ export default async function LegacyDashboardPage({
   const params = await searchParams;
 
   if (params.role === "member") {
-    redirect("/member_dashboard");
+    redirect("/portal/member/dashboard");
   }
 
   if (params.role === "bookkeeper") {
-    redirect("/bookkeeper/dashboard");
+    redirect("/portal/bookkeeper/dashboard");
   }
 
   if (params.tab) {
     const legacyTabMap: Record<string, string> = {
-      members: "/chairman/members",
-      finance: "/chairman/finance",
-      payments: "/chairman/payments",
-      "rental-pos": "/chairman/pos",
-      documents: "/chairman/documents",
-      announcements: "/chairman/announcements",
-      inquiries: "/chairman/requests",
+      members: "/portal/chairman/members",
+      finance: "/portal/chairman/finance",
+      payments: "/portal/chairman/payments",
+      "rental-pos": "/portal/chairman/pos",
+      documents: "/portal/chairman/documents",
+      announcements: "/portal/chairman/announcements",
+      inquiries: "/portal/chairman/requests",
     };
 
-    redirect(legacyTabMap[params.tab] ?? "/chairman/dashboard");
+    redirect(legacyTabMap[params.tab] ?? "/portal/chairman/dashboard");
   }
 
-  redirect("/chairman/dashboard");
+  redirect("/portal/chairman/dashboard");
 }

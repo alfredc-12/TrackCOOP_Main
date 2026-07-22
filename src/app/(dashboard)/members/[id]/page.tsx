@@ -6,5 +6,5 @@ export default async function LegacyMemberDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  redirect(`/chairman/members?member=${encodeURIComponent(id)}`);
+  redirect(`/portal/chairman/members?member=${encodeURIComponent(id)}`);
 }

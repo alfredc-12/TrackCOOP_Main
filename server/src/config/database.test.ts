@@ -26,13 +26,26 @@ test("parseDatabaseConfig validates and normalizes database settings", () => {
   });
 });
 
-test("parseDatabaseConfig rejects missing credentials without exposing values", () => {
+test("parseDatabaseConfig allows an empty local database password", () => {
+  const config = parseDatabaseConfig({
+    DB_HOST: "127.0.0.1",
+    DB_NAME: "trackcoopdb",
+    DB_USER: "root",
+    DB_PASSWORD: "",
+    DB_SSL: "false",
+  });
+
+  assert.equal(config.password, "");
+  assert.equal(config.ssl, false);
+});
+
+test("parseDatabaseConfig rejects missing required connection fields", () => {
   assert.throws(
     () =>
       parseDatabaseConfig({
         DB_HOST: "database.example",
         DB_NAME: "trackcoopdb",
       }),
-    /DB_USER.*DB_PASSWORD/,
+    /DB_USER/,
   );
 });

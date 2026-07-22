@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import type { InquiryDraft, RentalInquiry, RentalService, UserRole } from "../_types/rental";
 import { adaptTrackCoopRole } from "../_lib/rentalPermissions";
@@ -25,7 +26,15 @@ interface RentalContextValue {
 
 const RentalContext = createContext<RentalContextValue | undefined>(undefined);
 
+function isPublicRentalPath(pathname: string) {
+  if (pathname === "/rental" || pathname === "/rental/services") return true;
+  if (pathname === "/rental/services/new" || pathname.endsWith("/edit")) return false;
+  if (/^\/rental\/services\/[^/]+$/.test(pathname)) return true;
+  return pathname === "/rental/inquiry" || pathname.startsWith("/rental/inquiry/");
+}
+
 export function RentalProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [services, setServices] = useState<RentalService[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -49,6 +58,14 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
   }, [refreshServices]);
 
   useEffect(() => {
+    if (isPublicRentalPath(pathname)) {
+      const frameId = window.requestAnimationFrame(() => {
+        setRoleState("Public");
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
     let active = true;
 
     void getCurrentUser()
@@ -62,7 +79,7 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pathname]);
 
   const setRole = useCallback((nextRole: UserRole) => {
     setRoleState(nextRole);

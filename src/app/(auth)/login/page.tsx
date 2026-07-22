@@ -5,20 +5,20 @@ import { ArrowLeft, LoaderCircle, LogIn } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   loginSchema,
   type LoginFormValues,
 } from "@/features/auth/schema";
 import type { AuthUser } from "@/features/auth/types";
-import { login } from "@/lib/auth-client";
+import { getOptionalAuthenticatedUser, login } from "@/lib/auth-client";
 import { ApiClientError } from "@/lib/api-client";
 
 const roleDestinations: Record<AuthUser["role"], string> = {
-  chairman: "/chairman/dashboard",
-  bookkeeper: "/bookkeeper/dashboard",
-  member: "/member_dashboard",
+  chairman: "/portal/chairman/dashboard",
+  bookkeeper: "/portal/bookkeeper/dashboard",
+  member: "/portal/member/dashboard",
 };
 
 export default function LoginPage() {
@@ -32,6 +32,20 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { identifier: "", password: "" },
   });
+
+  useEffect(() => {
+    let active = true;
+
+    getOptionalAuthenticatedUser()
+      .then((user) => {
+        if (active && user) router.replace(roleDestinations[user.role]);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   async function onSubmit(values: LoginFormValues) {
     setFormError("");

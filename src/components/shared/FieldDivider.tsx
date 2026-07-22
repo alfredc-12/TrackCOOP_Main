@@ -54,28 +54,31 @@ export default function FieldDivider() {
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Light green — back layer, deepest droop */}
-        <motion.path
-          fill="#c8e8a8"
-          d={LA}
-          animate={{ d: [LA, LB, LA] }}
+        <motion.g
+          animate={{ x: [0, -28, 0], opacity: [0.9, 1, 0.9] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        />
+        >
+          <path fill="#c8e8a8" d={LA} />
+          <path fill="#c8e8a8" d={LB} opacity="0.38" transform="translate(1440 0)" />
+        </motion.g>
 
         {/* Medium green — middle layer */}
-        <motion.path
-          fill="#6dba7a"
-          d={MA}
-          animate={{ d: [MA, MB, MA] }}
+        <motion.g
+          animate={{ x: [0, 34, 0], opacity: [0.95, 0.86, 0.95] }}
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-        />
+        >
+          <path fill="#6dba7a" d={MA} />
+          <path fill="#6dba7a" d={MB} opacity="0.32" transform="translate(-1440 0)" />
+        </motion.g>
 
         {/* Dark green — front layer, shallowest, different cycle count */}
-        <motion.path
-          fill="#1F6B43"
-          d={DA}
-          animate={{ d: [DA, DB, DA] }}
+        <motion.g
+          animate={{ x: [0, -18, 0], opacity: [1, 0.92, 1] }}
           transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut", delay: 1.1 }}
-        />
+        >
+          <path fill="#1F6B43" d={DA} />
+          <path fill="#1F6B43" d={DB} opacity="0.26" transform="translate(1440 0)" />
+        </motion.g>
       </svg>
     </div>
   );

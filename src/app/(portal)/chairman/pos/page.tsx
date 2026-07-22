@@ -1,5 +1,5 @@
-import ChairmanPosInventoryClient from "@/features/pos/components/ChairmanPosInventoryClient";
+import PosSalesClient from "@/features/pos/components/PosSalesClient";
 
 export default function ChairmanPosPage() {
-  return <ChairmanPosInventoryClient />;
+  return <PosSalesClient />;
 }
