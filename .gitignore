@@ -20,6 +20,8 @@ build/
 dist/
 apps/**/dist/
 coverage/
+playwright-report/
+test-results/
 
 # Expo
 .expo/
