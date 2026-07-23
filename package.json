@@ -5,7 +5,7 @@
   "scripts": {
     "dev:web": "next dev",
     "dev:api": "tsx watch server/src/index.ts",
-    "dev": "concurrently --kill-others-on-fail --names WEB,API \"npm:dev:web\" \"npm:dev:api\"",
+    "dev": "node scripts/dev.mjs",
     "build:web": "next build",
     "build:api": "tsc -p server/tsconfig.json",
     "build": "npm run build:web && npm run build:api",
@@ -67,7 +67,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/supertest": "^7.2.1",
-    "concurrently": "^10.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "supertest": "^7.2.2",
