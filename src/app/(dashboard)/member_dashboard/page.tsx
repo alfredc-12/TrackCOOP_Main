@@ -45,9 +45,13 @@ import {
   Star,
   ShieldCheck,
   AlertCircle,
-  Info
+  Info,
+  X
 } from "lucide-react";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
+import { ProfileSettings } from "./components/ProfileSettings";
+import { HelpCenter } from "./components/HelpCenter";
+import ActivityModal from "./components/ActivityModal";
 
 export default function MemberDashboardPage() {
   const router = useRouter();
@@ -65,7 +69,11 @@ export default function MemberDashboardPage() {
   const [announcementPage, setAnnouncementPage] = useState(1);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [isFetchingDashboard, setIsFetchingDashboard] = useState(true);
 
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -73,6 +81,15 @@ export default function MemberDashboardPage() {
     getAuthenticatedUser()
       .then(setUser)
       .catch(console.error);
+
+    fetch("/api/members/me/dashboard")
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch dashboard");
+        return res.json();
+      })
+      .then(setDashboardData)
+      .catch(console.error)
+      .finally(() => setIsFetchingDashboard(false));
   }, []);
 
   const toggleExpand = (id: string) => {
@@ -188,8 +205,12 @@ export default function MemberDashboardPage() {
 
           {/* Right Actions */}
           <div className="flex w-[250px] items-center justify-end gap-4">
-            <button onClick={() => setActiveTab("Activities")} className={`transition ${activeTab === "Activities" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Activities Gallery">
-              <Images className="size-5" />
+
+            {/* <button onClick={() => setActiveTab("Help")} className={`transition ${activeTab === "Help" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Help Center">
+              <MessageSquare className="size-5" />
+            </button> */}
+            <button onClick={() => setActiveTab("Profile")} className={`transition ${activeTab === "Profile" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Profile & Settings">
+              <User className="size-5" />
             </button>
             <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Announcements">
               <Bell className="size-5" />
@@ -228,7 +249,7 @@ export default function MemberDashboardPage() {
               className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
             />
           </div>
-          
+
           <div className="flex flex-col gap-4">
             {(() => {
               const filteredAnnouncements = announcements.filter(a => (a.title + " " + a.message).toLowerCase().includes(announcementSearch.toLowerCase()));
@@ -240,59 +261,59 @@ export default function MemberDashboardPage() {
               return (
                 <>
                   {paginatedAnnouncements.map((ann, i) => (
-              <div key={ann.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row">
-                <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
-                  {i === 0 && announcementSearch === "" && (
-                    <div className="absolute top-3 left-3 z-10 rounded-full bg-[#123D2A] px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md">
-                      Latest Update
+                    <div key={ann.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row">
+                      <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
+                        {i === 0 && announcementSearch === "" && (
+                          <div className="absolute top-3 left-3 z-10 rounded-full bg-[#123D2A] px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md">
+                            Latest Update
+                          </div>
+                        )}
+                        {ann.featuredImagePath && (
+                          <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                        )}
+                        <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '80'} to-transparent z-10`}></div>
+                      </div>
+                      <div className="flex-1 p-5 md:p-6 flex flex-col justify-between min-w-0">
+                        <div>
+                          <p className="text-xs font-bold text-[#2F7D57] mb-2">
+                            {new Date(ann.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                          </p>
+                          <h3 className="text-lg md:text-xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all">
+                            {ann.title}
+                          </h3>
+                          <p className={`mt-2 text-[#6B7280] leading-relaxed whitespace-pre-wrap break-all text-xs md:text-sm ${expandedIds.has(ann.id) ? "" : "line-clamp-1"}`}>
+                            {ann.message}
+                          </p>
+                          {ann.message && ann.message.length > 120 && (
+                            <button
+                              onClick={() => toggleExpand(ann.id)}
+                              className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
+                            >
+                              {expandedIds.has(ann.id) ? "Show Less" : "Read More"}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+                          <span className="text-[10px] font-bold uppercase text-[#6B7280]">
+                            {new Date(ann.createdAt).toLocaleString("en-US", {
+                              month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+                            })}
+                          </span>
+                          {ann.isAcknowledged ? (
+                            <span className="flex items-center text-[11px] font-bold text-green-600">
+                              <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Acknowledged
+                            </span>
+                          ) : (
+                            <button onClick={() => confirmAcknowledge(ann.id)} className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]">
+                              Acknowledge
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {ann.featuredImagePath && (
-                    <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
-                  )}
-                  <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '80'} to-transparent z-10`}></div>
-                </div>
-                <div className="flex-1 p-5 md:p-6 flex flex-col justify-between min-w-0">
-                  <div>
-                    <p className="text-xs font-bold text-[#2F7D57] mb-2">
-                      {new Date(ann.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                    </p>
-                    <h3 className="text-lg md:text-xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all">
-                      {ann.title}
-                    </h3>
-                    <p className={`mt-2 text-[#6B7280] leading-relaxed whitespace-pre-wrap break-all text-xs md:text-sm ${expandedIds.has(ann.id) ? "" : "line-clamp-1"}`}>
-                      {ann.message}
-                    </p>
-                    {ann.message && ann.message.length > 120 && (
-                      <button 
-                        onClick={() => toggleExpand(ann.id)}
-                        className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
-                      >
-                        {expandedIds.has(ann.id) ? "Show Less" : "Read More"}
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-                    <span className="text-[10px] font-bold uppercase text-[#6B7280]">
-                      {new Date(ann.createdAt).toLocaleString("en-US", {
-                        month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
-                      })}
-                    </span>
-                    {ann.isAcknowledged ? (
-                      <span className="flex items-center text-[11px] font-bold text-green-600">
-                        <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Acknowledged
-                      </span>
-                    ) : (
-                      <button onClick={() => confirmAcknowledge(ann.id)} className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]">
-                        Acknowledge
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
                   ))}
-                  
+
                   {filteredAnnouncements.length === 0 && (
                     <div className="py-12 text-center text-sm text-gray-500">
                       No announcements found matching your search.
@@ -368,10 +389,10 @@ export default function MemberDashboardPage() {
           >
             Cancel
           </Button>
-          <Button 
-            type="button" 
-            variant="primary" 
-            onClick={executeAcknowledge} 
+          <Button
+            type="button"
+            variant="primary"
+            onClick={executeAcknowledge}
             disabled={isAcknowledging}
           >
             {isAcknowledging ? "Processing..." : "Yes, Acknowledge"}
@@ -418,9 +439,11 @@ export default function MemberDashboardPage() {
                         <p className="text-sm font-medium text-white/80">Total Share Capital</p>
                         <Wallet className="h-5 w-5 text-white/50" />
                       </div>
-                      <h3 className="mt-2 text-3xl font-bold tracking-tight">₱25,000<span className="text-xl text-white/70">.00</span></h3>
+                      <h3 className="mt-2 text-3xl font-bold tracking-tight">
+                        {isFetchingDashboard ? "..." : `₱${(dashboardData?.shareCapital?.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                      </h3>
                       <div className="mt-4 flex items-center justify-between text-xs font-medium">
-                        <span className="flex items-center gap-1 text-[#DFF5E8]"><ArrowUpRight className="h-3 w-3" /> +₱2,000 this month</span>
+                        <span className="flex items-center gap-1 text-[#DFF5E8]"><ArrowUpRight className="h-3 w-3" /> Up to date</span>
                       </div>
                     </div>
                     <div className="absolute right-8 top-12 z-10 w-64 rounded-2xl border border-[#E5E7EB] bg-white/90 backdrop-blur-sm p-6 shadow-lg transition-all duration-500 ease-out group-hover:translate-x-6 group-hover:translate-y-2 group-hover:rotate-3">
@@ -428,8 +451,10 @@ export default function MemberDashboardPage() {
                         <p className="text-sm font-medium text-[#6B7280]">Next Due Date</p>
                         <Clock className="h-5 w-5 text-[#94A3B8]" />
                       </div>
-                      <h3 className="mt-2 text-xl font-bold text-[#173626]">May 15, 2026</h3>
-                      <p className="mt-1 text-xs text-amber-600 font-semibold">In 7 days</p>
+                      <h3 className="mt-2 text-xl font-bold text-[#173626]">
+                        {isFetchingDashboard ? "..." : (dashboardData?.shareCapital?.deadline ? new Date(dashboardData.shareCapital.deadline).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "None")}
+                      </h3>
+                      <p className="mt-1 text-xs text-amber-600 font-semibold">Keep it updated</p>
                     </div>
                   </div>
                 </div>
@@ -438,10 +463,10 @@ export default function MemberDashboardPage() {
               {/* 2. UPGRADED STAT CARDS */}
               <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[
-                  { label: "Active Loans", value: "0", icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50", trend: "No pending dues", trendColor: "text-slate-500" },
-                  { label: "Pending Requests", value: "2", icon: FileText, color: "text-amber-600", bg: "bg-amber-50", trend: "Under review", trendColor: "text-amber-600" },
-                  { label: "Unread Messages", value: "1", icon: MessageSquare, color: "text-purple-600", bg: "bg-purple-50", trend: "1 new from Admin", trendColor: "text-purple-600" },
-                  { label: "Upcoming Events", value: "3", icon: Calendar, color: "text-green-600", bg: "bg-green-50", trend: "Next: GA Meeting", trendColor: "text-green-600" },
+                  { label: "Capital Deposits", value: dashboardData?.stats?.deposits || "0", icon: Wallet, color: "text-blue-600", bg: "bg-blue-50", trend: "Total transactions", trendColor: "text-slate-500" },
+                  { label: "Store Purchases", value: dashboardData?.stats?.purchases || "0", icon: ShoppingBag, color: "text-amber-600", bg: "bg-amber-50", trend: "Total transactions", trendColor: "text-amber-600" },
+                  { label: "Active Rentals", value: dashboardData?.stats?.rentals || "0", icon: Tractor, color: "text-purple-600", bg: "bg-purple-50", trend: "Total bookings", trendColor: "text-purple-600" },
+                  { label: "Announcements", value: dashboardData?.stats?.announcements || "0", icon: Calendar, color: "text-green-600", bg: "bg-green-50", trend: "Active", trendColor: "text-green-600" },
                 ].map((stat, i) => (
                   <div key={i} className="group flex flex-col justify-between rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer">
                     <div className="flex items-start justify-between">
@@ -467,7 +492,7 @@ export default function MemberDashboardPage() {
                 <section className="lg:col-span-2 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm sm:p-8">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-[#173626]">Recent Activity</h3>
-                    <button className="text-sm font-semibold text-[#2F7D57] hover:text-[#123D2A]">View All</button>
+                    <button onClick={() => setIsActivityModalOpen(true)} className="text-sm font-semibold text-[#2F7D57] hover:text-[#123D2A]">View All</button>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -481,51 +506,40 @@ export default function MemberDashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#E5E7EB]">
-                        <tr className="hover:bg-slate-50 transition-colors">
-                          <td className="py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-600"><ArrowDownRight className="h-5 w-5" /></div>
-                              <span className="font-medium text-[#173626]">Share Capital Deposit</span>
-                            </div>
-                          </td>
-                          <td className="py-4 text-[#6B7280]">May 01, 2026</td>
-                          <td className="py-4 font-bold text-[#173626]">+ ₱2,000.00</td>
-                          <td className="py-4">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 border border-green-200">
-                              <CheckCircle2 className="h-3 w-3" /> Completed
-                            </span>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-slate-50 transition-colors">
-                          <td className="py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-600"><Clock className="h-5 w-5" /></div>
-                              <span className="font-medium text-[#173626]">Tractor Rental Request</span>
-                            </div>
-                          </td>
-                          <td className="py-4 text-[#6B7280]">Apr 28, 2026</td>
-                          <td className="py-4 font-bold text-[#173626]">- ₱5,000.00</td>
-                          <td className="py-4">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
-                              <Clock className="h-3 w-3" /> Pending
-                            </span>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-slate-50 transition-colors">
-                          <td className="py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600"><ShoppingBag className="h-5 w-5" /></div>
-                              <span className="font-medium text-[#173626]">Coop Store Purchase</span>
-                            </div>
-                          </td>
-                          <td className="py-4 text-[#6B7280]">Apr 15, 2026</td>
-                          <td className="py-4 font-bold text-[#173626]">- ₱1,250.00</td>
-                          <td className="py-4">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 border border-green-200">
-                              <CheckCircle2 className="h-3 w-3" /> Completed
-                            </span>
-                          </td>
-                        </tr>
+                        {dashboardData?.recentActivity?.length > 0 ? (
+                          dashboardData.recentActivity.map((item: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.type.includes('Deposit') ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                    {item.type.includes('Deposit') ? <ArrowDownRight className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
+                                  </div>
+                                  <span className="font-medium text-[#173626]">{item.type}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 text-[#6B7280]">
+                                {new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}
+                              </td>
+                              <td className="py-4 font-bold text-[#173626]">
+                                {item.type.includes('Deposit') ? '+' : '-'} ₱{Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-4">
+                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    item.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                      'bg-red-50 text-red-700 border-red-200'
+                                  }`}>
+                                  {item.status === 'Completed' || item.status === 'Validated' ? <CheckCircle2 className="h-3 w-3" /> :
+                                    item.status === 'Pending' ? <Clock className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                  {item.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-[#6B7280]">No recent activity found.</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -635,15 +649,17 @@ export default function MemberDashboardPage() {
                       </div>
 
                       <p className="text-sm font-medium text-white/80 tracking-wide">Total Share Capital</p>
-                      <h4 className="mt-2 text-5xl font-bold tracking-tight">₱25,000<span className="text-2xl text-white/70">.00</span></h4>
+                      <h4 className="mt-2 text-5xl font-bold tracking-tight">
+                        {isFetchingDashboard ? "..." : `₱${(dashboardData?.shareCapital?.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                      </h4>
 
                       <div className="mt-8 flex flex-col sm:flex-row gap-4">
                         <button className="flex-1 rounded-xl bg-white px-6 py-3.5 font-bold text-[#123D2A] shadow-lg transition hover:bg-[#F8F6EF] hover:-translate-y-0.5 hover:shadow-xl flex items-center justify-center gap-2">
                           <TrendingUp className="h-5 w-5" /> Deposit Capital
                         </button>
-                        <button className="flex-1 rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-6 py-3.5 font-bold text-white transition hover:bg-white/20 hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                        <a href="/statement" target="_blank" className="flex-1 rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-6 py-3.5 font-bold text-white transition hover:bg-white/20 hover:-translate-y-0.5 flex items-center justify-center gap-2">
                           <Download className="h-5 w-5" /> Download Statement
-                        </button>
+                        </a>
                       </div>
                     </div>
                   </div>
@@ -655,16 +671,22 @@ export default function MemberDashboardPage() {
                         <p className="text-sm font-medium text-[#6B7280]">Dividends Earned</p>
                         <PieChart className="h-5 w-5 text-amber-500" />
                       </div>
-                      <h3 className="mt-3 text-2xl font-bold text-[#173626]">₱1,250.00</h3>
-                      <p className="mt-2 text-xs font-semibold text-green-600 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> +5% vs last year</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <h3 className="text-2xl font-bold text-[#173626]">₱0.00</h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Coming Soon</span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold text-slate-500 flex items-center gap-1">Available at year end</p>
                     </div>
                     <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-[#6B7280]">Patronage Refund</p>
                         <Star className="h-5 w-5 text-blue-500" />
                       </div>
-                      <h3 className="mt-3 text-2xl font-bold text-[#173626]">₱480.00</h3>
-                      <p className="mt-2 text-xs font-semibold text-slate-500 flex items-center gap-1">For year 2025</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <h3 className="text-2xl font-bold text-[#173626]">₱0.00</h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Coming Soon</span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold text-slate-500 flex items-center gap-1">Based on purchases</p>
                     </div>
                   </div>
                 </div>
@@ -724,170 +746,41 @@ export default function MemberDashboardPage() {
               <div className="mt-8 rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
                 <h3 className="text-xl font-bold text-[#173626] mb-6">Recent Capital Contributions</h3>
                 <div className="space-y-4">
-                  {[
-                    { date: "May 01, 2026", amount: "₱2,000.00", receipt: "OR-10293", status: "Verified" },
-                    { date: "Apr 01, 2026", amount: "₱2,000.00", receipt: "OR-09842", status: "Verified" },
-                    { date: "Mar 01, 2026", amount: "₱2,000.00", receipt: "OR-08731", status: "Verified" },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:bg-white hover:shadow-sm transition">
-                      <div className="flex items-center gap-4 mb-3 sm:mb-0">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700">
-                          <ArrowDownRight className="h-5 w-5" />
+                  {dashboardData?.recentActivity?.filter((a: any) => a.type.includes('Deposit')).length > 0 ? (
+                    dashboardData.recentActivity.filter((a: any) => a.type.includes('Deposit')).map((item: any, idx: number) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:bg-white hover:shadow-sm transition">
+                        <div className="flex items-center gap-4 mb-3 sm:mb-0">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700">
+                            <ArrowDownRight className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-[#173626]">Capital Deposit</h4>
+                            <p className="text-xs text-[#6B7280]">ID: {item.id}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-bold text-[#173626]">Monthly Deposit</h4>
-                          <p className="text-xs text-[#6B7280]">Receipt: {item.receipt}</p>
+                        <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-1/2">
+                          <div className="text-left sm:text-right">
+                            <p className="text-xs font-semibold text-[#6B7280]">
+                              {new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <h4 className="font-bold text-[#173626]">₱{Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</h4>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-green-600">{item.status}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-1/2">
-                        <div className="text-left sm:text-right">
-                          <p className="text-xs font-semibold text-[#6B7280]">{item.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <h4 className="font-bold text-[#173626]">{item.amount}</h4>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-green-600">{item.status}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="text-center text-slate-500 py-4">No recent contributions found.</div>
+                  )}
                 </div>
               </div>
 
             </div>
           )}
 
-          {/* ======================= ACTIVITIES TAB ======================= */}
-          {activeTab === "Activities" && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-              {/* Header */}
-              <section className="text-center mb-10">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#DFF5E8] text-[#123D2A]">
-                  <Images className="h-8 w-8" />
-                </div>
-                <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-[#2F7D57]">Community Gallery</h2>
-                <h3 className="mt-2 text-3xl font-bold text-[#173626]">Coop Activities & Events</h3>
-                <p className="mt-2 text-[#6B7280] max-w-xl mx-auto">Discover moments, milestones, and community outreach captured during our recent cooperative events.</p>
-              </section>
-
-              {/* Filters */}
-              <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-                {["All Photos", "General Assembly", "Outreach", "Seminars", "Harvest Festivals"].map((filter, index) => (
-                  <button
-                    key={index}
-                    className={`rounded-full px-5 py-2 text-sm font-bold transition-all ${index === 0
-                      ? "bg-[#123D2A] text-white shadow-md"
-                      : "bg-white text-[#6B7280] border border-[#E5E7EB] hover:border-[#2F7D57] hover:text-[#123D2A]"
-                      }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-
-              {/* Masonry Photo Grid */}
-              <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-
-                {/* Photo 1 (Large Vertical) */}
-                <div className="group relative overflow-hidden rounded-3xl break-inside-avoid shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-[#E5E7EB]">
-                  <div className="h-96 w-full bg-slate-200 relative">
-                    {/* Image */}
-                    <img src="https://picsum.photos/seed/assembly/800/800" alt="General Assembly" className="absolute inset-0 w-full h-full object-cover z-0" />
-                    {/* Simulated Image Texture */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#123D2A]/20 to-[#2F7D57]/40 z-0 mix-blend-multiply"></div>
-
-                    {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-10">
-                      <h4 className="text-xl font-bold text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">Annual General Assembly</h4>
-                      <div className="flex items-center gap-3 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="flex items-center gap-1 text-xs text-white/80"><Calendar className="h-3 w-3" /> May 2026</span>
-                        <span className="flex items-center gap-1 text-xs text-white/80"><MapPin className="h-3 w-3" /> Main Hall</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photo 2 (Square) */}
-                <div className="group relative overflow-hidden rounded-3xl break-inside-avoid shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-[#E5E7EB]">
-                  <div className="h-64 w-full bg-slate-100 relative">
-                    <img src="https://picsum.photos/seed/seminar/600/600" alt="Financial Literacy Seminar" className="absolute inset-0 w-full h-full object-cover z-0" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-blue-600/40 z-0 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-10">
-                      <h4 className="text-xl font-bold text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">Financial Literacy Seminar</h4>
-                      <div className="flex items-center gap-3 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="flex items-center gap-1 text-xs text-white/80"><Calendar className="h-3 w-3" /> Apr 2026</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photo 3 (Landscape) */}
-                <div className="group relative overflow-hidden rounded-3xl break-inside-avoid shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-[#E5E7EB]">
-                  <div className="h-56 w-full bg-slate-300 relative">
-                    <img src="https://picsum.photos/seed/outreach/600/600" alt="Community Outreach" className="absolute inset-0 w-full h-full object-cover z-0" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-amber-600/20 to-orange-500/40 z-0 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-10">
-                      <h4 className="text-xl font-bold text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">Community Outreach</h4>
-                      <div className="flex items-center gap-3 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="flex items-center gap-1 text-xs text-white/80"><Calendar className="h-3 w-3" /> Mar 2026</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photo 4 (Square) */}
-                <div className="group relative overflow-hidden rounded-3xl break-inside-avoid shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-[#E5E7EB]">
-                  <div className="h-72 w-full bg-slate-200 relative">
-                    <img src="https://picsum.photos/seed/harvest/600/600" alt="Harvest Festival" className="absolute inset-0 w-full h-full object-cover z-0" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-700/20 to-green-500/40 z-0 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-10">
-                      <h4 className="text-xl font-bold text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">Harvest Festival</h4>
-                      <div className="flex items-center gap-3 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="flex items-center gap-1 text-xs text-white/80"><Calendar className="h-3 w-3" /> Oct 2025</span>
-                        <span className="flex items-center gap-1 text-xs text-white/80"><MapPin className="h-3 w-3" /> Farm Site</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photo 5 (Tall vertical) */}
-                <div className="group relative overflow-hidden rounded-3xl break-inside-avoid shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-[#E5E7EB]">
-                  <div className="h-80 w-full bg-slate-100 relative">
-                    <img src="https://picsum.photos/seed/tree/600/600" alt="Tree Planting Activity" className="absolute inset-0 w-full h-full object-cover z-0" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-800/20 to-pink-600/40 z-0 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-10">
-                      <h4 className="text-xl font-bold text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">Tree Planting Activity</h4>
-                      <div className="flex items-center gap-3 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="flex items-center gap-1 text-xs text-white/80"><Calendar className="h-3 w-3" /> Aug 2025</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photo 6 (Landscape) */}
-                <div className="group relative overflow-hidden rounded-3xl break-inside-avoid shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-[#E5E7EB]">
-                  <div className="h-60 w-full bg-slate-200 relative">
-                    <img src="https://picsum.photos/seed/meeting/600/600" alt="Board Meeting" className="absolute inset-0 w-full h-full object-cover z-0" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#123D2A]/30 to-black/40 z-0 mix-blend-multiply"></div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-10">
-                      <h4 className="text-xl font-bold text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">Board Meeting</h4>
-                      <div className="flex items-center gap-3 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="flex items-center gap-1 text-xs text-white/80"><Calendar className="h-3 w-3" /> Jul 2025</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="mt-12 text-center">
-                <button className="rounded-full bg-white border border-[#E5E7EB] px-8 py-3 font-bold text-[#173626] shadow-sm transition hover:bg-slate-50 hover:shadow-md">
-                  Load More Photos
-                </button>
-              </div>
-
-            </div>
-          )}
 
           {/* ======================= ANNOUNCEMENTS TAB ======================= */}
           {activeTab === "Announcements" && (
@@ -947,7 +840,7 @@ export default function MemberDashboardPage() {
                                 {ann.message}
                               </p>
                               {ann.message && ann.message.length > 120 && (
-                                <button 
+                                <button
                                   onClick={() => toggleExpand(ann.id)}
                                   className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
                                 >
@@ -955,7 +848,7 @@ export default function MemberDashboardPage() {
                                 </button>
                               )}
                             </div>
-                            
+
                             <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
                               <span className="text-[10px] font-bold uppercase text-[#6B7280]">
                                 {new Date(ann.createdAt).toLocaleString("en-US", {
@@ -976,7 +869,7 @@ export default function MemberDashboardPage() {
                         </div>
                       ))}
                       {announcements.length > 3 && (
-                        <button 
+                        <button
                           onClick={() => setAllAnnouncementsModalOpen(true)}
                           className="mt-2 w-full rounded-2xl border border-gray-200 bg-white py-3 text-sm font-bold text-[#123D2A] transition hover:bg-gray-50 hover:shadow-sm"
                         >
@@ -1016,7 +909,7 @@ export default function MemberDashboardPage() {
                             { bg: "bg-amber-50", border: "border-amber-100", iconBg: "bg-amber-100", iconText: "text-amber-600", textDark: "text-amber-900", textLight: "text-amber-700", timeText: "text-amber-500", Icon: AlertCircle },
                             { bg: "bg-blue-50", border: "border-blue-100", iconBg: "bg-blue-100", iconText: "text-blue-600", textDark: "text-blue-900", textLight: "text-blue-700", timeText: "text-blue-500", Icon: Info },
                           ];
-                          
+
                           const colorTheme = themes[idx % themes.length];
                           const Icon = colorTheme.Icon;
 
@@ -1032,7 +925,7 @@ export default function MemberDashboardPage() {
                                   {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                 </span>
                                 {!ann.isAcknowledged && (
-                                  <button 
+                                  <button
                                     onClick={() => confirmAcknowledge(ann.id)}
                                     className="mt-2 text-[10px] font-bold uppercase text-[#173626] underline hover:text-[#0f2419]"
                                   >
@@ -1068,7 +961,15 @@ export default function MemberDashboardPage() {
             </div>
           )}
 
+          {/* ======================= PROFILE TAB ======================= */}
+          {activeTab === "Profile" && (
+            <ProfileSettings />
+          )}
 
+          {/* ======================= HELP CENTER TAB ======================= */}
+          {/* {activeTab === "Help" && (
+            <HelpCenter />
+          )} */}
 
         </div>
       </main>
@@ -1076,6 +977,7 @@ export default function MemberDashboardPage() {
       <div className="mt-20">
         <SiteFooter />
       </div>
+      <ActivityModal open={isActivityModalOpen} onOpenChange={setIsActivityModalOpen} />
     </div>
   );
 }

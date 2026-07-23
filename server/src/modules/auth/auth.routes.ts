@@ -11,7 +11,7 @@ export function createAuthRouter(authService: AuthService = createAuthService())
   const authenticate = createAuthenticate(authService);
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 10,
+    limit: 1000, // increased for dev
     standardHeaders: "draft-8",
     legacyHeaders: false,
     handler(_request, _response, next) {

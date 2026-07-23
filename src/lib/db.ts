@@ -20,8 +20,8 @@ function sslOptions(config: DatabaseConfig) {
     rejectUnauthorized: true,
     ...(config.sslCaPath
       ? {
-          ca: readFileSync(path.resolve(config.sslCaPath), "utf8"),
-        }
+        ca: readFileSync(path.resolve(config.sslCaPath), "utf8"),
+      }
       : {}),
   };
 }
@@ -34,6 +34,7 @@ function createPoolConfigKey(config: DatabaseConfig) {
     database: config.database,
     ssl: config.ssl,
     sslCaPath: config.sslCaPath ?? "",
+    keepAlive: true, // force recreation
   });
 }
 
@@ -48,6 +49,11 @@ function createPoolOptions(config: DatabaseConfig): mysql.PoolOptions {
     connectionLimit: config.connectionLimit,
     dateStrings: true,
     ssl: sslOptions(config),
+    connectTimeout: 60_000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10_000,
+    maxIdle: config.connectionLimit,
+    idleTimeout: 60_000,
   };
 }
 
