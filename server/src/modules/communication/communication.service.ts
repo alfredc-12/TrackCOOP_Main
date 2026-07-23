@@ -61,6 +61,8 @@ export interface CommunicationService {
   updateAnnouncement(id: string, input: UpdateAnnouncementInput, auth: AuthContext): ReturnType<CommunicationRepository["updateAnnouncement"]>;
   publishAnnouncement(id: string, auth: AuthContext): ReturnType<CommunicationRepository["setAnnouncementStatus"]>;
   archiveAnnouncement(id: string, auth: AuthContext): ReturnType<CommunicationRepository["setAnnouncementStatus"]>;
+  acknowledgeAnnouncement(id: string, auth: AuthContext): Promise<void>;
+  getAnnouncementAcknowledgments(id: string, auth: AuthContext): ReturnType<CommunicationRepository["getAnnouncementAcknowledgments"]>;
   listRequests(query: ListRequestsQuery, auth: AuthContext): ReturnType<CommunicationRepository["listRequests"]>;
   createPublicRequest(input: Omit<CreateRequestInput, "requestSource">): ReturnType<CommunicationRepository["createRequest"]>;
   createAuthenticatedRequest(input: Omit<CreateRequestInput, "requestSource">, auth: AuthContext): ReturnType<CommunicationRepository["createRequest"]>;
@@ -113,6 +115,12 @@ export function createCommunicationService(
     },
     archiveAnnouncement(id, auth) {
       return repository.setAnnouncementStatus(id, "Archived", auth);
+    },
+    acknowledgeAnnouncement(id, auth) {
+      return repository.acknowledgeAnnouncement(id, auth);
+    },
+    getAnnouncementAcknowledgments(id, auth) {
+      return repository.getAnnouncementAcknowledgments(id, auth);
     },
     listRequests(query, auth) {
       return repository.listRequests(query, auth);

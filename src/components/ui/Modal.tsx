@@ -11,11 +11,13 @@ type ModalProps = {
   trigger: ReactNode;
   children: ReactNode;
   maxWidth?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
-export function Modal({ title, description, trigger, children, maxWidth = "max-w-lg" }: ModalProps) {
+export function Modal({ title, description, trigger, children, maxWidth = "max-w-lg", open, onOpenChange }: ModalProps) {
   return (
-    <Dialog.Root>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm" />

@@ -161,6 +161,13 @@ export function createCommunicationController(service: CommunicationService) {
         { message: "Announcement archived" },
       );
     }),
+    acknowledgeAnnouncement: asyncHandler(async (request, response) => {
+      await service.acknowledgeAnnouncement(requireParam(request.params.id, "id"), requireAuth(request.auth));
+      return sendSuccess(response, null, { message: "Announcement acknowledged" });
+    }),
+    getAnnouncementAcknowledgments: asyncHandler(async (request, response) => {
+      return sendSuccess(response, await service.getAnnouncementAcknowledgments(requireParam(request.params.id, "id"), requireAuth(request.auth)));
+    }),
 
     listRequests: asyncHandler(async (request, response) => {
       return sendList(response, await service.listRequests(parse(listRequestsQuerySchema, request.query), requireAuth(request.auth)));

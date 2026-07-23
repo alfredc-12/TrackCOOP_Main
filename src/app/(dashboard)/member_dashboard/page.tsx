@@ -7,7 +7,12 @@ import { useEffect, useState } from "react";
 import SiteFooter from "@/components/layout/SiteFooter";
 import RentalLandingPage from "@/app/rental/page";
 import { RentalProvider } from "@/app/rental/_context/RentalProvider";
-import { logout } from "@/lib/auth-client";
+import { logout, getAuthenticatedUser } from "@/lib/auth-client";
+import type { AuthUser } from "@/features/auth/types";
+import { apiRequest } from "@/lib/api-client";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { env } from "@/config/env";
 import {
   Bell,
   Search,
@@ -48,6 +53,75 @@ export default function MemberDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isFetchingAnnouncements, setIsFetchingAnnouncements] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isFetchingNotifications, setIsFetchingNotifications] = useState(false);
+  const [ackModalOpen, setAckModalOpen] = useState(false);
+  const [ackId, setAckId] = useState<string | null>(null);
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
+  const [allAnnouncementsModalOpen, setAllAnnouncementsModalOpen] = useState(false);
+  const [announcementSearch, setAnnouncementSearch] = useState("");
+  const [announcementPage, setAnnouncementPage] = useState(1);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    getAuthenticatedUser()
+      .then(setUser)
+      .catch(console.error);
+  }, []);
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const fetchAnnouncements = () => {
+    setIsFetchingAnnouncements(true);
+    // Fetch only published announcements
+    apiRequest<any[]>("/api/announcements?status=Published")
+      .then((data) => setAnnouncements(data || []))
+      .catch(console.error)
+      .finally(() => setIsFetchingAnnouncements(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === "Announcements" && announcements.length === 0) {
+      fetchAnnouncements();
+    }
+  }, [activeTab, announcements.length]);
+
+  const confirmAcknowledge = (id: string) => {
+    setAckId(id);
+    setAckModalOpen(true);
+  };
+
+  const executeAcknowledge = async () => {
+    if (!ackId) return;
+    setIsAcknowledging(true);
+    try {
+      await apiRequest(`/api/announcements/${ackId}/acknowledge`, { method: "POST" });
+      setAnnouncements(prev => prev.map(a => a.id === ackId ? { ...a, isAcknowledged: true } : a));
+      setAckModalOpen(false);
+      setAckId(null);
+      setSuccessMessage("Announcement successfully acknowledged!");
+      setSuccessModalOpen(true);
+    } catch (error) {
+      console.error("Failed to acknowledge announcement:", error);
+      setSuccessMessage("Failed to acknowledge announcement. Please try again.");
+      setSuccessModalOpen(true);
+    } finally {
+      setIsAcknowledging(false);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -132,6 +206,178 @@ export default function MemberDashboardPage() {
           </div>
         </div>
       </header>
+      <Modal
+        title="All Announcements"
+        description="Search and view all past and present announcements from the cooperative."
+        open={allAnnouncementsModalOpen}
+        onOpenChange={setAllAnnouncementsModalOpen}
+        trigger={<span className="hidden"></span>}
+        maxWidth="max-w-3xl"
+      >
+        <div className="mt-4">
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by title or message..."
+              value={announcementSearch}
+              onChange={(e) => {
+                setAnnouncementSearch(e.target.value);
+                setAnnouncementPage(1);
+              }}
+              className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
+            />
+          </div>
+          
+          <div className="flex flex-col gap-4">
+            {(() => {
+              const filteredAnnouncements = announcements.filter(a => (a.title + " " + a.message).toLowerCase().includes(announcementSearch.toLowerCase()));
+              const itemsPerPage = 5;
+              const totalPages = Math.max(1, Math.ceil(filteredAnnouncements.length / itemsPerPage));
+              const currentPage = Math.min(announcementPage, totalPages);
+              const paginatedAnnouncements = filteredAnnouncements.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+              return (
+                <>
+                  {paginatedAnnouncements.map((ann, i) => (
+              <div key={ann.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row">
+                <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
+                  {i === 0 && announcementSearch === "" && (
+                    <div className="absolute top-3 left-3 z-10 rounded-full bg-[#123D2A] px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md">
+                      Latest Update
+                    </div>
+                  )}
+                  {ann.featuredImagePath && (
+                    <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                  )}
+                  <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '80'} to-transparent z-10`}></div>
+                </div>
+                <div className="flex-1 p-5 md:p-6 flex flex-col justify-between min-w-0">
+                  <div>
+                    <p className="text-xs font-bold text-[#2F7D57] mb-2">
+                      {new Date(ann.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                    </p>
+                    <h3 className="text-lg md:text-xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all">
+                      {ann.title}
+                    </h3>
+                    <p className={`mt-2 text-[#6B7280] leading-relaxed whitespace-pre-wrap break-all text-xs md:text-sm ${expandedIds.has(ann.id) ? "" : "line-clamp-1"}`}>
+                      {ann.message}
+                    </p>
+                    {ann.message && ann.message.length > 120 && (
+                      <button 
+                        onClick={() => toggleExpand(ann.id)}
+                        className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
+                      >
+                        {expandedIds.has(ann.id) ? "Show Less" : "Read More"}
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+                    <span className="text-[10px] font-bold uppercase text-[#6B7280]">
+                      {new Date(ann.createdAt).toLocaleString("en-US", {
+                        month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+                      })}
+                    </span>
+                    {ann.isAcknowledged ? (
+                      <span className="flex items-center text-[11px] font-bold text-green-600">
+                        <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Acknowledged
+                      </span>
+                    ) : (
+                      <button onClick={() => confirmAcknowledge(ann.id)} className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]">
+                        Acknowledge
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+                  ))}
+                  
+                  {filteredAnnouncements.length === 0 && (
+                    <div className="py-12 text-center text-sm text-gray-500">
+                      No announcements found matching your search.
+                    </div>
+                  )}
+
+                  <div className="mt-6 relative flex items-center justify-center min-h-[40px]">
+                    {totalPages > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setAnnouncementPage(1)} disabled={currentPage === 1} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
+                          &lt;&lt;
+                        </button>
+                        <button onClick={() => setAnnouncementPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
+                          &lt;
+                        </button>
+                        <span className="text-sm font-semibold text-gray-600 px-4">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button onClick={() => setAnnouncementPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
+                          &gt;
+                        </button>
+                        <button onClick={() => setAnnouncementPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
+                          &gt;&gt;
+                        </button>
+                      </div>
+                    )}
+                    <div className="absolute right-0">
+                      <Button type="button" variant="secondary" onClick={() => setAllAnnouncementsModalOpen(false)}>
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title={successMessage.includes("Failed") ? "Error" : "Success"}
+        description={successMessage}
+        open={successModalOpen}
+        onOpenChange={setSuccessModalOpen}
+        trigger={<span className="hidden"></span>}
+      >
+        <div className="mt-6 flex justify-end">
+          <Button type="button" variant="primary" onClick={() => setSuccessModalOpen(false)}>
+            OK
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Confirm Acknowledgment"
+        description="Are you sure you want to mark this announcement as read? This will let the cooperative know that you have seen it."
+        open={ackModalOpen}
+        onOpenChange={(open) => {
+          setAckModalOpen(open);
+          if (!open) setAckId(null);
+        }}
+        trigger={<span className="hidden"></span>}
+      >
+        <div className="flex justify-end gap-2 mt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setAckModalOpen(false);
+              setAckId(null);
+            }}
+            disabled={isAcknowledging}
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="button" 
+            variant="primary" 
+            onClick={executeAcknowledge} 
+            disabled={isAcknowledging}
+          >
+            {isAcknowledging ? "Processing..." : "Yes, Acknowledge"}
+          </Button>
+        </div>
+      </Modal>
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -153,7 +399,7 @@ export default function MemberDashboardPage() {
                       Member Portal Active
                     </div>
                     <h1 className="mb-4 text-4xl font-bold tracking-tight text-[#173626] sm:text-5xl">
-                      Welcome back, Pierre 👋
+                      Welcome back, {user?.displayName?.split(" ")[0] || "Member"} 👋
                     </h1>
                     <p className="mb-8 text-lg text-[#6B7280] leading-relaxed">
                       Track your cooperative contributions, review the latest updates, and manage your assets with ease.
@@ -663,67 +909,82 @@ export default function MemberDashboardPage() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                {/* LEFT COLUMN: Featured News & Secondary News */}
+                {/* LEFT COLUMN: Announcements Feed */}
                 <div className="lg:col-span-2 flex flex-col gap-6">
-
-                  {/* Featured News */}
-                  <div className="group relative overflow-hidden rounded-3xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md cursor-pointer">
-                    <div className="absolute top-4 left-4 z-10 rounded-full bg-[#123D2A] px-3 py-1 text-xs font-bold text-white shadow-md">
-                      Featured
+                  {isFetchingAnnouncements ? (
+                    <div className="rounded-3xl border border-[#E5E7EB] bg-white p-12 text-center shadow-sm">
+                      <p className="text-sm font-semibold text-[#6B7280]">Loading latest announcements...</p>
                     </div>
-                    {/* Featured Image */}
-                    <div className="h-64 w-full bg-[#e8f3ec] relative overflow-hidden">
-                      <img src="https://picsum.photos/seed/announce/800/600" alt="General Assembly" className="absolute inset-0 w-full h-full object-cover z-0" />
-                      <div className="absolute inset-0 bg-gradient-to-tr from-[#123D2A]/80 to-transparent z-10"></div>
-                      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-black/60 to-transparent z-10"></div>
+                  ) : announcements.length === 0 ? (
+                    <div className="rounded-3xl border border-[#E5E7EB] bg-white p-12 text-center shadow-sm">
+                      <Megaphone className="mx-auto mb-3 h-8 w-8 text-[#94A3B8]" />
+                      <p className="text-sm font-semibold text-[#6B7280]">No announcements found at the moment.</p>
                     </div>
-
-                    <div className="relative z-20 -mt-16 p-8">
-                      <p className="text-sm font-bold text-white mb-3">May 10, 2026</p>
-                      <h3 className="text-2xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors">
-                        2026 Annual General Assembly: Charting Our Future Together
-                      </h3>
-                      <p className="mt-3 text-[#6B7280] leading-relaxed">
-                        Join us for our most important event of the year. We will be discussing the cooperative&apos;s remarkable growth over the past year, distributing dividends, and voting on key initiatives for 2027. All regular members are required to attend.
-                      </p>
-                      <button className="mt-6 flex items-center gap-2 font-bold text-[#123D2A] hover:text-[#1F6B43] transition-colors">
-                        Read Full Story <ArrowRight className="h-4 w-4" />
-                      </button>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {announcements.slice(0, 3).map((ann, i) => (
+                        <div key={ann.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row">
+                          <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
+                            {i === 0 && (
+                              <div className="absolute top-4 left-4 z-10 rounded-full bg-[#123D2A] px-3 py-1 text-xs font-bold text-white shadow-md">
+                                Latest Update
+                              </div>
+                            )}
+                            {ann.featuredImagePath && (
+                              <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                            )}
+                            <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '80'} to-transparent z-10`}></div>
+                          </div>
+                          <div className="flex-1 p-5 md:p-6 flex flex-col justify-between min-w-0">
+                            <div>
+                              <p className="text-xs font-bold text-[#2F7D57] mb-2">
+                                {new Date(ann.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                              </p>
+                              <h3 className="text-lg md:text-xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all">
+                                {ann.title}
+                              </h3>
+                              <p className={`mt-2 text-[#6B7280] leading-relaxed whitespace-pre-wrap break-all text-xs md:text-sm ${expandedIds.has(ann.id) ? "" : "line-clamp-1"}`}>
+                                {ann.message}
+                              </p>
+                              {ann.message && ann.message.length > 120 && (
+                                <button 
+                                  onClick={() => toggleExpand(ann.id)}
+                                  className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
+                                >
+                                  {expandedIds.has(ann.id) ? "Show Less" : "Read More"}
+                                </button>
+                              )}
+                            </div>
+                            
+                            <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+                              <span className="text-[10px] font-bold uppercase text-[#6B7280]">
+                                {new Date(ann.createdAt).toLocaleString("en-US", {
+                                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+                                })}
+                              </span>
+                              {ann.isAcknowledged ? (
+                                <span className="flex items-center text-[11px] font-bold text-green-600">
+                                  <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Acknowledged
+                                </span>
+                              ) : (
+                                <button onClick={() => confirmAcknowledge(ann.id)} className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]">
+                                  Acknowledge
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {announcements.length > 3 && (
+                        <button 
+                          onClick={() => setAllAnnouncementsModalOpen(true)}
+                          className="mt-2 w-full rounded-2xl border border-gray-200 bg-white py-3 text-sm font-bold text-[#123D2A] transition hover:bg-gray-50 hover:shadow-sm"
+                        >
+                          View All Announcements
+                        </button>
+                      )}
                     </div>
-                  </div>
-
-                  {/* Secondary News Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="group overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition hover:shadow-md cursor-pointer flex flex-col">
-                      <div className="h-32 w-full bg-[#f1f5f9] relative">
-                        <img src="https://picsum.photos/seed/tractor/400/300" alt="Tractor" className="absolute inset-0 w-full h-full object-cover" />
-                      </div>
-                      <div className="p-5 flex-1 flex flex-col">
-                        <p className="text-xs font-semibold text-[#2F7D57]">April 28, 2026</p>
-                        <h4 className="mt-2 text-lg font-bold text-[#173626] group-hover:text-[#123D2A] leading-snug">
-                          New Tractors Available for Rent
-                        </h4>
-                        <p className="mt-2 text-sm text-[#6B7280] flex-1">We have added three new Kubota tractors to our rental fleet. Book early for the planting season.</p>
-                      </div>
-                    </div>
-                    <div className="group overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition hover:shadow-md cursor-pointer flex flex-col">
-                      <div className="h-32 w-full bg-[#f1f5f9] relative">
-                        <img src="https://picsum.photos/seed/promo/400/300" alt="Store Promo" className="absolute inset-0 w-full h-full object-cover" />
-                      </div>
-                      <div className="p-5 flex-1 flex flex-col">
-                        <p className="text-xs font-semibold text-[#2F7D57]">April 15, 2026</p>
-                        <h4 className="mt-2 text-lg font-bold text-[#173626] group-hover:text-[#123D2A] leading-snug">
-                          Coop Store Summer Promo
-                        </h4>
-                        <p className="mt-2 text-sm text-[#6B7280] flex-1">Get up to 15% discount on all organic fertilizers and seeds until the end of May.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button className="w-full rounded-2xl border border-[#E5E7EB] bg-slate-50 py-4 font-bold text-[#173626] hover:bg-slate-100 transition">
-                    Load More News
-                  </button>
-
+                  )}
                 </div>
 
                 {/* RIGHT COLUMN: Priority Alerts */}
@@ -739,43 +1000,50 @@ export default function MemberDashboardPage() {
                     </div>
 
                     <div className="flex flex-col gap-4">
+                      {isFetchingAnnouncements ? (
+                        <div className="py-8 text-center">
+                          <p className="text-xs font-medium text-[#6B7280]">Loading alerts...</p>
+                        </div>
+                      ) : announcements.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <p className="text-xs font-medium text-[#6B7280]">No live alerts right now.</p>
+                        </div>
+                      ) : (
+                        announcements.slice(0, 3).map((ann, idx) => {
+                          // Alternate colors for visual distinction
+                          const themes = [
+                            { bg: "bg-red-50", border: "border-red-100", iconBg: "bg-red-100", iconText: "text-red-600", textDark: "text-red-900", textLight: "text-red-700", timeText: "text-red-500", Icon: AlertCircle },
+                            { bg: "bg-amber-50", border: "border-amber-100", iconBg: "bg-amber-100", iconText: "text-amber-600", textDark: "text-amber-900", textLight: "text-amber-700", timeText: "text-amber-500", Icon: AlertCircle },
+                            { bg: "bg-blue-50", border: "border-blue-100", iconBg: "bg-blue-100", iconText: "text-blue-600", textDark: "text-blue-900", textLight: "text-blue-700", timeText: "text-blue-500", Icon: Info },
+                          ];
+                          
+                          const colorTheme = themes[idx % themes.length];
+                          const Icon = colorTheme.Icon;
 
-                      {/* Alert: Urgent */}
-                      <div className="flex items-start gap-4 rounded-2xl border border-red-100 bg-red-50 p-4">
-                        <div className="mt-0.5 shrink-0 rounded-full bg-red-100 p-2 text-red-600">
-                          <AlertCircle className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-red-900">System Maintenance</h4>
-                          <p className="mt-1 text-xs text-red-700 leading-relaxed">The member portal will be down for scheduled maintenance tonight from 10:00 PM to 2:00 AM.</p>
-                          <span className="mt-2 block text-[10px] font-bold uppercase text-red-500">2 hours ago</span>
-                        </div>
-                      </div>
-
-                      {/* Alert: Warning */}
-                      <div className="flex items-start gap-4 rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                        <div className="mt-0.5 shrink-0 rounded-full bg-amber-100 p-2 text-amber-600">
-                          <AlertCircle className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-amber-900">Loan Restructuring Deadline</h4>
-                          <p className="mt-1 text-xs text-amber-700 leading-relaxed">Please submit your restructuring documents by Friday to avoid penalties.</p>
-                          <span className="mt-2 block text-[10px] font-bold uppercase text-amber-500">Yesterday</span>
-                        </div>
-                      </div>
-
-                      {/* Alert: Info */}
-                      <div className="flex items-start gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                        <div className="mt-0.5 shrink-0 rounded-full bg-blue-100 p-2 text-blue-600">
-                          <Info className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-blue-900">New Store Items</h4>
-                          <p className="mt-1 text-xs text-blue-700 leading-relaxed">High-yield corn seeds are now available at the Cooperative Store.</p>
-                          <span className="mt-2 block text-[10px] font-bold uppercase text-blue-500">3 days ago</span>
-                        </div>
-                      </div>
-
+                          return (
+                            <div key={ann.id} className={`flex items-start gap-4 rounded-2xl border ${colorTheme.border} ${colorTheme.bg} p-4`}>
+                              <div className={`mt-0.5 shrink-0 rounded-full ${colorTheme.iconBg} p-2 ${colorTheme.iconText}`}>
+                                <Icon className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <h4 className={`text-sm font-bold ${colorTheme.textDark}`}>{ann.title}</h4>
+                                <p className={`mt-1 text-xs ${colorTheme.textLight} leading-relaxed line-clamp-2`}>{ann.excerpt || ann.message}</p>
+                                <span className={`mt-2 block text-[10px] font-bold uppercase ${colorTheme.timeText}`}>
+                                  {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                                {!ann.isAcknowledged && (
+                                  <button 
+                                    onClick={() => confirmAcknowledge(ann.id)}
+                                    className="mt-2 text-[10px] font-bold uppercase text-[#173626] underline hover:text-[#0f2419]"
+                                  >
+                                    Acknowledge
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
 

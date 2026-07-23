@@ -167,6 +167,8 @@ export type AnnouncementRecord = {
   postedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  isAcknowledged?: boolean;
+  acknowledgmentCount?: number;
 };
 
 export type RequestRecord = {

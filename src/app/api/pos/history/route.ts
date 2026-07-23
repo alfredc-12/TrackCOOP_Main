@@ -29,7 +29,6 @@ export async function GET() {
              s.customer_name,
              s.customer_contact,
              s.payment_reference_id,
-             pr.payer_email as customer_email,
              pr.reference_number,
              (
                  SELECT CONCAT('[', GROUP_CONCAT(
@@ -54,6 +53,7 @@ export async function GET() {
       // We parse it if it's a string.
       const formattedHistory = rows.map(row => ({
           ...row,
+          customer_email: auth.user.email,
           items: typeof row.items === 'string' ? JSON.parse(row.items) : (row.items || [])
       }));
 

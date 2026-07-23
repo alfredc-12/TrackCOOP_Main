@@ -25,7 +25,7 @@ export async function GET() {
              s.customer_name,
              s.customer_contact,
              s.payment_reference_id,
-             pr.payer_email as customer_email,
+             COALESCE(u.email, pr.payer_email) as customer_email,
              pr.reference_number,
              pr.provider,
              (
@@ -41,6 +41,8 @@ export async function GET() {
              ) as items
          FROM pos_sales s
          LEFT JOIN payment_references pr ON s.payment_reference_id = pr.payment_reference_id
+         LEFT JOIN member_profiles mp ON s.member_id = mp.member_id
+         LEFT JOIN users u ON mp.user_id = u.user_id
          ORDER BY s.sale_date DESC`
       );
 

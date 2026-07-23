@@ -424,8 +424,12 @@ function mapReport(row: ReportRow): ReportRecord {
   return { ...row, filters };
 }
 
-function mapAnnouncement(row: AnnouncementRow): AnnouncementRecord {
-  return { ...row };
+function mapAnnouncement(row: any): AnnouncementRecord {
+  return { 
+    ...row,
+    isAcknowledged: row.isAcknowledged ? Boolean(Number(row.isAcknowledged)) : false,
+    acknowledgmentCount: row.acknowledgmentCount ? Number(row.acknowledgmentCount) : 0
+  };
 }
 
 function mapRequest(row: RequestRow): RequestRecord {
@@ -541,6 +545,8 @@ export interface CommunicationRepository {
   createAnnouncement(input: CreateAnnouncementInput, auth: AuthContext): Promise<AnnouncementRecord>;
   updateAnnouncement(id: string, input: UpdateAnnouncementInput, auth: AuthContext): Promise<AnnouncementRecord>;
   setAnnouncementStatus(id: string, status: "Published" | "Archived", auth: AuthContext): Promise<AnnouncementRecord>;
+  acknowledgeAnnouncement(id: string, auth: AuthContext): Promise<void>;
+  getAnnouncementAcknowledgments(id: string, auth: AuthContext): Promise<{ userId: string; fullName: string; acknowledgedAt: Date }[]>;
   listRequests(query: ListRequestsQuery, auth: AuthContext): Promise<ListResult<RequestRecord>>;
   createRequest(input: CreateRequestInput, auth?: AuthContext): Promise<RequestRecord>;
   getRequest(id: string, auth: AuthContext): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] } | null>;
@@ -863,12 +869,21 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const offset = (query.page - 1) * query.pageSize;
-      const [rows] = await databasePool().execute<AnnouncementRow[]>(
-        `${announcementSelect()}
+      const queryValues = [auth.user.id, ...values];
+      const baseSelect = announcementSelect();
+      const fromIndex = baseSelect.indexOf("FROM");
+      const selectPart = baseSelect.substring(0, fromIndex);
+      const fromPart = baseSelect.substring(fromIndex);
+
+      const [rows] = await databasePool().execute<any[]>(
+        `${selectPart},
+          EXISTS(SELECT 1 FROM announcement_acknowledgments ack WHERE ack.announcement_id = a.announcement_id AND ack.user_id = ?) AS isAcknowledged,
+          (SELECT COUNT(*) FROM announcement_acknowledgments ack WHERE ack.announcement_id = a.announcement_id) AS acknowledgmentCount
+         ${fromPart}
          ${whereSql}
          ORDER BY ${announcementSortColumns[query.sortBy]} ${orderDirection}, a.announcement_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
-        values,
+        queryValues,
       );
       const [counts] = await databasePool().execute<CountRow[]>(
         countSql("announcements a", "JOIN users u ON u.user_id = a.posted_by", whereSql),
@@ -990,8 +1005,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description)
-           VALUES (?, ?, 'announcements', ?, ?)`,
-          [auth.user.id, `announcement.${status.toLowerCase()}`, id, `An announcement was ${status.toLowerCase()}.`],
+           VALUES (?, 'announcement.status_changed', 'announcements', ?, 'Announcement status was updated to ${status}.')`,
+          [auth.user.id, id],
         );
         const [rows] = await connection.execute<AnnouncementRow[]>(
           `${announcementSelect()} WHERE a.announcement_id = ? LIMIT 1`,
@@ -1000,6 +1015,31 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         if (!rows[0]) throw new AppError("Announcement was not found", 404, "ANNOUNCEMENT_NOT_FOUND");
         return mapAnnouncement(rows[0]);
       }, databasePool());
+    },
+
+    async acknowledgeAnnouncement(id, auth) {
+      await databasePool().execute(
+        `INSERT IGNORE INTO announcement_acknowledgments (announcement_id, user_id) VALUES (?, ?)`,
+        [id, auth.user.id]
+      );
+    },
+
+    async getAnnouncementAcknowledgments(id, auth) {
+      const [rows] = await databasePool().execute<any[]>(
+        `SELECT CAST(ack.user_id AS CHAR) AS userId,
+                u.display_name AS fullName,
+                ack.acknowledged_at AS acknowledgedAt
+         FROM announcement_acknowledgments ack
+         JOIN users u ON u.user_id = ack.user_id
+         WHERE ack.announcement_id = ?
+         ORDER BY ack.acknowledged_at DESC`,
+        [id]
+      );
+      return rows.map(r => ({
+        userId: r.userId,
+        fullName: r.fullName,
+        acknowledgedAt: r.acknowledgedAt
+      }));
     },
 
     async listRequests(query, auth) {

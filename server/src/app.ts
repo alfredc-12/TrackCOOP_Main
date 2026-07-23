@@ -3,6 +3,7 @@ import cors, { type CorsOptions } from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import path from "node:path";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/error-handler";
 import { notFound } from "./middleware/not-found";
@@ -63,7 +64,9 @@ export function createApp(options: CreateAppOptions = {}) {
     app.use(requestLogger);
   }
 
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  }));
   app.use(cors(createCorsOptions(frontendUrl)));
   app.use(validateOrigin(frontendUrl));
   app.use(
@@ -77,6 +80,9 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }));
   app.use(cookieParser());
+
+  // Serve public uploads statically
+  app.use("/uploads", express.static(path.join(process.cwd(), "storage/public/uploads")));
 
   app.use("/api/health", createHealthRouter(options.databaseProbe));
   app.use("/api/auth", createAuthRouter(options.authService));

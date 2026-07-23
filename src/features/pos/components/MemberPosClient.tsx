@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, QrCode, Printer } from "lucide-react";
+import { getAuthenticatedUser } from "@/lib/auth-client";
 
 type InventoryItem = {
     id: number;
@@ -109,9 +110,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [checkoutStep, setCheckoutStep] = useState<"cart" | "payment">("cart");
     const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
     const [paymentReference, setPaymentReference] = useState("");
-    const [paymentName, setPaymentName] = useState(isPublicView ? "" : "Juan Dela Cruz");
-    const [paymentEmail, setPaymentEmail] = useState(isPublicView ? "" : "juandelacruz@gmail.com");
-    const [paymentContact, setPaymentContact] = useState(isPublicView ? "" : "09123456789");
+    const [paymentName, setPaymentName] = useState("");
+    const [paymentEmail, setPaymentEmail] = useState("");
+    const [paymentContact, setPaymentContact] = useState("");
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
 
@@ -143,11 +144,20 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             void fetchInventory();
         }, 5000); // Poll inventory every 5 seconds
 
+        if (!isPublicView) {
+            getAuthenticatedUser().then(user => {
+                if (user) {
+                    setPaymentName(prev => prev || user.displayName || "");
+                    setPaymentEmail(prev => prev || user.email || "");
+                }
+            }).catch(console.error);
+        }
+
         return () => {
             window.clearTimeout(timeoutId);
             window.clearInterval(interval);
         };
-    }, [fetchInventory]);
+    }, [fetchInventory, isPublicView]);
 
     const fetchHistory = async () => {
         try {
@@ -320,9 +330,18 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 setCheckoutStep("cart");
                 setPaymentMethod("Cash");
                 setPaymentReference("");
-                setPaymentName(isPublicView ? "" : "Juan Dela Cruz");
-                setPaymentEmail(isPublicView ? "" : "juandelacruz@gmail.com");
-                setPaymentContact(isPublicView ? "" : "09123456789");
+                if (!isPublicView) {
+                    getAuthenticatedUser().then(user => {
+                        if (user) {
+                            setPaymentName(user.displayName || "");
+                            setPaymentEmail(user.email || "");
+                        }
+                    }).catch(console.error);
+                } else {
+                    setPaymentName("");
+                    setPaymentEmail("");
+                }
+                setPaymentContact("");
                 fetchInventory(); // Refresh stock
             } else {
                 const data = await res.json();
