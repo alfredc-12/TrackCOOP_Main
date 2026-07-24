@@ -3,11 +3,11 @@ import test from "node:test";
 import { expectedDatabaseTables } from "./expected-tables";
 import { compareDatabaseTables } from "./schema-check";
 
-test("compareDatabaseTables accepts the authoritative 34-table schema", () => {
+test("compareDatabaseTables accepts the authoritative 40-table schema", () => {
   const result = compareDatabaseTables(expectedDatabaseTables);
 
-  assert.equal(result.expectedCount, 34);
-  assert.equal(result.actualCount, 34);
+  assert.equal(result.expectedCount, 40);
+  assert.equal(result.actualCount, 40);
   assert.equal(result.isComplete, true);
   assert.deepEqual(result.missingTables, []);
   assert.deepEqual(result.unexpectedTables, []);

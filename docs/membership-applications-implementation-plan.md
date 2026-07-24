@@ -19,8 +19,9 @@ Source specifications reviewed completely:
 ### Database And Reference SQL
 
 - The authoritative SQL reference is `TrackCOOP_Table_Reference_Only.sql`.
-- The current reference schema declares 34 TrackCOOP tables.
-- `server/src/db/expected-tables.ts` also expects the same 34 tables.
+- The current reference schema declares 40 TrackCOOP tables after the Phase 1
+  membership-application schema migration work.
+- `server/src/db/expected-tables.ts` also expects the same 40 tables.
 - `server/src/db/schema-check.ts` performs a read-only table comparison against
   `information_schema.TABLES`.
 - Existing membership-related tables:
@@ -29,6 +30,12 @@ Source specifications reviewed completely:
   - `member_status_indicators`
   - `payment_references`
   - `share_capital_payments`
+  - `membership_applications`
+  - `membership_application_beneficiaries`
+  - `membership_application_documents`
+  - `membership_application_requirements`
+  - `membership_application_status_history`
+  - `user_activation_tokens`
   - `users`
   - `roles`
   - `audit_logs`
@@ -436,9 +443,6 @@ todo 0
 ## Known Issues And Blockers
 
 - The baseline lint command fails before this feature work begins.
-- The database reference does not yet contain the required membership application
-  tables or seed settings.
-- The schema checker still expects 34 tables.
 - No membership application backend module exists.
 - No public membership application frontend exists.
 - Current Chairman People screens are mostly list/summary screens and are not yet

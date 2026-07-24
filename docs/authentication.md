@@ -50,7 +50,7 @@ npm run user:create -- --email books@example.com --name "Book Keeper" --role boo
 
 The command never accepts a password argument, disables terminal echo while the
 password is entered, asks for confirmation, hashes the value with bcrypt, and
-refuses duplicate emails. The 34-table schema and reference roles must exist
+refuses duplicate emails. The 40-table schema and reference roles must exist
 first.
 
 ## Deferred Reset Flow

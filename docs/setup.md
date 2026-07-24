@@ -24,6 +24,16 @@ Copy `server/.env.example` to the ignored `server/.env` file before using live
 database routes. Database import and reference seeding are manual operations;
 see [`database.md`](database.md).
 
+For a clean database, import `TrackCOOP_Table_Reference_Only.sql`, run
+`npm run db:check`, then manually run `server/database/seed-reference.sql` and
+`server/database/seed-membership-settings.sql`.
+
+For a database that already has the older 34-table TrackCOOP schema, take a
+backup, manually apply
+`server/database/migrations/20260724_add_membership_application_workflow.sql`,
+run `npm run db:check`, then manually run
+`server/database/seed-membership-settings.sql`.
+
 After importing the schema and reference seed, create the first portal accounts
 from an interactive terminal. The password is prompted without terminal echo
 and is never accepted as a command-line argument:
