@@ -34,6 +34,8 @@ Thumbs.db
 # protected runtime uploads
 storage/uploads/*
 !storage/uploads/.gitkeep
+storage/protected/*
+!storage/protected/.gitkeep
 
 # TypeScript / Next generated
 *.tsbuildinfo
