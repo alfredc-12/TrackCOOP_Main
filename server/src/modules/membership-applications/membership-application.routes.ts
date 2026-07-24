@@ -1,7 +1,10 @@
 import { Router, type RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
+import { createAuthenticate } from "../../middleware/authenticate";
+import { requireRoles } from "../../middleware/authorize";
 import { AppError } from "../../utils/app-error";
+import { createAuthService, type AuthService } from "../auth/auth.service";
 import { createMembershipApplicationController } from "./membership-application.controller";
 import {
   createMembershipApplicationService,
@@ -91,11 +94,13 @@ const documentUploadMiddleware: RequestHandler = (request, response, next) => {
 };
 
 export function createMembershipApplicationRouter(
+  authService: AuthService = createAuthService(),
   membershipApplicationService: MembershipApplicationService = createMembershipApplicationService(),
 ) {
   const router = Router();
   const controller = createMembershipApplicationController(membershipApplicationService);
   const publicLimiter = createPublicLimiter();
+  const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
 
   router.post(
     "/membership-applications/public",
@@ -113,6 +118,63 @@ export function createMembershipApplicationRouter(
     documentUploadMiddleware,
     controller.uploadPublicDocument,
   );
+
+  router.get("/membership-applications/summary", ...chairmanOnly, controller.summary);
+  router.get("/membership-applications", ...chairmanOnly, controller.list);
+  router.post("/membership-applications", ...chairmanOnly, controller.createChairman);
+  router.get("/membership-applications/:id", ...chairmanOnly, controller.detail);
+  router.patch("/membership-applications/:id", ...chairmanOnly, controller.update);
+  router.post(
+    "/membership-applications/:id/beneficiaries",
+    ...chairmanOnly,
+    controller.createBeneficiary,
+  );
+  router.patch(
+    "/membership-application-beneficiaries/:id",
+    ...chairmanOnly,
+    controller.updateBeneficiary,
+  );
+  router.delete(
+    "/membership-application-beneficiaries/:id",
+    ...chairmanOnly,
+    controller.deleteBeneficiary,
+  );
+  router.post(
+    "/membership-applications/:id/documents",
+    ...chairmanOnly,
+    documentUploadMiddleware,
+    controller.uploadChairmanDocument,
+  );
+  router.delete(
+    "/membership-application-documents/:id",
+    ...chairmanOnly,
+    controller.deleteDocument,
+  );
+  router.post(
+    "/membership-applications/:id/requirements",
+    ...chairmanOnly,
+    controller.createRequirement,
+  );
+  router.patch(
+    "/membership-application-requirements/:id",
+    ...chairmanOnly,
+    controller.updateRequirement,
+  );
+  router.get("/membership-applications/:id/history", ...chairmanOnly, controller.history);
+  router.post(
+    "/membership-applications/:id/start-review",
+    ...chairmanOnly,
+    controller.startReview,
+  );
+  router.post(
+    "/membership-applications/:id/request-information",
+    ...chairmanOnly,
+    controller.requestInformation,
+  );
+  router.post("/membership-applications/:id/reject", ...chairmanOnly, controller.reject);
+  router.post("/membership-applications/:id/withdraw", ...chairmanOnly, controller.withdraw);
+  router.post("/membership-applications/:id/approve", ...chairmanOnly, controller.approve);
+  router.get("/membership-applications/:id/print", ...chairmanOnly, controller.print);
 
   return router;
 }

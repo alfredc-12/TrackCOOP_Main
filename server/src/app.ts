@@ -89,7 +89,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api/auth", createAuthRouter(options.authService));
   app.use("/api", createUserRouter(options.authService));
   app.use("/api", createMemberRouter(options.authService));
-  app.use("/api", createMembershipApplicationRouter());
+  app.use("/api", createMembershipApplicationRouter(options.authService));
   app.use("/api", createMemberIndicatorRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));

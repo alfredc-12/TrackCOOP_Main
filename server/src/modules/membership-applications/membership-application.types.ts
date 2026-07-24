@@ -156,3 +156,181 @@ export type StoredMembershipApplicationDocument = {
   checksumSha256: string;
   uploadedAt: Date;
 };
+
+export type ChairmanApplicationListQuery = {
+  page: number;
+  pageSize: number;
+  search?: string | null;
+  status?: MembershipApplicationStatus;
+  requestedMembershipType?: RequestedMembershipType;
+  applicationSource?: MembershipApplicationSource;
+  barangay?: string | null;
+  sortBy: "submittedAt" | "fullName" | "applicationStatus" | "requestedMembershipType";
+  sortDirection: "asc" | "desc";
+};
+
+export type ChairmanApplicationSummary = {
+  total: number;
+  submitted: number;
+  underReview: number;
+  needsInformation: number;
+  approved: number;
+  rejected: number;
+  withdrawn: number;
+};
+
+export type ChairmanApplicationListItem = {
+  id: string;
+  applicationCode: string;
+  applicationSource: MembershipApplicationSource;
+  requestedMembershipType: RequestedMembershipType;
+  fullName: string;
+  email: string | null;
+  contactNumber: string;
+  barangay: string | null;
+  applicationStatus: MembershipApplicationStatus;
+  submittedAt: Date;
+  reviewedAt: Date | null;
+  convertedMemberId: string | null;
+};
+
+export type ChairmanApplicationListResult = {
+  applications: ChairmanApplicationListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type ChairmanApplicationRequirement = {
+  id: string;
+  applicationId: string;
+  requirementType: RequirementType;
+  requirementStatus: RequirementStatus;
+  paymentReferenceId: string | null;
+  documentId: string | null;
+  completionDate: string | null;
+  verifiedBy: string | null;
+  verifiedAt: Date | null;
+  remarks: string | null;
+};
+
+export type ChairmanApplicationDocument = {
+  id: string;
+  applicationId: string;
+  documentType: MembershipApplicationDocumentType;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  checksumSha256: string | null;
+  uploadedByUserId: string | null;
+  uploadedAt: Date;
+};
+
+export type ChairmanApplicationBeneficiary = MembershipApplicationBeneficiaryInput & {
+  id: string;
+  applicationId: string;
+  displayOrder: number;
+};
+
+export type ChairmanApplicationHistoryEntry = {
+  id: string;
+  applicationId: string;
+  oldStatus: MembershipApplicationStatus | null;
+  newStatus: MembershipApplicationStatus;
+  internalNote: string | null;
+  applicantMessage: string | null;
+  changedBy: string | null;
+  changedAt: Date;
+};
+
+export type ChairmanApplicationDetail = ChairmanApplicationListItem &
+  Omit<
+    PublicMembershipApplicationInput,
+    | "beneficiaries"
+    | "orientationCommitmentAccepted"
+    | "membershipFeeCommitmentAccepted"
+    | "shareSubscriptionCommitmentAccepted"
+    | "bylawsAgreementAccepted"
+    | "privacyConsentAccepted"
+  > & {
+    id: string;
+    orientationCommitmentAccepted: boolean;
+    membershipFeeCommitmentAccepted: boolean;
+    shareSubscriptionCommitmentAccepted: boolean;
+    bylawsAgreementAccepted: boolean;
+    privacyConsentAccepted: boolean;
+    boardMeetingDate: string | null;
+    secretaryName: string | null;
+    decisionReason: string | null;
+    submittedByUserId: string | null;
+    reviewedBy: string | null;
+    submittedIp: string | null;
+    submittedUserAgent: string | null;
+    beneficiaries: ChairmanApplicationBeneficiary[];
+    documents: ChairmanApplicationDocument[];
+    requirements: ChairmanApplicationRequirement[];
+    history: ChairmanApplicationHistoryEntry[];
+  };
+
+export type ChairmanMembershipApplicationInput = PublicMembershipApplicationInput & {
+  applicationSource: Extract<MembershipApplicationSource, "Chairman Entry" | "Imported Paper Form">;
+};
+
+export type ChairmanMembershipApplicationUpdateInput = Partial<
+  Omit<
+    PublicMembershipApplicationInput,
+    | "beneficiaries"
+    | "termsVersion"
+    | "orientationCommitmentAccepted"
+    | "membershipFeeCommitmentAccepted"
+    | "shareSubscriptionCommitmentAccepted"
+    | "bylawsAgreementAccepted"
+    | "privacyConsentAccepted"
+  >
+> & {
+  orientationCommitmentAccepted?: boolean;
+  membershipFeeCommitmentAccepted?: boolean;
+  shareSubscriptionCommitmentAccepted?: boolean;
+  bylawsAgreementAccepted?: boolean;
+  privacyConsentAccepted?: boolean;
+  boardMeetingDate?: string | null;
+  secretaryName?: string | null;
+  decisionReason?: string | null;
+};
+
+export type RequirementInput = {
+  requirementType: RequirementType;
+  requirementStatus?: RequirementStatus;
+  paymentReferenceId?: string | null;
+  documentId?: string | null;
+  completionDate?: string | null;
+  remarks?: string | null;
+};
+
+export type RequirementUpdateInput = Partial<Omit<RequirementInput, "requirementType">>;
+
+export type StatusTransitionInput = {
+  reason?: string | null;
+  applicantMessage?: string | null;
+  internalNote?: string | null;
+};
+
+export type ApprovalInput = {
+  boardMeetingDate: string;
+  secretaryName: string;
+  decisionReason: string;
+  createMemberPortalAccount: boolean;
+  accountEmail?: string | null;
+  username?: string | null;
+};
+
+export type ApprovalResult = {
+  applicationId: string;
+  applicationCode: string;
+  memberId: string;
+  memberCode: string;
+  membershipType: RequestedMembershipType;
+  shareCapitalDeadline: string | null;
+  activationUrl: string | null;
+  activationTokenExpiresAt: Date | null;
+};
