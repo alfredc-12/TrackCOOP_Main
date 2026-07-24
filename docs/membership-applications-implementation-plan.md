@@ -137,7 +137,7 @@ Current gaps:
 - Login uses the Express API and an opaque HTTP-only session cookie.
 - `src/proxy.ts` redirects and rewrites portal paths by role.
 - The public landing routes are allowed without session, but there is no
-  `/membership/apply` or `/membership/status` route yet.
+  `/membership/apply` or `/membership/application-status` route yet.
 - No new roles are required by the specification.
 
 ### Frontend People Screens
@@ -165,6 +165,10 @@ Current UI gaps:
   application flow.
 - No public application form, status lookup, document upload/review, or payment
   instruction flow exists yet.
+- No membership-application upload flow exists yet. The later upload work must
+  use protected storage outside `public/`, avoid exposing arbitrary filesystem
+  paths, validate extension, MIME type, magic bytes where practical, file size,
+  and SHA-256 checksum, and audit Chairman downloads/removals.
 
 ### API Client And Fetching
 
@@ -213,14 +217,14 @@ Work:
 Files to create or update:
 
 - `server/src/app.ts`
-- `server/src/modules/membership-applications/application.routes.ts`
-- `server/src/modules/membership-applications/application.controller.ts`
-- `server/src/modules/membership-applications/application.service.ts`
-- `server/src/modules/membership-applications/application.repository.ts`
-- `server/src/modules/membership-applications/application.schema.ts`
-- `server/src/modules/membership-applications/application.types.ts`
-- `server/src/modules/membership-applications/application.routes.test.ts`
-- `server/src/modules/membership-applications/application.service.test.ts`
+- `server/src/modules/membership-applications/membership-application.routes.ts`
+- `server/src/modules/membership-applications/membership-application.controller.ts`
+- `server/src/modules/membership-applications/membership-application.service.ts`
+- `server/src/modules/membership-applications/membership-application.repository.ts`
+- `server/src/modules/membership-applications/membership-application.schema.ts`
+- `server/src/modules/membership-applications/membership-application.types.ts`
+- `server/src/modules/membership-applications/membership-application.routes.test.ts`
+- `server/src/modules/membership-applications/membership-application.service.test.ts`
 - `server/src/modules/communication/*` if applicant notifications are sent from
   existing communication helpers
 
@@ -233,6 +237,12 @@ Work:
 - Store application, beneficiaries, documents, requirements, status history, and
   audit logs in one transaction.
 - Return tracking reference without creating a portal account.
+- Require `X-Application-Tracking-Token` for public status and public document
+  uploads, hash public tracking tokens with SHA-256, and compare hashes with a
+  timing-safe comparison.
+- Add strict upload validation for membership-application documents, including
+  protected storage outside `public/`, allowlisted MIME/extensions, file size,
+  checksum, and magic-byte checks where practical.
 
 ### Phase 3: Chairman Application Review Backend
 
@@ -250,19 +260,40 @@ Files to create or update:
 
 Work:
 
-- Add chairman-only list, detail, screening, document, requirement, decision, and
-  acceptance endpoints.
+- Add all Chairman-only endpoints from the master specification:
+  - `GET /api/membership-applications/summary`
+  - `GET /api/membership-applications`
+  - `POST /api/membership-applications`
+  - `GET /api/membership-applications/:id`
+  - `PATCH /api/membership-applications/:id`
+  - `POST /api/membership-applications/:id/beneficiaries`
+  - `PATCH /api/membership-application-beneficiaries/:id`
+  - `DELETE /api/membership-application-beneficiaries/:id`
+  - `POST /api/membership-applications/:id/documents`
+  - `DELETE /api/membership-application-documents/:id`
+  - `POST /api/membership-applications/:id/requirements`
+  - `PATCH /api/membership-application-requirements/:id`
+  - `GET /api/membership-applications/:id/history`
+  - `POST /api/membership-applications/:id/start-review`
+  - `POST /api/membership-applications/:id/request-information`
+  - `POST /api/membership-applications/:id/reject`
+  - `POST /api/membership-applications/:id/withdraw`
+  - `POST /api/membership-applications/:id/approve`
+  - `GET /api/membership-applications/:id/print`
 - On approval, create or link member profile, payment/reference records where
   required, status history, activation token, notifications, and audit logs.
 - Enforce configured fees and capital limits from `system_settings`.
 - Keep official member status separate from indicator status.
+- Implement status transitions and approval/conversion with row locks and one
+  transaction so partial member, user, payment, token, history, or audit records
+  roll back together.
 
 ### Phase 4: Public Become A Member Frontend
 
 Files to create or update:
 
 - `src/app/(LandingPage)/membership/apply/page.tsx`
-- `src/app/(LandingPage)/membership/status/page.tsx`
+- `src/app/(LandingPage)/membership/application-status/page.tsx`
 - `src/app/(LandingPage)/membership/_components/*`
 - `src/components/layout/SiteHeader.tsx`
 - `src/app/(LandingPage)/page.tsx`
@@ -272,8 +303,8 @@ Files to create or update:
 
 Work:
 
-- Add public application form, status lookup, document upload UI, payment
-  instructions, and success/tracking screens.
+- Add public application form, application-status lookup, document upload UI,
+  payment instructions, and success/tracking screens.
 - Link the landing header/service card to Become a Member.
 - Keep public routes accessible without portal sessions.
 
@@ -306,7 +337,10 @@ Files to create or update:
 Work:
 
 - Add activation-token visibility/resend where allowed.
-- Add account lifecycle actions that preserve role limits and audit history.
+- Add account lifecycle actions that preserve role limits and audit history:
+  create, view, edit, role change, activate, suspend, deactivate, reactivate,
+  issue/reissue activation link, revoke one session, revoke all sessions, link
+  member profile, and safe unlink.
 - Link approved member records to created member accounts only after approval.
 
 ### Phase 7: Member Directory And Status History
@@ -362,7 +396,7 @@ Commands run from repository root:
 
 | Command | Result |
 | --- | --- |
-| `npm install` | Passed. Output reported `removed 22 packages`, audited 559 packages, and found 3 high severity vulnerabilities. |
+| `npm install` | Passed. Initial run reported `removed 22 packages`; corrective review rerun reported dependencies up to date, audited 559 packages, and found 3 high severity vulnerabilities. |
 | `npm run typecheck` | Passed. `typecheck:web` and `typecheck:api` both completed. |
 | `npm run lint` | Failed. ESLint reported 75 problems: 41 errors and 34 warnings. |
 | `npm run build` | Passed. Next.js 16.2.10 production build and API TypeScript build completed. |
