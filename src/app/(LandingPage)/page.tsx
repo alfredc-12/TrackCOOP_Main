@@ -493,6 +493,12 @@ function Hero() {
               <h1 className="text-3xl font-bold uppercase leading-[1.04] tracking-normal text-white drop-shadow-2xl sm:text-5xl lg:text-6xl xl:text-7xl">
                 {cooperativeName}
               </h1>
+              <Link
+                href="/membership/apply"
+                className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-[#123D2A] shadow-sm transition hover:bg-[#F8F1E5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                Become a Member
+              </Link>
             </div>
           </div>
         </div>

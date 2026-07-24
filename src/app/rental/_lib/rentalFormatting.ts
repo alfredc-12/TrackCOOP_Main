@@ -14,6 +14,16 @@ export function formatRentalDate(value?: string, long = false) {
   }).format(date);
 }
 
+export function formatRentalDateRange(
+  startDate?: string,
+  endDate?: string,
+  long = false,
+) {
+  if (!startDate) return "Not set";
+  if (!endDate || endDate === startDate) return formatRentalDate(startDate, long);
+  return `${formatRentalDate(startDate, long)} – ${formatRentalDate(endDate, long)}`;
+}
+
 export function maskReference(value?: string) {
   if (!value) return "—";
   return value.length <= 4 ? "••••" : `${"•".repeat(Math.min(8, value.length - 4))}${value.slice(-4)}`;

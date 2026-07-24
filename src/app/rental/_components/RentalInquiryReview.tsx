@@ -3,10 +3,12 @@
 import { ArrowLeft, CheckCircle2, FileCheck2, Send, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRental } from "../_context/RentalProvider";
 import type { InquiryDraft } from "../_types/rental";
-import { formatRentalDate } from "../_lib/rentalFormatting";
+import {
+  formatRentalDateRange,
+} from "../_lib/rentalFormatting";
 import { RentalInquiryStepper } from "./RentalInquiryStepper";
 import { RentalPolicyNotice } from "./RentalPolicyNotice";
 
@@ -16,6 +18,7 @@ export function RentalInquiryReview({ member = false }: { member?: boolean }) {
   const [draft, setDraft] = useState<InquiryDraft>();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
+  const requestIdRef = useRef<string | null>(null);
   const [confirmations, setConfirmations] = useState({
     privacy: false,
     accuracy: false,
@@ -66,9 +69,11 @@ export function RentalInquiryReview({ member = false }: { member?: boolean }) {
     setError(undefined);
 
     try {
+      requestIdRef.current ??= crypto.randomUUID();
       await submitInquiry(
         {
           ...draft,
+          clientRequestId: requestIdRef.current,
           dataPrivacyConsent: confirmations.privacy,
           accuracyConfirmation: confirmations.accuracy,
           contactConsent: confirmations.contact,
@@ -130,14 +135,28 @@ export function RentalInquiryReview({ member = false }: { member?: boolean }) {
               title="Rental Details"
               rows={[
                 ["Equipment", service],
-                ["Preferred date", formatRentalDate(draft.preferredDate, true)],
                 [
-                  "Alternative date",
+                  "Preferred rental period",
+                  formatRentalDateRange(
+                    draft.preferredDate,
+                    draft.preferredEndDate,
+                    true,
+                  ),
+                ],
+                [
+                  "Alternative rental period",
                   draft.alternativeDate
-                    ? formatRentalDate(draft.alternativeDate, true)
+                    ? formatRentalDateRange(
+                        draft.alternativeDate,
+                        draft.alternativeEndDate,
+                        true,
+                      )
                     : "Not provided",
                 ],
-                ["Preferred time", draft.preferredStartTime],
+                [
+                  "Rental time",
+                  `${draft.preferredStartTime} – ${draft.preferredEndTime}`,
+                ],
                 ["Estimated usage", `${draft.estimatedUsage} ${draft.unitOfMeasurement}`],
                 ["Estimated duration", draft.estimatedDuration],
                 ["Intended use", draft.intendedUse],

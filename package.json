@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
+    "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",
     "user:create": "tsx server/src/scripts/create-user.ts"
   },
   "dependencies": {

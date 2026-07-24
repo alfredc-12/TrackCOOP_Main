@@ -21,6 +21,8 @@ import { createFinanceRouter } from "./modules/finance/finance.routes";
 import { createLandingRouter } from "./modules/landing/landing.routes";
 import { createMemberIndicatorRouter } from "./modules/member-indicators/member-indicator.routes";
 import { createMemberRouter } from "./modules/members/member.routes";
+import { createMembershipRouter } from "./modules/membership/membership.routes";
+import type { MembershipService } from "./modules/membership/membership.service";
 import { createPaymentReferenceRouter } from "./modules/payment-references/payment-reference.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
@@ -31,6 +33,7 @@ type CreateAppOptions = {
   databaseProbe?: DatabaseProbe;
   enableRequestLogging?: boolean;
   frontendUrl?: string;
+  membershipService?: MembershipService;
 };
 
 function createCorsOptions(frontendUrl: string): CorsOptions {
@@ -88,6 +91,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api/auth", createAuthRouter(options.authService));
   app.use("/api", createUserRouter(options.authService));
   app.use("/api", createMemberRouter(options.authService));
+  app.use(
+    "/api",
+    createMembershipRouter(options.authService, options.membershipService),
+  );
   app.use("/api", createMemberIndicatorRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));

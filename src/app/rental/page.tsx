@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { RentalInquiryForm } from "./_components/RentalInquiryForm";
 import { RentalStatusLookup } from "./_components/RentalStatusLookup";
 
-export default function RentalLandingPage({ useModals }: { useModals?: boolean; params?: any; searchParams?: any } = {}) {
+export default function RentalLandingPage({ useModals }: { useModals?: boolean } = {}) {
   return <><section className="relative overflow-hidden border-b border-[#d8e4d3] bg-[#123d2a] text-white"><div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_20%_20%,#9ad19d_0,transparent_30%),radial-gradient(circle_at_80%_70%,#dce7a9_0,transparent_28%)]" /><div className="relative mx-auto grid min-h-[32rem] max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_.85fr]"><div><p className="text-sm font-bold uppercase tracking-[0.2em] text-[#a9ddb7]">TrackCOOP · NFFAC</p><h1 className="mt-4 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">Equipment Rental Services</h1><p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">Browse cooperative-managed farm equipment and submit a rental inquiry for review by the Nasugbu Farmers and Fisherfolks Agriculture Cooperative.</p><div className="mt-8 flex flex-wrap gap-3">
     {useModals ? (
       <>

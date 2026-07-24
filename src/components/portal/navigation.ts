@@ -74,6 +74,12 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
           summary: "Review member records, status, and profile history.",
         },
         {
+          label: "Membership Applications",
+          href: "/portal/chairman/members/applications",
+          icon: ClipboardList,
+          summary: "Review public applications and authorize member accounts.",
+        },
+        {
           label: "Member Indicators",
           href: "/portal/chairman/member-indicators",
           icon: Gauge,
@@ -246,6 +252,12 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
           href: "/portal/bookkeeper/payment-validation",
           icon: ReceiptText,
           summary: "Validate, reject, or clarify member payment references.",
+        },
+        {
+          label: "Membership Payments",
+          href: "/portal/bookkeeper/members/payments",
+          icon: ClipboardList,
+          summary: "Validate payments submitted with approved membership applications.",
         },
         {
           label: "Share Capital",

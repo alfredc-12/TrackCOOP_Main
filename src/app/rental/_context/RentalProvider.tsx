@@ -44,13 +44,17 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(undefined);
     try {
-      setServices(await rentalRepository.getRentalServices());
+      setServices(
+        pathname.startsWith("/rental/member/")
+          ? await rentalRepository.getMemberRentalServices()
+          : await rentalRepository.getRentalServices(),
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Rental services could not be loaded.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refreshServices(), 0);

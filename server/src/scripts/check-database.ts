@@ -32,7 +32,7 @@ async function main() {
       return;
     }
 
-    console.info("All 34 TrackCOOP tables are present.");
+    console.info(`All ${result.expectedCount} TrackCOOP tables are present.`);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : "UnknownError";
     console.error(

@@ -1,11 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ArrowLeft, ArrowRight, FileUp } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  FileUp,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { cloneElement, useEffect, useState } from "react";
+import { cloneElement, useEffect, useMemo, useState } from "react";
 import {
   useForm,
+  useWatch,
   type FieldErrors,
   type FieldPath,
 } from "react-hook-form";
@@ -16,6 +25,8 @@ import {
   type InquiryFormValues,
 } from "../_lib/rentalValidation";
 import { useRental } from "../_context/RentalProvider";
+import { rentalApiRepository } from "../_lib/rentalApi";
+import type { PublicRentalBlockedDate } from "../_types/rental";
 import { RentalInquiryStepper } from "./RentalInquiryStepper";
 
 const defaultValues: InquiryFormValues = {
@@ -30,8 +41,11 @@ const defaultValues: InquiryFormValues = {
   serviceId: "",
   intendedUse: "",
   preferredDate: "",
+  preferredEndDate: "",
   alternativeDate: "",
+  alternativeEndDate: "",
   preferredStartTime: "",
+  preferredEndTime: "",
   estimatedDuration: "",
   estimatedUsage: "",
   unitOfMeasurement: "",
@@ -62,8 +76,11 @@ const rentalFields: FieldPath<InquiryFormValues>[] = [
   "serviceId",
   "intendedUse",
   "preferredDate",
+  "preferredEndDate",
   "alternativeDate",
+  "alternativeEndDate",
   "preferredStartTime",
+  "preferredEndTime",
   "estimatedDuration",
   "estimatedUsage",
   "unitOfMeasurement",
@@ -79,13 +96,19 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
   const { services, saveInquiryDraft, getInquiryDraft } = useRental();
   const [step, setStep] = useState<1 | 2>(1);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
+  const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
+  const [blockedDatesError, setBlockedDatesError] = useState<string>();
   const {
     register,
-    handleSubmit,
     reset,
     setValue,
+    setError,
+    clearErrors,
     trigger,
-    formState: { errors, isSubmitting },
+    control,
+    getValues,
+    formState: { errors },
   } = useForm<InquiryFormValues>({
     resolver: zodResolver(inquirySchema),
     defaultValues: {
@@ -94,12 +117,57 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
     },
   });
 
+  const selectedServiceId = useWatch({ control, name: "serviceId" });
+  const preferredDate = useWatch({ control, name: "preferredDate" });
+  const preferredEndDate = useWatch({ control, name: "preferredEndDate" });
+  const alternativeDate = useWatch({ control, name: "alternativeDate" });
+  const alternativeEndDate = useWatch({ control, name: "alternativeEndDate" });
+  const selectedService = services.find(
+    (service) => service.serviceId === selectedServiceId,
+  );
+  const effectiveBlockedDates = useMemo(
+    () =>
+      selectedServiceId && blockedDatesServiceId === selectedServiceId
+        ? blockedDates
+        : [],
+    [blockedDates, blockedDatesServiceId, selectedServiceId],
+  );
+  const effectiveBlockedDatesError =
+    selectedServiceId && blockedDatesServiceId === selectedServiceId
+      ? blockedDatesError
+      : undefined;
+  const blockedDatesLoading = Boolean(
+    selectedServiceId && blockedDatesServiceId !== selectedServiceId,
+  );
+  const blockedDateByKey = useMemo(
+    () => new Map(effectiveBlockedDates.map((item) => [item.date, item])),
+    [effectiveBlockedDates],
+  );
+  const preferredBlockedDate = firstBlockedDateInRange(
+    preferredDate,
+    preferredEndDate,
+    blockedDateByKey,
+  );
+  const alternativeBlockedDate = firstBlockedDateInRange(
+    alternativeDate,
+    alternativeEndDate,
+    blockedDateByKey,
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const saved = getInquiryDraft();
       const params = new URLSearchParams(window.location.search);
 
-      if (saved) reset(saved);
+      if (saved) {
+        reset({
+          ...defaultValues,
+          ...saved,
+          preferredEndDate: saved.preferredEndDate || saved.preferredDate,
+          preferredEndTime: saved.preferredEndTime || "",
+          alternativeEndDate: saved.alternativeEndDate || "",
+        });
+      }
       else {
         const selectedService = params.get("service");
         if (selectedService) setValue("serviceId", selectedService);
@@ -110,6 +178,75 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
 
     return () => window.clearTimeout(timer);
   }, [getInquiryDraft, reset, setValue]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!selectedServiceId) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void rentalApiRepository
+      .getPublicRentalBlockedDates(selectedServiceId)
+      .then((dates) => {
+        if (active) {
+          setBlockedDates(dates);
+          setBlockedDatesError(undefined);
+          setBlockedDatesServiceId(selectedServiceId);
+        }
+      })
+      .catch((reason) => {
+        if (active) {
+          setBlockedDates([]);
+          setBlockedDatesError(
+            reason instanceof Error
+              ? reason.message
+              : "Availability dates could not be loaded.",
+          );
+          setBlockedDatesServiceId(selectedServiceId);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedServiceId]);
+
+  useEffect(() => {
+    if (preferredDate && preferredBlockedDate) {
+      setError("preferredEndDate", {
+        type: "manual",
+        message: `${preferredBlockedDate.date} is unavailable. The preferred range cannot include approved rentals or maintenance.`,
+      });
+    } else if (errors.preferredEndDate?.type === "manual") {
+      clearErrors("preferredEndDate");
+    }
+  }, [
+    clearErrors,
+    errors.preferredEndDate?.type,
+    preferredBlockedDate,
+    preferredDate,
+    setError,
+  ]);
+
+  useEffect(() => {
+    if (alternativeDate && alternativeBlockedDate) {
+      setError("alternativeEndDate", {
+        type: "manual",
+        message: `${alternativeBlockedDate.date} is unavailable. The alternative range cannot include approved rentals or maintenance.`,
+      });
+    } else if (errors.alternativeEndDate?.type === "manual") {
+      clearErrors("alternativeEndDate");
+    }
+  }, [
+    alternativeBlockedDate,
+    alternativeDate,
+    clearErrors,
+    errors.alternativeEndDate?.type,
+    setError,
+  ]);
 
   const goToRentalDetails = async () => {
     const valid = await trigger(requesterFields, { shouldFocus: true });
@@ -123,10 +260,62 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
     router.push(member ? "/rental/member/requests/new?review=1" : "/rental/inquiry/review");
   };
 
-  const handleInvalid = (formErrors: FieldErrors<InquiryFormValues>) => {
-    const hasRequesterError = requesterFields.some((field) => Boolean(formErrors[field]));
-    if (hasRequesterError) setStep(1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const goToReview = async () => {
+    if (fileErrors.length > 0) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (blockedDatesLoading || effectiveBlockedDatesError) {
+      setError("preferredDate", {
+        type: "manual",
+        message: blockedDatesLoading
+          ? "Please wait while availability dates load."
+          : "Availability dates could not be verified. Refresh the page or choose the equipment again.",
+      });
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const requesterValid = await trigger(requesterFields, { shouldFocus: true });
+    if (!requesterValid) {
+      setStep(1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const rentalValid = await trigger(rentalFields, { shouldFocus: true });
+    const values = getValues();
+    const selectedPreferredBlock = firstBlockedDateInRange(
+      values.preferredDate,
+      values.preferredEndDate,
+      blockedDateByKey,
+    );
+    const selectedAlternativeBlock = firstBlockedDateInRange(
+      values.alternativeDate,
+      values.alternativeEndDate,
+      blockedDateByKey,
+    );
+
+    if (selectedPreferredBlock) {
+      setError("preferredEndDate", {
+        type: "manual",
+        message: `${selectedPreferredBlock.date} is unavailable. Choose a range without crossed-out dates.`,
+      });
+    }
+    if (selectedAlternativeBlock) {
+      setError("alternativeEndDate", {
+        type: "manual",
+        message: `${selectedAlternativeBlock.date} is unavailable. Choose a range without crossed-out dates.`,
+      });
+    }
+    if (!rentalValid || selectedPreferredBlock || selectedAlternativeBlock) {
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    submitForReview(values);
   };
 
   const handleFile = (
@@ -150,7 +339,11 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
 
   return (
     <form
-      onSubmit={handleSubmit(submitForReview, handleInvalid)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (step === 1) void goToRentalDetails();
+        else void goToReview();
+      }}
       noValidate
       className="mx-auto max-w-4xl"
     >
@@ -303,18 +496,61 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
                 placeholder="e.g. Land preparation for rice planting"
               />
             </Field>
-            <Field label="Preferred date" required error={errors.preferredDate?.message}>
-              <input type="date" {...register("preferredDate")} />
+            <div className="sm:col-span-2">
+              <AvailabilityCalendar
+                serviceName={selectedService?.name}
+                selectedDate={preferredDate}
+                selectedEndDate={preferredEndDate}
+                blockedDates={effectiveBlockedDates}
+                loading={blockedDatesLoading}
+                error={effectiveBlockedDatesError}
+                onSelect={(date) => {
+                  setValue("preferredDate", date, { shouldValidate: true });
+                  if (!preferredEndDate || preferredEndDate < date) {
+                    setValue("preferredEndDate", date, { shouldValidate: true });
+                  }
+                }}
+              />
+            </div>
+            <Field label="Preferred start date" required error={errors.preferredDate?.message}>
+              <input type="date" min={todayKey()} {...register("preferredDate")} />
             </Field>
-            <Field label="Alternative date" error={errors.alternativeDate?.message}>
-              <input type="date" {...register("alternativeDate")} />
+            <Field label="Preferred end date" required error={errors.preferredEndDate?.message}>
+              <input
+                type="date"
+                min={preferredDate || todayKey()}
+                {...register("preferredEndDate")}
+              />
             </Field>
+            <Field label="Alternative start date" error={errors.alternativeDate?.message}>
+              <input type="date" min={todayKey()} {...register("alternativeDate")} />
+            </Field>
+            <Field label="Alternative end date" error={errors.alternativeEndDate?.message}>
+              <input
+                type="date"
+                min={alternativeDate || todayKey()}
+                {...register("alternativeEndDate")}
+              />
+            </Field>
+            {preferredBlockedDate || alternativeBlockedDate ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900 sm:col-span-2">
+                Choose another date. Crossed-out dates already have an approved rental schedule or
+                maintenance block.
+              </div>
+            ) : null}
             <Field
               label="Preferred start time"
               required
               error={errors.preferredStartTime?.message}
             >
               <input type="time" {...register("preferredStartTime")} />
+            </Field>
+            <Field
+              label="Preferred end time"
+              required
+              error={errors.preferredEndTime?.message}
+            >
+              <input type="time" {...register("preferredEndTime")} />
             </Field>
             <Field
               label="Estimated duration"
@@ -419,8 +655,9 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
               Back
             </button>
             <button
-              disabled={isSubmitting || fileErrors.length > 0}
-              type="submit"
+              disabled={fileErrors.length > 0 || blockedDatesLoading}
+              type="button"
+              onClick={() => void goToReview()}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Review &amp; Submit
@@ -551,6 +788,220 @@ function UploadField({
       />
     </label>
   );
+}
+
+function AvailabilityCalendar({
+  serviceName,
+  selectedDate,
+  selectedEndDate,
+  blockedDates,
+  loading,
+  error,
+  onSelect,
+}: {
+  serviceName?: string;
+  selectedDate: string;
+  selectedEndDate: string;
+  blockedDates: PublicRentalBlockedDate[];
+  loading: boolean;
+  error?: string;
+  onSelect: (date: string) => void;
+}) {
+  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const blockedByDate = useMemo(
+    () => new Map(blockedDates.map((item) => [item.date, item])),
+    [blockedDates],
+  );
+
+  useEffect(() => {
+    if (!selectedDate) return undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      setMonth(startOfMonth(parseDateKey(selectedDate)));
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedDate]);
+
+  const days = useMemo(() => monthDays(month), [month]);
+  const unavailableCount = blockedDates.filter(
+    (item) =>
+      parseDateKey(item.date).getFullYear() === month.getFullYear() &&
+      parseDateKey(item.date).getMonth() === month.getMonth(),
+  ).length;
+
+  return (
+    <section className="rounded-2xl border border-[#d7e2dc] bg-[#fbfdfb] p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 font-extrabold text-[#123d2a]">
+            <CalendarDays className="size-5 text-[#08753a]" />
+            Availability calendar
+          </div>
+          <p className="mt-1 text-xs leading-5 text-[#6b786f]">
+            {serviceName
+              ? `${serviceName}: crossed-out dates already have approved rental use.`
+              : "Select equipment first to load unavailable dates."}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Previous month"
+            onClick={() => setMonth(addMonths(month, -1))}
+            className="grid size-10 place-items-center rounded-xl border border-[#cbdac6] bg-white text-[#365f4a]"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <strong className="min-w-36 text-center text-sm text-[#123d2a]">
+            {new Intl.DateTimeFormat("en-PH", {
+              month: "long",
+              year: "numeric",
+            }).format(month)}
+          </strong>
+          <button
+            type="button"
+            aria-label="Next month"
+            onClick={() => setMonth(addMonths(month, 1))}
+            className="grid size-10 place-items-center rounded-xl border border-[#cbdac6] bg-white text-[#365f4a]"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+          <span key={day} className="py-1 font-bold text-[#6b786f]">
+            {day}
+          </span>
+        ))}
+        {days.map((date) => {
+          const key = localDateKey(date);
+          const blocked = blockedByDate.get(key);
+          const past = key < todayKey();
+          const outsideMonth = date.getMonth() !== month.getMonth();
+          const selected = selectedDate === key;
+          const inSelectedRange =
+            Boolean(selectedDate && selectedEndDate) &&
+            key >= selectedDate &&
+            key <= selectedEndDate;
+          const disabled = Boolean(blocked) || past || !serviceName;
+
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={disabled}
+              title={blocked ? blocked.reason : undefined}
+              onClick={() => onSelect(key)}
+              className={`relative min-h-10 rounded-xl border px-1 font-bold transition ${
+                blocked
+                  ? "border-red-200 bg-red-50 text-red-800 line-through"
+                  : selected
+                    ? "border-[#08753a] bg-[#08753a] text-white"
+                    : inSelectedRange
+                      ? "border-[#9bc9aa] bg-[#def0e2] text-[#174f32]"
+                    : past || outsideMonth || !serviceName
+                      ? "border-[#e1e8e2] bg-[#f4f6f2] text-[#a0aaa4]"
+                      : "border-[#d4dfd7] bg-white text-[#294b39] hover:border-[#08753a] hover:bg-[#edf7ee]"
+              }`}
+            >
+              {date.getDate()}
+              {blocked ? (
+                <span className="absolute inset-x-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-700/70" />
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold text-[#6b786f]">
+        <span className="inline-flex items-center gap-1">
+          <span className="size-3 rounded bg-white ring-1 ring-[#cbdac6]" />
+          Available
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="size-3 rounded bg-red-50 ring-1 ring-red-200" />
+          Booked or maintenance
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="size-3 rounded bg-[#def0e2] ring-1 ring-[#9bc9aa]" />
+          Selected rental range
+        </span>
+        {loading ? <span>Loading dates...</span> : null}
+        {!loading && serviceName ? (
+          <span>
+            {unavailableCount} unavailable date{unavailableCount === 1 ? "" : "s"} this month
+          </span>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function todayKey() {
+  return localDateKey(new Date());
+}
+
+function localDateKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function parseDateKey(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateKeysBetween(startDate: string, endDate: string) {
+  if (!startDate || !endDate || endDate < startDate) return [];
+  const end = parseDateKey(endDate);
+  const dates: string[] = [];
+  for (
+    const cursor = parseDateKey(startDate);
+    cursor <= end;
+    cursor.setDate(cursor.getDate() + 1)
+  ) {
+    dates.push(localDateKey(cursor));
+  }
+  return dates;
+}
+
+function firstBlockedDateInRange(
+  startDate: string,
+  endDate: string,
+  blockedDates: Map<string, PublicRentalBlockedDate>,
+) {
+  return dateKeysBetween(startDate, endDate)
+    .map((date) => blockedDates.get(date))
+    .find((date): date is PublicRentalBlockedDate => Boolean(date));
+}
+
+function startOfMonth(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
+}
+
+function addMonths(value: Date, offset: number) {
+  return new Date(value.getFullYear(), value.getMonth() + offset, 1);
+}
+
+function monthDays(cursor: Date) {
+  const first = startOfMonth(cursor);
+  const last = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+  const end = new Date(last);
+  end.setDate(last.getDate() + (6 - last.getDay()));
+
+  const days: Date[] = [];
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    days.push(new Date(date));
+  }
+  return days;
 }
 
 function flattenErrors(

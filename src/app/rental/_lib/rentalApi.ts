@@ -5,14 +5,19 @@ import type {
   RentalAuditEntry,
   RentalExpense,
   RentalInquiry,
+  RentalMaintenanceRecord,
   RentalNotification,
   RentalOverview,
   RentalPayment,
   RentalReceipt,
+  RentalRescheduleRequest,
   RentalReportFilter,
   RentalSchedule,
   RentalService,
   RentalStatus,
+  RentalStatusHistoryEntry,
+  PublicRentalBlockedDate,
+  PublicRentalInquiryStatus,
   ScheduleConflict,
 } from "../_types/rental";
 
@@ -60,32 +65,91 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const rentalApiRepository = {
   getRentalOverview: () => request<RentalOverview>("/overview"),
   getRentalServices: () => request<RentalService[]>("/services"),
+  getMemberRentalServices: () => request<RentalService[]>("/member-services"),
   getRentalServiceById: (serviceId: string) => request<RentalService>(`/services/${serviceId}`),
+  getPublicRentalBlockedDates: (serviceId: string) =>
+    request<PublicRentalBlockedDate[]>(
+      `/services/${encodeURIComponent(serviceId)}/booked-dates`,
+    ),
+  getManagedRentalServices: () => request<RentalService[]>("/assets"),
+  getManagedRentalServiceById: (serviceId: string) => request<RentalService>(`/assets/${serviceId}`),
   createRentalService: (service: Omit<RentalService, "updatedAt">) => request<RentalService>("/services", { method: "POST", body: JSON.stringify(service) }),
   updateRentalService: (serviceId: string, updates: Partial<RentalService>) => request<RentalService>(`/services/${serviceId}`, { method: "PATCH", body: JSON.stringify(updates) }),
   archiveRentalService: (serviceId: string) => request<RentalService>(`/services/${serviceId}/archive`, { method: "POST" }),
   submitPublicRentalInquiry: (draft: InquiryDraft) => request<RentalInquiry>("/inquiries/public", { method: "POST", body: JSON.stringify(draft) }),
   submitMemberRentalRequest: (draft: InquiryDraft) => request<RentalInquiry>("/requests/member", { method: "POST", body: JSON.stringify(draft) }),
   getRentalInquiries: () => request<RentalInquiry[]>("/inquiries"),
+  getMemberRentalInquiries: () =>
+    request<RentalInquiry[]>("/member-inquiries"),
+  getMemberRentalInquiryById: (inquiryId: string) =>
+    request<RentalInquiry>(`/member-inquiries/${inquiryId}`),
+  updateMemberRentalStatus: (
+    inquiryId: string,
+    status: "Scheduled" | "Rescheduled",
+    publicNote: string,
+    internalNote?: string,
+  ) =>
+    request<RentalInquiry>(`/member-inquiries/${inquiryId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, publicNote, internalNote }),
+    }),
+  requestMemberRentalReschedule: (
+    inquiryId: string,
+    reschedule: Pick<
+      RentalRescheduleRequest,
+      | "requestedDate"
+      | "requestedEndDate"
+      | "alternativeDate"
+      | "alternativeEndDate"
+      | "reason"
+      | "note"
+    >,
+  ) =>
+    request<RentalInquiry>(`/member-inquiries/${inquiryId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "Rescheduled",
+        publicNote: `Reschedule requested for ${reschedule.requestedDate} to ${reschedule.requestedEndDate}; NFFAC will review equipment availability.`,
+        internalNote: reschedule.note,
+        ...reschedule,
+      }),
+    }),
   getRentalInquiryById: (inquiryId: string) => request<RentalInquiry>(`/inquiries/${inquiryId}`),
-  lookupRentalInquiry: (reference: string, contact: string) => request<RentalInquiry>(`/inquiries/status?reference=${encodeURIComponent(reference)}&contact=${encodeURIComponent(contact)}`),
+  getRentalStatusHistory: (inquiryId: string) =>
+    request<RentalStatusHistoryEntry[]>(`/inquiries/${inquiryId}/history`),
+  lookupRentalInquiry: (reference: string, contact: string) => request<PublicRentalInquiryStatus>(`/inquiries/status?reference=${encodeURIComponent(reference)}&contact=${encodeURIComponent(contact)}`),
   reviewRentalInquiry: (inquiryId: string, decision: RentalStatus, publicNote: string, internalNote?: string) => request<RentalInquiry>(`/inquiries/${inquiryId}/review`, { method: "POST", body: JSON.stringify({ decision, publicNote, internalNote }) }),
-  updateRentalStatus: (inquiryId: string, status: RentalStatus) => request<RentalInquiry>(`/inquiries/${inquiryId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  updateRentalStatus: (inquiryId: string, status: RentalStatus, reason?: string) => request<RentalInquiry>(`/inquiries/${inquiryId}/status`, { method: "PATCH", body: JSON.stringify({ status, reason }) }),
   getRentalSchedules: () => request<RentalSchedule[]>("/schedules"),
   createRentalSchedule: (schedule: Omit<RentalSchedule, "scheduleId">) => request<RentalSchedule>("/schedules", { method: "POST", body: JSON.stringify(schedule) }),
   updateRentalSchedule: (scheduleId: string, updates: Partial<RentalSchedule>) => request<RentalSchedule>(`/schedules/${scheduleId}`, { method: "PATCH", body: JSON.stringify(updates) }),
   checkScheduleConflict: (schedule: Omit<RentalSchedule, "scheduleId" | "status" | "paymentStatus">) => request<ScheduleConflict>("/schedules/conflicts", { method: "POST", body: JSON.stringify(schedule) }),
   getEquipmentAvailability: () => request<EquipmentAvailability[]>("/availability"),
   updateEquipmentAvailability: (serviceId: string, status: EquipmentAvailability["status"]) => request<EquipmentAvailability>(`/availability/${serviceId}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  getRentalMaintenanceRecords: (serviceId?: string) => request<RentalMaintenanceRecord[]>(`/maintenance${serviceId ? `?serviceId=${encodeURIComponent(serviceId)}` : ""}`),
+  createRentalMaintenanceRecord: (maintenance: Omit<RentalMaintenanceRecord, "maintenanceId" | "equipmentName" | "createdBy" | "createdAt">) => request<RentalMaintenanceRecord>("/maintenance", { method: "POST", body: JSON.stringify(maintenance) }),
+  completeRentalMaintenance: (maintenanceId: string) => request<RentalMaintenanceRecord>(`/maintenance/${maintenanceId}/complete`, { method: "POST" }),
   getRentalPayments: () => request<RentalPayment[]>("/payments"),
   getRentalPaymentById: (paymentId: string) => request<RentalPayment>(`/payments/${paymentId}`),
+  getRentalPaymentProofUrl: (paymentId: string) =>
+    `${apiBase}/rental/payments/${encodeURIComponent(paymentId)}/proof`,
   recordRentalPayment: (payment: Omit<RentalPayment, "paymentId" | "submittedAt">) => request<RentalPayment>("/payments", { method: "POST", body: JSON.stringify(payment) }),
-  validateRentalPayment: (paymentId: string, status: RentalPayment["status"], note?: string) => request<{ payment: RentalPayment; receipt?: RentalReceipt }>(`/payments/${paymentId}/validate`, { method: "POST", body: JSON.stringify({ status, note }) }),
-  uploadRentalPaymentProof: async (rentalId: string, file: File, reference?: string) => {
+  validateRentalPayment: (paymentId: string, status: RentalPayment["status"], note?: string, amount?: number) => request<{ payment: RentalPayment; receipt?: RentalReceipt }>(`/payments/${paymentId}/validate`, { method: "POST", body: JSON.stringify({ status, note, amount }) }),
+  uploadRentalPaymentProof: async (
+    rentalId: string,
+    file: File,
+    reference?: string,
+    details?: { amount?: number; paymentDate?: string; notes?: string },
+  ) => {
     const data = new FormData();
     data.append("rentalId", rentalId);
     data.append("proof", file);
     if (reference) data.append("reference", reference);
+    if (details?.amount !== undefined) {
+      data.append("amount", String(details.amount));
+    }
+    if (details?.paymentDate) data.append("paymentDate", details.paymentDate);
+    if (details?.notes) data.append("notes", details.notes);
     return request<RentalPayment>("/payments/proof", { method: "POST", body: data });
   },
   getRentalExpenses: () => request<RentalExpense[]>("/expenses"),

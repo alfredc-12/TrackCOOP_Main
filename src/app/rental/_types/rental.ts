@@ -61,7 +61,32 @@ export interface RentalService {
   operationalNotes: string;
   safetyReminders: string[];
   upcomingBookings: number;
+  createdAt?: string;
   lastMaintenanceDate?: string;
+  nextMaintenanceDate?: string;
+  assetCondition?: string;
+  internalNotes?: string;
+  availableDays?: string[];
+  availableStartTime?: string;
+  availableEndTime?: string;
+  maximumBookingsPerDay?: number;
+  preparationMinutes?: number;
+  travelMinutes?: number;
+  bufferMinutes?: number;
+  assignedCustodian?: string;
+  publicTitle?: string;
+  publicDescription?: string;
+  publicNotes?: string;
+  publicAvailabilityMessage?: string;
+  featured?: boolean;
+  standardRate?: number | null;
+  memberRate?: number | null;
+  nonMemberRate?: number | null;
+  gasolineHandling?: string | null;
+  depositRequirement?: number | null;
+  cancellationPolicy?: string | null;
+  reschedulingPolicy?: string | null;
+  paymentDeadline?: string | null;
   updatedAt: string;
 }
 
@@ -79,6 +104,7 @@ export interface RentalRequester {
 }
 
 export interface InquiryDraft {
+  clientRequestId?: string;
   fullName: string;
   requesterType: RequesterType;
   contactNumber: string;
@@ -90,8 +116,11 @@ export interface InquiryDraft {
   serviceId: string;
   intendedUse: string;
   preferredDate: string;
+  preferredEndDate: string;
   alternativeDate: string;
+  alternativeEndDate: string;
   preferredStartTime: string;
+  preferredEndTime: string;
   estimatedDuration: string;
   estimatedUsage: string;
   unitOfMeasurement: string;
@@ -107,6 +136,42 @@ export interface InquiryDraft {
   contactConsent: boolean;
 }
 
+export interface PublicRentalInquiryStatus {
+  inquiryId: string;
+  equipmentName: string;
+  submittedAt: string;
+  status: RentalStatus;
+  scheduleStatus: string;
+  paymentStatus: PaymentStatus;
+  confirmedSchedule?: {
+    date: string;
+    endDate: string;
+    startTime: string;
+    endTime: string;
+  };
+  publicNote: string;
+  updatedAt: string;
+}
+
+export interface PublicRentalBlockedDate {
+  date: string;
+  startDate: string;
+  endDate: string;
+  status: "Approved" | "Scheduled" | "In Use" | "Rescheduled" | "Maintenance";
+  reason: string;
+}
+
+export interface RentalRescheduleRequest {
+  requestedDate: string;
+  requestedEndDate?: string;
+  alternativeDate?: string;
+  alternativeEndDate?: string;
+  reason: string;
+  note?: string;
+  requestedAt: string;
+  status: "Pending" | "Approved";
+}
+
 export interface RentalInquiry {
   inquiryId: string;
   rentalId: string;
@@ -115,8 +180,11 @@ export interface RentalInquiry {
   equipmentName: string;
   intendedUse: string;
   preferredDate: string;
+  preferredEndDate: string;
   alternativeDate?: string;
+  alternativeEndDate?: string;
   preferredStartTime?: string;
+  preferredEndTime?: string;
   estimatedDuration: string;
   estimatedUsage: string;
   unitOfMeasurement: string;
@@ -130,6 +198,7 @@ export interface RentalInquiry {
   paymentStatus: PaymentStatus;
   scheduleStatus: string;
   assignedReviewer?: string;
+  rescheduleRequest?: RentalRescheduleRequest;
   publicNote: string;
   internalNote?: string;
   submittedAt: string;
@@ -154,6 +223,7 @@ export interface RentalSchedule {
   requesterName: string;
   requesterType: RequesterType;
   date: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   assignedOperator?: string;
@@ -259,6 +329,16 @@ export interface RentalAuditEntry {
   details: string;
 }
 
+export interface RentalStatusHistoryEntry {
+  historyId: string;
+  inquiryId: string;
+  previousStatus?: string;
+  newStatus: string;
+  remarks?: string;
+  changedBy: string;
+  changedAt: string;
+}
+
 export interface RentalReportFilter {
   reportType: string;
   dateFrom?: string;
@@ -278,6 +358,24 @@ export interface EquipmentAvailability {
   nextSchedule?: string;
   currentRequester?: string;
   maintenanceNote?: string;
+}
+
+export interface RentalMaintenanceRecord {
+  maintenanceId: string;
+  serviceId: string;
+  equipmentName: string;
+  maintenanceType: string;
+  startAt: string;
+  endAt: string;
+  description: string;
+  technician?: string;
+  cost?: number;
+  internalNote?: string;
+  operationalImpact: "Limited Availability" | "Unavailable" | "Out of Service";
+  status: "Scheduled" | "In Progress" | "Completed" | "Cancelled";
+  createdBy: string;
+  createdAt: string;
+  completedAt?: string;
 }
 
 export interface RentalOverview {
