@@ -2,10 +2,10 @@
 
 ## Source of Truth
 
-`TrackCOOP_Table_Reference_Only.sql` is the authoritative MySQL schema. It
-defines exactly 40 application tables. Do not rename its tables, columns, enum
-values, keys, or relationships in application code. TrackCOOP does not use
-Prisma, views, triggers, or stored procedures.
+`server/database/TrackCOOP_MAIN_Database.sql` is the authoritative MySQL schema.
+It defines exactly 40 application tables. Do not rename its tables, columns,
+enum values, keys, or relationships in application code. TrackCOOP does not use
+Prisma, triggers, or stored procedures.
 
 Schema import is an explicit operator task. The API never creates, alters,
 drops, truncates, migrates, or seeds tables during startup.
@@ -16,9 +16,9 @@ manually with a trusted MySQL client after taking a backup. The application must
 report missing required tables if this migration has not been applied; it must
 not attempt to create the membership-application tables itself.
 
-For a clean database, import `TrackCOOP_Table_Reference_Only.sql` directly. It
-already includes the membership-application workflow tables in foreign-key-safe
-order.
+For a clean database, import `server/database/TrackCOOP_MAIN_Database.sql`
+directly. It already includes the membership-application workflow tables in
+foreign-key-safe order.
 
 ## Private Configuration
 
@@ -49,16 +49,13 @@ returned to clients.
 
 ## Reference Data
 
-After a successful schema check, an authorized operator may manually run these
-idempotent seed files with their preferred MySQL client:
+After a successful schema check, an authorized operator may manually run
+`server/database/testing_data_and_admin_settings.sql` with their preferred MySQL
+client. It contains roles, financial categories, admin/system settings, and
+local testing data.
 
-- `server/database/seed-reference.sql` for roles, financial categories, and
-  existing base settings used by the current application.
-- `server/database/seed-membership-settings.sql` for approved membership
-  application workflow settings.
-
-Both seeds use `INSERT ... ON DUPLICATE KEY UPDATE`, are safe to repeat, and
-contain no user accounts or credentials. They are never executed by
+The seed uses idempotent inserts and updates where practical, is safe to repeat
+for local development, and includes local test accounts. It is never executed by
 `npm run dev`, API startup, tests, or builds.
 
 ## Membership Application Table Mapping

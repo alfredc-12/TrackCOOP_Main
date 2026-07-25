@@ -24,15 +24,17 @@ Copy `server/.env.example` to the ignored `server/.env` file before using live
 database routes. Database import and reference seeding are manual operations;
 see [`database.md`](database.md).
 
-For a clean database, import `TrackCOOP_Table_Reference_Only.sql`, run
-`npm run db:check`, then manually run `server/database/seed-reference.sql` and
-`server/database/seed-membership-settings.sql`.
+For a clean database, import `server/database/TrackCOOP_MAIN_Database.sql`, run
+`npm run db:check`, then manually run
+`server/database/testing_data_and_admin_settings.sql` if local testing data and
+default admin settings are needed.
 
 For a database that already has the older 34-table TrackCOOP schema, take a
 backup, manually apply
 `server/database/migrations/20260724_add_membership_application_workflow.sql`,
 run `npm run db:check`, then manually run
-`server/database/seed-membership-settings.sql`.
+`server/database/testing_data_and_admin_settings.sql` if local testing data and
+default admin settings are needed.
 
 Do not wire schema imports or seed files into `npm run dev`, API startup,
 tests, or builds. They are manual database-operator actions only.
