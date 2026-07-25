@@ -55,13 +55,47 @@ function createService(): MemberIndicatorService {
         needsMonitoring: 0,
         inactive: 0,
         averageScore: 0,
+        distribution: [
+          { statusLabel: "Active", total: 0, percentage: 0 },
+          { statusLabel: "Needs Monitoring", total: 0, percentage: 0 },
+          { statusLabel: "Inactive", total: 0, percentage: 0 },
+        ],
+      };
+    },
+    async getMemberIndicatorHistory() {
+      return {
+        indicators: [
+          {
+            id: "1",
+            memberId: "10",
+            memberCode: "NFFAC-2026-000010",
+            fullName: "Sample Member",
+            membershipType: "Associate",
+            officialMemberStatus: "Active",
+            basisPeriodStart: new Date("2025-01-01T00:00:00.000Z"),
+            basisPeriodEnd: new Date("2025-12-31T00:00:00.000Z"),
+            recencyScore: 5,
+            frequencyScore: 4,
+            contributionScore: 3,
+            totalScore: 12,
+            statusLabel: "Active",
+            basisSummary: JSON.stringify({
+              formulaVersion: "transaction-rfm-v1",
+              advisoryOnly: true,
+              officialStatusUnchanged: true,
+            }),
+            computedBy: "1",
+            computedAt: new Date("2026-01-01T00:00:00.000Z"),
+          },
+        ],
+        total: 1,
       };
     },
     async recalculate() {
       return {
         recalculated: 3,
-        basisPeriodStart: null,
-        basisPeriodEnd: null,
+        basisPeriodStart: "2025-01-01",
+        basisPeriodEnd: "2025-12-31",
       };
     },
   };
@@ -101,4 +135,14 @@ test("POST /api/member-indicators/recalculate rejects bookkeepers", async () => 
 
   assert.equal(response.status, 403);
   assert.equal(response.body.errors[0].code, "FORBIDDEN");
+});
+
+test("GET /api/member-indicators/:memberId/history returns calculation history", async () => {
+  const response = await request(createApp("chairman"))
+    .get("/api/member-indicators/10/history")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data[0].basisSummary.includes("transaction-rfm-v1"), true);
+  assert.equal(response.body.meta.total, 1);
 });

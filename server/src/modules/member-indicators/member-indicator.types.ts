@@ -19,12 +19,53 @@ export type MemberIndicator = {
   computedAt: Date;
 };
 
+export type MemberIndicatorSourceCounts = {
+  shareCapitalPayments: number;
+  posSales: number;
+  rentalBookings: number;
+  paymentReferences: number;
+  financialRecords: number;
+};
+
+export type MemberIndicatorRawMetrics = {
+  recencyDays: number | null;
+  frequencyCount: number;
+  contributionAmount: number;
+  sourceCounts: MemberIndicatorSourceCounts;
+};
+
+export type MemberIndicatorBasisSummary = {
+  formulaVersion: string;
+  advisoryOnly: true;
+  officialStatusUnchanged: true;
+  rawMetrics: MemberIndicatorRawMetrics;
+  basisPeriod: {
+    start: string;
+    end: string;
+  };
+  scoring: {
+    method: "quintile-rank" | "fallback-thresholds";
+    recencyScore: number;
+    frequencyScore: number;
+    contributionScore: number;
+    totalScore: number;
+    label: MemberIndicatorStatus;
+    explanation: string;
+  };
+};
+
 export type MemberIndicatorListQuery = {
   page: number;
   pageSize: number;
   search?: string;
   statusLabel?: MemberIndicatorStatus;
-  sortBy: "fullName" | "totalScore" | "computedAt";
+  sortBy:
+    | "fullName"
+    | "totalScore"
+    | "recencyScore"
+    | "frequencyScore"
+    | "contributionScore"
+    | "computedAt";
   sortDirection: "asc" | "desc";
 };
 
@@ -41,6 +82,11 @@ export type MemberIndicatorSummary = {
   needsMonitoring: number;
   inactive: number;
   averageScore: number;
+  distribution: Array<{
+    statusLabel: MemberIndicatorStatus;
+    total: number;
+    percentage: number;
+  }>;
 };
 
 export type RecalculateIndicatorsInput = {
@@ -53,4 +99,9 @@ export type RecalculateIndicatorsResult = {
   recalculated: number;
   basisPeriodStart: string | null;
   basisPeriodEnd: string | null;
+};
+
+export type MemberIndicatorHistoryResult = {
+  indicators: MemberIndicator[];
+  total: number;
 };

@@ -4,6 +4,7 @@ import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
 import {
   listMembersQuerySchema,
+  listUnifiedStatusHistoryQuerySchema,
   memberProfileSchema,
   updateMemberApprovalSchema,
   updateMemberProfileSchema,
@@ -58,6 +59,18 @@ export function createMemberController(service: MemberService) {
 
     barangayDistribution: asyncHandler(async (_request, response) => {
       return sendSuccess(response, await service.barangayDistribution());
+    }),
+
+    unifiedStatusHistory: asyncHandler(async (request, response) => {
+      const query = parseBody(listUnifiedStatusHistoryQuerySchema, request.query);
+      const result = await service.unifiedStatusHistory(query);
+      return sendSuccess(response, result.entries, {
+        meta: {
+          total: result.total,
+          page: result.page,
+          pageSize: result.pageSize,
+        },
+      });
     }),
 
     create: asyncHandler(async (request, response) => {

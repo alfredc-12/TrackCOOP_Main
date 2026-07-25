@@ -23,6 +23,8 @@ import { createMemberIndicatorRouter } from "./modules/member-indicators/member-
 import { createMemberRouter } from "./modules/members/member.routes";
 import { createMembershipRouter } from "./modules/membership/membership.routes";
 import type { MembershipService } from "./modules/membership/membership.service";
+import { createMembershipApplicationRouter } from "./modules/membership-applications/membership-application.routes";
+import type { MembershipApplicationService } from "./modules/membership-applications/membership-application.service";
 import { createPaymentReferenceRouter } from "./modules/payment-references/payment-reference.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
@@ -33,6 +35,7 @@ type CreateAppOptions = {
   databaseProbe?: DatabaseProbe;
   enableRequestLogging?: boolean;
   frontendUrl?: string;
+  membershipApplicationService?: MembershipApplicationService;
   membershipService?: MembershipService;
 };
 
@@ -94,6 +97,13 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(
     "/api",
     createMembershipRouter(options.authService, options.membershipService),
+  );
+  app.use(
+    "/api",
+    createMembershipApplicationRouter(
+      options.authService,
+      options.membershipApplicationService,
+    ),
   );
   app.use("/api", createMemberIndicatorRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));

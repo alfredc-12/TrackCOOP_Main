@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronDown, Menu } from "lucide-react";
+import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -18,6 +18,7 @@ export default function SiteHeader({
   enableScrollSpy = false,
 }: SiteHeaderProps) {
   const [activeNav, setActiveNav] = useState(initialActive);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!enableScrollSpy) return;
@@ -46,6 +47,7 @@ export default function SiteHeader({
 
   const activateNav = (id: string) => {
     if (enableScrollSpy) setActiveNav(id);
+    setMobileOpen(false);
   };
 
   const currentNav = enableScrollSpy ? activeNav : initialActive;
@@ -107,6 +109,7 @@ export default function SiteHeader({
             onActivate={() => activateNav("services")}
             items={[
               { label: "Membership Assistance", href: "/#services" },
+              { label: "Become a Member", href: "/membership/apply" },
               { label: "Equipment Rental", href: "/rental" },
               { label: "Cooperative Store", href: "/store" },
             ]}
@@ -141,6 +144,11 @@ export default function SiteHeader({
           >
             Helpdesk: (043) 000-0000
           </a>
+          <Link href="/membership/apply" className="hidden md:inline-flex">
+            <Button className="h-10 rounded-full border border-[#DDE8D8] bg-[#F8F1E5] px-5 text-[#123D2A] hover:bg-[#EAF3E8]">
+              Become a Member
+            </Button>
+          </Link>
           <Link href="/login" className="hidden sm:inline-flex">
             <Button className="h-10 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43]">
               Portal
@@ -148,13 +156,47 @@ export default function SiteHeader({
             </Button>
           </Link>
           <button
-            aria-label="Open menu"
+            type="button"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((open) => !open)}
             className="grid size-10 place-items-center rounded-md border border-[#DDE8D8] bg-[#F8F1E5] text-[#123D2A] lg:hidden"
           >
-            <Menu className="size-5" />
+            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
         </div>
       </div>
+      {mobileOpen ? (
+        <nav className="border-t border-[#DDE8D8] bg-white px-5 py-4 shadow-xl lg:hidden">
+          <div className="mx-auto grid max-w-7xl gap-2 text-sm font-semibold text-[#365F4A]">
+            {[
+              { label: "Home", href: "/#home", id: "home" },
+              { label: "About", href: "/#about", id: "about" },
+              { label: "Services", href: "/#services", id: "services" },
+              { label: "Become a Member", href: "/membership/apply", id: "membership" },
+              { label: "Application Status", href: "/membership/application-status", id: "membership" },
+              { label: "Announcements", href: "/announcements", id: "announcements" },
+              { label: "Gallery", href: "/gallery", id: "gallery" },
+              { label: "Contact", href: "/contact", id: "contact" },
+            ].map((item) => (
+              <Link
+                key={`${item.href}-${item.label}`}
+                href={item.href}
+                onClick={() => activateNav(item.id)}
+                className="rounded-lg px-3 py-2.5 transition hover:bg-[#EAF3E8] hover:text-[#123D2A]"
+              >
+                {item.label}
+              </Link>
+            ))}
+            <Link href="/login" onClick={() => activateNav("portal")}>
+              <Button className="mt-2 h-11 w-full rounded-full bg-[#123D2A] text-white hover:bg-[#1F6B43]">
+                Portal
+                <ArrowRight className="size-4" />
+              </Button>
+            </Link>
+          </div>
+        </nav>
+      ) : null}
     </header>
   );
 }

@@ -15,6 +15,11 @@ export const listUsersQuerySchema = z.object({
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
 });
 
+export const listLinkableMembersQuerySchema = z.object({
+  search: z.string().trim().min(1).max(190).optional(),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+});
+
 export const createUserSchema = z.object({
   email: z.email().max(190),
   username: z
@@ -32,9 +37,19 @@ export const createUserSchema = z.object({
     .max(128)
     .regex(/[a-z]/, "Password must include a lowercase letter")
     .regex(/[A-Z]/, "Password must include an uppercase letter")
-    .regex(/[0-9]/, "Password must include a number"),
+    .regex(/[0-9]/, "Password must include a number")
+    .optional(),
   role: z.enum(roleSlugs),
   accountStatus: z.enum(accountStatuses).default("Active"),
+  issueActivationLink: z.boolean().optional().default(false),
+}).superRefine((value, context) => {
+  if (!value.issueActivationLink && !value.password) {
+    context.addIssue({
+      code: "custom",
+      path: ["password"],
+      message: "Password is required unless an activation link is issued",
+    });
+  }
 });
 
 export const updateUserSchema = z
@@ -56,8 +71,28 @@ export const updateUserSchema = z
 
 export const updateUserStatusSchema = z.object({
   accountStatus: z.enum(accountStatuses),
+  reason: z.string().trim().min(3).max(500),
+  selfConfirmation: z.string().trim().max(160).optional(),
 });
 
 export const updateUserRoleSchema = z.object({
   role: z.enum(roleSlugs),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const issueActivationLinkSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const revokeSessionSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const linkMemberSchema = z.object({
+  memberId: z.string().trim().min(1),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const unlinkMemberSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
 });

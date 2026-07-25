@@ -19,6 +19,8 @@ const landingPaths = new Set([
   "/contact",
 ]);
 
+const internalRewriteHeader = "x-trackcoop-internal-rewrite";
+
 type AuthPayload = {
   success: boolean;
   data?: {
@@ -121,6 +123,10 @@ async function getSessionRole(request: NextRequest, cookieName: string) {
 }
 
 export async function proxy(request: NextRequest) {
+  if (request.headers.get(internalRewriteHeader) === "1") {
+    return NextResponse.next();
+  }
+
   const cookieName = process.env.SESSION_COOKIE_NAME ?? "trackcoop_session";
   const pathname = request.nextUrl.pathname;
   const expectedRole = roleForPath(pathname);
@@ -147,7 +153,13 @@ export async function proxy(request: NextRequest) {
 
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = internalPath(pathname);
-    return NextResponse.rewrite(rewriteUrl);
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(internalRewriteHeader, "1");
+    return NextResponse.rewrite(rewriteUrl, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
   return NextResponse.next();

@@ -75,6 +75,16 @@ export function createMemberIndicatorController(
       return sendSuccess(response, indicator);
     }),
 
+    history: asyncHandler(async (request, response) => {
+      const result = await service.getMemberIndicatorHistory(
+        requireParam(request.params.memberId, "memberId"),
+      );
+
+      return sendSuccess(response, result.indicators, {
+        meta: { total: result.total },
+      });
+    }),
+
     recalculate: asyncHandler(async (request, response) => {
       if (!request.auth) {
         throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");

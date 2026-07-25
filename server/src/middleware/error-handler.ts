@@ -11,11 +11,6 @@ export const errorHandler: ErrorRequestHandler = (
 ) => {
   void _next;
 
-  if (!(error instanceof AppError)) {
-    console.error("UNEXPECTED ERROR:", error);
-    try { require('fs').writeFileSync('debug.log', String((error as any)?.stack || error)); } catch(e){}
-  }
-  
   const appError =
     error instanceof AppError
       ? error

@@ -60,6 +60,14 @@ export const updateMemberStatusSchema = z.object({
   membershipType: z.enum(membershipTypes).optional(),
   officialMemberStatus: z.enum(officialMemberStatuses).optional(),
   reason: z.string().trim().min(1).max(1000),
+  confirmation: z.string().trim().min(1).max(190),
 }).refine((value) => value.membershipType || value.officialMemberStatus, {
   message: "Membership type or official status is required",
+});
+
+export const listUnifiedStatusHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().trim().min(1).max(190).optional(),
+  sourceModule: z.enum(["All", "Application", "Member", "Account"]).default("All"),
 });

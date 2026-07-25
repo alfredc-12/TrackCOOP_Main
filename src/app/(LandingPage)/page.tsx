@@ -100,8 +100,8 @@ const services = [
   {
     title: "Membership Assistance",
     description: "Help for applications, member records, portal access, and cooperative support requests.",
-    cta: "Start inquiry",
-    href: "#contact",
+    cta: "Apply now",
+    href: "/membership/apply",
     icon: UsersRound,
   },
   {
@@ -648,6 +648,34 @@ function ServicesSection({ items }: { items: Service[] }) {
             <ServiceCard key={service.title} service={service} index={index} />
           ))}
         </div>
+
+        <motion.div
+          {...fadeUp}
+          className="mt-6 flex flex-col gap-4 border border-[#DDE8D8] bg-[#123D2A] p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#F2C94C]">
+              Membership
+            </p>
+            <h3 className="mt-2 text-2xl font-black tracking-normal">
+              Ready to apply as a cooperative member?
+            </h3>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/membership/apply"
+              className="inline-flex h-11 items-center justify-center bg-white px-5 text-sm font-bold text-[#123D2A] transition hover:bg-[#EAF3E8]"
+            >
+              Become a Member
+            </Link>
+            <Link
+              href="/membership/application-status"
+              className="inline-flex h-11 items-center justify-center border border-white/30 px-5 text-sm font-bold text-white transition hover:bg-white/10"
+            >
+              Check Status
+            </Link>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

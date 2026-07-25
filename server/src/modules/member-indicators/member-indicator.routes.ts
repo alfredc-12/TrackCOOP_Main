@@ -24,6 +24,11 @@ export function createMemberIndicatorRouter(
     controller.recalculate,
   );
   router.get(
+    "/member-indicators/:memberId/history",
+    ...chairmanOnly,
+    controller.history,
+  );
+  router.get(
     "/member-indicators/:memberId",
     ...chairmanOnly,
     controller.detail,

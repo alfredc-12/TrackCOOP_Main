@@ -4,7 +4,12 @@ import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
 import {
   createUserSchema,
+  issueActivationLinkSchema,
+  linkMemberSchema,
+  listLinkableMembersQuerySchema,
   listUsersQuerySchema,
+  revokeSessionSchema,
+  unlinkMemberSchema,
   updateUserRoleSchema,
   updateUserSchema,
   updateUserStatusSchema,
@@ -61,6 +66,17 @@ export function createUserController(service: UserService) {
       return sendSuccess(response, roles);
     }),
 
+    summary: asyncHandler(async (_request, response) => {
+      const summary = await service.getSummary();
+      return sendSuccess(response, summary);
+    }),
+
+    linkableMembers: asyncHandler(async (request, response) => {
+      const query = parseBody(listLinkableMembersQuerySchema, request.query);
+      const members = await service.listLinkableMembers(query);
+      return sendSuccess(response, members);
+    }),
+
     create: asyncHandler(async (request, response) => {
       if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
       const input = parseBody(createUserSchema, request.body);
@@ -97,7 +113,7 @@ export function createUserController(service: UserService) {
       const input = parseBody(updateUserStatusSchema, request.body);
       const user = await service.updateStatus(
         requireParam(request.params.id, "id"),
-        input.accountStatus,
+        input,
         request.auth,
       );
       return sendSuccess(response, user, { message: "User account status updated" });
@@ -108,10 +124,67 @@ export function createUserController(service: UserService) {
       const input = parseBody(updateUserRoleSchema, request.body);
       const user = await service.updateRole(
         requireParam(request.params.id, "id"),
-        input.role,
+        input,
         request.auth,
       );
       return sendSuccess(response, user, { message: "User role updated" });
+    }),
+
+    activationLink: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(issueActivationLinkSchema, request.body);
+      const result = await service.issueActivationLink(
+        requireParam(request.params.id, "id"),
+        input.reason,
+        request.auth,
+      );
+      return sendSuccess(response, result, { message: "Activation link issued" });
+    }),
+
+    revokeSession: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(revokeSessionSchema, request.body);
+      const user = await service.revokeSession(
+        requireParam(request.params.id, "id"),
+        requireParam(request.params.sessionId, "sessionId"),
+        input.reason,
+        request.auth,
+      );
+      return sendSuccess(response, user, { message: "User session revoked" });
+    }),
+
+    revokeAllSessions: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(revokeSessionSchema, request.body);
+      const user = await service.revokeAllSessions(
+        requireParam(request.params.id, "id"),
+        input.reason,
+        request.auth,
+      );
+      return sendSuccess(response, user, { message: "User sessions revoked" });
+    }),
+
+    linkMember: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(linkMemberSchema, request.body);
+      const user = await service.linkMember(
+        requireParam(request.params.id, "id"),
+        input.memberId,
+        input.reason,
+        request.auth,
+      );
+      return sendSuccess(response, user, { message: "Member profile linked" });
+    }),
+
+    unlinkMember: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(unlinkMemberSchema, request.body);
+      const user = await service.unlinkMember(
+        requireParam(request.params.id, "id"),
+        input.reason,
+        request.auth,
+      );
+      return sendSuccess(response, user, { message: "Member profile unlinked" });
     }),
   };
 }
