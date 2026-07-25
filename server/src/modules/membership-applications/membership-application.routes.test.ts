@@ -720,6 +720,24 @@ test("POST /api/membership-applications/:id/approve returns member conversion an
   assert.match(response.body.data.activationUrl, /activate\?token=/);
 });
 
+test("POST /api/membership-applications/:id/approve can convert without creating a portal account", async () => {
+  const { app } = createChairmanApp("chairman");
+  const response = await request(app)
+    .post("/api/membership-applications/1/approve")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value")
+    .send({
+      boardMeetingDate: "2026-07-24",
+      secretaryName: "Coop Secretary",
+      decisionReason: "Accepted by the board.",
+      createMemberPortalAccount: false,
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.memberCode, "NFFAC-2026-000005");
+  assert.equal(response.body.data.activationUrl, null);
+  assert.equal(response.body.data.activationTokenExpiresAt, null);
+});
+
 test("POST /api/membership-applications/:id/approve blocks invalid approval cases", async () => {
   for (const [failure, code] of [
     ["orientation", "MEMBERSHIP_ORIENTATION_INCOMPLETE"],
