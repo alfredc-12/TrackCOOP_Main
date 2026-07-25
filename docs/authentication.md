@@ -15,7 +15,9 @@ boundary and never replaces backend session or role validation.
 
 | Area | Chairman | Bookkeeper | Member |
 | --- | --- | --- | --- |
-| Users, roles, member approvals, status history | Manage | No access | Own public/member-facing data only |
+| Public membership application | Submit and track using private token | Submit and track using private token | Submit and track using private token |
+| Application review and approval | Manage and convert applicants | No access | No access |
+| Users, roles, activation links, member links, member approvals, status history | Manage | No access | Own public/member-facing data only |
 | Member indicators | Manage/recalculate | No access | No access |
 | Payment references | Read oversight | Create/update/validate/reject | Own submissions where exposed |
 | Share capital | Read oversight | Create/update and review progress | Own progress where exposed |
@@ -52,6 +54,13 @@ The command never accepts a password argument, disables terminal echo while the
 password is entered, asks for confirmation, hashes the value with bcrypt, and
 refuses duplicate emails. The 40-table schema and reference roles must exist
 first.
+
+Approved membership applications may optionally create a pending member portal
+account during Chairman approval. The raw activation URL is displayed once for
+secure delivery, while only the SHA-256 activation-token hash and expiry are
+stored in the database. If account creation is not selected, the approval still
+converts the application into a member profile without issuing an activation
+token.
 
 ## Deferred Reset Flow
 

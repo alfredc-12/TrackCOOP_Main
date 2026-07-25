@@ -14,6 +14,60 @@ Source specifications reviewed completely:
 - `C:\Users\Alfred\Downloads\TrackCOOP_Codex_Prompt_Membership_Applications_People_CRUD.md`
 - `C:\Users\Alfred\Downloads\TrackCOOP_Codex_Phase_By_Phase_Controller.md`
 
+## Current Implementation Status
+
+Phases 1 through 8 have been implemented on
+`feature/membership-applications-people-crud`. Phase 9 is the final integration,
+test, security, and documentation phase. The Phase 0 audit below is preserved as
+historical baseline context; it no longer describes the current feature state.
+
+Completed workflow surface:
+
+- 40-table reference schema and read-only schema checker.
+- Manual membership workflow migration and membership settings seed file.
+- Public membership application submission, status tracking, and protected
+  document upload.
+- Chairman application inbox, detail, review, requirements, status transitions,
+  document handling, approval conversion, and printable output.
+- Optional activation-link creation during approval and Chairman user-account
+  lifecycle actions.
+- Member directory detail, application-origin visibility, and official status
+  history.
+- Transaction-based advisory member indicators with basis explanations.
+
+Safety confirmations:
+
+- Schema SQL and seed SQL are not run on application startup, tests, or builds.
+- Membership application uploads are stored outside public static hosting.
+- Public tracking tokens and activation tokens are stored as hashes only.
+- Protected routes rely on backend session authentication and role middleware.
+- Indicator recalculation does not mutate official member status.
+
+## Phase 9 Verification Results
+
+Commands run from the repository root after final integration fixes:
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. Web and API TypeScript checks completed. |
+| `npm run lint` | Failed on the existing lint baseline: 72 problems, 39 errors and 33 warnings. No Phase 9 touched source file is listed in the failures. |
+| `npm run build` | Passed. Next.js production build and API TypeScript build completed. |
+| `npm run test:api` | Passed. 72 tests passed, 0 failed. |
+| `npm run test:e2e` | Passed. 9 Playwright tests passed, 0 failed. |
+| `npm run db:check` | Failed read-only schema check against the current local database. Connection succeeded, but the database has 39 base tables while TrackCOOP expects 40 application tables. Missing tables: `user_activation_tokens`, `membership_applications`, `membership_application_beneficiaries`, `membership_application_documents`, `membership_application_status_history`, and `membership_application_requirements`. Additional local tables reported: `announcement_acknowledgments`, `rental_booking_sequences`, `rental_idempotency_keys`, `rental_maintenance_periods`, and `support_tickets`. |
+
+Phase 9 integration fixes:
+
+- Removed temporary debug-file writing from the global API error handler.
+- Added a regression test that unexpected errors are sanitized and do not create
+  `debug.log`.
+- Added a regression test for approving an application without issuing a member
+  portal activation link.
+- Fixed Playwright membership specs so the Next proxy and browser requests use
+  the same mock API port.
+- Made the public membership form E2E wait for client hydration before filling
+  the persisted draft form.
+
 ## Current State Audit
 
 ### Database And Reference SQL

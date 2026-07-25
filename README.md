@@ -37,7 +37,9 @@ Run `npx playwright install chromium` once on a machine before
 - [API](docs/api.md)
 - [Authentication and roles](docs/authentication.md)
 - [Database](docs/database.md)
+- [Membership workflow](docs/membership-workflow.md)
 - [Operations, deployment, uploads, reporting, backups, and security](docs/operations.md)
+- [Testing](docs/testing.md)
 
 ## Safety Notes
 

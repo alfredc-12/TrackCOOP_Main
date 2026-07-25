@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-const apiUrl = "http://localhost:5000";
+const apiPort = process.env.PLAYWRIGHT_API_PORT ?? "5055";
+const apiUrl = `http://localhost:${apiPort}`;
+const draftKey = "trackcoop.membershipApplicationDraft.v1";
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript((key) => window.localStorage.removeItem(key), draftKey);
+});
 
 test("public visitor submits a membership application and receives tracking details", async ({
   page,
@@ -35,10 +41,12 @@ test("public visitor submits a membership application and receives tracking deta
   await page.goto("/membership/apply");
 
   await expect(page.getByRole("heading", { name: "Become a Member" })).toBeVisible();
+  await page.waitForFunction((key) => window.localStorage.getItem(key) !== null, draftKey);
 
   await page.getByLabel("Full name").fill("Maria Santos");
   await page.getByLabel("Contact number").fill("09171234567");
   await page.getByLabel("Current address").fill("Barangay 1, Nasugbu");
+  await expect(page.getByLabel("Full name")).toHaveValue("Maria Santos");
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByRole("button", { name: "Continue" }).click();
@@ -97,7 +105,9 @@ test("public visitor checks a submitted membership application status", async ({
   );
 
   await page.goto("/membership/application-status?code=MEM-APP-2026-000001");
+  await page.waitForLoadState("networkidle");
 
+  await page.getByLabel("Application code").fill("MEM-APP-2026-000001");
   await page.getByLabel("Tracking secret").fill("track-secret-123");
   await page.getByRole("button", { name: "Check Status" }).click();
 

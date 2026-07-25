@@ -30,12 +30,26 @@ Failures return `success: false` with a generic message and structured errors.
 
 ## Staff Route Families
 
+- Membership applications:
+  - Public: `POST /api/membership-applications/public`,
+    `GET /api/membership-applications/public/:applicationCode/status`, and
+    `POST /api/membership-applications/public/:applicationCode/documents`.
+    Public status and document upload calls require the private
+    `X-Application-Tracking-Token` returned once after submission.
+  - Chairman: summary, list, create, detail, update, beneficiaries, documents,
+    requirements, history, status transitions, approval conversion, and
+    protected print output under `/api/membership-applications`.
+  - Public submissions create application records only. Member profiles, portal
+    accounts, activation tokens, payment references, status history, and audit
+    logs are created or linked only during Chairman approval.
 - Users and roles: `GET /api/roles`, `GET|POST /api/users`,
   `GET|PATCH /api/users/:id`, `PATCH /api/users/:id/status`,
-  `PATCH /api/users/:id/role`. Chairman only.
+  `PATCH /api/users/:id/role`, `POST /api/users/:id/activation-link`,
+  session revocation, and member-link lifecycle actions. Chairman only.
 - Members and indicators: member summary/list/detail/create/update,
   approval/status/history, and member-indicator list/summary/recalculate/detail.
-  Chairman only.
+  Chairman only. Indicator routes are advisory; recalculation stores basis
+  explanations and does not mutate official member status.
 - Payments and share capital: visible to Chairman and Bookkeeper; validation,
   rejection, and record mutation are Bookkeeper workflows.
 - Finance: categories, ledger records, summaries, and trends. Bookkeeper owns
@@ -64,3 +78,7 @@ placeholder reset endpoint returns or logs a reset token.
 All auth mutations must be sent with credentials and, for browser requests, the
 configured frontend Origin. Protected feature endpoints use backend
 authentication and role middleware.
+
+Membership application uploads are stored as protected files outside public
+static hosting. API responses return document metadata only, never raw storage
+paths, raw tracking tokens, password hashes, or activation-token hashes.

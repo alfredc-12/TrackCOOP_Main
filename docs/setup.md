@@ -34,6 +34,9 @@ backup, manually apply
 run `npm run db:check`, then manually run
 `server/database/seed-membership-settings.sql`.
 
+Do not wire schema imports or seed files into `npm run dev`, API startup,
+tests, or builds. They are manual database-operator actions only.
+
 After importing the schema and reference seed, create the first portal accounts
 from an interactive terminal. The password is prompted without terminal echo
 and is never accepted as a command-line argument:
@@ -73,5 +76,6 @@ npm run test:e2e
 npm run build
 ```
 
-`npm run test:e2e` starts the Next.js web app with Playwright. It currently
-covers public landing access and protected Chairman/Bookkeeper route redirects.
+`npm run test:e2e` starts the Next.js web app with Playwright. It covers public
+membership application/status pages and protected Chairman people workflows in
+addition to the role redirect checks.

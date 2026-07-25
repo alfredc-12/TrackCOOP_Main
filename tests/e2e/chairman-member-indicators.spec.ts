@@ -1,7 +1,8 @@
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 
-const apiPort = Number(process.env.PLAYWRIGHT_API_PORT ?? 5058);
+const apiPort = Number(process.env.PLAYWRIGHT_API_PORT ?? 5055);
+const apiUrl = `http://localhost:${apiPort}`;
 
 let server: Server | null = null;
 
@@ -158,7 +159,7 @@ test.afterAll(async () => {
 });
 
 test("chairman reviews transaction-based member indicators", async ({ page, context }) => {
-  await page.route("http://localhost:5000/api/**", async (route) => {
+  await page.route(`${apiUrl}/api/**`, async (route) => {
     const requestUrl = new URL(route.request().url());
     const result = mockApiResponse(`${requestUrl.pathname}${requestUrl.search}`, route.request().method());
 

@@ -78,6 +78,28 @@ The membership application workflow adds six tables:
 clean reference schema so a new database can be imported without temporarily
 disabling foreign-key checks.
 
+Relationship summary:
+
+```text
+membership_applications
+  -> membership_application_beneficiaries
+  -> membership_application_documents
+  -> membership_application_requirements
+  -> membership_application_status_history
+  -> member_profiles after approval
+  -> users and user_activation_tokens only when portal access is issued
+```
+
+Approval uses row locking and one database transaction so application status,
+member profile conversion, payment/share-capital linkage, optional portal
+account creation, activation-token issuance, status history, and audit logs are
+committed or rolled back together.
+
+Official member status is stored on `member_profiles` and its history table.
+`member_status_indicators` stores calculated decision-support signals based on
+payment, share-capital, POS, rental, and document activity where records exist;
+indicator recalculation never changes official status.
+
 Automated tests use injected database doubles. Never point automated tests at
 the production RDS database.
 
