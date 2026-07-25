@@ -19,6 +19,7 @@ export function createMemberRouter(
     ...chairmanOnly,
     controller.barangayDistribution,
   );
+  router.get("/members/status-history", ...chairmanOnly, controller.unifiedStatusHistory);
   router.get("/members", ...chairmanOnly, controller.list);
   router.post("/members", ...chairmanOnly, controller.create);
   router.get("/members/:id", ...chairmanOnly, controller.detail);

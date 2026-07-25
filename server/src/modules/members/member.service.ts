@@ -8,8 +8,7 @@ import type {
   ApprovalStatus,
   MemberListQuery,
   MemberProfileInput,
-  MembershipType,
-  OfficialMemberStatus,
+  UpdateMemberStatusInput,
   UpdateMemberProfileInput,
 } from "./member.types";
 
@@ -19,8 +18,9 @@ export interface MemberService {
   createMember(input: MemberProfileInput, auth: AuthContext): ReturnType<MemberRepository["create"]>;
   updateMember(memberId: string, input: UpdateMemberProfileInput, auth: AuthContext): ReturnType<MemberRepository["update"]>;
   updateApproval(memberId: string, approvalStatus: ApprovalStatus, reason: string | null | undefined, auth: AuthContext): ReturnType<MemberRepository["updateApproval"]>;
-  updateStatus(memberId: string, input: { membershipType?: MembershipType; officialMemberStatus?: OfficialMemberStatus; reason: string }, auth: AuthContext): ReturnType<MemberRepository["updateStatus"]>;
+  updateStatus(memberId: string, input: UpdateMemberStatusInput, auth: AuthContext): ReturnType<MemberRepository["updateStatus"]>;
   statusHistory(memberId: string): ReturnType<MemberRepository["history"]>;
+  unifiedStatusHistory(query: { search?: string; sourceModule?: string; page: number; pageSize: number }): ReturnType<MemberRepository["unifiedStatusHistory"]>;
   summary(): ReturnType<MemberRepository["summary"]>;
   barangayDistribution(): ReturnType<MemberRepository["barangayDistribution"]>;
 }
@@ -56,6 +56,14 @@ export function createMemberService(
         throw new AppError("Member was not found", 404, "MEMBER_NOT_FOUND");
       }
 
+      if (input.confirmation !== member.fullName) {
+        throw new AppError(
+          "Type the member full name to confirm official status or type changes",
+          400,
+          "MEMBER_STATUS_CONFIRMATION_REQUIRED",
+        );
+      }
+
       if (
         input.membershipType === member.membershipType &&
         input.officialMemberStatus === member.officialMemberStatus
@@ -72,6 +80,10 @@ export function createMemberService(
 
     statusHistory(memberId) {
       return repository.history(memberId);
+    },
+
+    unifiedStatusHistory(query) {
+      return repository.unifiedStatusHistory(query);
     },
 
     summary() {

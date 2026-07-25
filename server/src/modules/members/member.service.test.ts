@@ -4,11 +4,15 @@ import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import { createMemberService } from "./member.service";
 import type { MemberRepository } from "./member.repository";
-import type { MemberProfile } from "./member.types";
+import type { MemberDetail, MemberProfile } from "./member.types";
 
 const member: MemberProfile = {
   id: "10",
   userId: null,
+  linkedUserEmail: null,
+  linkedUserUsername: null,
+  linkedUserStatus: null,
+  linkedUserRole: null,
   memberCode: "NFFAC-001",
   fullName: "Sample Member",
   contactNumber: null,
@@ -30,6 +34,25 @@ const member: MemberProfile = {
   updatedAt: new Date("2026-07-18T00:00:00.000Z"),
 };
 
+const memberDetail: MemberDetail = {
+  ...member,
+  shareCapital: {
+    validatedTotal: 1500,
+    pendingTotal: 0,
+    validatedPayments: 1,
+    fullRequirement: 3000,
+    maximumAllowed: 15000,
+    remainingToFull: 1500,
+    remainingAllowed: 13500,
+    fullRequirementMet: false,
+  },
+  recentPayments: [],
+  recentPosActivity: [],
+  recentRentalActivity: [],
+  latestIndicator: null,
+  statusHistory: [],
+};
+
 const auth: AuthContext = {
   sessionId: "1",
   tokenHash: "hash",
@@ -48,7 +71,7 @@ function createRepository(overrides: Partial<MemberRepository> = {}): MemberRepo
       return { members: [], total: 0, page: 1, pageSize: 20 };
     },
     async findById() {
-      return member;
+      return memberDetail;
     },
     async create() {
       return member;
@@ -65,6 +88,9 @@ function createRepository(overrides: Partial<MemberRepository> = {}): MemberRepo
     async history() {
       return [];
     },
+    async unifiedStatusHistory() {
+      return { entries: [], total: 0, page: 1, pageSize: 20 };
+    },
     async summary() {
       return {
         total: 0,
@@ -79,6 +105,9 @@ function createRepository(overrides: Partial<MemberRepository> = {}): MemberRepo
     },
     async barangayDistribution() {
       return [];
+    },
+    async shareCapitalProgress() {
+      return memberDetail.shareCapital;
     },
     ...overrides,
   };
@@ -95,11 +124,31 @@ test("updateStatus rejects unchanged membership and official status", async () =
           membershipType: "Associate",
           officialMemberStatus: "Pending",
           reason: "No actual change",
+          confirmation: member.fullName,
         },
         auth,
       ),
     (error) =>
       error instanceof AppError && error.code === "MEMBER_STATUS_UNCHANGED",
+  );
+});
+
+test("updateStatus requires full-name confirmation", async () => {
+  const service = createMemberService(createRepository());
+
+  await assert.rejects(
+    () =>
+      service.updateStatus(
+        member.id,
+        {
+          officialMemberStatus: "Active",
+          reason: "Activate migrated member.",
+          confirmation: "Wrong Name",
+        },
+        auth,
+      ),
+    (error) =>
+      error instanceof AppError && error.code === "MEMBER_STATUS_CONFIRMATION_REQUIRED",
   );
 });
 
@@ -116,7 +165,7 @@ test("updateStatus delegates actual changes to the repository", async () => {
 
   const updated = await service.updateStatus(
     member.id,
-    { officialMemberStatus: "Active", reason: "Approved by chairman" },
+    { officialMemberStatus: "Active", reason: "Approved by chairman", confirmation: member.fullName },
     auth,
   );
 

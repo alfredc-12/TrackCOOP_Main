@@ -2,22 +2,29 @@
 
 import {
   Archive,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  CreditCard,
   Download,
   FilePlus2,
   FileText,
   Filter,
   History,
+  Link2,
   Loader2,
   Pencil,
   Plus,
+  Printer,
   RefreshCcw,
   Search,
   Send,
   ShieldCheck,
+  ShoppingCart,
+  Unlink,
   UserCheck,
   UsersRound,
+  WalletCards,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -52,6 +59,27 @@ import {
   updateChairmanApplication,
   uploadChairmanApplicationDocument,
 } from "@/features/membership-applications/membership-application-api";
+import {
+  createMember,
+  getMemberDetail,
+  getMemberSummary,
+  linkUserMember,
+  listMembersPaginated,
+  listUnifiedStatusHistory,
+  listUsersPaginated,
+  unlinkUserMember,
+  updateMember,
+  updateMemberStatus,
+  type MemberDetail,
+  type MemberListQuery,
+  type MemberProfile,
+  type MemberProfileInput,
+  type MemberSummary as DirectoryMemberSummary,
+  type MembershipType,
+  type OfficialMemberStatus,
+  type UnifiedStatusHistoryEntry,
+  type UserSummary,
+} from "@/features/chairman/people-api";
 import {
   civilStatuses,
   documentTypes,
@@ -95,6 +123,53 @@ const defaultQuery: ChairmanApplicationListQuery = {
   applicationSource: "All",
   sortBy: "submittedAt",
   sortDirection: "desc",
+};
+
+const emptyDirectorySummary: DirectoryMemberSummary = {
+  total: 0,
+  pendingApproval: 0,
+  approved: 0,
+  associate: 0,
+  trueMember: 0,
+  active: 0,
+  inactive: 0,
+  suspended: 0,
+};
+
+const defaultMemberQuery: MemberListQuery = {
+  page: 1,
+  pageSize: 10,
+  approvalStatus: "All",
+  officialMemberStatus: "All",
+  membershipType: "All",
+  sortBy: "createdAt",
+  sortDirection: "desc",
+};
+
+const officialMemberStatuses: OfficialMemberStatus[] = [
+  "Pending",
+  "Active",
+  "Inactive",
+  "Suspended",
+  "Terminated",
+];
+const membershipTypes: MembershipType[] = ["Associate", "True Member"];
+
+const blankMemberForm: MemberFormState = {
+  memberCode: "",
+  fullName: "",
+  contactNumber: "",
+  email: "",
+  barangay: "",
+  municipality: "Nasugbu",
+  province: "Batangas",
+  sector: "",
+  membershipType: "Associate",
+  approvalStatus: "Approved",
+  officialMemberStatus: "Active",
+  applicationDate: new Date().toISOString().slice(0, 10),
+  shareCapitalDeadline: "",
+  notes: "",
 };
 
 const blankApplication: ApplicationFormState = {
@@ -143,6 +218,26 @@ type ApplicationFormState = ChairmanMembershipApplicationUpdateInput & {
 
 type DetailMap = Record<string, ChairmanApplicationDetail>;
 type TabKey = "applications" | "directory" | "history";
+type HistorySource = "All" | "Application" | "Member" | "Account";
+type MemberFormState = {
+  memberCode: string;
+  fullName: string;
+  contactNumber: string;
+  email: string;
+  barangay: string;
+  municipality: string;
+  province: string;
+  sector: string;
+  membershipType: MembershipType;
+  approvalStatus: MemberProfile["approvalStatus"];
+  officialMemberStatus: OfficialMemberStatus;
+  applicationDate: string;
+  shareCapitalDeadline: string;
+  notes: string;
+};
+type MemberAccountAction =
+  | { type: "link"; member: MemberDetail }
+  | { type: "unlink"; member: MemberDetail };
 type ConfirmAction =
   | { type: "transition"; action: "start-review" | "request-information" | "reject" | "withdraw"; label: string }
   | { type: "delete-beneficiary"; beneficiaryId: string; label: string }
@@ -179,6 +274,27 @@ export function MembersClient() {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [activationResult, setActivationResult] = useState<ApprovalResult | null>(null);
+  const [memberSummary, setMemberSummary] = useState<DirectoryMemberSummary>(emptyDirectorySummary);
+  const [members, setMembers] = useState<MemberProfile[]>([]);
+  const [memberQuery, setMemberQuery] = useState<MemberListQuery>(defaultMemberQuery);
+  const [memberTotal, setMemberTotal] = useState(0);
+  const [memberError, setMemberError] = useState("");
+  const [isMemberLoading, setIsMemberLoading] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<MemberDetail | null>(null);
+  const [memberFormOpen, setMemberFormOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<MemberDetail | null>(null);
+  const [statusMember, setStatusMember] = useState<MemberDetail | null>(null);
+  const [accountAction, setAccountAction] = useState<MemberAccountAction | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<UnifiedStatusHistoryEntry[]>([]);
+  const [historyQuery, setHistoryQuery] = useState<{ page: number; pageSize: number; search: string; sourceModule: HistorySource }>({
+    page: 1,
+    pageSize: 10,
+    search: "",
+    sourceModule: "All",
+  });
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyError, setHistoryError] = useState("");
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const selectedDetail = selectedId ? detailsById[selectedId] ?? null : null;
 
@@ -215,6 +331,40 @@ export function MembersClient() {
     }
   }, [query]);
 
+  const loadDirectory = useCallback(async () => {
+    setIsMemberLoading(true);
+    setMemberError("");
+
+    try {
+      const [nextSummary, list] = await Promise.all([
+        getMemberSummary(),
+        listMembersPaginated(memberQuery),
+      ]);
+      setMemberSummary(nextSummary);
+      setMembers(list.members);
+      setMemberTotal(list.total);
+    } catch (caught) {
+      setMemberError(caught instanceof ApiClientError ? caught.message : "Member directory could not be loaded.");
+    } finally {
+      setIsMemberLoading(false);
+    }
+  }, [memberQuery]);
+
+  const loadUnifiedHistory = useCallback(async () => {
+    setIsHistoryLoading(true);
+    setHistoryError("");
+
+    try {
+      const result = await listUnifiedStatusHistory(historyQuery);
+      setHistoryEntries(result.entries);
+      setHistoryTotal(result.total);
+    } catch (caught) {
+      setHistoryError(caught instanceof ApiClientError ? caught.message : "Unified status history could not be loaded.");
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, [historyQuery]);
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadApplications();
@@ -222,6 +372,24 @@ export function MembersClient() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadApplications]);
+
+  useEffect(() => {
+    if (activeTab !== "directory") return;
+    const timeoutId = window.setTimeout(() => {
+      void loadDirectory();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, loadDirectory]);
+
+  useEffect(() => {
+    if (activeTab !== "history") return;
+    const timeoutId = window.setTimeout(() => {
+      void loadUnifiedHistory();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, loadUnifiedHistory]);
 
   const filteredApplications = useMemo(() => {
     return applications.filter((application) => {
@@ -244,6 +412,12 @@ export function MembersClient() {
   const refreshDetail = async (id: string) => {
     const detail = await getChairmanApplication(id);
     setDetailsById((current) => ({ ...current, [id]: detail }));
+    return detail;
+  };
+
+  const refreshMemberDetail = async (id: string) => {
+    const detail = await getMemberDetail(id);
+    setSelectedMember(detail);
     return detail;
   };
 
@@ -312,15 +486,19 @@ export function MembersClient() {
           <>
             <Button
               type="button"
-              onClick={() => setPaperOpen(true)}
+              onClick={() => activeTab === "directory" ? setMemberFormOpen(true) : setPaperOpen(true)}
               className="h-11 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
             >
-              <FilePlus2 className="size-4" aria-hidden="true" />
-              Encode Paper Application
+              {activeTab === "directory" ? <Plus className="size-4" aria-hidden="true" /> : <FilePlus2 className="size-4" aria-hidden="true" />}
+              {activeTab === "directory" ? "Create Manual Member" : "Encode Paper Application"}
             </Button>
             <Button
               type="button"
-              onClick={() => void loadApplications()}
+              onClick={() => {
+                if (activeTab === "directory") void loadDirectory();
+                else if (activeTab === "history") void loadUnifiedHistory();
+                else void loadApplications();
+              }}
               className="h-11 border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]"
             >
               <RefreshCcw className="size-4" aria-hidden="true" />
@@ -397,11 +575,29 @@ export function MembersClient() {
             </>
           )}
         </>
+      ) : activeTab === "directory" ? (
+        <MemberDirectorySection
+          summary={memberSummary}
+          members={members}
+          query={memberQuery}
+          total={memberTotal}
+          isLoading={isMemberLoading}
+          error={memberError}
+          setQuery={setMemberQuery}
+          onCreate={() => setMemberFormOpen(true)}
+          onOpen={async (memberId) => {
+            const detail = await getMemberDetail(memberId);
+            setSelectedMember(detail);
+          }}
+        />
       ) : (
-        <EmptyState
-          icon={activeTab === "directory" ? UsersRound : History}
-          title={activeTab === "directory" ? "Member Directory" : "Status History"}
-          description="This tab is intentionally reserved for the next controller phase."
+        <UnifiedHistorySection
+          entries={historyEntries}
+          query={historyQuery}
+          total={historyTotal}
+          isLoading={isHistoryLoading}
+          error={historyError}
+          setQuery={setHistoryQuery}
         />
       )}
 
@@ -466,6 +662,795 @@ export function MembersClient() {
           if (!open) setActivationResult(null);
         }}
       />
+
+      <MemberFormDialog
+        key={editingMember ? `edit-${editingMember.id}` : memberFormOpen ? "member-create-open" : "member-create-closed"}
+        open={memberFormOpen || Boolean(editingMember)}
+        mode={editingMember ? "edit" : "create"}
+        member={editingMember}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMemberFormOpen(false);
+            setEditingMember(null);
+          }
+        }}
+        onSaved={async (member) => {
+          setMemberFormOpen(false);
+          setEditingMember(null);
+          await loadDirectory();
+          const detail = await getMemberDetail(member.id);
+          setSelectedMember(detail);
+        }}
+      />
+
+      <MemberDetailDialog
+        member={selectedMember}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMember(null);
+        }}
+        onEdit={(member) => setEditingMember(member)}
+        onStatus={(member) => setStatusMember(member)}
+        onAccountAction={setAccountAction}
+        onRefresh={refreshMemberDetail}
+      />
+
+      <MemberStatusDialog
+        key={statusMember?.id ?? "status-closed"}
+        member={statusMember}
+        onOpenChange={(open) => {
+          if (!open) setStatusMember(null);
+        }}
+        onSaved={async (member) => {
+          setStatusMember(null);
+          await loadDirectory();
+          await refreshMemberDetail(member.id);
+          await loadUnifiedHistory();
+        }}
+      />
+
+      <MemberAccountLinkDialog
+        key={accountAction ? `${accountAction.type}-${accountAction.member.id}` : "account-link-closed"}
+        action={accountAction}
+        onOpenChange={(open) => {
+          if (!open) setAccountAction(null);
+        }}
+        onSaved={async (memberId) => {
+          setAccountAction(null);
+          await loadDirectory();
+          await refreshMemberDetail(memberId);
+          await loadUnifiedHistory();
+        }}
+      />
+    </div>
+  );
+}
+
+function MemberDirectorySection({
+  summary,
+  members,
+  query,
+  total,
+  isLoading,
+  error,
+  setQuery,
+  onCreate,
+  onOpen,
+}: {
+  summary: DirectoryMemberSummary;
+  members: MemberProfile[];
+  query: MemberListQuery;
+  total: number;
+  isLoading: boolean;
+  error: string;
+  setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
+  onCreate: () => void;
+  onOpen: (memberId: string) => Promise<void>;
+}) {
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Members" value={String(summary.total)} icon={UsersRound} />
+        <StatCard label="Active" value={String(summary.active)} icon={UserCheck} />
+        <StatCard label="Associates" value={String(summary.associate)} icon={WalletCards} />
+        <StatCard label="True Members" value={String(summary.trueMember)} icon={ShieldCheck} />
+      </div>
+
+      <MemberFilters query={query} setQuery={setQuery} onCreate={onCreate} />
+
+      {error ? <ErrorState message={error} /> : null}
+      {isLoading ? (
+        <LoadingSkeleton />
+      ) : members.length === 0 ? (
+        <EmptyState
+          icon={UsersRound}
+          title="No member records found"
+          description="Approved or manually migrated member profiles will appear here."
+        />
+      ) : (
+        <>
+          <MemberResponsiveList members={members} onOpen={onOpen} />
+          <SimplePagination
+            page={query.page ?? 1}
+            pageSize={query.pageSize ?? 10}
+            total={total}
+            shown={members.length}
+            noun="members"
+            setPage={(page) => setQuery((current) => ({ ...current, page }))}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function MemberFilters({
+  query,
+  setQuery,
+  onCreate,
+}: {
+  query: MemberListQuery;
+  setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
+  onCreate: () => void;
+}) {
+  const updateQuery = (patch: Partial<MemberListQuery>) => {
+    setQuery((current) => ({ ...current, ...patch, page: 1 }));
+  };
+
+  return (
+    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
+          <Filter className="size-4" aria-hidden="true" />
+          Member Directory Filters
+        </div>
+        <Button type="button" className="h-10 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={onCreate}>
+          <Plus className="size-4" aria-hidden="true" />
+          Create Manual Member
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <label className="relative block">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
+          <input
+            value={query.search ?? ""}
+            onChange={(event) => updateQuery({ search: event.target.value })}
+            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
+            placeholder="Search members"
+            type="search"
+          />
+        </label>
+        <Select value={query.officialMemberStatus ?? "All"} onChange={(value) => updateQuery({ officialMemberStatus: value as MemberListQuery["officialMemberStatus"] })}>
+          <option value="All">All official statuses</option>
+          {officialMemberStatuses.map((status) => <option key={status}>{status}</option>)}
+        </Select>
+        <Select value={query.membershipType ?? "All"} onChange={(value) => updateQuery({ membershipType: value as MemberListQuery["membershipType"] })}>
+          <option value="All">All member types</option>
+          {membershipTypes.map((type) => <option key={type}>{type}</option>)}
+        </Select>
+        <input
+          value={query.barangay ?? ""}
+          onChange={(event) => updateQuery({ barangay: event.target.value })}
+          className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
+          placeholder="Barangay"
+        />
+        <Select value={query.sortBy ?? "createdAt"} onChange={(value) => setQuery((current) => ({ ...current, sortBy: value as MemberListQuery["sortBy"] }))}>
+          <option value="createdAt">Sort by created</option>
+          <option value="fullName">Sort by name</option>
+          <option value="memberCode">Sort by code</option>
+          <option value="applicationDate">Sort by application date</option>
+        </Select>
+        <Select value={query.sortDirection ?? "desc"} onChange={(value) => setQuery((current) => ({ ...current, sortDirection: value as "asc" | "desc" }))}>
+          <option value="desc">Newest first</option>
+          <option value="asc">Oldest first</option>
+        </Select>
+      </div>
+    </section>
+  );
+}
+
+function MemberResponsiveList({
+  members,
+  onOpen,
+}: {
+  members: MemberProfile[];
+  onOpen: (memberId: string) => Promise<void>;
+}) {
+  return (
+    <>
+      <div className="hidden lg:block">
+        <DataTable>
+          <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
+            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+              <tr>
+                <th className="px-5 py-4">Member</th>
+                <th className="px-5 py-4">Contact</th>
+                <th className="px-5 py-4">Barangay</th>
+                <th className="px-5 py-4">Type</th>
+                <th className="px-5 py-4">Official Status</th>
+                <th className="px-5 py-4">Linked Account</th>
+                <th className="px-5 py-4">Application Date</th>
+                <th className="px-5 py-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
+              {members.map((member) => (
+                <tr key={member.id} className="hover:bg-[#F7F8F3]">
+                  <td className="px-5 py-4">
+                    <p className="font-bold text-[#123D2A]">{member.fullName}</p>
+                    <p className="mt-1 text-xs text-[#6C7A70]">{member.memberCode}</p>
+                  </td>
+                  <td className="px-5 py-4">{member.email ?? member.contactNumber ?? "Not provided"}</td>
+                  <td className="px-5 py-4">{member.barangay ?? "Unspecified"}</td>
+                  <td className="px-5 py-4">{member.membershipType}</td>
+                  <td className="px-5 py-4">
+                    <StatusBadge tone={memberStatusTone(member.officialMemberStatus)}>{member.officialMemberStatus}</StatusBadge>
+                  </td>
+                  <td className="px-5 py-4">{member.linkedUserEmail ?? "Unlinked"}</td>
+                  <td className="px-5 py-4">{formatDate(member.applicationDate)}</td>
+                  <td className="px-5 py-4">
+                    <Button type="button" className="h-9 bg-[#123D2A] px-3 text-white hover:bg-[#1F6B43]" onClick={() => void onOpen(member.id)}>
+                      View
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DataTable>
+      </div>
+
+      <div className="grid gap-3 lg:hidden">
+        {members.map((member) => (
+          <article key={member.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-bold text-[#123D2A]">{member.fullName}</p>
+                <p className="mt-1 text-xs text-[#6C7A70]">{member.memberCode}</p>
+              </div>
+              <StatusBadge tone={memberStatusTone(member.officialMemberStatus)}>
+                {member.officialMemberStatus}
+              </StatusBadge>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#294B39]">
+              <Info label="Type" value={member.membershipType} />
+              <Info label="Barangay" value={member.barangay ?? "Unspecified"} />
+              <Info label="Contact" value={member.email ?? member.contactNumber ?? "Not provided"} />
+              <Info label="Account" value={member.linkedUserEmail ?? "Unlinked"} />
+            </dl>
+            <Button type="button" className="mt-4 h-10 w-full bg-[#123D2A] text-white hover:bg-[#1F6B43]" onClick={() => void onOpen(member.id)}>
+              View Member
+            </Button>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function MemberDetailDialog({
+  member,
+  onOpenChange,
+  onEdit,
+  onStatus,
+  onAccountAction,
+  onRefresh,
+}: {
+  member: MemberDetail | null;
+  onOpenChange: (open: boolean) => void;
+  onEdit: (member: MemberDetail) => void;
+  onStatus: (member: MemberDetail) => void;
+  onAccountAction: (action: MemberAccountAction) => void;
+  onRefresh: (memberId: string) => Promise<MemberDetail>;
+}) {
+  if (!member) return null;
+
+  const capitalPercent = Math.min(100, Math.round((member.shareCapital.validatedTotal / member.shareCapital.fullRequirement) * 100));
+
+  return (
+    <FormDialog
+      open={Boolean(member)}
+      onOpenChange={onOpenChange}
+      title={`${member.memberCode} - ${member.fullName}`}
+      description="Member profile, official status, linked account, share capital progress, and recent cooperative activity."
+    >
+      <div className="grid gap-6">
+        <div className="flex flex-wrap gap-2">
+          <ActionButton icon={Pencil} label="Edit" onClick={() => onEdit(member)} />
+          <ActionButton icon={ShieldCheck} label="Update Status / Type" onClick={() => onStatus(member)} />
+          {member.userId ? (
+            <ActionButton icon={Unlink} label="Unlink Account" danger onClick={() => onAccountAction({ type: "unlink", member })} />
+          ) : (
+            <ActionButton icon={Link2} label="Link Account" onClick={() => onAccountAction({ type: "link", member })} />
+          )}
+          <ActionButton icon={Printer} label="Print Profile" onClick={() => window.print()} />
+          <ActionButton icon={RefreshCcw} label="Refresh" onClick={() => void onRefresh(member.id)} />
+        </div>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <Info label="Official Status" value={member.officialMemberStatus} />
+          <Info label="Membership Type" value={member.membershipType} />
+          <Info label="Approval" value={member.approvalStatus} />
+          <Info label="Email" value={member.email ?? "Not provided"} />
+          <Info label="Contact" value={member.contactNumber ?? "Not provided"} />
+          <Info label="Barangay" value={member.barangay ?? "Unspecified"} />
+          <Info label="Municipality" value={`${member.municipality}, ${member.province}`} />
+          <Info label="Sector" value={member.sector ?? "Not provided"} />
+          <Info label="Linked Account" value={member.linkedUserEmail ? `${member.linkedUserEmail} (${member.linkedUserStatus ?? "Unknown"})` : "Unlinked"} />
+        </section>
+
+        <Panel title="Share-Capital Progress">
+          <div className="grid gap-3 md:grid-cols-[1fr_260px] md:items-center">
+            <div>
+              <div className="h-3 overflow-hidden rounded-full bg-[#E2E8E2]">
+                <div className="h-full rounded-full bg-[#1F6B43]" style={{ width: `${capitalPercent}%` }} />
+              </div>
+              <p className="mt-2 text-sm font-semibold text-[#294B39]">
+                {formatCurrency(member.shareCapital.validatedTotal)} validated of {formatCurrency(member.shareCapital.fullRequirement)} required for True Member.
+              </p>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <Info label="Pending" value={formatCurrency(member.shareCapital.pendingTotal)} />
+              <Info label="Allowed Remaining" value={formatCurrency(member.shareCapital.remainingAllowed)} />
+            </div>
+          </div>
+        </Panel>
+
+        <section className="grid gap-4 xl:grid-cols-3">
+          <ActivityPanel
+            title="Recent Payments"
+            icon={CreditCard}
+            empty="No recent payment references."
+            items={member.recentPayments.map((payment) => ({
+              id: payment.id,
+              title: payment.referenceNumber,
+              meta: `${payment.paymentPurpose} - ${payment.validationStatus}`,
+              amount: formatCurrency(payment.amount),
+              date: formatDate(payment.submittedAt),
+            }))}
+          />
+          <ActivityPanel
+            title="Recent POS"
+            icon={ShoppingCart}
+            empty="No recent POS activity."
+            items={member.recentPosActivity.map((sale) => ({
+              id: sale.id,
+              title: sale.saleNumber,
+              meta: `${sale.saleStatus} - ${sale.paymentStatus}`,
+              amount: formatCurrency(sale.totalAmount),
+              date: formatDate(sale.saleDate),
+            }))}
+          />
+          <ActivityPanel
+            title="Recent Rentals"
+            icon={CalendarDays}
+            empty="No recent rental activity."
+            items={member.recentRentalActivity.map((rental) => ({
+              id: rental.id,
+              title: rental.bookingNumber,
+              meta: `${rental.assetName} - ${rental.bookingStatus}`,
+              amount: formatCurrency(rental.totalAmount),
+              date: formatDate(rental.startDatetime),
+            }))}
+          />
+        </section>
+
+        <Panel title="Latest Indicator">
+          {member.latestIndicator ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              <Info label="Label" value={member.latestIndicator.statusLabel} />
+              <Info label="Score" value={String(member.latestIndicator.totalScore)} />
+              <Info label="Computed" value={formatDate(member.latestIndicator.computedAt)} />
+              <p className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3 text-sm text-[#294B39] md:col-span-3">
+                {member.latestIndicator.basisSummary ?? "No basis summary recorded."}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-[#5D6D63]">No indicator has been calculated for this member yet.</p>
+          )}
+        </Panel>
+
+        <Panel title="Member Status History">
+          <ol className="grid gap-3">
+            {member.statusHistory.length === 0 ? (
+              <li className="rounded-md border border-dashed border-[#CAD8CB] p-4 text-sm text-[#5D6D63]">No member status history yet.</li>
+            ) : (
+              member.statusHistory.map((entry) => (
+                <li key={entry.id} className="rounded-md border border-[#CAD8CB] p-3 text-sm">
+                  <p className="font-bold text-[#123D2A]">
+                    {entry.oldMembershipType ?? "New"} / {entry.oldOfficialStatus ?? "New"} to {entry.newMembershipType ?? "No type change"} / {entry.newOfficialStatus ?? "No status change"}
+                  </p>
+                  <p className="mt-1 text-[#5D6D63]">{formatDate(entry.changedAt)}</p>
+                  <p className="mt-1 text-[#294B39]">{entry.reason ?? "No reason recorded."}</p>
+                </li>
+              ))
+            )}
+          </ol>
+        </Panel>
+      </div>
+    </FormDialog>
+  );
+}
+
+function ActivityPanel({
+  title,
+  icon: Icon,
+  items,
+  empty,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: Array<{ id: string; title: string; meta: string; amount: string; date: string }>;
+  empty: string;
+}) {
+  return (
+    <Panel title={title}>
+      <div className="grid gap-2">
+        {items.length === 0 ? (
+          <p className="text-sm text-[#5D6D63]">{empty}</p>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="rounded-md border border-[#CAD8CB] p-3 text-sm">
+              <div className="flex items-start gap-2">
+                <Icon className="mt-0.5 size-4 text-[#1F6B43]" aria-hidden="true" />
+                <div>
+                  <p className="font-bold text-[#123D2A]">{item.title}</p>
+                  <p className="mt-1 text-[#5D6D63]">{item.meta}</p>
+                  <p className="mt-1 text-[#294B39]">{item.amount} - {item.date}</p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function MemberFormDialog({
+  open,
+  mode,
+  member,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  member: MemberDetail | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (member: MemberProfile) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<MemberFormState>(member ? memberToDraft(member) : blankMemberForm);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const save = async () => {
+    setIsSaving(true);
+    try {
+      const saved = mode === "create"
+        ? await createMember(memberPayload(draft))
+        : await updateMember(member?.id ?? "", memberPayload(draft));
+      toast.success(mode === "create" ? "Manual member created." : "Member profile updated.");
+      await onSaved(saved);
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "Member could not be saved.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <FormDialog open={open} onOpenChange={onOpenChange} title={mode === "create" ? "Create Manual Member" : "Edit Member Profile"}>
+      <div className="grid gap-4 md:grid-cols-2">
+        <TextInput label="Member code" value={draft.memberCode} onChange={(value) => setDraft((current) => ({ ...current, memberCode: value }))} />
+        <TextInput label="Full name" value={draft.fullName} onChange={(value) => setDraft((current) => ({ ...current, fullName: value }))} />
+        <TextInput label="Contact number" value={draft.contactNumber} onChange={(value) => setDraft((current) => ({ ...current, contactNumber: value }))} />
+        <TextInput label="Email" value={draft.email} onChange={(value) => setDraft((current) => ({ ...current, email: value }))} />
+        <TextInput label="Barangay" value={draft.barangay} onChange={(value) => setDraft((current) => ({ ...current, barangay: value }))} />
+        <TextInput label="Sector" value={draft.sector} onChange={(value) => setDraft((current) => ({ ...current, sector: value }))} />
+        <TextInput label="Municipality" value={draft.municipality} onChange={(value) => setDraft((current) => ({ ...current, municipality: value }))} />
+        <TextInput label="Province" value={draft.province} onChange={(value) => setDraft((current) => ({ ...current, province: value }))} />
+        <Select value={draft.membershipType} onChange={(value) => setDraft((current) => ({ ...current, membershipType: value as MembershipType }))}>
+          {membershipTypes.map((type) => <option key={type}>{type}</option>)}
+        </Select>
+        <Select value={draft.officialMemberStatus} onChange={(value) => setDraft((current) => ({ ...current, officialMemberStatus: value as OfficialMemberStatus }))}>
+          {officialMemberStatuses.map((status) => <option key={status}>{status}</option>)}
+        </Select>
+        <TextInput label="Application date" type="date" value={draft.applicationDate} onChange={(value) => setDraft((current) => ({ ...current, applicationDate: value }))} />
+        <TextInput label="Share-capital deadline" type="date" value={draft.shareCapitalDeadline} onChange={(value) => setDraft((current) => ({ ...current, shareCapitalDeadline: value }))} />
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39] md:col-span-2">
+          Notes
+          <textarea className="min-h-28 rounded-md border border-[#CAD8CB] bg-white p-3 text-sm outline-none focus:border-[#1F6B43]" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
+        </label>
+      </div>
+      <div className="mt-6 flex justify-end gap-3">
+        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <Button type="button" disabled={isSaving} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
+          {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+          Save
+        </Button>
+      </div>
+    </FormDialog>
+  );
+}
+
+function MemberStatusDialog({
+  member,
+  onOpenChange,
+  onSaved,
+}: {
+  member: MemberDetail | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (member: MemberDetail) => Promise<void>;
+}) {
+  const [membershipType, setMembershipType] = useState<MembershipType>(member?.membershipType ?? "Associate");
+  const [officialMemberStatus, setOfficialMemberStatus] = useState<OfficialMemberStatus>(member?.officialMemberStatus ?? "Active");
+  const [reason, setReason] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const save = async () => {
+    if (!member) return;
+    setIsSaving(true);
+    try {
+      const updated = await updateMemberStatus(member.id, {
+        membershipType,
+        officialMemberStatus,
+        reason,
+        confirmation,
+      });
+      toast.success("Member status updated.");
+      await onSaved(updated);
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "Member status could not be updated.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <FormDialog
+      open={Boolean(member)}
+      onOpenChange={onOpenChange}
+      title="Update Official Status"
+      description="Reason and full-name confirmation are required. True Member promotion requires PHP 3,000 validated share capital and cannot exceed PHP 15,000."
+    >
+      {member ? (
+        <div className="grid gap-4">
+          <div className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3 text-sm text-[#294B39]">
+            Validated share capital: <strong>{formatCurrency(member.shareCapital.validatedTotal)}</strong>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+              Membership type
+              <Select value={membershipType} onChange={(value) => setMembershipType(value as MembershipType)}>
+                {membershipTypes.map((type) => <option key={type}>{type}</option>)}
+              </Select>
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+              Official status
+              <Select value={officialMemberStatus} onChange={(value) => setOfficialMemberStatus(value as OfficialMemberStatus)}>
+                {officialMemberStatuses.map((status) => <option key={status}>{status}</option>)}
+              </Select>
+            </label>
+          </div>
+          <TextInput label="Reason" value={reason} onChange={setReason} />
+          <TextInput label={`Type "${member.fullName}" to confirm`} value={confirmation} onChange={setConfirmation} />
+          <div className="flex justify-end gap-3">
+            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" disabled={isSaving || !reason || confirmation !== member.fullName} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              Save Status
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </FormDialog>
+  );
+}
+
+function MemberAccountLinkDialog({
+  action,
+  onOpenChange,
+  onSaved,
+}: {
+  action: MemberAccountAction | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (memberId: string) => Promise<void>;
+}) {
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [userId, setUserId] = useState("");
+  const [reason, setReason] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!action || action.type !== "link") return;
+    void listUsersPaginated({ role: "member", pageSize: 100, sortBy: "displayName", sortDirection: "asc" })
+      .then((result) => {
+        const linkable = result.users.filter((user) => !user.linkedMemberId);
+        setUsers(linkable);
+        setUserId(linkable[0]?.id ?? "");
+      })
+      .catch(() => {
+        setUsers([]);
+        setUserId("");
+      });
+  }, [action]);
+
+  const save = async () => {
+    if (!action) return;
+    setIsSaving(true);
+    try {
+      if (action.type === "link") {
+        await linkUserMember(userId, action.member.id, reason);
+        toast.success("Member account linked.");
+      } else if (action.member.userId) {
+        await unlinkUserMember(action.member.userId, reason);
+        toast.success("Member account unlinked.");
+      }
+      await onSaved(action.member.id);
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "Account link action failed.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <FormDialog
+      open={Boolean(action)}
+      onOpenChange={onOpenChange}
+      title={action?.type === "link" ? "Link Member Account" : "Unlink Member Account"}
+      description="Only Member-role accounts can be linked, and each member/account can have one link."
+    >
+      {action ? (
+        <div className="grid gap-4">
+          <Info label="Member" value={`${action.member.memberCode} - ${action.member.fullName}`} />
+          {action.type === "link" ? (
+            <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+              Member account
+              <Select value={userId} onChange={setUserId}>
+                {users.length === 0 ? <option value="">No unlinked Member accounts</option> : null}
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName} - {user.email} ({user.accountStatus})
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ) : (
+            <Info label="Linked Account" value={action.member.linkedUserEmail ?? "Unknown account"} />
+          )}
+          <TextInput label="Reason" value={reason} onChange={setReason} />
+          <div className="flex justify-end gap-3">
+            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" disabled={isSaving || !reason || (action.type === "link" && !userId)} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Link2 className="size-4" />}
+              Confirm
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </FormDialog>
+  );
+}
+
+function UnifiedHistorySection({
+  entries,
+  query,
+  total,
+  isLoading,
+  error,
+  setQuery,
+}: {
+  entries: UnifiedStatusHistoryEntry[];
+  query: { page: number; pageSize: number; search: string; sourceModule: HistorySource };
+  total: number;
+  isLoading: boolean;
+  error: string;
+  setQuery: (updater: (current: { page: number; pageSize: number; search: string; sourceModule: HistorySource }) => { page: number; pageSize: number; search: string; sourceModule: HistorySource }) => void;
+}) {
+  const updateQuery = (patch: Partial<typeof query>) => {
+    setQuery((current) => ({ ...current, ...patch, page: 1 }));
+  };
+
+  return (
+    <div className="grid gap-5">
+      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
+          <History className="size-4" aria-hidden="true" />
+          Unified Status History
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="relative block">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
+            <input
+              value={query.search}
+              onChange={(event) => updateQuery({ search: event.target.value })}
+              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
+              placeholder="Search history"
+              type="search"
+            />
+          </label>
+          <Select value={query.sourceModule} onChange={(value) => updateQuery({ sourceModule: value as HistorySource })}>
+            {["All", "Application", "Member", "Account"].map((source) => <option key={source}>{source}</option>)}
+          </Select>
+          <Select value={String(query.pageSize)} onChange={(value) => setQuery((current) => ({ ...current, pageSize: Number(value), page: 1 }))}>
+            <option value="10">10 per page</option>
+            <option value="20">20 per page</option>
+            <option value="50">50 per page</option>
+          </Select>
+        </div>
+      </section>
+
+      {error ? <ErrorState message={error} /> : null}
+      {isLoading ? (
+        <LoadingSkeleton />
+      ) : entries.length === 0 ? (
+        <EmptyState icon={History} title="No status history found" description="Application, member, and linked account status changes will appear here." />
+      ) : (
+        <>
+          <div className="hidden lg:block">
+            <DataTable>
+              <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
+                <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+                  <tr>
+                    <th className="px-5 py-4">Date</th>
+                    <th className="px-5 py-4">Source</th>
+                    <th className="px-5 py-4">Person / Record</th>
+                    <th className="px-5 py-4">Old</th>
+                    <th className="px-5 py-4">New</th>
+                    <th className="px-5 py-4">Reason</th>
+                    <th className="px-5 py-4">Actor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
+                  {entries.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-[#F7F8F3]">
+                      <td className="px-5 py-4">{formatDate(entry.changedAt)}</td>
+                      <td className="px-5 py-4">{entry.sourceModule}</td>
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-[#123D2A]">{entry.subjectName}</p>
+                        <p className="mt-1 text-xs text-[#6C7A70]">{entry.subjectCode}</p>
+                      </td>
+                      <td className="px-5 py-4">{entry.oldStatus ?? "New"}</td>
+                      <td className="px-5 py-4">{entry.newStatus}</td>
+                      <td className="px-5 py-4">{entry.reason ?? "No reason recorded"}</td>
+                      <td className="px-5 py-4">{entry.actor ?? "System"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </DataTable>
+          </div>
+          <div className="grid gap-3 lg:hidden">
+            {entries.map((entry) => (
+              <article key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-[#123D2A]">{entry.subjectName}</p>
+                    <p className="mt-1 text-xs text-[#6C7A70]">{entry.subjectCode}</p>
+                  </div>
+                  <StatusBadge tone="neutral">{entry.sourceModule}</StatusBadge>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#294B39]">
+                  <Info label="Old" value={entry.oldStatus ?? "New"} />
+                  <Info label="New" value={entry.newStatus} />
+                  <Info label="Actor" value={entry.actor ?? "System"} />
+                  <Info label="Date" value={formatDate(entry.changedAt)} />
+                </dl>
+                <p className="mt-3 text-sm text-[#5D6D63]">{entry.reason ?? "No reason recorded"}</p>
+              </article>
+            ))}
+          </div>
+          <SimplePagination
+            page={query.page}
+            pageSize={query.pageSize}
+            total={total}
+            shown={entries.length}
+            noun="history records"
+            setPage={(page) => setQuery((current) => ({ ...current, page }))}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -1136,6 +2121,40 @@ function ActivationResultDialog({
   );
 }
 
+function SimplePagination({
+  page,
+  pageSize,
+  total,
+  shown,
+  noun,
+  setPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  shown: number;
+  noun: string;
+  setPage: (page: number) => void;
+}) {
+  const maxPage = Math.max(1, Math.ceil(total / pageSize));
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-[#5D6D63]">
+        Showing {shown} of {total} {noun}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button type="button" disabled={page <= 1} className="h-10 border border-[#CAD8CB] bg-white px-3 text-[#123D2A]" onClick={() => setPage(Math.max(1, page - 1))}>
+          Previous
+        </Button>
+        <span className="text-sm font-bold text-[#123D2A]">Page {page} / {maxPage}</span>
+        <Button type="button" disabled={page >= maxPage} className="h-10 border border-[#CAD8CB] bg-white px-3 text-[#123D2A]" onClick={() => setPage(Math.min(maxPage, page + 1))}>
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Pagination({
   query,
   shown,
@@ -1270,8 +2289,8 @@ function TextInput({
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3">
-      <dt className="text-xs font-bold uppercase tracking-[0.14em] text-[#6C7A70]">{label}</dt>
-      <dd className="mt-1 break-words text-sm font-semibold text-[#123D2A]">{value}</dd>
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6C7A70]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-[#123D2A]">{value}</p>
     </div>
   );
 }
@@ -1290,6 +2309,58 @@ function formatDate(value: string | null | undefined) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+  }).format(value);
+}
+
+function memberStatusTone(status: OfficialMemberStatus) {
+  if (status === "Active") return "success";
+  if (status === "Pending" || status === "Inactive") return "warning";
+  if (status === "Suspended" || status === "Terminated") return "danger";
+  return "neutral";
+}
+
+function memberToDraft(member: MemberDetail): MemberFormState {
+  return {
+    memberCode: member.memberCode,
+    fullName: member.fullName,
+    contactNumber: member.contactNumber ?? "",
+    email: member.email ?? "",
+    barangay: member.barangay ?? "",
+    municipality: member.municipality,
+    province: member.province,
+    sector: member.sector ?? "",
+    membershipType: member.membershipType,
+    approvalStatus: member.approvalStatus,
+    officialMemberStatus: member.officialMemberStatus,
+    applicationDate: member.applicationDate?.slice(0, 10) ?? "",
+    shareCapitalDeadline: member.shareCapitalDeadline?.slice(0, 10) ?? "",
+    notes: member.notes ?? "",
+  };
+}
+
+function memberPayload(draft: MemberFormState): MemberProfileInput {
+  return {
+    memberCode: draft.memberCode,
+    fullName: draft.fullName,
+    contactNumber: draft.contactNumber || null,
+    email: draft.email || null,
+    barangay: draft.barangay || null,
+    municipality: draft.municipality,
+    province: draft.province,
+    sector: draft.sector || null,
+    membershipType: draft.membershipType,
+    approvalStatus: draft.approvalStatus,
+    officialMemberStatus: draft.officialMemberStatus,
+    applicationDate: draft.applicationDate || null,
+    shareCapitalDeadline: draft.shareCapitalDeadline || null,
+    notes: draft.notes || null,
+  };
 }
 
 function toCreatePayload(draft: ApplicationFormState): ChairmanMembershipApplicationInput {

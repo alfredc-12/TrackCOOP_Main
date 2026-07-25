@@ -10,6 +10,10 @@ export type OfficialMemberStatus =
 export type MemberProfile = {
   id: string;
   userId: string | null;
+  linkedUserEmail: string | null;
+  linkedUserUsername: string | null;
+  linkedUserStatus: string | null;
+  linkedUserRole: string | null;
   memberCode: string;
   fullName: string;
   contactNumber: string | null;
@@ -71,6 +75,69 @@ export type MemberProfileInput = {
 
 export type UpdateMemberProfileInput = Partial<MemberProfileInput>;
 
+export type ShareCapitalProgress = {
+  validatedTotal: number;
+  pendingTotal: number;
+  validatedPayments: number;
+  fullRequirement: number;
+  maximumAllowed: number;
+  remainingToFull: number;
+  remainingAllowed: number;
+  fullRequirementMet: boolean;
+};
+
+export type MemberPaymentActivity = {
+  id: string;
+  referenceNumber: string;
+  paymentPurpose: string;
+  amount: number;
+  validationStatus: string;
+  submittedAt: Date;
+};
+
+export type MemberPosActivity = {
+  id: string;
+  saleNumber: string;
+  saleStatus: string;
+  paymentStatus: string;
+  totalAmount: number;
+  saleDate: Date;
+};
+
+export type MemberRentalActivity = {
+  id: string;
+  bookingNumber: string;
+  assetName: string;
+  bookingStatus: string;
+  paymentStatus: string;
+  totalAmount: number;
+  startDatetime: Date;
+};
+
+export type MemberLatestIndicator = {
+  id: string;
+  statusLabel: string;
+  totalScore: number;
+  computedAt: Date;
+  basisSummary: string | null;
+};
+
+export type MemberDetail = MemberProfile & {
+  shareCapital: ShareCapitalProgress;
+  recentPayments: MemberPaymentActivity[];
+  recentPosActivity: MemberPosActivity[];
+  recentRentalActivity: MemberRentalActivity[];
+  latestIndicator: MemberLatestIndicator | null;
+  statusHistory: MemberStatusHistoryEntry[];
+};
+
+export type UpdateMemberStatusInput = {
+  membershipType?: MembershipType;
+  officialMemberStatus?: OfficialMemberStatus;
+  reason: string;
+  confirmation: string;
+};
+
 export type MemberStatusHistoryEntry = {
   id: string;
   memberId: string;
@@ -80,6 +147,19 @@ export type MemberStatusHistoryEntry = {
   newOfficialStatus: OfficialMemberStatus | null;
   reason: string | null;
   changedBy: string;
+  changedAt: Date;
+};
+
+export type UnifiedStatusHistoryEntry = {
+  id: string;
+  sourceModule: "Application" | "Member" | "Account";
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+  oldStatus: string | null;
+  newStatus: string;
+  reason: string | null;
+  actor: string | null;
   changedAt: Date;
 };
 

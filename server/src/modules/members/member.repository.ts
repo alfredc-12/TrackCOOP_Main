@@ -7,20 +7,32 @@ import type { AuthContext } from "../auth/auth.types";
 import type {
   ApprovalStatus,
   BarangayDistribution,
+  MemberDetail,
+  MemberLatestIndicator,
   MemberListQuery,
   MemberListResult,
+  MemberPaymentActivity,
+  MemberPosActivity,
   MemberProfile,
   MemberProfileInput,
+  MemberRentalActivity,
   MemberStatusHistoryEntry,
   MemberSummary,
   MembershipType,
   OfficialMemberStatus,
+  ShareCapitalProgress,
   UpdateMemberProfileInput,
+  UpdateMemberStatusInput,
+  UnifiedStatusHistoryEntry,
 } from "./member.types";
 
 type MemberRow = RowDataPacket & {
   id: string;
   userId: string | null;
+  linkedUserEmail: string | null;
+  linkedUserUsername: string | null;
+  linkedUserStatus: string | null;
+  linkedUserRole: string | null;
   memberCode: string;
   fullName: string;
   contactNumber: string | null;
@@ -56,6 +68,19 @@ type HistoryRow = RowDataPacket & {
 
 type CountRow = RowDataPacket & { total: number };
 type SummaryRow = RowDataPacket & MemberSummary;
+type ShareCapitalRow = RowDataPacket & {
+  validatedTotal: string | number | null;
+  pendingTotal: string | number | null;
+  validatedPayments: number | null;
+};
+type PaymentActivityRow = RowDataPacket & MemberPaymentActivity;
+type PosActivityRow = RowDataPacket & MemberPosActivity;
+type RentalActivityRow = RowDataPacket & MemberRentalActivity;
+type LatestIndicatorRow = RowDataPacket & MemberLatestIndicator;
+type UnifiedHistoryRow = RowDataPacket & UnifiedStatusHistoryEntry;
+
+const FULL_SHARE_CAPITAL = 3000;
+const MAX_SHARE_CAPITAL = 15000;
 
 const sortColumns: Record<MemberListQuery["sortBy"], string> = {
   fullName: "m.full_name",
@@ -66,19 +91,25 @@ const sortColumns: Record<MemberListQuery["sortBy"], string> = {
 
 export interface MemberRepository {
   list(query: MemberListQuery): Promise<MemberListResult>;
-  findById(memberId: string): Promise<MemberProfile | null>;
+  findById(memberId: string): Promise<MemberDetail | null>;
   create(input: MemberProfileInput, auth: AuthContext): Promise<MemberProfile>;
   update(memberId: string, input: UpdateMemberProfileInput, auth: AuthContext): Promise<MemberProfile>;
   updateApproval(memberId: string, approvalStatus: ApprovalStatus, reason: string | null | undefined, auth: AuthContext): Promise<MemberProfile>;
-  updateStatus(memberId: string, input: { membershipType?: MembershipType; officialMemberStatus?: OfficialMemberStatus; reason: string }, auth: AuthContext): Promise<MemberProfile>;
+  updateStatus(memberId: string, input: UpdateMemberStatusInput, auth: AuthContext): Promise<MemberProfile>;
   history(memberId: string): Promise<MemberStatusHistoryEntry[]>;
+  unifiedStatusHistory(query: { search?: string; sourceModule?: string; page: number; pageSize: number }): Promise<{ entries: UnifiedStatusHistoryEntry[]; total: number; page: number; pageSize: number }>;
   summary(): Promise<MemberSummary>;
   barangayDistribution(): Promise<BarangayDistribution[]>;
+  shareCapitalProgress(memberId: string): Promise<ShareCapitalProgress>;
 }
 
 function memberSelect() {
   return `SELECT CAST(m.member_id AS CHAR) AS id,
                  CAST(m.user_id AS CHAR) AS userId,
+                 u.email AS linkedUserEmail,
+                 u.username AS linkedUserUsername,
+                 u.account_status AS linkedUserStatus,
+                 r.role_slug AS linkedUserRole,
                  m.member_code AS memberCode,
                  m.full_name AS fullName,
                  m.contact_number AS contactNumber,
@@ -98,7 +129,9 @@ function memberSelect() {
                  m.notes,
                  m.created_at AS createdAt,
                  m.updated_at AS updatedAt
-            FROM member_profiles m`;
+            FROM member_profiles m
+            LEFT JOIN users u ON u.user_id = m.user_id
+            LEFT JOIN roles r ON r.role_id = u.role_id`;
 }
 
 function mapMember(row: MemberRow): MemberProfile {
@@ -111,6 +144,101 @@ function dateOrNull(value: string | null | undefined) {
 
 export function createMemberRepository(pool?: Pool): MemberRepository {
   const databasePool = () => pool ?? getPool();
+
+  async function shareCapitalProgress(memberId: string): Promise<ShareCapitalProgress> {
+    const [rows] = await databasePool().execute<ShareCapitalRow[]>(
+      `SELECT COALESCE(SUM(CASE WHEN payment_status = 'Validated' THEN amount ELSE 0 END), 0) AS validatedTotal,
+              COALESCE(SUM(CASE WHEN payment_status = 'Pending' THEN amount ELSE 0 END), 0) AS pendingTotal,
+              SUM(payment_status = 'Validated') AS validatedPayments
+         FROM share_capital_payments
+        WHERE member_id = ?`,
+      [memberId],
+    );
+    const row = rows[0];
+    const validatedTotal = Number(row?.validatedTotal ?? 0);
+    const pendingTotal = Number(row?.pendingTotal ?? 0);
+
+    return {
+      validatedTotal,
+      pendingTotal,
+      validatedPayments: Number(row?.validatedPayments ?? 0),
+      fullRequirement: FULL_SHARE_CAPITAL,
+      maximumAllowed: MAX_SHARE_CAPITAL,
+      remainingToFull: Math.max(0, FULL_SHARE_CAPITAL - validatedTotal),
+      remainingAllowed: Math.max(0, MAX_SHARE_CAPITAL - validatedTotal),
+      fullRequirementMet: validatedTotal >= FULL_SHARE_CAPITAL,
+    };
+  }
+
+  async function recentPayments(memberId: string) {
+    const [rows] = await databasePool().execute<PaymentActivityRow[]>(
+      `SELECT CAST(payment_reference_id AS CHAR) AS id,
+              reference_number AS referenceNumber,
+              payment_purpose AS paymentPurpose,
+              amount,
+              validation_status AS validationStatus,
+              submitted_at AS submittedAt
+         FROM payment_references
+        WHERE member_id = ?
+        ORDER BY submitted_at DESC, payment_reference_id DESC
+        LIMIT 5`,
+      [memberId],
+    );
+    return rows.map((row) => ({ ...row, amount: Number(row.amount) }));
+  }
+
+  async function recentPosActivity(memberId: string) {
+    const [rows] = await databasePool().execute<PosActivityRow[]>(
+      `SELECT CAST(pos_sale_id AS CHAR) AS id,
+              sale_number AS saleNumber,
+              sale_status AS saleStatus,
+              payment_status AS paymentStatus,
+              total_amount AS totalAmount,
+              sale_date AS saleDate
+         FROM pos_sales
+        WHERE member_id = ?
+        ORDER BY sale_date DESC, pos_sale_id DESC
+        LIMIT 5`,
+      [memberId],
+    );
+    return rows.map((row) => ({ ...row, totalAmount: Number(row.totalAmount) }));
+  }
+
+  async function recentRentalActivity(memberId: string) {
+    const [rows] = await databasePool().execute<RentalActivityRow[]>(
+      `SELECT CAST(rb.rental_booking_id AS CHAR) AS id,
+              rb.booking_number AS bookingNumber,
+              ra.asset_name AS assetName,
+              rb.booking_status AS bookingStatus,
+              rb.payment_status AS paymentStatus,
+              rb.total_amount AS totalAmount,
+              rb.start_datetime AS startDatetime
+         FROM rental_bookings rb
+         JOIN rental_assets ra ON ra.rental_asset_id = rb.rental_asset_id
+        WHERE rb.member_id = ?
+        ORDER BY rb.start_datetime DESC, rb.rental_booking_id DESC
+        LIMIT 5`,
+      [memberId],
+    );
+    return rows.map((row) => ({ ...row, totalAmount: Number(row.totalAmount) }));
+  }
+
+  async function latestIndicator(memberId: string) {
+    const [rows] = await databasePool().execute<LatestIndicatorRow[]>(
+      `SELECT CAST(indicator_id AS CHAR) AS id,
+              status_label AS statusLabel,
+              total_score AS totalScore,
+              computed_at AS computedAt,
+              basis_summary AS basisSummary
+         FROM member_status_indicators
+        WHERE member_id = ?
+        ORDER BY computed_at DESC, indicator_id DESC
+        LIMIT 1`,
+      [memberId],
+    );
+    const row = rows[0];
+    return row ? { ...row, totalScore: Number(row.totalScore) } : null;
+  }
 
   return {
     async list(query) {
@@ -169,7 +297,34 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
         [memberId],
       );
 
-      return rows[0] ? mapMember(rows[0]) : null;
+      const row = rows[0];
+      if (!row) return null;
+
+      const [
+        capital,
+        payments,
+        posActivity,
+        rentalActivity,
+        indicator,
+        statusHistory,
+      ] = await Promise.all([
+        shareCapitalProgress(memberId),
+        recentPayments(memberId),
+        recentPosActivity(memberId),
+        recentRentalActivity(memberId),
+        latestIndicator(memberId),
+        this.history(memberId),
+      ]);
+
+      return {
+        ...mapMember(row),
+        shareCapital: capital,
+        recentPayments: payments,
+        recentPosActivity: posActivity,
+        recentRentalActivity: rentalActivity,
+        latestIndicator: indicator,
+        statusHistory,
+      };
     },
 
     async create(input, auth) {
@@ -326,6 +481,24 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
         const nextOfficialStatus =
           input.officialMemberStatus ?? existing.officialMemberStatus;
 
+        if (existing.membershipType !== "True Member" && nextMembershipType === "True Member") {
+          const capital = existing.shareCapital;
+          if (capital.validatedTotal > capital.maximumAllowed) {
+            throw new AppError(
+              "Validated share capital is above the PHP 15,000 maximum allowed",
+              409,
+              "SHARE_CAPITAL_LIMIT_EXCEEDED",
+            );
+          }
+          if (!capital.fullRequirementMet) {
+            throw new AppError(
+              "True Member promotion requires at least PHP 3,000 validated share capital",
+              409,
+              "TRUE_MEMBER_CAPITAL_REQUIREMENT_NOT_MET",
+            );
+          }
+        }
+
         await connection.execute(
           `UPDATE member_profiles
               SET membership_type = ?,
@@ -391,6 +564,95 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
       return rows;
     },
 
+    async unifiedStatusHistory(query) {
+      const searchValues: string[] = [];
+      let outerWhere = "";
+
+      if (query.search) {
+        outerWhere = `WHERE subjectName LIKE ? OR subjectCode LIKE ? OR newStatus LIKE ? OR oldStatus LIKE ?`;
+        const search = `%${query.search}%`;
+        searchValues.push(search, search, search, search);
+      }
+
+      if (query.sourceModule && query.sourceModule !== "All") {
+        outerWhere = outerWhere
+          ? `${outerWhere} AND sourceModule = ?`
+          : "WHERE sourceModule = ?";
+        searchValues.push(query.sourceModule);
+      }
+
+      const unionSql = `
+        SELECT CONCAT('application-', h.membership_application_status_history_id) AS id,
+               'Application' AS sourceModule,
+               CAST(a.membership_application_id AS CHAR) AS subjectId,
+               a.application_code AS subjectCode,
+               a.full_name AS subjectName,
+               h.old_status AS oldStatus,
+               h.new_status AS newStatus,
+               COALESCE(h.internal_note, h.applicant_message) AS reason,
+               actor.display_name AS actor,
+               h.changed_at AS changedAt
+          FROM membership_application_status_history h
+          JOIN membership_applications a ON a.membership_application_id = h.membership_application_id
+          LEFT JOIN users actor ON actor.user_id = h.changed_by
+        UNION ALL
+        SELECT CONCAT('member-', h.member_status_history_id) AS id,
+               'Member' AS sourceModule,
+               CAST(m.member_id AS CHAR) AS subjectId,
+               m.member_code AS subjectCode,
+               m.full_name AS subjectName,
+               CONCAT_WS(' / ', h.old_membership_type, h.old_official_status) AS oldStatus,
+               CONCAT_WS(' / ', h.new_membership_type, h.new_official_status) AS newStatus,
+               h.reason,
+               actor.display_name AS actor,
+               h.changed_at AS changedAt
+          FROM member_status_history h
+          JOIN member_profiles m ON m.member_id = h.member_id
+          LEFT JOIN users actor ON actor.user_id = h.changed_by
+        UNION ALL
+        SELECT CONCAT('account-', a.audit_log_id) AS id,
+               'Account' AS sourceModule,
+               CAST(m.member_id AS CHAR) AS subjectId,
+               m.member_code AS subjectCode,
+               m.full_name AS subjectName,
+               COALESCE(
+                 JSON_UNQUOTE(JSON_EXTRACT(a.old_values, '$.accountStatus')),
+                 JSON_UNQUOTE(JSON_EXTRACT(a.old_values, '$.role'))
+               ) AS oldStatus,
+               COALESCE(
+                 JSON_UNQUOTE(JSON_EXTRACT(a.new_values, '$.accountStatus')),
+                 JSON_UNQUOTE(JSON_EXTRACT(a.new_values, '$.role'))
+               ) AS newStatus,
+               a.description AS reason,
+               actor.display_name AS actor,
+               a.action_time AS changedAt
+          FROM audit_logs a
+          JOIN member_profiles m ON m.user_id = a.record_id
+          LEFT JOIN users actor ON actor.user_id = a.user_id
+         WHERE a.entity_table = 'users'
+           AND a.action IN ('user.status_changed', 'user.role_changed')`;
+      const offset = (query.page - 1) * query.pageSize;
+      const [rows] = await databasePool().execute<UnifiedHistoryRow[]>(
+        `SELECT *
+           FROM (${unionSql}) history
+          ${outerWhere}
+          ORDER BY changedAt DESC, id DESC
+          ${limitOffsetSql(query.pageSize, offset)}`,
+        searchValues,
+      );
+      const [countRows] = await databasePool().execute<CountRow[]>(
+        `SELECT COUNT(*) AS total FROM (${unionSql}) history ${outerWhere}`,
+        searchValues,
+      );
+
+      return {
+        entries: rows,
+        total: countRows[0]?.total ?? 0,
+        page: query.page,
+        pageSize: query.pageSize,
+      };
+    },
+
     async summary() {
       const [rows] = await databasePool().execute<SummaryRow[]>(
         `SELECT COUNT(*) AS total,
@@ -433,5 +695,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
         total: Number(row.total),
       }));
     },
+
+    shareCapitalProgress,
   };
 }

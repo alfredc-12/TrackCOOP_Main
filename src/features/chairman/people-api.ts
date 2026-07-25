@@ -90,6 +90,10 @@ export type OfficialMemberStatus =
 export type MemberProfile = {
   id: string;
   userId?: string | null;
+  linkedUserEmail?: string | null;
+  linkedUserUsername?: string | null;
+  linkedUserStatus?: string | null;
+  linkedUserRole?: string | null;
   memberCode: string;
   fullName: string;
   contactNumber: string | null;
@@ -103,7 +107,136 @@ export type MemberProfile = {
   officialMemberStatus: OfficialMemberStatus;
   applicationDate: string | null;
   trueMemberSince: string | null;
+  shareCapitalDeadline?: string | null;
+  notes?: string | null;
   createdAt: string;
+  updatedAt?: string;
+};
+
+export type ShareCapitalProgress = {
+  validatedTotal: number;
+  pendingTotal: number;
+  validatedPayments: number;
+  fullRequirement: number;
+  maximumAllowed: number;
+  remainingToFull: number;
+  remainingAllowed: number;
+  fullRequirementMet: boolean;
+};
+
+export type MemberPaymentActivity = {
+  id: string;
+  referenceNumber: string;
+  paymentPurpose: string;
+  amount: number;
+  validationStatus: string;
+  submittedAt: string;
+};
+
+export type MemberPosActivity = {
+  id: string;
+  saleNumber: string;
+  saleStatus: string;
+  paymentStatus: string;
+  totalAmount: number;
+  saleDate: string;
+};
+
+export type MemberRentalActivity = {
+  id: string;
+  bookingNumber: string;
+  assetName: string;
+  bookingStatus: string;
+  paymentStatus: string;
+  totalAmount: number;
+  startDatetime: string;
+};
+
+export type MemberLatestIndicator = {
+  id: string;
+  statusLabel: string;
+  totalScore: number;
+  computedAt: string;
+  basisSummary: string | null;
+};
+
+export type MemberStatusHistoryEntry = {
+  id: string;
+  memberId: string;
+  oldMembershipType: MembershipType | null;
+  newMembershipType: MembershipType | null;
+  oldOfficialStatus: OfficialMemberStatus | null;
+  newOfficialStatus: OfficialMemberStatus | null;
+  reason: string | null;
+  changedBy: string;
+  changedAt: string;
+};
+
+export type MemberDetail = MemberProfile & {
+  shareCapital: ShareCapitalProgress;
+  recentPayments: MemberPaymentActivity[];
+  recentPosActivity: MemberPosActivity[];
+  recentRentalActivity: MemberRentalActivity[];
+  latestIndicator: MemberLatestIndicator | null;
+  statusHistory: MemberStatusHistoryEntry[];
+};
+
+export type MemberListQuery = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  approvalStatus?: ApprovalStatus | "All";
+  officialMemberStatus?: OfficialMemberStatus | "All";
+  membershipType?: MembershipType | "All";
+  barangay?: string;
+  sortBy?: "fullName" | "memberCode" | "createdAt" | "applicationDate";
+  sortDirection?: "asc" | "desc";
+};
+
+export type MemberListResult = {
+  members: MemberProfile[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type MemberProfileInput = {
+  userId?: string | null;
+  memberCode: string;
+  fullName: string;
+  contactNumber?: string | null;
+  email?: string | null;
+  barangay?: string | null;
+  municipality?: string;
+  province?: string;
+  sector?: string | null;
+  membershipType?: MembershipType;
+  approvalStatus?: ApprovalStatus;
+  officialMemberStatus?: OfficialMemberStatus;
+  applicationDate?: string | null;
+  trueMemberSince?: string | null;
+  shareCapitalDeadline?: string | null;
+  notes?: string | null;
+};
+
+export type UnifiedStatusHistoryEntry = {
+  id: string;
+  sourceModule: "Application" | "Member" | "Account";
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+  oldStatus: string | null;
+  newStatus: string;
+  reason: string | null;
+  actor: string | null;
+  changedAt: string;
+};
+
+export type UnifiedStatusHistoryResult = {
+  entries: UnifiedStatusHistoryEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
 };
 
 type ApiSuccess<T> = {
@@ -305,17 +438,89 @@ export function unlinkUserMember(userId: string, reason: string) {
 }
 
 export function listMembers(search?: string) {
+  return listMembersPaginated({ search, pageSize: 50, sortBy: "createdAt", sortDirection: "desc" })
+    .then((result) => result.members);
+}
+
+export async function listMembersPaginated(query: MemberListQuery = {}): Promise<MemberListResult> {
   const params = new URLSearchParams({
-    pageSize: "50",
-    sortBy: "createdAt",
-    sortDirection: "desc",
+    page: String(query.page ?? 1),
+    pageSize: String(query.pageSize ?? 20),
+    sortBy: query.sortBy ?? "createdAt",
+    sortDirection: query.sortDirection ?? "desc",
   });
-  if (search?.trim()) params.set("search", search.trim());
-  return apiRequest<MemberProfile[]>(`/api/members?${params}`);
+  if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.approvalStatus && query.approvalStatus !== "All") params.set("approvalStatus", query.approvalStatus);
+  if (query.officialMemberStatus && query.officialMemberStatus !== "All") params.set("officialMemberStatus", query.officialMemberStatus);
+  if (query.membershipType && query.membershipType !== "All") params.set("membershipType", query.membershipType);
+  if (query.barangay?.trim()) params.set("barangay", query.barangay.trim());
+
+  const result = await apiRequestWithMeta<MemberProfile[]>(`/api/members?${params}`);
+  return {
+    members: result.data,
+    total: Number(result.meta.total ?? result.data.length),
+    page: Number(result.meta.page ?? query.page ?? 1),
+    pageSize: Number(result.meta.pageSize ?? query.pageSize ?? 20),
+  };
 }
 
 export function getMemberSummary() {
   return apiRequest<MemberSummary>("/api/members/summary");
+}
+
+export function getMemberDetail(memberId: string) {
+  return apiRequest<MemberDetail>(`/api/members/${memberId}`);
+}
+
+export function createMember(input: MemberProfileInput) {
+  return apiRequest<MemberDetail>("/api/members", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateMember(memberId: string, input: Partial<MemberProfileInput>) {
+  return apiRequest<MemberDetail>(`/api/members/${memberId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateMemberStatus(
+  memberId: string,
+  input: {
+    membershipType?: MembershipType;
+    officialMemberStatus?: OfficialMemberStatus;
+    reason: string;
+    confirmation: string;
+  },
+) {
+  return apiRequest<MemberDetail>(`/api/members/${memberId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listUnifiedStatusHistory(query: {
+  search?: string;
+  sourceModule?: "All" | "Application" | "Member" | "Account";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<UnifiedStatusHistoryResult> {
+  const params = new URLSearchParams({
+    page: String(query.page ?? 1),
+    pageSize: String(query.pageSize ?? 20),
+    sourceModule: query.sourceModule ?? "All",
+  });
+  if (query.search?.trim()) params.set("search", query.search.trim());
+
+  const result = await apiRequestWithMeta<UnifiedStatusHistoryEntry[]>(`/api/members/status-history?${params}`);
+  return {
+    entries: result.data,
+    total: Number(result.meta.total ?? result.data.length),
+    page: Number(result.meta.page ?? query.page ?? 1),
+    pageSize: Number(result.meta.pageSize ?? query.pageSize ?? 20),
+  };
 }
 
 export function listMemberIndicators(search?: string) {
