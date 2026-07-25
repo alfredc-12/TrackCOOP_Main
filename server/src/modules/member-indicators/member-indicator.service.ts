@@ -11,6 +11,7 @@ import type { AuthContext } from "../auth/auth.types";
 export interface MemberIndicatorService {
   listIndicators(query: MemberIndicatorListQuery): ReturnType<MemberIndicatorRepository["list"]>;
   getMemberIndicator(memberId: string): ReturnType<MemberIndicatorRepository["findLatestByMemberId"]>;
+  getMemberIndicatorHistory(memberId: string): ReturnType<MemberIndicatorRepository["history"]>;
   summary(): ReturnType<MemberIndicatorRepository["summary"]>;
   recalculate(
     input: RecalculateIndicatorsInput,
@@ -28,6 +29,10 @@ export function createMemberIndicatorService(
 
     getMemberIndicator(memberId) {
       return repository.findLatestByMemberId(memberId);
+    },
+
+    getMemberIndicatorHistory(memberId) {
+      return repository.history(memberId);
     },
 
     summary() {

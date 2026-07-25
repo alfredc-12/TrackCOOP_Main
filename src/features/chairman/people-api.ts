@@ -301,6 +301,8 @@ export type MemberIndicator = {
   fullName: string;
   membershipType: string;
   officialMemberStatus: string;
+  basisPeriodStart: string | null;
+  basisPeriodEnd: string | null;
   recencyScore: number;
   frequencyScore: number;
   contributionScore: number;
@@ -310,12 +312,72 @@ export type MemberIndicator = {
   computedAt: string;
 };
 
+export type MemberIndicatorSourceCounts = {
+  shareCapitalPayments: number;
+  posSales: number;
+  rentalBookings: number;
+  paymentReferences: number;
+  financialRecords: number;
+};
+
+export type MemberIndicatorBasisSummary = {
+  formulaVersion: string;
+  advisoryOnly: boolean;
+  officialStatusUnchanged: boolean;
+  rawMetrics: {
+    recencyDays: number | null;
+    frequencyCount: number;
+    contributionAmount: number;
+    sourceCounts: MemberIndicatorSourceCounts;
+  };
+  basisPeriod: {
+    start: string;
+    end: string;
+  };
+  scoring: {
+    method: "quintile-rank" | "fallback-thresholds";
+    recencyScore: number;
+    frequencyScore: number;
+    contributionScore: number;
+    totalScore: number;
+    label: MemberIndicatorStatus;
+    explanation: string;
+  };
+};
+
+export type MemberIndicatorListQuery = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  statusLabel?: MemberIndicatorStatus | "All";
+  sortBy?: "fullName" | "totalScore" | "recencyScore" | "frequencyScore" | "contributionScore" | "computedAt";
+  sortDirection?: "asc" | "desc";
+};
+
+export type MemberIndicatorListResult = {
+  indicators: MemberIndicator[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type MemberIndicatorSummary = {
   totalTracked: number;
   active: number;
   needsMonitoring: number;
   inactive: number;
   averageScore: number;
+  distribution: Array<{
+    statusLabel: MemberIndicatorStatus;
+    total: number;
+    percentage: number;
+  }>;
+};
+
+export type RecalculateMemberIndicatorsInput = {
+  memberId?: string;
+  basisPeriodStart?: string | null;
+  basisPeriodEnd?: string | null;
 };
 
 export async function listUsers(search?: string) {
@@ -523,23 +585,36 @@ export async function listUnifiedStatusHistory(query: {
   };
 }
 
-export function listMemberIndicators(search?: string) {
+export async function listMemberIndicators(query: MemberIndicatorListQuery = {}): Promise<MemberIndicatorListResult> {
   const params = new URLSearchParams({
-    pageSize: "50",
-    sortBy: "computedAt",
-    sortDirection: "desc",
+    page: String(query.page ?? 1),
+    pageSize: String(query.pageSize ?? 20),
+    sortBy: query.sortBy ?? "computedAt",
+    sortDirection: query.sortDirection ?? "desc",
   });
-  if (search?.trim()) params.set("search", search.trim());
-  return apiRequest<MemberIndicator[]>(`/api/member-indicators?${params}`);
+  if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.statusLabel && query.statusLabel !== "All") params.set("statusLabel", query.statusLabel);
+
+  const result = await apiRequestWithMeta<MemberIndicator[]>(`/api/member-indicators?${params}`);
+  return {
+    indicators: result.data,
+    total: Number(result.meta.total ?? result.data.length),
+    page: Number(result.meta.page ?? query.page ?? 1),
+    pageSize: Number(result.meta.pageSize ?? query.pageSize ?? 20),
+  };
 }
 
 export function getMemberIndicatorSummary() {
   return apiRequest<MemberIndicatorSummary>("/api/member-indicators/summary");
 }
 
-export function recalculateMemberIndicators() {
-  return apiRequest<{ recalculated: number }>("/api/member-indicators/recalculate", {
+export function getMemberIndicatorHistory(memberId: string) {
+  return apiRequest<MemberIndicator[]>(`/api/member-indicators/${memberId}/history`);
+}
+
+export function recalculateMemberIndicators(input: RecalculateMemberIndicatorsInput = {}) {
+  return apiRequest<{ recalculated: number; basisPeriodStart: string | null; basisPeriodEnd: string | null }>("/api/member-indicators/recalculate", {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(input),
   });
 }

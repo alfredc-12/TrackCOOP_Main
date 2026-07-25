@@ -69,6 +69,30 @@ INSERT INTO system_settings (
         'String',
         'Membership terms and consent version used for new applications.',
         0
+    ),
+    (
+        'member_indicators',
+        'member_indicators.minimum_quintile_population',
+        '5',
+        'Number',
+        'Minimum member population before indicator scoring uses deterministic quintile ranks.',
+        0
+    ),
+    (
+        'member_indicators',
+        'member_indicators.fallback_thresholds',
+        '{"recencyDays":[{"max":30,"score":5},{"max":90,"score":4},{"max":180,"score":3},{"max":365,"score":2}],"frequencyCount":[{"min":12,"score":5},{"min":6,"score":4},{"min":3,"score":3},{"min":1,"score":2}],"contributionAmount":[{"min":10000,"score":5},{"min":5000,"score":4},{"min":1500,"score":3},{"min":1,"score":2}]}',
+        'JSON',
+        'Fallback 1-5 indicator thresholds used when the member population is too small for stable quintile ranks.',
+        0
+    ),
+    (
+        'member_indicators',
+        'member_indicators.label_thresholds',
+        '{"activeMin":12,"needsMonitoringMin":7}',
+        'JSON',
+        'Total-score thresholds for advisory member indicator labels.',
+        0
     )
 ON DUPLICATE KEY UPDATE
     setting_group = VALUES(setting_group),
