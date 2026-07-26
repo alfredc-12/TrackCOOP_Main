@@ -25,6 +25,7 @@ import { createMembershipRouter } from "./modules/membership/membership.routes";
 import type { MembershipService } from "./modules/membership/membership.service";
 import { createMembershipApplicationRouter } from "./modules/membership-applications/membership-application.routes";
 import type { MembershipApplicationService } from "./modules/membership-applications/membership-application.service";
+import { createPaymongoRouter } from "./modules/paymongo/paymongo.routes";
 import { createPaymentReferenceRouter } from "./modules/payment-references/payment-reference.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
@@ -106,6 +107,7 @@ export function createApp(options: CreateAppOptions = {}) {
     ),
   );
   app.use("/api", createMemberIndicatorRouter(options.authService));
+  app.use("/api", createPaymongoRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
