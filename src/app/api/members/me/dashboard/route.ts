@@ -20,7 +20,7 @@ export async function GET() {
       
       const member = members[0];
       if (!member) {
-        return NextResponse.json({ error: "Member profile not found" }, { status: 404 });
+        return NextResponse.json({ isLinked: false });
       }
 
       // 2. Get Share Capital Progress
@@ -83,6 +83,7 @@ export async function GET() {
       );
 
       return NextResponse.json({
+        isLinked: true,
         shareCapital: {
           total: validatedShareCapital,
           deadline: member.share_capital_deadline

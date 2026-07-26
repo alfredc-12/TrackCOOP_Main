@@ -107,7 +107,7 @@ export function createUserService(
         env.BCRYPT_ROUNDS,
       );
 
-      return repository.create({
+      const result = await repository.create({
         ...input,
         accountStatus: activation ? "Pending" : input.accountStatus,
         passwordHash,
@@ -116,6 +116,16 @@ export function createUserService(
         activationTokenExpiresAt: activation?.expiresAt,
         activationUrl: activation?.activationUrl,
       });
+
+      if (input.memberId) {
+        await repository.linkMember(result.user.id, input.memberId, "Linked during account creation", auth);
+        const linkedUser = await repository.findById(result.user.id);
+        if (linkedUser) {
+          result.user = linkedUser;
+        }
+      }
+
+      return result;
     },
 
     updateUser(userId, input, auth) {

@@ -59,6 +59,7 @@ export type CreateUserInput = {
   role: RoleSlug;
   accountStatus: AccountStatus;
   issueActivationLink?: boolean;
+  memberId?: string;
 };
 
 export type UpdateUserInput = {

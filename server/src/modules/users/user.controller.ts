@@ -30,8 +30,9 @@ function parseBody<T>(schema: ZodType<T>, value: unknown): T {
 }
 
 function validationError(error: ZodError) {
+  const details = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
   return new AppError(
-    "The request payload is invalid",
+    `The request payload is invalid: ${details}`,
     400,
     "VALIDATION_ERROR",
     error.issues.map((issue) => ({

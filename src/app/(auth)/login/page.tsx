@@ -38,7 +38,13 @@ export default function LoginPage() {
 
     getOptionalAuthenticatedUser()
       .then((user) => {
-        if (active && user) router.replace(roleDestinations[user.role]);
+        if (active && user) {
+          if (user.mustChangePassword) {
+            router.replace("/force-change-password");
+          } else {
+            router.replace(roleDestinations[user.role]);
+          }
+        }
       })
       .catch(() => undefined);
 
@@ -52,7 +58,11 @@ export default function LoginPage() {
 
     try {
       const user = await login(values);
-      router.replace(roleDestinations[user.role]);
+      if (user.mustChangePassword) {
+        router.replace("/force-change-password");
+      } else {
+        router.replace(roleDestinations[user.role]);
+      }
       router.refresh();
     } catch (error) {
       setFormError(
