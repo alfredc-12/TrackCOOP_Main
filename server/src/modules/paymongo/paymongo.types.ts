@@ -85,6 +85,33 @@ export type PaymongoPaymentReferenceRecord = {
   paidAt: Date | null;
 };
 
+export type PaymongoMembershipApplicationRecord = {
+  id: string;
+  applicationCode: string;
+  publicTrackingTokenHash: string;
+  requestedMembershipType: "Associate" | "True Member";
+  fullName: string;
+  email: string | null;
+  contactNumber: string;
+  applicationStatus: string;
+};
+
+export type PaymongoMembershipSettings = {
+  associateFee: number;
+  initialShareCapital: number;
+  trueMemberRequiredCapital: number;
+  maximumShareCapital: number;
+};
+
+export type PaymongoMembershipCheckoutPurpose =
+  | "Associate Membership Fee"
+  | "Share Capital";
+
+export type PaymongoMembershipCheckoutInput = {
+  paymentPurpose: PaymongoMembershipCheckoutPurpose;
+  requestedAmount?: number;
+};
+
 export type PaymongoCheckoutResult = {
   paymentReferenceId: string;
   referenceNumber: string;
@@ -95,6 +122,17 @@ export type PaymongoCheckoutResult = {
   amount: number;
   currency: "PHP";
   mode: PaymongoMode;
+};
+
+export type PaymongoPublicCheckoutResult = {
+  referenceNumber: string;
+  checkoutUrl: string;
+  gatewayStatus: string | null;
+  paymentPurpose: PaymongoMembershipCheckoutPurpose;
+  amount: number;
+  currency: "PHP";
+  mode: PaymongoMode;
+  status: "Waiting" | "Confirmed";
 };
 
 export type PaymongoPaymentStatus = {
@@ -113,4 +151,3 @@ export type PaymongoPaymentStatus = {
 };
 
 export type PaymongoCheckoutActor = AuthContext;
-

@@ -28,3 +28,19 @@ export type PaymongoCheckoutSessionResponse = z.infer<
   typeof paymongoCheckoutSessionResponseSchema
 >;
 
+export const paymongoMembershipCheckoutBodySchema = z.discriminatedUnion(
+  "paymentPurpose",
+  [
+    z.object({
+      paymentPurpose: z.literal("Associate Membership Fee"),
+    }),
+    z.object({
+      paymentPurpose: z.literal("Share Capital"),
+      requestedAmount: z.coerce.number().finite().positive(),
+    }),
+  ],
+);
+
+export type PaymongoMembershipCheckoutBody = z.infer<
+  typeof paymongoMembershipCheckoutBodySchema
+>;

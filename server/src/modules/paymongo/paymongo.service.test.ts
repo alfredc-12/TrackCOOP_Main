@@ -98,6 +98,23 @@ function makeService(record: PaymongoPaymentReferenceRecord | null, options: {
         async findPaymentReference() {
           return record;
         },
+        async findMembershipApplicationByCode() {
+          return null;
+        },
+        async getMembershipPaymentSettings() {
+          return {
+            associateFee: 200,
+            initialShareCapital: 1500,
+            trueMemberRequiredCapital: 3000,
+            maximumShareCapital: 15000,
+          };
+        },
+        async getValidatedMembershipPaymentTotal() {
+          return 0;
+        },
+        async prepareMembershipPaymentReference() {
+          return paymentReference;
+        },
         async recordCheckoutSession(input) {
           updates.push(input);
         },
@@ -197,4 +214,3 @@ test("getPaymentReferenceStatus enforces ownership and returns safe status", asy
   assert.equal(status.gatewayStatus, "active");
   assert.equal(status.currency, "PHP");
 });
-
