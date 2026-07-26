@@ -1,14 +1,23 @@
 -- TrackCOOP testing data and admin settings.
 -- Run manually after importing TrackCOOP_MAIN_Database.sql.
 --
--- This seed is idempotent and does not delete existing data.
--- It creates local test accounts with bcrypt password hashes, reference data,
--- admin settings, sample portal data, and audit entries.
+-- Intended for a fresh or truncated local database.
+-- People seeded:
+--   1 Chairman account
+--   1 Bookkeeper account
+--   10 membership application people total
+--     - 3 approved applications converted to member profiles
+--     - 7 applications still in process
+--   Additional module test/reference data for finance, POS, inventory, rentals,
+--   documents, reports, announcements, requests, notifications, landing content,
+--   member indicators, and admin-managed settings.
 --
 -- Local test sign-ins:
 --   chairman.test@trackcoop.local   / ChairmanTest123!
 --   bookkeeper.test@trackcoop.local / BookkeeperTest123!
---   member.test@trackcoop.local     / MemberTest123!
+--   maria.member@trackcoop.local    / MemberTest123!
+--   benito.member@trackcoop.local   / MemberTest123!
+--   elena.member@trackcoop.local    / MemberTest123!
 
 SET NAMES utf8mb4;
 SET time_zone = '+08:00';
@@ -16,7 +25,7 @@ SET time_zone = '+08:00';
 START TRANSACTION;
 
 -- ---------------------------------------------------------------------------
--- Reference roles, financial categories, and system settings
+-- Reference roles and admin settings
 -- ---------------------------------------------------------------------------
 
 INSERT INTO roles (role_name, role_slug, description, is_active)
@@ -82,7 +91,8 @@ VALUES
   ('membership', 'membership.terms_version', '2026-07-24', 'String', 'Membership terms and consent version used for new applications.', 0),
   ('member_indicators', 'member_indicators.minimum_quintile_population', '5', 'Number', 'Minimum member population before indicator scoring uses deterministic quintile ranks.', 0),
   ('member_indicators', 'member_indicators.fallback_thresholds', '{"recencyDays":[{"max":30,"score":5},{"max":90,"score":4},{"max":180,"score":3},{"max":365,"score":2}],"frequencyCount":[{"min":12,"score":5},{"min":6,"score":4},{"min":3,"score":3},{"min":1,"score":2}],"contributionAmount":[{"min":10000,"score":5},{"min":5000,"score":4},{"min":1500,"score":3},{"min":1,"score":2}]}', 'JSON', 'Fallback 1-5 indicator thresholds used when the member population is too small for stable quintile ranks.', 0),
-  ('member_indicators', 'member_indicators.label_thresholds', '{"activeMin":12,"needsMonitoringMin":7}', 'JSON', 'Total-score thresholds for advisory member indicator labels.', 0)
+  ('member_indicators', 'member_indicators.label_thresholds', '{"activeMin":12,"needsMonitoringMin":7}', 'JSON', 'Total-score thresholds for advisory member indicator labels.', 0),
+  ('inventory', 'inventory.allow_negative_stock', 'false', 'Boolean', 'Prevent negative stock unless formally changed by an authorized administrator.', 0)
 ON DUPLICATE KEY UPDATE
   setting_group = VALUES(setting_group),
   setting_value = VALUES(setting_value),
@@ -148,10 +158,30 @@ VALUES
   ),
   (
     @member_role_id,
-    'member.test',
-    'member.test@trackcoop.local',
+    'maria.member',
+    'maria.member@trackcoop.local',
     '$2b$10$x2Z7f3vBR7htFis/ajCZ7.1mSoaCIUdvZyV6XJgxOoBkzEBhH4ZHy',
     'Maria Santos',
+    'Active',
+    NOW(),
+    @chairman_id
+  ),
+  (
+    @member_role_id,
+    'benito.member',
+    'benito.member@trackcoop.local',
+    '$2b$10$x2Z7f3vBR7htFis/ajCZ7.1mSoaCIUdvZyV6XJgxOoBkzEBhH4ZHy',
+    'Benito Cruz',
+    'Active',
+    NOW(),
+    @chairman_id
+  ),
+  (
+    @member_role_id,
+    'elena.member',
+    'elena.member@trackcoop.local',
+    '$2b$10$x2Z7f3vBR7htFis/ajCZ7.1mSoaCIUdvZyV6XJgxOoBkzEBhH4ZHy',
+    'Elena Ramos',
     'Active',
     NOW(),
     @chairman_id
@@ -166,10 +196,12 @@ ON DUPLICATE KEY UPDATE
   created_by = COALESCE(created_by, VALUES(created_by));
 
 SET @bookkeeper_id := (SELECT user_id FROM users WHERE email = 'bookkeeper.test@trackcoop.local' LIMIT 1);
-SET @member_user_id := (SELECT user_id FROM users WHERE email = 'member.test@trackcoop.local' LIMIT 1);
+SET @maria_user_id := (SELECT user_id FROM users WHERE email = 'maria.member@trackcoop.local' LIMIT 1);
+SET @benito_user_id := (SELECT user_id FROM users WHERE email = 'benito.member@trackcoop.local' LIMIT 1);
+SET @elena_user_id := (SELECT user_id FROM users WHERE email = 'elena.member@trackcoop.local' LIMIT 1);
 
 -- ---------------------------------------------------------------------------
--- Members and status history
+-- Approved members
 -- ---------------------------------------------------------------------------
 
 INSERT INTO member_profiles (
@@ -179,6 +211,8 @@ INSERT INTO member_profiles (
   contact_number,
   email,
   barangay,
+  municipality,
+  province,
   sector,
   membership_type,
   approval_status,
@@ -192,12 +226,14 @@ INSERT INTO member_profiles (
 )
 VALUES
   (
-    @member_user_id,
-    'NFFAC-TM-0001',
+    @maria_user_id,
+    'NFFAC-SEED-0001',
     'Maria Santos',
     '09171234567',
-    'member.test@trackcoop.local',
+    'maria.member@trackcoop.local',
     'Lumbangan',
+    'Nasugbu',
+    'Batangas',
     'Rice Farming',
     'True Member',
     'Approved',
@@ -206,44 +242,76 @@ VALUES
     @chairman_id,
     '2026-01-20 09:00:00',
     '2026-02-01',
-    '2026-12-31',
-    'Seeded member for Chairman and Bookkeeper portal testing.'
+    NULL,
+    'Approved seeded member converted from a membership application.'
   ),
   (
-    NULL,
-    'NFFAC-AM-0002',
-    'Juan Dela Cruz',
-    '09179876543',
-    'juan.seed@example.local',
+    @benito_user_id,
+    'NFFAC-SEED-0002',
+    'Benito Cruz',
+    '09170000002',
+    'benito.member@trackcoop.local',
     'Wawa',
+    'Nasugbu',
+    'Batangas',
     'Fisherfolk',
     'Associate',
-    'Pending',
-    'Pending',
-    '2026-03-05',
+    'Approved',
+    'Active',
+    '2026-02-05',
+    @chairman_id,
+    '2026-02-09 10:30:00',
     NULL,
+    '2027-02-09',
+    'Approved seeded associate member.'
+  ),
+  (
+    @elena_user_id,
+    'NFFAC-SEED-0003',
+    'Elena Ramos',
+    '09170000003',
+    'elena.member@trackcoop.local',
+    'Bilaran',
+    'Nasugbu',
+    'Batangas',
+    'Vegetable Farming',
+    'Associate',
+    'Approved',
+    'Active',
+    '2026-03-12',
+    @chairman_id,
+    '2026-03-16 14:15:00',
     NULL,
-    NULL,
-    NULL,
-    'Pending associate member for approval workflow testing.'
+    '2027-03-16',
+    'Approved seeded associate member.'
   )
 ON DUPLICATE KEY UPDATE
+  user_id = VALUES(user_id),
   full_name = VALUES(full_name),
   contact_number = VALUES(contact_number),
   email = VALUES(email),
   barangay = VALUES(barangay),
+  municipality = VALUES(municipality),
+  province = VALUES(province),
   sector = VALUES(sector),
   membership_type = VALUES(membership_type),
   approval_status = VALUES(approval_status),
   official_member_status = VALUES(official_member_status),
+  application_date = VALUES(application_date),
   approved_by = VALUES(approved_by),
   approved_at = VALUES(approved_at),
   true_member_since = VALUES(true_member_since),
   share_capital_deadline = VALUES(share_capital_deadline),
   notes = VALUES(notes);
 
-SET @member_id := (SELECT member_id FROM member_profiles WHERE member_code = 'NFFAC-TM-0001' LIMIT 1);
-SET @associate_member_id := (SELECT member_id FROM member_profiles WHERE member_code = 'NFFAC-AM-0002' LIMIT 1);
+SET @maria_member_id := (SELECT member_id FROM member_profiles WHERE member_code = 'NFFAC-SEED-0001' LIMIT 1);
+SET @benito_member_id := (SELECT member_id FROM member_profiles WHERE member_code = 'NFFAC-SEED-0002' LIMIT 1);
+SET @elena_member_id := (SELECT member_id FROM member_profiles WHERE member_code = 'NFFAC-SEED-0003' LIMIT 1);
+
+DELETE h
+  FROM member_status_history h
+  JOIN member_profiles m ON m.member_id = h.member_id
+ WHERE m.member_code IN ('NFFAC-SEED-0001', 'NFFAC-SEED-0002', 'NFFAC-SEED-0003');
 
 INSERT INTO member_status_history (
   member_id,
@@ -255,50 +323,620 @@ INSERT INTO member_status_history (
   changed_by,
   changed_at
 )
-SELECT
-  @member_id,
-  'Associate',
-  'True Member',
-  'Pending',
-  'Active',
-  'Initial seeded approval and true-member classification.',
-  @chairman_id,
-  '2026-02-01 09:30:00'
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM member_status_history
-  WHERE member_id = @member_id
-    AND changed_by = @chairman_id
-    AND new_membership_type = 'True Member'
-    AND new_official_status = 'Active'
-);
+VALUES
+  (@maria_member_id, 'Associate', 'True Member', 'Pending', 'Active', 'Seeded approved member application conversion.', @chairman_id, '2026-01-20 09:00:00'),
+  (@benito_member_id, NULL, 'Associate', 'Pending', 'Active', 'Seeded approved member application conversion.', @chairman_id, '2026-02-09 10:30:00'),
+  (@elena_member_id, NULL, 'Associate', 'Pending', 'Active', 'Seeded approved member application conversion.', @chairman_id, '2026-03-16 14:15:00');
 
-INSERT INTO member_status_history (
-  member_id,
-  old_membership_type,
-  new_membership_type,
-  old_official_status,
-  new_official_status,
-  reason,
+-- ---------------------------------------------------------------------------
+-- Membership applications: 3 approved and 7 still in process
+-- ---------------------------------------------------------------------------
+
+DELETE FROM membership_applications
+ WHERE application_code LIKE 'MEM-APP-SEED-%';
+
+INSERT INTO membership_applications (
+  application_code,
+  public_tracking_token_hash,
+  application_source,
+  requested_membership_type,
+  first_name,
+  middle_name,
+  last_name,
+  suffix,
+  email,
+  contact_number,
+  civil_status,
+  place_of_birth,
+  date_of_birth,
+  current_address,
+  barangay,
+  municipality,
+  province,
+  father_name,
+  mother_name,
+  spouse_name,
+  occupation,
+  orientation_commitment_accepted,
+  membership_fee_commitment_accepted,
+  membership_fee_amount,
+  share_subscription_commitment_accepted,
+  initial_share_capital_amount,
+  target_share_capital_amount,
+  share_capital_deadline_months,
+  patronage_refund_acknowledged,
+  bylaws_agreement_accepted,
+  privacy_consent_accepted,
+  terms_version,
+  applicant_signature_name,
+  signed_at,
+  signed_place,
+  application_status,
+  submitted_by_user_id,
+  reviewed_by,
+  reviewed_at,
+  board_meeting_date,
+  secretary_name,
+  decision_reason,
+  converted_member_id,
+  submitted_ip,
+  submitted_user_agent,
+  submitted_at
+)
+VALUES
+  (
+    'MEM-APP-SEED-0001',
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'Public Website',
+    'True Member',
+    'Maria',
+    NULL,
+    'Santos',
+    NULL,
+    'maria.member@trackcoop.local',
+    '09171234567',
+    'Married',
+    'Nasugbu, Batangas',
+    '1990-01-15',
+    'Barangay Lumbangan, Nasugbu, Batangas',
+    'Lumbangan',
+    'Nasugbu',
+    'Batangas',
+    'Juan Santos',
+    'Rosa Santos',
+    'Pedro Santos',
+    'Rice Farmer',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Maria Santos',
+    '2026-01-15 08:00:00',
+    'Nasugbu, Batangas',
+    'Approved',
+    NULL,
+    @chairman_id,
+    '2026-01-20 09:00:00',
+    '2026-01-20',
+    'Test Chairman',
+    'Seeded approved true-member application.',
+    @maria_member_id,
+    '127.0.0.1',
+    'TrackCOOP seed',
+    '2026-01-15 08:00:00'
+  ),
+  (
+    'MEM-APP-SEED-0002',
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    'Chairman Entry',
+    'Associate',
+    'Benito',
+    NULL,
+    'Cruz',
+    NULL,
+    'benito.member@trackcoop.local',
+    '09170000002',
+    'Single',
+    'Nasugbu, Batangas',
+    '1988-05-08',
+    'Barangay Wawa, Nasugbu, Batangas',
+    'Wawa',
+    'Nasugbu',
+    'Batangas',
+    'Ramon Cruz',
+    'Lourdes Cruz',
+    NULL,
+    'Fisherfolk',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Benito Cruz',
+    '2026-02-05 09:15:00',
+    'Nasugbu, Batangas',
+    'Approved',
+    @chairman_id,
+    @chairman_id,
+    '2026-02-09 10:30:00',
+    '2026-02-09',
+    'Test Chairman',
+    'Seeded approved associate application.',
+    @benito_member_id,
+    NULL,
+    NULL,
+    '2026-02-05 09:15:00'
+  ),
+  (
+    'MEM-APP-SEED-0003',
+    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+    'Imported Paper Form',
+    'Associate',
+    'Elena',
+    NULL,
+    'Ramos',
+    NULL,
+    'elena.member@trackcoop.local',
+    '09170000003',
+    'Widowed',
+    'Nasugbu, Batangas',
+    '1979-11-21',
+    'Barangay Bilaran, Nasugbu, Batangas',
+    'Bilaran',
+    'Nasugbu',
+    'Batangas',
+    'Manuel Ramos',
+    'Corazon Ramos',
+    NULL,
+    'Vegetable Farmer',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Elena Ramos',
+    '2026-03-12 13:20:00',
+    'Nasugbu, Batangas',
+    'Approved',
+    @chairman_id,
+    @chairman_id,
+    '2026-03-16 14:15:00',
+    '2026-03-16',
+    'Test Chairman',
+    'Seeded approved associate application.',
+    @elena_member_id,
+    NULL,
+    NULL,
+    '2026-03-12 13:20:00'
+  ),
+  (
+    'MEM-APP-SEED-0004',
+    'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+    'Public Website',
+    'Associate',
+    'Ana',
+    'Reyes',
+    'Villanueva',
+    NULL,
+    'ana.applicant@example.local',
+    '09170000004',
+    'Single',
+    'Nasugbu, Batangas',
+    '1996-04-02',
+    'Barangay Bucana, Nasugbu, Batangas',
+    'Bucana',
+    'Nasugbu',
+    'Batangas',
+    'Alberto Villanueva',
+    'Mila Villanueva',
+    NULL,
+    'Rice Farmer',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Ana Reyes Villanueva',
+    '2026-07-01 08:30:00',
+    'Nasugbu, Batangas',
+    'Submitted',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '127.0.0.1',
+    'TrackCOOP seed',
+    '2026-07-01 08:30:00'
+  ),
+  (
+    'MEM-APP-SEED-0005',
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    'Public Website',
+    'True Member',
+    'Carlos',
+    NULL,
+    'Mendoza',
+    'Jr.',
+    'carlos.applicant@example.local',
+    '09170000005',
+    'Married',
+    'Nasugbu, Batangas',
+    '1985-09-18',
+    'Barangay Papaya, Nasugbu, Batangas',
+    'Papaya',
+    'Nasugbu',
+    'Batangas',
+    'Jose Mendoza',
+    'Nena Mendoza',
+    'Liza Mendoza',
+    'Aquaculture Operator',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Carlos Mendoza Jr.',
+    '2026-07-03 09:45:00',
+    'Nasugbu, Batangas',
+    'Under Review',
+    NULL,
+    @chairman_id,
+    '2026-07-04 10:00:00',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '127.0.0.1',
+    'TrackCOOP seed',
+    '2026-07-03 09:45:00'
+  ),
+  (
+    'MEM-APP-SEED-0006',
+    'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+    'Public Website',
+    'Associate',
+    'Lucia',
+    'De Vera',
+    'Garcia',
+    NULL,
+    'lucia.applicant@example.local',
+    '09170000006',
+    'Separated',
+    'Nasugbu, Batangas',
+    '1991-12-05',
+    'Barangay Kaylaway, Nasugbu, Batangas',
+    'Kaylaway',
+    'Nasugbu',
+    'Batangas',
+    'Ricardo Garcia',
+    'Amelia Garcia',
+    NULL,
+    'Vegetable Farmer',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Lucia De Vera Garcia',
+    '2026-07-05 11:10:00',
+    'Nasugbu, Batangas',
+    'Needs Information',
+    NULL,
+    @chairman_id,
+    '2026-07-06 14:00:00',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '127.0.0.1',
+    'TrackCOOP seed',
+    '2026-07-05 11:10:00'
+  ),
+  (
+    'MEM-APP-SEED-0007',
+    '1111111111111111111111111111111111111111111111111111111111111111',
+    'Chairman Entry',
+    'Associate',
+    'Teresa',
+    NULL,
+    'Dizon',
+    NULL,
+    NULL,
+    '09170000007',
+    'Single',
+    'Nasugbu, Batangas',
+    '1994-06-14',
+    'Barangay Natipuan, Nasugbu, Batangas',
+    'Natipuan',
+    'Nasugbu',
+    'Batangas',
+    'Oscar Dizon',
+    'Remedios Dizon',
+    NULL,
+    'Farm Laborer',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Teresa Dizon',
+    '2026-07-07 15:00:00',
+    'Nasugbu, Batangas',
+    'Submitted',
+    @chairman_id,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '2026-07-07 15:00:00'
+  ),
+  (
+    'MEM-APP-SEED-0008',
+    '2222222222222222222222222222222222222222222222222222222222222222',
+    'Public Website',
+    'True Member',
+    'Marco',
+    'Luna',
+    'Bautista',
+    NULL,
+    'marco.applicant@example.local',
+    '09170000008',
+    'Married',
+    'Nasugbu, Batangas',
+    '1982-02-22',
+    'Barangay Looc, Nasugbu, Batangas',
+    'Looc',
+    'Nasugbu',
+    'Batangas',
+    'Danilo Bautista',
+    'Gloria Bautista',
+    'Patricia Bautista',
+    'Fisherfolk',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Marco Luna Bautista',
+    '2026-07-09 07:40:00',
+    'Nasugbu, Batangas',
+    'Under Review',
+    NULL,
+    @chairman_id,
+    '2026-07-10 09:00:00',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '127.0.0.1',
+    'TrackCOOP seed',
+    '2026-07-09 07:40:00'
+  ),
+  (
+    'MEM-APP-SEED-0009',
+    '3333333333333333333333333333333333333333333333333333333333333333',
+    'Public Website',
+    'Associate',
+    'Sofia',
+    NULL,
+    'Ramos',
+    NULL,
+    'sofia.applicant@example.local',
+    '09170000009',
+    'Widowed',
+    'Nasugbu, Batangas',
+    '1976-08-30',
+    'Barangay Tumalim, Nasugbu, Batangas',
+    'Tumalim',
+    'Nasugbu',
+    'Batangas',
+    'Victor Ramos',
+    'Leticia Ramos',
+    NULL,
+    'Market Vendor',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Sofia Ramos',
+    '2026-07-11 12:25:00',
+    'Nasugbu, Batangas',
+    'Needs Information',
+    NULL,
+    @chairman_id,
+    '2026-07-12 10:20:00',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '127.0.0.1',
+    'TrackCOOP seed',
+    '2026-07-11 12:25:00'
+  ),
+  (
+    'MEM-APP-SEED-0010',
+    '4444444444444444444444444444444444444444444444444444444444444444',
+    'Imported Paper Form',
+    'Associate',
+    'Rafael',
+    'Ocampo',
+    'Navarro',
+    NULL,
+    'rafael.applicant@example.local',
+    '09170000010',
+    'Single',
+    'Nasugbu, Batangas',
+    '1998-10-19',
+    'Barangay Banilad, Nasugbu, Batangas',
+    'Banilad',
+    'Nasugbu',
+    'Batangas',
+    'Mario Navarro',
+    'Estrella Navarro',
+    NULL,
+    'Young Farmer',
+    1,
+    1,
+    200.00,
+    1,
+    1500.00,
+    3000.00,
+    12,
+    1,
+    1,
+    1,
+    '2026-07-24',
+    'Rafael Ocampo Navarro',
+    '2026-07-13 16:35:00',
+    'Nasugbu, Batangas',
+    'Under Review',
+    @chairman_id,
+    @chairman_id,
+    '2026-07-14 09:30:00',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    '2026-07-13 16:35:00'
+  );
+
+INSERT INTO membership_application_status_history (
+  membership_application_id,
+  old_status,
+  new_status,
+  internal_note,
+  applicant_message,
   changed_by,
   changed_at
 )
-SELECT
-  @associate_member_id,
-  NULL,
-  'Associate',
-  NULL,
-  'Pending',
-  'Initial seeded associate application.',
-  @chairman_id,
-  '2026-03-05 10:15:00'
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM member_status_history
-  WHERE member_id = @associate_member_id
-    AND changed_by = @chairman_id
-    AND new_official_status = 'Pending'
-);
+SELECT membership_application_id, NULL, application_status,
+       CASE
+         WHEN application_status = 'Approved' THEN 'Seeded approved application converted to a member profile.'
+         WHEN application_status = 'Under Review' THEN 'Seeded application is currently under Chairman review.'
+         WHEN application_status = 'Needs Information' THEN 'Seeded application is waiting for applicant follow-up.'
+         ELSE 'Seeded application is waiting for review.'
+       END,
+       CASE
+         WHEN application_status = 'Approved' THEN 'Your membership application has been approved.'
+         WHEN application_status = 'Needs Information' THEN 'Please provide the additional information requested by the cooperative.'
+         ELSE 'Your application has been received by the cooperative.'
+       END,
+       CASE WHEN application_status = 'Submitted' THEN NULL ELSE @chairman_id END,
+       submitted_at
+  FROM membership_applications
+ WHERE application_code LIKE 'MEM-APP-SEED-%';
+
+INSERT INTO membership_application_requirements (
+  membership_application_id,
+  requirement_type,
+  requirement_status,
+  completion_date,
+  verified_by,
+  verified_at,
+  remarks
+)
+SELECT membership_application_id, 'Orientation/Seminar',
+       CASE WHEN application_status = 'Approved' THEN 'Verified' WHEN application_status = 'Needs Information' THEN 'Rejected' ELSE 'Pending' END,
+       CASE WHEN application_status = 'Approved' THEN DATE(reviewed_at) ELSE NULL END,
+       CASE WHEN application_status = 'Approved' THEN @chairman_id ELSE NULL END,
+       CASE WHEN application_status = 'Approved' THEN reviewed_at ELSE NULL END,
+       CASE WHEN application_status = 'Needs Information' THEN 'Orientation attendance needs confirmation.' ELSE NULL END
+  FROM membership_applications
+ WHERE application_code LIKE 'MEM-APP-SEED-%'
+UNION ALL
+SELECT membership_application_id, 'Associate Membership Fee',
+       CASE WHEN application_status = 'Approved' THEN 'Verified' WHEN application_status = 'Under Review' THEN 'Submitted' ELSE 'Pending' END,
+       CASE WHEN application_status = 'Approved' THEN DATE(reviewed_at) ELSE NULL END,
+       CASE WHEN application_status = 'Approved' THEN @chairman_id ELSE NULL END,
+       CASE WHEN application_status = 'Approved' THEN reviewed_at ELSE NULL END,
+       NULL
+  FROM membership_applications
+ WHERE application_code LIKE 'MEM-APP-SEED-%'
+UNION ALL
+SELECT membership_application_id, 'Signed Application',
+       CASE WHEN application_status IN ('Approved', 'Under Review') THEN 'Verified' ELSE 'Pending' END,
+       CASE WHEN application_status IN ('Approved', 'Under Review') THEN DATE(submitted_at) ELSE NULL END,
+       CASE WHEN application_status IN ('Approved', 'Under Review') THEN @chairman_id ELSE NULL END,
+       CASE WHEN application_status IN ('Approved', 'Under Review') THEN submitted_at ELSE NULL END,
+       NULL
+  FROM membership_applications
+ WHERE application_code LIKE 'MEM-APP-SEED-%'
+UNION ALL
+SELECT membership_application_id, 'Initial Share Capital',
+       CASE WHEN application_status = 'Approved' THEN 'Verified' WHEN application_status = 'Under Review' THEN 'Submitted' ELSE 'Pending' END,
+       CASE WHEN application_status = 'Approved' THEN DATE(reviewed_at) ELSE NULL END,
+       CASE WHEN application_status = 'Approved' THEN @chairman_id ELSE NULL END,
+       CASE WHEN application_status = 'Approved' THEN reviewed_at ELSE NULL END,
+       NULL
+  FROM membership_applications
+ WHERE application_code LIKE 'MEM-APP-SEED-%'
+   AND requested_membership_type = 'True Member';
+
 
 -- ---------------------------------------------------------------------------
 -- Payments, share capital, and finance
@@ -325,16 +963,16 @@ INSERT INTO payment_references (
 )
 VALUES
   (
-    @member_id,
-    @member_user_id,
+    @maria_member_id,
+    @maria_user_id,
     'Maria Santos',
-    'member.test@trackcoop.local',
+    'maria.member@trackcoop.local',
     '09171234567',
     'GCash',
     'TEST-SHARE-0001',
     'Share Capital',
     'member_profiles',
-    @member_id,
+    @maria_member_id,
     1500.00,
     '/private/uploads/test/share-capital-0001.jpg',
     'Validated',
@@ -344,16 +982,16 @@ VALUES
     '2026-02-05 10:00:00'
   ),
   (
-    @associate_member_id,
+    @benito_member_id,
     NULL,
-    'Juan Dela Cruz',
-    'juan.seed@example.local',
-    '09179876543',
+    'Benito Cruz',
+    'benito.member@trackcoop.local',
+    '09170000002',
     'GCash',
     'TEST-ASSOC-0002',
     'Associate Membership Fee',
     'member_profiles',
-    @associate_member_id,
+    @benito_member_id,
     200.00,
     '/private/uploads/test/associate-fee-0002.jpg',
     'Pending',
@@ -392,7 +1030,7 @@ INSERT INTO share_capital_payments (
   remarks
 )
 SELECT
-  @member_id,
+  @maria_member_id,
   @share_ref_id,
   1500.00,
   '2026-02-05',
@@ -403,7 +1041,7 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1
   FROM share_capital_payments
-  WHERE member_id = @member_id
+  WHERE member_id = @maria_member_id
     AND payment_reference_id = @share_ref_id
 );
 
@@ -429,8 +1067,8 @@ INSERT INTO financial_records (
   remarks
 )
 VALUES
-  ('FIN-TEST-SHARE-0001', @share_ref_id, @member_id, @cat_share, @bookkeeper_id, @chairman_id, 'Income', 'Share Capital', @share_ref_id, 1500.00, '2026-02-05', 'Active', 'Seeded share-capital ledger entry.'),
-  ('FIN-TEST-ASSOC-0002', @assoc_ref_id, @associate_member_id, @cat_assoc, @bookkeeper_id, NULL, 'Income', 'Membership', @assoc_ref_id, 200.00, '2026-03-06', 'Active', 'Seeded pending associate fee ledger entry.'),
+  ('FIN-TEST-SHARE-0001', @share_ref_id, @maria_member_id, @cat_share, @bookkeeper_id, @chairman_id, 'Income', 'Share Capital', @share_ref_id, 1500.00, '2026-02-05', 'Active', 'Seeded share-capital ledger entry.'),
+  ('FIN-TEST-ASSOC-0002', @assoc_ref_id, @benito_member_id, @cat_assoc, @bookkeeper_id, NULL, 'Income', 'Membership', @assoc_ref_id, 200.00, '2026-03-06', 'Active', 'Seeded pending associate fee ledger entry.'),
   ('FIN-TEST-EXP-0001', NULL, NULL, @cat_supplies, @bookkeeper_id, @chairman_id, 'Expense', 'Manual', NULL, 850.00, '2026-03-12', 'Active', 'Seeded farm supplies expense.')
 ON DUPLICATE KEY UPDATE
   payment_reference_id = VALUES(payment_reference_id),
@@ -545,7 +1183,7 @@ INSERT INTO pos_sales (
 )
 VALUES (
   'POS-TEST-0001',
-  @member_id,
+  @maria_member_id,
   'Maria Santos',
   '09171234567',
   'Member Sale',
@@ -637,7 +1275,7 @@ INSERT INTO financial_records (
 )
 VALUES (
   'FIN-TEST-POS-0001',
-  @member_id,
+  @maria_member_id,
   @cat_pos,
   @bookkeeper_id,
   @chairman_id,
@@ -713,8 +1351,8 @@ INSERT INTO rental_bookings (
   recorded_by
 )
 VALUES
-  ('RNT-TEST-0001', @tractor_asset_id, @member_id, 'Maria Santos', '09171234567', 'Rice field land preparation in Lumbangan.', '2026-04-10 08:00:00', '2026-04-10 17:00:00', 'Scheduled', 1800.00, 500.00, 2300.00, 'Paid', @chairman_id, '2026-04-01 09:00:00', @chairman_id),
-  ('RNT-TEST-0002', @pump_asset_id, @associate_member_id, 'Juan Dela Cruz', '09179876543', 'Irrigation support request awaiting review.', '2026-04-18 08:00:00', '2026-04-18 17:00:00', 'Pending', 650.00, 250.00, 900.00, 'Unpaid', NULL, NULL, @chairman_id)
+  ('RNT-TEST-0001', @tractor_asset_id, @maria_member_id, 'Maria Santos', '09171234567', 'Rice field land preparation in Lumbangan.', '2026-04-10 08:00:00', '2026-04-10 17:00:00', 'Scheduled', 1800.00, 500.00, 2300.00, 'Paid', @chairman_id, '2026-04-01 09:00:00', @chairman_id),
+  ('RNT-TEST-0002', @pump_asset_id, @benito_member_id, 'Benito Cruz', '09170000002', 'Irrigation support request awaiting review.', '2026-04-18 08:00:00', '2026-04-18 17:00:00', 'Pending', 650.00, 250.00, 900.00, 'Unpaid', NULL, NULL, @chairman_id)
 ON DUPLICATE KEY UPDATE
   rental_asset_id = VALUES(rental_asset_id),
   member_id = VALUES(member_id),
@@ -761,10 +1399,10 @@ INSERT INTO payment_references (
   submitted_at
 )
 VALUES (
-  @member_id,
-  @member_user_id,
+  @maria_member_id,
+  @maria_user_id,
   'Maria Santos',
-  'member.test@trackcoop.local',
+  'maria.member@trackcoop.local',
   '09171234567',
   'GCash',
   'TEST-RENTAL-0001',
@@ -809,7 +1447,7 @@ INSERT INTO rental_pos_records (
   notes
 )
 SELECT
-  @member_id,
+  @maria_member_id,
   @rental_ref_id,
   @bookkeeper_id,
   @rental_booking_id,
@@ -845,7 +1483,7 @@ INSERT INTO financial_records (
 VALUES (
   'FIN-TEST-RENTAL-0001',
   @rental_ref_id,
-  @member_id,
+  @maria_member_id,
   @cat_rental,
   @bookkeeper_id,
   @chairman_id,
@@ -887,7 +1525,7 @@ INSERT INTO documents (
 )
 SELECT
   @bookkeeper_id,
-  @member_id,
+  @maria_member_id,
   'Seeded Share Capital Receipt',
   'Receipt',
   'Member-only',
@@ -993,7 +1631,7 @@ INSERT IGNORE INTO announcement_recipients (
 )
 VALUES
   (@announcement_id, @bookkeeper_id, 'Delivered', '2026-03-20 08:01:00'),
-  (@announcement_id, @member_user_id, 'Delivered', '2026-03-20 08:01:00');
+  (@announcement_id, @maria_user_id, 'Delivered', '2026-03-20 08:01:00');
 
 INSERT INTO requests_inquiries (
   reference_code,
@@ -1019,14 +1657,14 @@ INSERT INTO requests_inquiries (
 )
 VALUES (
   'REQ-TEST-0001',
-  @associate_member_id,
+  @benito_member_id,
   NULL,
   @announcement_id,
   @pending_rental_booking_id,
   'Public Website',
-  'Juan Dela Cruz',
-  'juan.seed@example.local',
-  '09179876543',
+  'Benito Cruz',
+  'benito.member@trackcoop.local',
+  '09170000002',
   'Wawa',
   'SMS',
   'Rental',
@@ -1098,7 +1736,7 @@ INSERT INTO member_status_indicators (
   computed_at
 )
 SELECT
-  @member_id,
+  @maria_member_id,
   '2026-01-01',
   '2026-03-31',
   5,
@@ -1112,7 +1750,7 @@ SELECT
 WHERE NOT EXISTS (
   SELECT 1
   FROM member_status_indicators
-  WHERE member_id = @member_id
+  WHERE member_id = @maria_member_id
     AND basis_period_start = '2026-01-01'
     AND basis_period_end = '2026-03-31'
 );
@@ -1309,8 +1947,6 @@ SELECT
 WHERE NOT EXISTS (SELECT 1 FROM gallery_items WHERE title = 'Seeded Cooperative Meeting');
 
 -- ---------------------------------------------------------------------------
--- Audit entries for accountability views
--- ---------------------------------------------------------------------------
 
 INSERT INTO audit_logs (
   user_id,
@@ -1318,29 +1954,24 @@ INSERT INTO audit_logs (
   entity_table,
   record_id,
   description,
-  old_values,
   new_values,
   ip_address,
-  user_agent,
-  action_time
+  user_agent
 )
-SELECT
+VALUES (
   @chairman_id,
-  'Seed Test Data',
-  'users',
-  @chairman_id,
-  'Local test data was seeded for Chairman and Bookkeeper portal checks.',
+  'seed.testing_data.loaded',
+  'membership_applications',
   NULL,
-  JSON_OBJECT('seed', 'testing_data_and_admin_settings.sql'),
+  'Loaded focused testing data: one Chairman, one Bookkeeper, three approved members, and seven in-process applications.',
+  JSON_OBJECT(
+    'chairmen', 1,
+    'bookkeepers', 1,
+    'approvedMembers', 3,
+    'inProcessApplications', 7
+  ),
   '127.0.0.1',
-  'TrackCOOP seed',
-  NOW()
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM audit_logs
-  WHERE action = 'Seed Test Data'
-    AND entity_table = 'users'
-    AND record_id = @chairman_id
+  'TrackCOOP seed'
 );
 
 COMMIT;

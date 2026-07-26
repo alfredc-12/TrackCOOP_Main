@@ -14,8 +14,8 @@ import { motion } from "motion/react";
  *   #6dba7a  mid green    — medium droop  (y 66–100), 2 cycles, peaks at x=360,1080  (half-period offset)
  *   #1F6B43  dark green   — shallowest    (y 42–76),  3 cycles, wider peaks           (different rhythm)
  *
- * Each wave animates by swapping its peaks ↔ troughs over time.
- * The three have different durations so they drift in/out of phase naturally.
+ * Each wave layer morphs between matched path shapes at constant opacity.
+ * That creates real wave motion without the pulsing/seam artifacts.
  */
 
 // ── Light green (back) ──────────────────────────────────────────────────────
@@ -42,6 +42,21 @@ const DB =
   "M0,0 L0,76 C60,76 180,42 240,42 C300,42 420,76 480,76 C540,76 660,42 720,42 C780,42 900,76 960,76 C1020,76 1140,42 1200,42 C1260,42 1380,76 1440,76 L1440,0 Z";
 
 export default function FieldDivider() {
+  const renderWave = (
+    pathA: string,
+    pathB: string,
+    fill: string,
+    duration: number,
+    delay = 0,
+  ) => (
+    <motion.path
+      fill={fill}
+      d={pathA}
+      animate={{ d: [pathA, pathB, pathA] }}
+      transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
+    />
+  );
+
   return (
     <div
       aria-hidden="true"
@@ -54,31 +69,13 @@ export default function FieldDivider() {
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Light green — back layer, deepest droop */}
-        <motion.g
-          animate={{ x: [0, -28, 0], opacity: [0.9, 1, 0.9] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <path fill="#c8e8a8" d={LA} />
-          <path fill="#c8e8a8" d={LB} opacity="0.38" transform="translate(1440 0)" />
-        </motion.g>
+        {renderWave(LA, LB, "#c8e8a8", 8)}
 
         {/* Medium green — middle layer */}
-        <motion.g
-          animate={{ x: [0, 34, 0], opacity: [0.95, 0.86, 0.95] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-        >
-          <path fill="#6dba7a" d={MA} />
-          <path fill="#6dba7a" d={MB} opacity="0.32" transform="translate(-1440 0)" />
-        </motion.g>
+        {renderWave(MA, MB, "#6dba7a", 10, 0.5)}
 
         {/* Dark green — front layer, shallowest, different cycle count */}
-        <motion.g
-          animate={{ x: [0, -18, 0], opacity: [1, 0.92, 1] }}
-          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut", delay: 1.1 }}
-        >
-          <path fill="#1F6B43" d={DA} />
-          <path fill="#1F6B43" d={DB} opacity="0.26" transform="translate(1440 0)" />
-        </motion.g>
+        {renderWave(DA, DB, "#1F6B43", 6.5, 1.1)}
       </svg>
     </div>
   );

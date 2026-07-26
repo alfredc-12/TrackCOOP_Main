@@ -71,13 +71,7 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
           label: "Members",
           href: "/portal/chairman/members",
           icon: UsersRound,
-          summary: "Review member records, status, and profile history.",
-        },
-        {
-          label: "Membership Applications",
-          href: "/portal/chairman/members/applications",
-          icon: ClipboardList,
-          summary: "Review public applications and authorize member accounts.",
+          summary: "Review applications, member records, status, and profile history.",
         },
         {
           label: "Member Indicators",

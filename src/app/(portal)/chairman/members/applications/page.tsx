@@ -1,5 +1,5 @@
-import { MembershipApplicationsView } from "@/features/membership/MembershipApplicationsView";
+import { MembersClient } from "../MembersClient";
 
 export default function ChairmanMembershipApplicationsPage() {
-  return <MembershipApplicationsView />;
+  return <MembersClient />;
 }

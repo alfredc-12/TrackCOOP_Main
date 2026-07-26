@@ -548,7 +548,7 @@ function HeroBottomDecor() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[110px] overflow-hidden sm:h-[140px] lg:h-[160px]"
+      className="pointer-events-none absolute inset-x-0 bottom-[-1px] z-20 h-[118px] overflow-hidden sm:h-[148px] lg:h-[168px]"
     >
       {/* Wave SVG lines */}
       <svg
@@ -562,7 +562,13 @@ function HeroBottomDecor() {
           stroke="rgba(201,232,121,0.22)"
           strokeWidth="3"
           strokeLinecap="round"
-          animate={{ pathLength: [0.25, 0.95, 0.25], opacity: [0.28, 0.54, 0.28] }}
+          animate={{
+            d: [
+              "M-60 120 C 210 60, 430 62, 660 100 S 1100 140, 1510 72",
+              "M-60 92 C 210 142, 430 136, 660 104 S 1100 58, 1510 120",
+              "M-60 120 C 210 60, 430 62, 660 100 S 1100 140, 1510 72",
+            ],
+          }}
           transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.path
@@ -571,7 +577,13 @@ function HeroBottomDecor() {
           stroke="rgba(201,232,121,0.16)"
           strokeWidth="2"
           strokeLinecap="round"
-          animate={{ pathLength: [0.2, 1, 0.2], opacity: [0.24, 0.48, 0.24] }}
+          animate={{
+            d: [
+              "M-40 138 C 250 96, 470 98, 700 124 S 1090 154, 1480 108",
+              "M-40 112 C 250 150, 470 146, 700 118 S 1090 82, 1480 136",
+              "M-40 138 C 250 96, 470 98, 700 124 S 1090 154, 1480 108",
+            ],
+          }}
           transition={{ duration: 14, repeat: Infinity, ease: "easeInOut", delay: 1.1 }}
         />
         <path

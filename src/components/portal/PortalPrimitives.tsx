@@ -21,13 +21,13 @@ export function StatCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+    <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">{label}</p>
+        <div className="min-w-0">
+          <p className="break-words text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">{label}</p>
           <p className="mt-3 text-3xl font-black text-[#123D2A]">{value}</p>
         </div>
-        <span className="grid size-11 place-items-center rounded-lg bg-[#E7F2E4] text-[#1F6B43]">
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#E7F2E4] text-[#1F6B43]">
           <Icon className="size-5" aria-hidden="true" />
         </span>
       </div>
@@ -59,7 +59,7 @@ export function StatusBadge({
   };
 
   return (
-    <span className={cn("inline-flex items-center rounded-full px-3 py-1 text-xs font-bold", tones[tone])}>
+    <span className={cn("inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-bold", tones[tone])}>
       {children}
     </span>
   );
@@ -83,8 +83,8 @@ export function SearchAndFilters({ children }: { children?: ReactNode }) {
 
 export function DataTable({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-      <div className="overflow-x-auto">{children}</div>
+    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+      <div className="min-w-0 max-w-full overflow-x-auto">{children}</div>
     </div>
   );
 }
@@ -113,6 +113,7 @@ export function FormDialog({
   title,
   description,
   trigger,
+  contentClassName,
   children,
 }: {
   open?: boolean;
@@ -120,6 +121,7 @@ export function FormDialog({
   title: string;
   description?: string;
   trigger?: ReactNode;
+  contentClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -127,10 +129,15 @@ export function FormDialog({
       {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] max-h-[88vh] w-[min(38rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
+        <Dialog.Content
+          className={cn(
+            "fixed left-1/2 top-1/2 z-[60] max-h-[88vh] w-[min(38rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-lg border border-[#CAD8CB] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
+            contentClassName,
+          )}
+        >
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <Dialog.Title className="text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
+            <div className="min-w-0">
+              <Dialog.Title className="break-words text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
               {description ? (
                 <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
                   {description}
