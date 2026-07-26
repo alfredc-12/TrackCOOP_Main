@@ -18,6 +18,8 @@ const config: PaymongoConfig = {
   mode: "test",
   apiBaseUrl: "https://api.paymongo.test",
   secretKey: "sk_test_example",
+  webhookSecret: "whsec_test_example",
+  webhookToleranceSeconds: 300,
   paymentMethodTypes: ["card"],
   passOnFees: false,
   successUrl: "http://localhost:3000/payment/success",

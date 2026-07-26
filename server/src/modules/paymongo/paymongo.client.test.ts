@@ -13,6 +13,8 @@ const config: PaymongoConfig = {
   mode: "test",
   apiBaseUrl: "https://api.paymongo.test",
   secretKey: "sk_test_example",
+  webhookSecret: "whsec_test_example",
+  webhookToleranceSeconds: 300,
   paymentMethodTypes: ["card"],
   passOnFees: true,
   successUrl: "http://localhost:3000/payment/success",
@@ -163,4 +165,3 @@ test("validatePaymongoConfig rejects disabled gateway and live keys in developme
     (error) => error instanceof AppError && error.code === "PAYMONGO_LIVE_KEY_BLOCKED",
   );
 });
-

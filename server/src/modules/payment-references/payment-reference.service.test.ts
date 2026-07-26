@@ -72,19 +72,38 @@ test("rejectPaymentReference requires a reason", async () => {
   );
 });
 
-test("validatePaymentReference delegates a real status transition", async () => {
-  let delegated = false;
+test("validatePaymentReference delegates to the shared settlement service", async () => {
+  let settlementCalled = false;
+  let findCount = 0;
   const service = createPaymentReferenceService(
     createRepository({
+      async findById() {
+        findCount += 1;
+        return findCount === 1
+          ? payment
+          : { ...payment, validationStatus: "Validated" };
+      },
       async setValidationStatus() {
-        delegated = true;
-        return { ...payment, validationStatus: "Validated" };
+        throw new Error("manual validation must use settlement service");
       },
     }),
+    {
+      async settlePaymentReference(input) {
+        settlementCalled = true;
+        assert.equal(input.paymentReferenceId, payment.id);
+        assert.equal(input.validationSource, "Manual Bookkeeper");
+        assert.equal(input.actorUserId, auth.user.id);
+        return {
+          paymentReferenceId: input.paymentReferenceId,
+          alreadySettled: false,
+          validationStatus: "Validated",
+        };
+      },
+    },
   );
 
   const updated = await service.validatePaymentReference(payment.id, {}, auth);
 
-  assert.equal(delegated, true);
+  assert.equal(settlementCalled, true);
   assert.equal(updated.validationStatus, "Validated");
 });

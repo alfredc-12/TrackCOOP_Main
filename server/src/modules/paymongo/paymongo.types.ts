@@ -15,6 +15,8 @@ export type PaymongoConfig = {
   mode: PaymongoMode;
   apiBaseUrl: string;
   secretKey?: string;
+  webhookSecret?: string;
+  webhookToleranceSeconds: number;
   paymentMethodTypes: string[];
   passOnFees: boolean;
   successUrl: string;

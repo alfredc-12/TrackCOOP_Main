@@ -1,6 +1,10 @@
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import {
+  createPaymentSettlementService,
+  type PaymentSettlementService,
+} from "../paymongo/paymongo.settlement";
+import {
   createPaymentReferenceRepository,
   type PaymentReferenceRepository,
 } from "./payment-reference.repository";
@@ -24,6 +28,7 @@ export interface PaymentReferenceService {
 
 export function createPaymentReferenceService(
   repository: PaymentReferenceRepository = createPaymentReferenceRepository(),
+  settlementService: PaymentSettlementService = createPaymentSettlementService(),
 ): PaymentReferenceService {
   async function transition(
     id: string,
@@ -66,7 +71,31 @@ export function createPaymentReferenceService(
       return repository.update(id, input, auth);
     },
     validatePaymentReference(id, input, auth) {
-      return transition(id, "Validated", input, auth);
+      return (async () => {
+        const existing = await repository.findById(id);
+        if (!existing) {
+          throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
+        }
+        if (existing.validationStatus === "Validated") {
+          throw new AppError(
+            "Payment reference is already in that status",
+            400,
+            "PAYMENT_REFERENCE_STATUS_UNCHANGED",
+          );
+        }
+        await settlementService.settlePaymentReference({
+          paymentReferenceId: id,
+          validationSource: "Manual Bookkeeper",
+          actorUserId: auth.user.id,
+          gatewayEventId: null,
+          gatewayDetails: null,
+        });
+        const updated = await repository.findById(id);
+        if (!updated) {
+          throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
+        }
+        return updated;
+      })();
     },
     rejectPaymentReference(id, input, auth) {
       return transition(id, "Rejected", input, auth);

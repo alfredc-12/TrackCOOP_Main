@@ -20,6 +20,8 @@ export function createPaymongoConfigFromEnv(): PaymongoConfig {
     mode: env.PAYMONGO_MODE,
     apiBaseUrl: env.PAYMONGO_API_BASE_URL.replace(/\/+$/, ""),
     secretKey: env.PAYMONGO_SECRET_KEY,
+    webhookSecret: env.PAYMONGO_WEBHOOK_SECRET,
+    webhookToleranceSeconds: env.PAYMONGO_WEBHOOK_TOLERANCE_SECONDS,
     paymentMethodTypes: env.PAYMONGO_PAYMENT_METHOD_TYPES,
     passOnFees: env.PAYMONGO_PASS_ON_FEES,
     successUrl: env.PAYMENT_SUCCESS_URL,
@@ -168,4 +170,3 @@ export function createPaymongoClient(
     },
   };
 }
-
