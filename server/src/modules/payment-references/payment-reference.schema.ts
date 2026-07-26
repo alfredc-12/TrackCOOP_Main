@@ -16,6 +16,7 @@ export const validationStatuses = [
   "Validated",
   "Rejected",
   "Needs Clarification",
+  "Reversed",
 ] as const;
 
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();

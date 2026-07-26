@@ -11,6 +11,8 @@ export const expectedDatabaseTables = [
   "membership_application_documents",
   "membership_application_status_history",
   "payment_references",
+  "payment_gateway_events",
+  "payment_validation_history",
   "membership_application_requirements",
   "share_capital_payments",
   "financial_categories",

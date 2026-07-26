@@ -6,7 +6,8 @@ export type ValidationStatus =
   | "Pending"
   | "Validated"
   | "Rejected"
-  | "Needs Clarification";
+  | "Needs Clarification"
+  | "Reversed";
 
 export type PaymentReference = {
   id: string;

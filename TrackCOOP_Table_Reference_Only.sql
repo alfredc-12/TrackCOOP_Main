@@ -7,7 +7,7 @@
 -- comments. It does not delete existing data and does not create sample data.
 --
 -- INCLUDED:
---   - 40 CREATE TABLE statements
+--   - 42 CREATE TABLE statements
 --   - Primary keys and foreign keys
 --   - Unique constraints
 --   - Default values and status fields
@@ -439,6 +439,8 @@ CREATE TABLE IF NOT EXISTS payment_references (
     payer_email VARCHAR(190) NULL,
     payer_contact VARCHAR(40) NULL,
     provider VARCHAR(100) NOT NULL DEFAULT 'Reference-Based Payment',
+    payment_channel ENUM('PayMongo', 'Manual GCash', 'Cash', 'Bank Transfer', 'Other') NOT NULL DEFAULT 'Other',
+    gateway_environment ENUM('Test','Live','Manual') NOT NULL DEFAULT 'Manual',
     reference_number VARCHAR(190) NOT NULL,
     payment_purpose ENUM(
         'Associate Membership Fee',
@@ -454,19 +456,80 @@ CREATE TABLE IF NOT EXISTS payment_references (
     related_entity_id BIGINT UNSIGNED NULL,
     amount DECIMAL(12,2) NOT NULL,
     proof_file_path VARCHAR(500) NULL,
-    validation_status ENUM('Pending', 'Validated', 'Rejected', 'Needs Clarification') NOT NULL DEFAULT 'Pending',
+    validation_status ENUM('Pending', 'Validated', 'Rejected', 'Needs Clarification', 'Reversed') NOT NULL DEFAULT 'Pending',
     validated_by BIGINT UNSIGNED NULL,
     validated_at DATETIME NULL,
     rejection_reason TEXT NULL,
     notes TEXT NULL,
+    gateway_checkout_id VARCHAR(190) NULL,
+    gateway_payment_id VARCHAR(190) NULL,
+    gateway_payment_intent_id VARCHAR(190) NULL,
+    gateway_status VARCHAR(100) NULL,
+    gateway_payment_method VARCHAR(80) NULL,
+    gateway_fee_amount DECIMAL(12,2) NULL,
+    gateway_net_amount DECIMAL(12,2) NULL,
+    paid_at DATETIME NULL,
+    webhook_received_at DATETIME NULL,
+    idempotency_key VARCHAR(190) NULL,
+    validation_source ENUM('Manual Bookkeeper', 'PayMongo Webhook', 'System') NULL,
     submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_payment_provider_reference UNIQUE (provider, reference_number),
+    CONSTRAINT uq_payment_gateway_checkout UNIQUE (gateway_checkout_id),
+    CONSTRAINT uq_payment_gateway_payment UNIQUE (gateway_payment_id),
+    CONSTRAINT uq_payment_idempotency UNIQUE (idempotency_key),
     CONSTRAINT fk_payment_reference_member FOREIGN KEY (member_id) REFERENCES member_profiles(member_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_payment_reference_submitter FOREIGN KEY (submitted_by) REFERENCES users(user_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_payment_reference_validator FOREIGN KEY (validated_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE SET NULL) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: payment_gateway_events
+-- Stores safe PayMongo webhook event summaries and hashes.
+-- Raw webhook bodies, signatures, and secrets must not be stored here.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payment_gateway_events (
+    payment_gateway_event_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    payment_reference_id BIGINT UNSIGNED NULL,
+    gateway_name VARCHAR(80) NOT NULL DEFAULT 'PayMongo',
+    event_type VARCHAR(120) NOT NULL,
+    event_fingerprint CHAR(64) NOT NULL,
+    gateway_checkout_id VARCHAR(190) NULL,
+    gateway_payment_id VARCHAR(190) NULL,
+    gateway_payment_intent_id VARCHAR(190) NULL,
+    livemode TINYINT(1) NOT NULL DEFAULT 0,
+    payload_sha256 CHAR(64) NOT NULL,
+    processing_status ENUM('Received', 'Processed', 'Ignored', 'Failed') NOT NULL DEFAULT 'Received',
+    error_code VARCHAR(120) NULL,
+    error_message TEXT NULL,
+    received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at DATETIME NULL,
+    CONSTRAINT uq_payment_gateway_event_fingerprint UNIQUE (event_fingerprint),
+    CONSTRAINT fk_payment_gateway_event_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references(payment_reference_id)
+        ON UPDATE CASCADE ON DELETE SET NULL) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: payment_validation_history
+-- Records manual, webhook, and system payment-validation status changes.
+-- Used for reversals, reconciliation, and operator audit context.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payment_validation_history (
+    payment_validation_history_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    payment_reference_id BIGINT UNSIGNED NOT NULL,
+    old_status ENUM('Pending', 'Validated', 'Rejected', 'Needs Clarification', 'Reversed') NULL,
+    new_status ENUM('Pending', 'Validated', 'Rejected', 'Needs Clarification', 'Reversed') NOT NULL,
+    validation_source ENUM('Manual Bookkeeper', 'PayMongo Webhook', 'System') NOT NULL,
+    reason TEXT NULL,
+    changed_by BIGINT UNSIGNED NULL,
+    gateway_event_id BIGINT UNSIGNED NULL,
+    changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_payment_validation_history_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references(payment_reference_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_payment_validation_history_user FOREIGN KEY (changed_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_payment_validation_history_event FOREIGN KEY (gateway_event_id) REFERENCES payment_gateway_events(payment_gateway_event_id)
         ON UPDATE CASCADE ON DELETE SET NULL) ENGINE=InnoDB;
 
 -- --------------------------------------------------------------------------
@@ -1301,5 +1364,5 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- ============================================================================
 -- END OF TRACKCOOP TABLE REFERENCE SCHEMA
--- Total tables: 40
+-- Total tables: 42
 -- ============================================================================
