@@ -2,6 +2,7 @@ import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
+import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import type {
@@ -308,6 +309,65 @@ export function createPaymentReferenceRepository(
             validationStatus,
           ],
         );
+        if (validationStatus === "Validated") {
+          const [receiptDocuments] = await connection.execute<CountRow[]>(
+            `SELECT COUNT(*) AS total
+               FROM documents
+              WHERE related_module = 'PAYMENT'
+                AND related_record_id = ?
+                AND relationship_type = 'SYSTEM_RECEIPT'`,
+            [paymentReferenceId],
+          );
+          if (Number(receiptDocuments[0]?.total ?? 0) === 0) {
+            const receiptReference = `RCP-${new Date().getUTCFullYear()}-${paymentReferenceId.padStart(6, "0")}`;
+            const generatedReceipt = await createGeneratedPdfDocument(connection, {
+              uploadedBy: auth.user.id,
+              uploaderRole: auth.user.role,
+              memberId: existing.memberId,
+              title: `Payment Receipt ${receiptReference}`,
+              description:
+                "System-generated receipt for a validated payment reference.",
+              category: "RECEIPT",
+              documentType: "Receipt",
+              accessLevel: existing.memberId
+                ? "Member-only"
+                : "Bookkeeper-only",
+              relatedModule: "PAYMENT",
+              relatedRecordId: paymentReferenceId,
+              relatedRecordReference: `PAY-${paymentReferenceId.padStart(6, "0")}`,
+              relationshipType: "SYSTEM_RECEIPT",
+              fileBaseName: receiptReference,
+              heading: "Validated Payment Receipt",
+              lines: [
+                { label: "Receipt number", value: receiptReference },
+                { label: "Payer", value: existing.payerName },
+                {
+                  label: "Payment purpose",
+                  value: existing.paymentPurpose,
+                },
+                { label: "Amount paid", value: `PHP ${existing.amount}` },
+                { label: "Payment provider", value: existing.provider },
+                {
+                  label: "Payment reference",
+                  value: existing.referenceNumber,
+                },
+                { label: "Validation status", value: "Validated" },
+              ],
+            });
+            if (existing.memberId) {
+              await connection.execute(
+                `INSERT INTO notifications
+                   (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+                 SELECT mp.user_id, 'Document', 'Payment receipt available',
+                        'Your validated payment receipt is available in Documents.',
+                        'Document', ?
+                   FROM member_profiles mp
+                  WHERE mp.member_id = ? AND mp.user_id IS NOT NULL`,
+                [generatedReceipt.documentId, existing.memberId],
+              );
+            }
+          }
+        }
 
         const updated = await this.findById(paymentReferenceId);
         if (!updated) {

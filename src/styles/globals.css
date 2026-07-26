@@ -44,3 +44,46 @@ a {
   background: #dfe8c2;
   color: #17211c;
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  [data-records-print],
+  [data-records-print] * {
+    visibility: visible !important;
+  }
+
+  [data-records-print] {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    border: 0 !important;
+    padding: 20px !important;
+    background: white !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+  }
+
+  [data-no-records-print] {
+    display: none !important;
+  }
+
+  [data-records-print-only] {
+    display: block !important;
+  }
+
+  [data-records-print] table {
+    min-width: 0 !important;
+    font-size: 8pt !important;
+  }
+
+  [data-records-print] tr {
+    break-inside: avoid;
+  }
+}
+
+[data-records-print-only] {
+  display: none;
+}

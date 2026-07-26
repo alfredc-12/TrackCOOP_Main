@@ -9,6 +9,8 @@ import type {
 import { env } from "../../config/env";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
+import { createCentralDocument } from "../../records/central-document";
+import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import type {
@@ -62,6 +64,7 @@ type PaymentRow = RowDataPacket & {
   applicationId: string;
   applicationReference: string;
   applicantName: string;
+  memberId: string | null;
   approvedMembershipType: string;
   paymentReferenceId: string;
   referenceNumber: string;
@@ -123,6 +126,7 @@ function paymentSelect() {
                  CAST(a.membership_application_id AS CHAR) AS applicationId,
                  a.application_reference AS applicationReference,
                  TRIM(CONCAT(a.first_name, ' ', a.last_name)) AS applicantName,
+                 CAST(a.linked_member_id AS CHAR) AS memberId,
                  a.approved_membership_type AS approvedMembershipType,
                  CAST(p.payment_reference_id AS CHAR) AS paymentReferenceId,
                  p.reference_number AS referenceNumber,
@@ -381,6 +385,22 @@ export function createMembershipRepository(
               document.fileSizeBytes,
             ],
           );
+          await createCentralDocument(connection, {
+            uploadedBy: null,
+            title: `${reference} – ${document.documentType}`,
+            description: "Protected attachment submitted with a membership application.",
+            category: "MEMBERSHIP",
+            documentType: "Other",
+            accessLevel: "Admin-only",
+            storagePath: document.storedFilePath,
+            originalFileName: document.originalFileName,
+            mimeType: document.mimeType,
+            fileSizeBytes: document.fileSizeBytes,
+            relatedModule: "MEMBERSHIP_APPLICATION",
+            relatedRecordId: applicationId,
+            relatedRecordReference: reference,
+            relationshipType: "APPLICATION_ATTACHMENT",
+          });
         }
 
         await addHistory(connection, applicationId, null, "SUBMITTED", null);
@@ -486,6 +506,22 @@ export function createMembershipRepository(
               document.fileSizeBytes,
             ],
           );
+          await createCentralDocument(connection, {
+            uploadedBy: null,
+            title: `${application.reference} – ${document.documentType}`,
+            description: "Protected additional-information attachment submitted for membership review.",
+            category: "MEMBERSHIP",
+            documentType: "Other",
+            accessLevel: "Admin-only",
+            storagePath: document.storedFilePath,
+            originalFileName: document.originalFileName,
+            mimeType: document.mimeType,
+            fileSizeBytes: document.fileSizeBytes,
+            relatedModule: "MEMBERSHIP_APPLICATION",
+            relatedRecordId: application.id,
+            relatedRecordReference: application.reference,
+            relationshipType: "ADDITIONAL_INFORMATION_ATTACHMENT",
+          });
         }
         assertTransition(application.status, "UNDER_REVIEW");
         await connection.execute(
@@ -805,6 +841,19 @@ export function createMembershipRepository(
           ],
         );
         const paymentReferenceId = String(paymentResult.insertId);
+        await createCentralDocument(connection, {
+          uploadedBy: null,
+          title: `${application.reference} – Payment Proof`,
+          description: "Protected payment proof submitted for membership validation.",
+          category: "FINANCIAL",
+          documentType: "Financial Document",
+          accessLevel: "Bookkeeper-only",
+          storagePath: payment.proofFilePath,
+          relatedModule: "PAYMENT",
+          relatedRecordId: paymentReferenceId,
+          relatedRecordReference: application.reference,
+          relationshipType: "PAYMENT_PROOF",
+        });
         const [linkResult] = await connection.execute<ResultSetHeader>(
           `INSERT INTO membership_application_payments
              (membership_application_id, payment_reference_id, payment_status)
@@ -976,6 +1025,36 @@ export function createMembershipRepository(
               ],
             );
           }
+          await createGeneratedPdfDocument(connection, {
+            uploadedBy: auth.user.id,
+            uploaderRole: auth.user.role,
+            memberId: payment.memberId,
+            title: `Membership Receipt ${receiptNumber}`,
+            description:
+              "System-generated receipt for a validated membership payment.",
+            category: "RECEIPT",
+            documentType: "Receipt",
+            accessLevel: payment.memberId ? "Member-only" : "Bookkeeper-only",
+            relatedModule: "PAYMENT",
+            relatedRecordId: payment.paymentReferenceId,
+            relatedRecordReference: receiptNumber,
+            relationshipType: "SYSTEM_RECEIPT",
+            fileBaseName: receiptNumber ?? `membership-receipt-${id}`,
+            heading: "Membership Payment Receipt",
+            lines: [
+              { label: "Receipt number", value: receiptNumber },
+              { label: "Application", value: payment.applicationReference },
+              { label: "Applicant", value: payment.applicantName },
+              {
+                label: "Membership type",
+                value: payment.approvedMembershipType,
+              },
+              { label: "Amount paid", value: `PHP ${payment.amount}` },
+              { label: "Payment provider", value: payment.provider },
+              { label: "Payment reference", value: payment.referenceNumber },
+              { label: "Validation status", value: "Validated" },
+            ],
+          });
         }
         await addHistory(
           connection,
@@ -1301,6 +1380,60 @@ export function createMembershipRepository(
           activation.applicationId,
           "The member activated the account using a one-time token.",
         );
+        const [members] = await connection.execute<
+          (RowDataPacket & {
+            id: string;
+            memberCode: string;
+            fullName: string;
+            membershipType: string;
+            approvedAt: string | null;
+          })[]
+        >(
+          `SELECT CAST(member_id AS CHAR) AS id, member_code AS memberCode,
+                  full_name AS fullName, membership_type AS membershipType,
+                  CAST(approved_at AS CHAR) AS approvedAt
+             FROM member_profiles
+            WHERE user_id = ?
+            LIMIT 1`,
+          [activation.userId],
+        );
+        const member = members[0];
+        if (member) {
+          const certificate = await createGeneratedPdfDocument(connection, {
+            uploadedBy: activation.userId,
+            uploaderRole: "member",
+            memberId: member.id,
+            title: `Membership Certificate ${member.memberCode}`,
+            description:
+              "System-generated membership certificate issued after account activation.",
+            category: "CERTIFICATE",
+            documentType: "Certificate",
+            accessLevel: "Member-only",
+            relatedModule: "MEMBER_PROFILE",
+            relatedRecordId: member.id,
+            relatedRecordReference: member.memberCode,
+            relationshipType: "MEMBERSHIP_CERTIFICATE",
+            fileBaseName: `membership-certificate-${member.memberCode}`,
+            heading: "Membership Certificate",
+            lines: [
+              { label: "Member code", value: member.memberCode },
+              { label: "Member name", value: member.fullName },
+              { label: "Membership type", value: member.membershipType },
+              { label: "Approval date", value: member.approvedAt },
+              { label: "Account status", value: "Active" },
+            ],
+            notice:
+              "This TrackCOOP-generated certificate reflects the approved membership record. It is not a substitute for any separately required statutory certificate.",
+          });
+          await connection.execute(
+            `INSERT INTO notifications
+               (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+             VALUES (?, 'Document', 'Membership certificate available',
+                     'Your membership certificate is available in Documents.',
+                     'Document', ?)`,
+            [activation.userId, certificate.documentId],
+          );
+        }
       }, databasePool);
     },
   };

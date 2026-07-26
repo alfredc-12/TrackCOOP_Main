@@ -83,8 +83,10 @@ export function SearchAndFilters({ children }: { children?: ReactNode }) {
 
 export function DataTable({ children }: { children: ReactNode }) {
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-      <div className="min-w-0 max-w-full overflow-x-auto">{children}</div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+      <div className="w-full min-w-0 max-w-full overflow-x-auto">
+        {children}
+      </div>
     </div>
   );
 }

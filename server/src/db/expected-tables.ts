@@ -24,6 +24,7 @@ export const expectedDatabaseTables = [
   "rental_status_history",
   "rental_pos_records",
   "documents",
+  "document_versions",
   "document_access_logs",
   "reports",
   "announcements",

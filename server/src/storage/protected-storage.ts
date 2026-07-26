@@ -1,7 +1,11 @@
 import path from "node:path";
 import { AppError } from "../utils/app-error";
 
-export const protectedUploadRoot = path.resolve(process.cwd(), "storage", "uploads");
+export const protectedUploadRoot = path.join(
+  process.cwd(),
+  "storage",
+  "uploads",
+);
 
 export function normalizeProtectedStoragePath(filePath: string) {
   const trimmed = filePath.trim().replaceAll("\\", "/");

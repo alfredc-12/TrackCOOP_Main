@@ -43,6 +43,8 @@ import type {
   ServiceVisibility,
   PublicRentalInquiryStatus,
 } from "../_types/rental";
+import { createCentralDocument } from "../../../../server/src/records/central-document";
+import { createGeneratedPdfDocument } from "../../../../server/src/records/generated-pdf-document";
 
 type DbValue = string | number | boolean | null;
 type JsonRecord = Record<string, unknown>;
@@ -2579,6 +2581,30 @@ export const rentalDatabase = {
         [JSON.stringify(notes), result.insertId],
         connection,
       );
+      if (payment.proofFileName) {
+        const extension = payment.proofFileName.split(".").pop()?.toLowerCase();
+        const mimeType =
+          extension === "pdf"
+            ? "application/pdf"
+            : extension === "png"
+              ? "image/png"
+              : "image/jpeg";
+        await createCentralDocument(connection, {
+          uploadedBy: actor?.userId ?? null,
+          memberId: booking.member_id,
+          title: `Rental Payment Proof – ${payment.rentalId}`,
+          description: "Protected rental payment proof linked from Rental Management.",
+          category: "RENTAL",
+          documentType: "Financial Document",
+          accessLevel: booking.member_id ? "Member-only" : "Bookkeeper-only",
+          storagePath: payment.proofFileName,
+          mimeType,
+          relatedModule: "RENTAL_PAYMENT",
+          relatedRecordId: result.insertId,
+          relatedRecordReference: paymentId,
+          relationshipType: "PAYMENT_PROOF",
+        });
+      }
       await execute(
         "UPDATE rental_bookings SET payment_reference_id = ?, payment_status = ? WHERE rental_booking_id = ?",
         cleanParams([
@@ -2764,6 +2790,37 @@ export const rentalDatabase = {
           validationStatus: updated.status,
           verificationCode: `VRF-${updated.rentalId}`,
         };
+        await createGeneratedPdfDocument(connection, {
+          uploadedBy: userId,
+          uploaderRole: actor?.role ?? "chairman",
+          memberId: booking.member_id,
+          title: `Rental Receipt ${receipt.receiptNumber}`,
+          description:
+            "System-generated receipt for a validated rental payment.",
+          category: "RECEIPT",
+          documentType: "Receipt",
+          accessLevel: booking.member_id ? "Member-only" : "Bookkeeper-only",
+          relatedModule: "RENTAL_PAYMENT",
+          relatedRecordId: row.payment_reference_id,
+          relatedRecordReference: receipt.receiptNumber,
+          relationshipType: "SYSTEM_RECEIPT",
+          fileBaseName: receipt.receiptNumber,
+          heading: "Rental Payment Receipt",
+          lines: [
+            { label: "Receipt number", value: receipt.receiptNumber },
+            { label: "Rental", value: receipt.rentalId },
+            { label: "Requester", value: receipt.requesterName },
+            { label: "Equipment", value: receipt.equipmentName },
+            { label: "Schedule date", value: receipt.scheduleDate },
+            { label: "Payment date", value: receipt.paymentDate },
+            { label: "Amount paid", value: `PHP ${receipt.amountPaid}` },
+            { label: "Payment method", value: receipt.paymentMethod },
+            { label: "Payment reference", value: receipt.referenceNumber },
+            { label: "Verification code", value: receipt.verificationCode },
+          ],
+          notice:
+            "This receipt reflects a validated rental payment. Stored cooperative-approved amounts are used; it does not establish a rental pricing policy.",
+        });
         const requesterRows = booking.member_id
           ? await queryRows<Array<RowDataPacket & { user_id: number | null }>>(
               "SELECT user_id FROM member_profiles WHERE member_id = ? LIMIT 1",

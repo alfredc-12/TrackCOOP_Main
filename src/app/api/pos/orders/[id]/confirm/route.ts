@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { requireApiUser } from "@/lib/next-api-auth";
+import { createGeneratedPdfDocument } from "@/../server/src/records/generated-pdf-document";
 
 type PosSaleStatusRow = RowDataPacket & {
     sale_number: string;
@@ -9,6 +10,8 @@ type PosSaleStatusRow = RowDataPacket & {
     payment_reference_id: number | null;
     member_id: number | null;
     total_amount: number | string;
+    customer_name: string | null;
+    sale_date: string;
 };
 
 type PosSaleItemRow = RowDataPacket & {
@@ -39,7 +42,9 @@ export async function PUT(
         await connection.beginTransaction();
         try {
             const [sales] = await connection.query<PosSaleStatusRow[]>(
-                `SELECT sale_number, sale_status, payment_reference_id, member_id, total_amount FROM pos_sales WHERE pos_sale_id = ?`,
+                `SELECT sale_number, sale_status, payment_reference_id, member_id,
+                        total_amount, customer_name, sale_date
+                   FROM pos_sales WHERE pos_sale_id = ?`,
                 [orderId]
             );
 
@@ -126,8 +131,48 @@ export async function PUT(
                 );
             }
 
+            const receiptNumber = `POS-RCP-${new Date().getUTCFullYear()}-${orderId.padStart(6, "0")}`;
+            const generatedReceipt = await createGeneratedPdfDocument(connection, {
+                uploadedBy: auth.user.numericId,
+                uploaderRole: auth.user.role,
+                memberId: sales[0].member_id,
+                title: `POS Receipt ${receiptNumber}`,
+                description: "System-generated receipt for a confirmed TrackCOOP POS sale.",
+                category: "RECEIPT",
+                documentType: "Receipt",
+                accessLevel: sales[0].member_id ? "Member-only" : "Bookkeeper-only",
+                relatedModule: "POS_SALE",
+                relatedRecordId: orderId,
+                relatedRecordReference: sales[0].sale_number,
+                relationshipType: "SYSTEM_RECEIPT",
+                fileBaseName: receiptNumber,
+                heading: "Point-of-Sale Receipt",
+                lines: [
+                    { label: "Receipt number", value: receiptNumber },
+                    { label: "Sale number", value: sales[0].sale_number },
+                    { label: "Customer", value: sales[0].customer_name ?? "Walk-in" },
+                    { label: "Sale date", value: sales[0].sale_date },
+                    { label: "Amount paid", value: `PHP ${sales[0].total_amount}` },
+                    { label: "Payment status", value: "Paid" },
+                ],
+            });
+            if (sales[0].member_id) {
+                await connection.query(
+                    `INSERT INTO notifications
+                       (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+                     SELECT mp.user_id, 'Document', 'POS receipt available',
+                            CONCAT(?, ' is available in Documents.'), 'Document', ?
+                       FROM member_profiles mp
+                      WHERE mp.member_id = ? AND mp.user_id IS NOT NULL`,
+                    [receiptNumber, generatedReceipt.documentId, sales[0].member_id],
+                );
+            }
+
             await connection.commit();
-            return NextResponse.json({ success: true });
+            return NextResponse.json({
+                success: true,
+                receiptDocumentReference: generatedReceipt.documentReference,
+            });
         } catch (err) {
             await connection.rollback();
             throw err;
