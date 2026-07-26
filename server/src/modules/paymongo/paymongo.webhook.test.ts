@@ -263,6 +263,18 @@ test("manual Bookkeeper validation uses the shared settlement service", async ()
     amount: 200,
     proofFilePath: null,
     validationStatus: "Pending",
+    paymentChannel: "Manual GCash",
+    gatewayEnvironment: "Manual",
+    gatewayCheckoutId: null,
+    gatewayPaymentId: null,
+    gatewayPaymentIntentId: null,
+    gatewayStatus: null,
+    gatewayPaymentMethod: null,
+    gatewayFeeAmount: null,
+    gatewayNetAmount: null,
+    paidAt: null,
+    webhookReceivedAt: null,
+    validationSource: null,
     validatedBy: null,
     validatedAt: null,
     rejectionReason: null,
@@ -276,8 +288,14 @@ test("manual Bookkeeper validation uses the shared settlement service", async ()
       async list() {
         throw new Error("not used");
       },
+      async summary() {
+        throw new Error("not used");
+      },
       async findById() {
         return payment;
+      },
+      async detail() {
+        throw new Error("not used");
       },
       async create() {
         throw new Error("not used");
@@ -287,6 +305,9 @@ test("manual Bookkeeper validation uses the shared settlement service", async ()
       },
       async setValidationStatus() {
         throw new Error("manual validation must use settlement service");
+      },
+      async reverse() {
+        throw new Error("not used");
       },
     },
     {

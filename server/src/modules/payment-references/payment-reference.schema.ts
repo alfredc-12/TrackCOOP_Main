@@ -19,6 +19,20 @@ export const validationStatuses = [
   "Reversed",
 ] as const;
 
+export const paymentChannels = [
+  "PayMongo",
+  "Manual GCash",
+  "Cash",
+  "Bank Transfer",
+  "Other",
+] as const;
+
+export const validationSources = [
+  "Manual Bookkeeper",
+  "PayMongo Webhook",
+  "System",
+] as const;
+
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
 
 export const listPaymentReferencesQuerySchema = z.object({
@@ -27,7 +41,15 @@ export const listPaymentReferencesQuerySchema = z.object({
   search: z.string().trim().min(1).max(190).optional(),
   validationStatus: z.enum(validationStatuses).optional(),
   paymentPurpose: z.enum(paymentPurposes).optional(),
-  sortBy: z.enum(["submittedAt", "amount", "referenceNumber"]).default("submittedAt"),
+  paymentChannel: z.enum(paymentChannels).optional(),
+  validationSource: z.enum(validationSources).optional(),
+  gatewayOnly: z.coerce.boolean().optional(),
+  manualOnly: z.coerce.boolean().optional(),
+  dateFrom: z.iso.date().optional(),
+  dateTo: z.iso.date().optional(),
+  amountMin: z.coerce.number().finite().nonnegative().optional(),
+  amountMax: z.coerce.number().finite().nonnegative().optional(),
+  sortBy: z.enum(["submittedAt", "amount", "referenceNumber", "paidAt"]).default("submittedAt"),
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
 });
 
@@ -54,4 +76,9 @@ export const updatePaymentReferenceSchema = paymentReferenceSchema.partial().ref
 
 export const reviewPaymentReferenceSchema = z.object({
   reason: z.string().trim().max(2000).nullable().optional(),
+});
+
+export const reversePaymentReferenceSchema = z.object({
+  reason: z.string().trim().min(8).max(2000),
+  confirmation: z.string().trim().min(1).max(190),
 });

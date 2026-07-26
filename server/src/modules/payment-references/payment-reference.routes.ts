@@ -18,9 +18,11 @@ export function createPaymentReferenceRouter(
   const bookkeeperOnly = [createAuthenticate(authService), requireRoles("bookkeeper")];
 
   router.get("/payment-references", ...staff, controller.list);
-  router.post("/payment-references", ...staff, controller.create);
-  router.get("/payment-references/:id", ...staff, controller.detail);
-  router.patch("/payment-references/:id", ...staff, controller.update);
+  router.get("/payment-references/summary", ...staff, controller.summary);
+  router.post("/payment-references", ...bookkeeperOnly, controller.create);
+  router.get("/payment-references/:id", ...staff, controller.detailFull);
+  router.get("/payment-references/:id/proof", ...bookkeeperOnly, controller.proof);
+  router.patch("/payment-references/:id", ...bookkeeperOnly, controller.update);
   router.post("/payment-references/:id/validate", ...bookkeeperOnly, controller.validate);
   router.post("/payment-references/:id/reject", ...bookkeeperOnly, controller.reject);
   router.post(
@@ -28,6 +30,7 @@ export function createPaymentReferenceRouter(
     ...bookkeeperOnly,
     controller.clarification,
   );
+  router.post("/payment-references/:id/reverse", ...bookkeeperOnly, controller.reverse);
 
   return router;
 }
