@@ -166,7 +166,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'financial_category.created', 'financial_categories', ?, 'A financial category was created.', CAST(? AS JSON))`,
+           VALUES (?, 'financial_category.created', 'financial_categories', ?, 'A financial category was created.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<CategoryRow[]>(
@@ -202,7 +202,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'financial_category.updated', 'financial_categories', ?, 'A financial category was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'financial_category.updated', 'financial_categories', ?, 'A financial category was updated.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<CategoryRow[]>(
@@ -291,7 +291,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'financial_record.created', 'financial_records', ?, 'A financial record was created.', CAST(? AS JSON))`,
+           VALUES (?, 'financial_record.created', 'financial_records', ?, 'A financial record was created.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<RecordRow[]>(
@@ -340,7 +340,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'financial_record.updated', 'financial_records', ?, 'A financial record was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'financial_record.updated', 'financial_records', ?, 'A financial record was updated.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const updated = await this.findRecordById(id);

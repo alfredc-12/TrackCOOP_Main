@@ -361,7 +361,7 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))`,
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [auth.user.id, `landing.${collection}.created`, meta.table, id, `A ${collection} landing record was created.`, JSON.stringify(input)],
         );
         const created = await readOne(meta, id, connection);
@@ -384,7 +384,7 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))`,
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [auth.user.id, `landing.${collection}.updated`, meta.table, id, `A ${collection} landing record was updated.`, JSON.stringify(input)],
         );
         const updated = await readOne(meta, id, connection);
@@ -455,7 +455,7 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, description, new_values)
-           VALUES (?, 'system_setting.upserted', 'system_settings', 'A system setting was saved.', CAST(? AS JSON))`,
+           VALUES (?, 'system_setting.upserted', 'system_settings', 'A system setting was saved.', ?)`,
           [auth.user.id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<GenericRow[]>(

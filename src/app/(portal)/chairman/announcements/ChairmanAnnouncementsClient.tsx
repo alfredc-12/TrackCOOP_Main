@@ -20,7 +20,7 @@ export function ChairmanAnnouncementsClient() {
   const [audienceType, setAudienceType] = useState("Public");
   const [selectedMember, setSelectedMember] = useState<{ userId: string; fullName: string } | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  
+
   const [ackListModalOpen, setAckListModalOpen] = useState(false);
   const [ackSearch, setAckSearch] = useState("");
   const [ackPage, setAckPage] = useState(1);
@@ -36,12 +36,12 @@ export function ChairmanAnnouncementsClient() {
   const [page, setPage] = useState(1);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [confirmSubmitModalOpen, setConfirmSubmitModalOpen] = useState(false);
-  
+
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -67,7 +67,7 @@ export function ChairmanAnnouncementsClient() {
     }
   }, [audienceType, members.length, isFetchingMembers]);
 
-  const filteredMembers = members.filter((m) => 
+  const filteredMembers = members.filter((m) =>
     m.userId && m.fullName.toLowerCase().includes(memberSearch.toLowerCase())
   );
 
@@ -151,7 +151,7 @@ export function ChairmanAnnouncementsClient() {
       if (imageFile) {
         const formData = new FormData();
         formData.append("image", imageFile);
-        
+
         const uploadRes = await apiRequest<{ url: string }>("/api/announcements/upload-image", {
           method: "POST",
           body: formData,
@@ -161,7 +161,7 @@ export function ChairmanAnnouncementsClient() {
 
       const url = editingId ? `/api/announcements/${editingId}` : "/api/announcements";
       const method = editingId ? "PATCH" : "POST";
-      
+
       const payload: any = {
         title,
         message,
@@ -230,7 +230,7 @@ export function ChairmanAnnouncementsClient() {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., General Assembly Schedule"
               />
-              
+
               <label className="grid gap-2 text-sm font-medium text-[#36433c]">
                 Message
                 <textarea
@@ -395,11 +395,11 @@ export function ChairmanAnnouncementsClient() {
           >
             Cancel
           </Button>
-          <Button 
-            type="button" 
-            variant="primary" 
+          <Button
+            type="button"
+            variant="primary"
             className="bg-red-600 hover:bg-red-700"
-            onClick={handleDelete} 
+            onClick={handleDelete}
             disabled={isSubmitting}
           >
             {isSubmitting ? "Deleting..." : "Delete Announcement"}
@@ -415,11 +415,10 @@ export function ChairmanAnnouncementsClient() {
               setActiveFilter(filter);
               setPage(1);
             }}
-            className={`rounded-full border px-5 py-2 text-sm font-bold transition-all ${
-              activeFilter === filter
+            className={`rounded-full border px-5 py-2 text-sm font-bold transition-all ${activeFilter === filter
                 ? "bg-[#123D2A] border-[#123D2A] text-white shadow-md"
                 : "bg-white border-[#E5E7EB] text-[#6B7280] hover:border-[#2F7D57] hover:text-[#123D2A]"
-            }`}
+              }`}
           >
             {filter}
           </button>
@@ -481,7 +480,7 @@ export function ChairmanAnnouncementsClient() {
                           day: "numeric",
                         })}
                       </p>
-                      
+
                       <p className="whitespace-pre-wrap break-all text-sm text-[#36433c]">{ann.message}</p>
                       {ann.audienceValue && (
                         <div className="mt-4 rounded-md bg-slate-50 p-2 text-xs text-slate-500">
@@ -489,14 +488,13 @@ export function ChairmanAnnouncementsClient() {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="mt-4 flex items-center justify-end border-t border-gray-100 pt-3">
-                      <button 
+                      <button
                         onClick={() => openAckList(ann.id)}
                         disabled={!ann.acknowledgmentCount}
-                        className={`flex items-center text-xs font-bold transition ${
-                          ann.acknowledgmentCount ? "text-[#2F7D57] hover:text-[#123D2A] hover:underline" : "text-[#6B7280] cursor-not-allowed opacity-70"
-                        }`}
+                        className={`flex items-center text-xs font-bold transition ${ann.acknowledgmentCount ? "text-[#2F7D57] hover:text-[#123D2A] hover:underline" : "text-[#6B7280] cursor-not-allowed opacity-70"
+                          }`}
                       >
                         <ShieldCheck className="mr-1.5 h-4 w-4" />
                         {ann.acknowledgmentCount || 0} Acknowledgment{(ann.acknowledgmentCount || 0) !== 1 && "s"}

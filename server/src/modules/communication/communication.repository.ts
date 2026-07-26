@@ -425,7 +425,7 @@ function mapReport(row: ReportRow): ReportRecord {
 }
 
 function mapAnnouncement(row: any): AnnouncementRecord {
-  return { 
+  return {
     ...row,
     isAcknowledged: row.isAcknowledged ? Boolean(Number(row.isAcknowledged)) : false,
     acknowledgmentCount: row.acknowledgmentCount ? Number(row.acknowledgmentCount) : 0
@@ -668,7 +668,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'document.created', 'documents', ?, 'A document was created.', CAST(? AS JSON))`,
+           VALUES (?, 'document.created', 'documents', ?, 'A document was created.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<DocumentRow[]>(
@@ -725,7 +725,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'document.updated', 'documents', ?, 'A document was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'document.updated', 'documents', ?, 'A document was updated.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<DocumentRow[]>(
@@ -797,7 +797,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           `INSERT INTO reports
              (report_number, generated_by, document_id, report_type, report_period_start,
               report_period_end, report_period_label, filters_json, generation_status, file_path)
-           VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.reportNumber,
             auth.user.id,
@@ -815,7 +815,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'report.generated', 'reports', ?, 'A report record was generated.', CAST(? AS JSON))`,
+           VALUES (?, 'report.generated', 'reports', ?, 'A report record was generated.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<ReportRow[]>(
@@ -925,7 +925,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'announcement.created', 'announcements', ?, 'An announcement was created.', CAST(? AS JSON))`,
+           VALUES (?, 'announcement.created', 'announcements', ?, 'An announcement was created.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<AnnouncementRow[]>(
@@ -981,7 +981,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'announcement.updated', 'announcements', ?, 'An announcement was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'announcement.updated', 'announcements', ?, 'An announcement was updated.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<AnnouncementRow[]>(
@@ -1128,7 +1128,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           await connection.execute(
             `INSERT INTO audit_logs
                (user_id, action, entity_table, record_id, description, new_values)
-             VALUES (?, 'request.created', 'requests_inquiries', ?, 'A request was created.', CAST(? AS JSON))`,
+             VALUES (?, 'request.created', 'requests_inquiries', ?, 'A request was created.', ?)`,
             [auth.user.id, id, JSON.stringify(input)],
           );
         }
@@ -1200,7 +1200,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'request.status_updated', 'requests_inquiries', ?, 'A request status was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'request.status_updated', 'requests_inquiries', ?, 'A request status was updated.', ?)`,
           [auth.user.id, id, JSON.stringify(input)],
         );
         const [rows] = await connection.execute<RequestRow[]>(

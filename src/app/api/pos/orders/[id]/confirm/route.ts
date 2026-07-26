@@ -4,7 +4,11 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { requireApiUser } from "@/lib/next-api-auth";
 
 type PosSaleStatusRow = RowDataPacket & {
+    sale_number: string;
     sale_status: string;
+    payment_reference_id: number | null;
+    member_id: number | null;
+    total_amount: number | string;
 };
 
 type PosSaleItemRow = RowDataPacket & {
@@ -15,6 +19,10 @@ type PosSaleItemRow = RowDataPacket & {
 
 type InventoryBalanceRow = RowDataPacket & {
     stock: number | string | null;
+};
+
+type FinancialCategoryRow = RowDataPacket & {
+    financial_category_id: number;
 };
 
 export async function PUT(
@@ -31,7 +39,7 @@ export async function PUT(
         await connection.beginTransaction();
         try {
             const [sales] = await connection.query<PosSaleStatusRow[]>(
-                `SELECT sale_status FROM pos_sales WHERE pos_sale_id = ?`,
+                `SELECT sale_number, sale_status, payment_reference_id, member_id, total_amount FROM pos_sales WHERE pos_sale_id = ?`,
                 [orderId]
             );
 
@@ -91,6 +99,32 @@ export async function PUT(
                  WHERE s.pos_sale_id = ?`,
                 [auth.user.numericId, orderId]
             );
+
+            // Generate Financial Record for the sale
+            const [categories] = await connection.query<FinancialCategoryRow[]>(
+                `SELECT financial_category_id FROM financial_categories WHERE category_code = 'POS_SALES' LIMIT 1`
+            );
+            
+            if (categories.length > 0) {
+                const categoryId = categories[0].financial_category_id;
+                const recordNumber = `FIN-POS-${orderId}-${Date.now()}`;
+                await connection.query(
+                    `INSERT INTO financial_records 
+                    (record_number, payment_reference_id, member_id, financial_category_id, recorded_by, approved_by, record_type, source_module, source_record_id, amount, record_date, record_status, remarks) 
+                    VALUES (?, ?, ?, ?, ?, ?, 'Income', 'POS', ?, ?, CURDATE(), 'Active', ?)`,
+                    [
+                        recordNumber,
+                        sales[0].payment_reference_id || null,
+                        sales[0].member_id || null,
+                        categoryId,
+                        auth.user.numericId,
+                        auth.user.numericId,
+                        orderId,
+                        sales[0].total_amount || 0,
+                        `POS Sale #${sales[0].sale_number}`
+                    ]
+                );
+            }
 
             await connection.commit();
             return NextResponse.json({ success: true });

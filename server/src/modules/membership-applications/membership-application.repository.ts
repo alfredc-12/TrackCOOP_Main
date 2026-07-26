@@ -733,7 +733,7 @@ export function createMembershipApplicationRepository(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values, ip_address, user_agent)
            VALUES (NULL, 'membership_application.created', 'membership_applications', ?,
-                   'A public membership application was submitted.', CAST(? AS JSON), ?, ?)`,
+                   'A public membership application was submitted.', ?, ?, ?)`,
           [
             membershipApplicationId,
             JSON.stringify({
@@ -794,7 +794,7 @@ export function createMembershipApplicationRepository(
            VALUES (NULL, 'membership_application.document_uploaded',
                    'membership_application_documents', ?,
                    'A public applicant uploaded a membership application document.',
-                   CAST(? AS JSON))`,
+                   ?)`,
           [
             String(result.insertId),
             JSON.stringify({
@@ -988,7 +988,7 @@ export function createMembershipApplicationRepository(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.created', 'membership_applications', ?,
-                   'A membership application was encoded by the Chairman.', CAST(? AS JSON))`,
+                   'A membership application was encoded by the Chairman.', ?)`,
           [
             input.auth.user.id,
             applicationId,
@@ -1078,7 +1078,7 @@ export function createMembershipApplicationRepository(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.updated', 'membership_applications', ?,
-                   'A membership application was updated.', CAST(? AS JSON))`,
+                   'A membership application was updated.', ?)`,
           [
             auth.user.id,
             applicationId,
@@ -1121,7 +1121,7 @@ export function createMembershipApplicationRepository(
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.beneficiary_added',
                    'membership_application_beneficiaries', ?,
-                   'A membership application beneficiary was added.', CAST(? AS JSON))`,
+                   'A membership application beneficiary was added.', ?)`,
           [auth.user.id, String(result.insertId), JSON.stringify({ applicationId })],
         );
         const rows = await selectBeneficiaries(connection, applicationId);
@@ -1164,7 +1164,7 @@ export function createMembershipApplicationRepository(
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.beneficiary_updated',
                    'membership_application_beneficiaries', ?,
-                   'A membership application beneficiary was updated.', CAST(? AS JSON))`,
+                   'A membership application beneficiary was updated.', ?)`,
           [auth.user.id, beneficiaryId, JSON.stringify({ fields: fields.map(([column]) => column) })],
         );
         const rows = await selectBeneficiaries(connection, existing.applicationId);
@@ -1231,7 +1231,7 @@ export function createMembershipApplicationRepository(
            VALUES (?, 'membership_application.document_uploaded',
                    'membership_application_documents', ?,
                    'A Chairman uploaded a membership application document.',
-                   CAST(? AS JSON))`,
+                   ?)`,
           [
             input.auth.user.id,
             String(result.insertId),
@@ -1295,7 +1295,7 @@ export function createMembershipApplicationRepository(
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.document_removed',
                    'membership_application_documents', ?,
-                   'A membership application document was removed.', CAST(? AS JSON))`,
+                   'A membership application document was removed.', ?)`,
           [
             auth.user.id,
             documentId,
@@ -1350,7 +1350,7 @@ export function createMembershipApplicationRepository(
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.requirement_added',
                    'membership_application_requirements', ?,
-                   'A membership application requirement was added.', CAST(? AS JSON))`,
+                   'A membership application requirement was added.', ?)`,
           [auth.user.id, String(result.insertId), JSON.stringify({ applicationId, requirementType: input.requirementType })],
         );
         const requirements = await selectRequirements(connection, applicationId);
@@ -1404,7 +1404,7 @@ export function createMembershipApplicationRepository(
            VALUES (?, 'membership_application.requirement_updated',
                    'membership_application_requirements', ?,
                    'A membership application requirement was updated.',
-                   JSON_OBJECT('requirementStatus', ?), CAST(? AS JSON))`,
+                   JSON_OBJECT('requirementStatus', ?), ?)`,
           [
             auth.user.id,
             requirementId,
@@ -1722,7 +1722,7 @@ export function createMembershipApplicationRepository(
             `INSERT INTO audit_logs
                (user_id, action, entity_table, record_id, description, new_values)
              VALUES (?, 'activation_token.issued', 'user_activation_tokens', ?,
-                     'A member activation token was issued.', CAST(? AS JSON))`,
+                     'A member activation token was issued.', ?)`,
             [
               input.auth.user.id,
               userId,
@@ -1799,7 +1799,7 @@ export function createMembershipApplicationRepository(
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'membership_application.approved', 'membership_applications', ?,
                    'A membership application was approved and converted to a member profile.',
-                   CAST(? AS JSON))`,
+                   ?)`,
           [
             input.auth.user.id,
             input.applicationId,

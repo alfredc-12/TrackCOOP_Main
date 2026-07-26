@@ -196,7 +196,7 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'share_capital.created', 'share_capital_payments', ?, 'A share capital payment was created.', CAST(? AS JSON))`,
+           VALUES (?, 'share_capital.created', 'share_capital_payments', ?, 'A share capital payment was created.', ?)`,
           [auth.user.id, sharePaymentId, JSON.stringify(input)],
         );
 
@@ -248,7 +248,7 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'share_capital.updated', 'share_capital_payments', ?, 'A share capital payment was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'share_capital.updated', 'share_capital_payments', ?, 'A share capital payment was updated.', ?)`,
           [auth.user.id, paymentId, JSON.stringify(input)],
         );
 

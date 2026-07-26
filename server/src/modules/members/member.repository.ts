@@ -430,7 +430,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'member.updated', 'member_profiles', ?, 'A member profile was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'member.updated', 'member_profiles', ?, 'A member profile was updated.', ?)`,
           [auth.user.id, memberId, JSON.stringify(input)],
         );
 

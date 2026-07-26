@@ -282,6 +282,10 @@ export default function ChairmanPosInventoryClient() {
             });
             if (res.ok) {
                 toast.success("Payment confirmed!");
+                const confirmedOrder = orders.find(o => o.id === orderToConfirmId);
+                if (confirmedOrder) {
+                    setReceiptOrder({ ...confirmedOrder, sale_status: 'Paid', payment_status: 'Paid' });
+                }
                 setOrderToConfirmId(null);
                 fetchOrdersQuietly();
                 fetchInventory(); // Immediately update the inventory table since stock is deducted

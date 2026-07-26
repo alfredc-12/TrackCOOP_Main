@@ -601,7 +601,7 @@ export function createMemberIndicatorRepository(
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'member_indicators.recalculated', 'member_status_indicators', ?, ?, CAST(? AS JSON))`,
+           VALUES (?, 'member_indicators.recalculated', 'member_status_indicators', ?, ?, ?)`,
           [
             auth.user.id,
             input.memberId ?? null,

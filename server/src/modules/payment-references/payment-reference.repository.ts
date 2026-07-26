@@ -184,7 +184,7 @@ export function createPaymentReferenceRepository(
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'payment_reference.created', 'payment_references', ?, 'A payment reference was created.', CAST(? AS JSON))`,
+           VALUES (?, 'payment_reference.created', 'payment_references', ?, 'A payment reference was created.', ?)`,
           [auth.user.id, paymentReferenceId, JSON.stringify(input)],
         );
 
@@ -260,7 +260,7 @@ export function createPaymentReferenceRepository(
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'payment_reference.updated', 'payment_references', ?, 'A payment reference was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'payment_reference.updated', 'payment_references', ?, 'A payment reference was updated.', ?)`,
           [auth.user.id, paymentReferenceId, JSON.stringify(input)],
         );
 

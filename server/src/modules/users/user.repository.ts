@@ -251,7 +251,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
       await connection.execute(
         `INSERT INTO audit_logs
            (user_id, action, entity_table, record_id, description, new_values)
-         VALUES (?, ?, 'user_sessions', ?, ?, CAST(? AS JSON))`,
+         VALUES (?, ?, 'user_sessions', ?, ?, ?)`,
         [
           auth.user.id,
           action,
@@ -415,7 +415,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
             `INSERT INTO audit_logs
                (user_id, action, entity_table, record_id, description, new_values)
              VALUES (?, 'activation_token.issued', 'user_activation_tokens', ?,
-                     'A user activation token was issued.', CAST(? AS JSON))`,
+                     'A user activation token was issued.', ?)`,
             [
               input.createdBy,
               userId,
@@ -471,7 +471,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'account.updated', 'users', ?, 'A user profile was updated.', CAST(? AS JSON))`,
+           VALUES (?, 'account.updated', 'users', ?, 'A user profile was updated.', ?)`,
           [auth.user.id, userId, JSON.stringify(input)],
         );
 
@@ -509,7 +509,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, old_values, new_values)
-           VALUES (?, 'account.status_changed', 'users', ?, 'A user account status was changed.', JSON_OBJECT('accountStatus', ?), CAST(? AS JSON))`,
+           VALUES (?, 'account.status_changed', 'users', ?, 'A user account status was changed.', JSON_OBJECT('accountStatus', ?), ?)`,
           [
             auth.user.id,
             userId,
@@ -566,7 +566,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
           await connection.execute(
             `INSERT INTO audit_logs
                (user_id, action, entity_table, record_id, description, new_values)
-             VALUES (?, 'member.account_unlinked', 'member_profiles', ?, 'A member profile was unlinked after account role change.', CAST(? AS JSON))`,
+             VALUES (?, 'member.account_unlinked', 'member_profiles', ?, 'A member profile was unlinked after account role change.', ?)`,
             [
               auth.user.id,
               existing.linkedMemberId,
@@ -582,7 +582,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, old_values, new_values)
-           VALUES (?, 'account.role_changed', 'users', ?, 'A user account role was changed.', JSON_OBJECT('role', ?), CAST(? AS JSON))`,
+           VALUES (?, 'account.role_changed', 'users', ?, 'A user account role was changed.', JSON_OBJECT('role', ?), ?)`,
           [
             auth.user.id,
             userId,
@@ -636,7 +636,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'activation_token.issued', 'user_activation_tokens', ?,
-                   'A user activation token was issued.', CAST(? AS JSON))`,
+                   'A user activation token was issued.', ?)`,
           [
             auth.user.id,
             userId,
@@ -679,7 +679,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'account.session_revoked', 'user_sessions', ?, 'A Chairman revoked one user session.', CAST(? AS JSON))`,
+           VALUES (?, 'account.session_revoked', 'user_sessions', ?, 'A Chairman revoked one user session.', ?)`,
           [auth.user.id, sessionId, JSON.stringify({ userId, reason })],
         );
       }, databasePool());
@@ -744,7 +744,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'member.account_linked', 'member_profiles', ?, 'A member profile was linked to a user account.', CAST(? AS JSON))`,
+           VALUES (?, 'member.account_linked', 'member_profiles', ?, 'A member profile was linked to a user account.', ?)`,
           [auth.user.id, memberId, JSON.stringify({ userId, reason })],
         );
       }, databasePool());
@@ -769,7 +769,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
-           VALUES (?, 'member.account_unlinked', 'member_profiles', ?, 'A member profile was unlinked from a user account.', CAST(? AS JSON))`,
+           VALUES (?, 'member.account_unlinked', 'member_profiles', ?, 'A member profile was unlinked from a user account.', ?)`,
           [auth.user.id, existing.linkedMemberId, JSON.stringify({ userId, reason })],
         );
       }, databasePool());
