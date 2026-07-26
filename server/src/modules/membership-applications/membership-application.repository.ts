@@ -69,6 +69,10 @@ type ChairmanApplicationRow = RowDataPacket & {
   applicationCode: string;
   applicationSource: ChairmanApplicationListItem["applicationSource"];
   requestedMembershipType: RequestedMembershipType;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  suffix: string | null;
   fullName: string;
   email: string | null;
   contactNumber: string;
@@ -146,9 +150,12 @@ const defaultSettings: MembershipSettings = {
   termsVersion: "2026-07-24",
 };
 
+const applicantFullNameSql =
+  "TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, '')))";
+
 const listSortColumns: Record<ChairmanApplicationListQuery["sortBy"], string> = {
   submittedAt: "a.submitted_at",
-  fullName: "a.full_name",
+  fullName: applicantFullNameSql,
   applicationStatus: "a.application_status",
   requestedMembershipType: "a.requested_membership_type",
 };
@@ -176,6 +183,13 @@ function dateMonthsFromNow(months: number) {
   const date = new Date();
   date.setUTCMonth(date.getUTCMonth() + months);
   return mysqlDate(date);
+}
+
+function applicantFullName(input: Pick<PublicMembershipApplicationInput, "firstName" | "middleName" | "lastName" | "suffix">) {
+  return [input.firstName, input.middleName, input.lastName, input.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 function nullable(value: string | number | boolean | null | undefined) {
@@ -232,7 +246,11 @@ function applicationSelect() {
                  a.application_code AS applicationCode,
                  a.application_source AS applicationSource,
                  a.requested_membership_type AS requestedMembershipType,
-                 a.full_name AS fullName,
+                 a.first_name AS firstName,
+                 a.middle_name AS middleName,
+                 a.last_name AS lastName,
+                 a.suffix,
+                 ${applicantFullNameSql} AS fullName,
                  a.email,
                  a.contact_number AS contactNumber,
                  a.civil_status AS civilStatus,
@@ -276,6 +294,10 @@ function mapApplicationListItem(row: ChairmanApplicationRow): ChairmanApplicatio
     applicationCode: row.applicationCode,
     applicationSource: row.applicationSource,
     requestedMembershipType: row.requestedMembershipType,
+    firstName: row.firstName,
+    middleName: row.middleName,
+    lastName: row.lastName,
+    suffix: row.suffix,
     fullName: row.fullName,
     email: row.email,
     contactNumber: row.contactNumber,
@@ -358,7 +380,7 @@ async function selectPublicApplication(
     `SELECT CAST(a.membership_application_id AS CHAR) AS id,
             a.application_code AS applicationCode,
             a.public_tracking_token_hash AS publicTrackingTokenHash,
-            a.full_name AS fullName,
+            ${applicantFullNameSql} AS fullName,
             a.submitted_at AS submittedAt,
             a.application_status AS applicationStatus,
             (
@@ -612,7 +634,7 @@ export function createMembershipApplicationRepository(
       const [rows] = await databasePool().execute<DuplicateRow[]>(
         `SELECT COUNT(*) AS duplicateCount
            FROM membership_applications
-          WHERE LOWER(full_name) = LOWER(?)
+          WHERE LOWER(TRIM(CONCAT_WS(' ', first_name, NULLIF(middle_name, ''), last_name, NULLIF(suffix, '')))) = LOWER(?)
             AND date_of_birth <=> ?
             AND submitted_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)
             AND (
@@ -620,7 +642,7 @@ export function createMembershipApplicationRepository(
               OR (? IS NOT NULL AND email = ?)
             )`,
         [
-          input.fullName,
+          applicantFullName(input),
           nullable(input.dateOfBirth),
           input.contactNumber,
           nullable(input.email),
@@ -639,7 +661,7 @@ export function createMembershipApplicationRepository(
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO membership_applications
              (application_code, public_tracking_token_hash, application_source,
-              requested_membership_type, full_name, email, contact_number, civil_status,
+              requested_membership_type, first_name, middle_name, last_name, suffix, email, contact_number, civil_status,
               place_of_birth, date_of_birth, current_address, barangay, municipality, province,
               father_name, mother_name, spouse_name, occupation,
               orientation_commitment_accepted, membership_fee_commitment_accepted,
@@ -648,13 +670,16 @@ export function createMembershipApplicationRepository(
               share_capital_deadline_months, annual_interest_rate, patronage_refund_acknowledged,
               bylaws_agreement_accepted, privacy_consent_accepted, terms_version,
               applicant_signature_name, signed_at, signed_place, submitted_ip, submitted_user_agent)
-           VALUES (?, ?, 'Public Website', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           VALUES (?, ?, 'Public Website', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             placeholderCode,
             input.publicTrackingTokenHash,
             application.requestedMembershipType,
-            application.fullName,
+            application.firstName,
+            nullable(application.middleName),
+            application.lastName,
+            nullable(application.suffix),
             nullable(application.email),
             application.contactNumber,
             nullable(application.civilStatus),
@@ -846,9 +871,18 @@ export function createMembershipApplicationRepository(
       const values: Array<string | number> = [];
 
       if (query.search) {
-        where.push("(a.application_code LIKE ? OR a.full_name LIKE ? OR a.email LIKE ? OR a.contact_number LIKE ?)");
+        where.push(
+          `(a.application_code LIKE ?
+            OR ${applicantFullNameSql} LIKE ?
+            OR a.first_name LIKE ?
+            OR a.middle_name LIKE ?
+            OR a.last_name LIKE ?
+            OR a.suffix LIKE ?
+            OR a.email LIKE ?
+            OR a.contact_number LIKE ?)`,
+        );
         const search = `%${query.search}%`;
-        values.push(search, search, search, search);
+        values.push(search, search, search, search, search, search, search, search);
       }
       if (query.status) {
         where.push("a.application_status = ?");
@@ -898,7 +932,7 @@ export function createMembershipApplicationRepository(
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO membership_applications
              (application_code, public_tracking_token_hash, application_source,
-              requested_membership_type, full_name, email, contact_number, civil_status,
+              requested_membership_type, first_name, middle_name, last_name, suffix, email, contact_number, civil_status,
               place_of_birth, date_of_birth, current_address, barangay, municipality, province,
               father_name, mother_name, spouse_name, occupation,
               orientation_commitment_accepted, membership_fee_commitment_accepted,
@@ -907,14 +941,17 @@ export function createMembershipApplicationRepository(
               share_capital_deadline_months, annual_interest_rate, patronage_refund_acknowledged,
               bylaws_agreement_accepted, privacy_consent_accepted, terms_version,
               applicant_signature_name, signed_at, signed_place, submitted_by_user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             placeholderCode,
             input.publicTrackingTokenHash,
             application.applicationSource,
             application.requestedMembershipType,
-            application.fullName,
+            application.firstName,
+            nullable(application.middleName),
+            application.lastName,
+            nullable(application.suffix),
             nullable(application.email),
             application.contactNumber,
             nullable(application.civilStatus),
@@ -1022,7 +1059,10 @@ export function createMembershipApplicationRepository(
         ]
       > = [
         ["requestedMembershipType", "requested_membership_type", (value) => value as string],
-        ["fullName", "full_name", (value) => value as string],
+        ["firstName", "first_name", (value) => value as string],
+        ["middleName", "middle_name", (value) => nullable(value as string | null)],
+        ["lastName", "last_name", (value) => value as string],
+        ["suffix", "suffix", (value) => nullable(value as string | null)],
         ["email", "email", (value) => nullable(value as string | null)],
         ["contactNumber", "contact_number", (value) => value as string],
         ["civilStatus", "civil_status", (value) => nullable(value as string | null)],

@@ -56,7 +56,7 @@ const accountStatuses: AccountStatus[] = ["Pending", "Active", "Suspended", "Ina
 const roles: RoleSlug[] = ["chairman", "bookkeeper", "member"];
 
 const inputClass =
-  "h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
+  "h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
 const labelClass = "grid gap-2 text-sm font-semibold text-[#294B39]";
 
 type ActionKind =
@@ -256,16 +256,16 @@ export function UsersClient() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         <StatCard label="Total Accounts" value={String(summary.total)} icon={UsersRound} />
         <StatCard label="Active" value={String(summary.active)} icon={ShieldCheck} />
         <StatCard label="Pending Activation" value={String(summary.pendingActivation)} icon={KeyRound} />
         <StatCard label="Suspended/Inactive" value={String(summary.suspendedInactive)} icon={UserMinus} />
       </div>
 
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(9rem,12rem))]">
-          <label className="relative block">
+      <section className="grid min-w-0 gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(14rem,1fr)_repeat(4,minmax(8rem,10rem))]">
+          <label className="relative block min-w-0">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
             <input
               value={query.search ?? ""}
@@ -445,7 +445,7 @@ export function UsersClient() {
 
 function UserTable({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: string) => Promise<void> }) {
   return (
-    <div className="hidden lg:block">
+    <div className="hidden 2xl:block">
       <DataTable>
         <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
           <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
@@ -496,17 +496,17 @@ function UserTable({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: s
 
 function UserCards({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: string) => Promise<void> }) {
   return (
-    <div className="grid gap-3 lg:hidden">
+    <div className="grid gap-3 2xl:hidden">
       {users.map((user) => (
         <article key={user.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-bold text-[#123D2A]">{user.displayName}</p>
-              <p className="mt-1 text-sm text-[#5D6D63]">{user.email}</p>
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="break-words font-bold text-[#123D2A]">{user.displayName}</p>
+              <p className="mt-1 break-all text-sm text-[#5D6D63]">{user.email}</p>
             </div>
             <StatusBadge tone={statusTone(user.accountStatus)}>{user.accountStatus}</StatusBadge>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#294B39]">
+          <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
             <Info label="Role" value={roleLabel(user.role)} />
             <Info label="Username" value={user.username ?? "None"} />
             <Info label="Member" value={user.linkedMemberCode ?? "Unlinked"} />
@@ -891,9 +891,9 @@ function ActivationResultDialog({ result, onOpenChange }: { result: ActivationLi
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6C7A70]">{label}</p>
-      <p className="mt-1 font-semibold text-[#123D2A]">{value}</p>
+      <p className="mt-1 break-words font-semibold text-[#123D2A]">{value}</p>
     </div>
   );
 }

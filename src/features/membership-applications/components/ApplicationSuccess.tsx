@@ -23,9 +23,9 @@ export function ApplicationSuccess({
   )}`;
 
   return (
-    <section className="border border-[#DDE8D8] bg-white p-6 shadow-sm sm:p-8">
+    <section className="rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-8">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <div className="grid size-12 shrink-0 place-items-center bg-[#EAF3E8] text-[#1F6B43]">
+        <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
           <CheckCircle2 className="size-7" />
         </div>
         <div className="min-w-0 flex-1">
@@ -48,13 +48,13 @@ export function ApplicationSuccess({
       </div>
 
       {result.duplicateWarning ? (
-        <div className="mt-5 border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-900">
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-900">
           {result.duplicateWarning}
         </div>
       ) : null}
 
       {uploadError ? (
-        <div className="mt-5 border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
           <p className="font-bold">Some uploads did not finish.</p>
           <p className="mt-1">{uploadError}</p>
           {onRetryUploads ? (
@@ -62,7 +62,7 @@ export function ApplicationSuccess({
               type="button"
               onClick={onRetryUploads}
               disabled={isRetryingUploads}
-              className="mt-3 h-10 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
+              className="mt-3 h-10 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
             >
               <RefreshCw className={`size-4 ${isRetryingUploads ? "animate-spin" : ""}`} />
               Retry uploads
@@ -73,12 +73,12 @@ export function ApplicationSuccess({
 
       <div className="mt-7 flex flex-col gap-3 sm:flex-row">
         <Link href={statusHref}>
-          <Button className="h-11 w-full bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] sm:w-auto">
+          <Button className="h-11 w-full rounded-full bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] sm:w-auto">
             Check Status
           </Button>
         </Link>
         <Link href="/">
-          <Button className="h-11 w-full border border-[#DDE8D8] bg-white px-5 text-[#123D2A] hover:bg-[#EAF3E8] sm:w-auto">
+          <Button className="h-11 w-full rounded-full border border-[#DDE8D8] bg-white px-5 text-[#123D2A] hover:bg-[#EAF3E8] sm:w-auto">
             Back to Home
           </Button>
         </Link>
@@ -93,7 +93,7 @@ function CopyPanel({ label, value }: { label: string; value: string }) {
   };
 
   return (
-    <div className="border border-[#DDE8D8] bg-[#F8F1E5] p-4">
+    <div className="rounded-2xl border border-[#DDE8D8] bg-[#F8F1E5] p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#365F4A]">
         {label}
       </p>
@@ -104,7 +104,7 @@ function CopyPanel({ label, value }: { label: string; value: string }) {
         <button
           type="button"
           onClick={copyValue}
-          className="grid size-10 shrink-0 place-items-center border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#EAF3E8]"
+          className="grid size-10 shrink-0 place-items-center rounded-full border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#EAF3E8]"
           aria-label={`Copy ${label}`}
         >
           <Copy className="size-4" />

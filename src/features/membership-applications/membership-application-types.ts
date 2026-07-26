@@ -62,7 +62,10 @@ export type BeneficiaryInput = {
 
 export type PublicMembershipApplicationInput = {
   requestedMembershipType: RequestedMembershipType;
-  fullName: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  suffix?: string | null;
   email?: string | null;
   contactNumber: string;
   civilStatus?: CivilStatus | null;
@@ -134,6 +137,10 @@ export type ChairmanApplicationListItem = {
   applicationCode: string;
   applicationSource: MembershipApplicationSource;
   requestedMembershipType: RequestedMembershipType;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  suffix: string | null;
   fullName: string;
   email: string | null;
   contactNumber: string;

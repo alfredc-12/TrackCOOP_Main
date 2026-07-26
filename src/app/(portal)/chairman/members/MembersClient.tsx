@@ -175,7 +175,10 @@ const blankMemberForm: MemberFormState = {
 const blankApplication: ApplicationFormState = {
   applicationSource: "Imported Paper Form",
   requestedMembershipType: "Associate",
-  fullName: "",
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  suffix: "",
   email: "",
   contactNumber: "",
   civilStatus: "Single",
@@ -206,7 +209,10 @@ const blankApplication: ApplicationFormState = {
 type ApplicationFormState = ChairmanMembershipApplicationUpdateInput & {
   applicationSource: Extract<MembershipApplicationSource, "Chairman Entry" | "Imported Paper Form">;
   requestedMembershipType: RequestedMembershipType;
-  fullName: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  suffix: string;
   contactNumber: string;
   currentAddress: string;
   municipality: string;
@@ -531,7 +537,7 @@ export function MembersClient() {
 
       {activeTab === "applications" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
             <StatCard label="Submitted" value={String(summary.submitted)} icon={FileText} />
             <StatCard label="Under Review" value={String(summary.underReview)} icon={ClipboardCheck} />
             <StatCard label="Needs Info" value={String(summary.needsInformation)} icon={Send} />
@@ -748,7 +754,7 @@ function MemberDirectorySection({
 }) {
   return (
     <div className="grid gap-5">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         <StatCard label="Members" value={String(summary.total)} icon={UsersRound} />
         <StatCard label="Active" value={String(summary.active)} icon={UserCheck} />
         <StatCard label="Associates" value={String(summary.associate)} icon={WalletCards} />
@@ -797,8 +803,8 @@ function MemberFilters({
   };
 
   return (
-    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <section className="grid min-w-0 gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
           <Filter className="size-4" aria-hidden="true" />
           Member Directory Filters
@@ -808,13 +814,13 @@ function MemberFilters({
           Create Manual Member
         </Button>
       </div>
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <label className="relative block">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 2xl:grid-cols-6">
+        <label className="relative block min-w-0">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
           <input
             value={query.search ?? ""}
             onChange={(event) => updateQuery({ search: event.target.value })}
-            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
+            className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
             placeholder="Search members"
             type="search"
           />
@@ -830,7 +836,7 @@ function MemberFilters({
         <input
           value={query.barangay ?? ""}
           onChange={(event) => updateQuery({ barangay: event.target.value })}
-          className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
+          className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
           placeholder="Barangay"
         />
         <Select value={query.sortBy ?? "createdAt"} onChange={(value) => setQuery((current) => ({ ...current, sortBy: value as MemberListQuery["sortBy"] }))}>
@@ -857,7 +863,7 @@ function MemberResponsiveList({
 }) {
   return (
     <>
-      <div className="hidden lg:block">
+      <div className="hidden 2xl:block">
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
@@ -899,19 +905,19 @@ function MemberResponsiveList({
         </DataTable>
       </div>
 
-      <div className="grid gap-3 lg:hidden">
+      <div className="grid gap-3 2xl:hidden">
         {members.map((member) => (
           <article key={member.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-bold text-[#123D2A]">{member.fullName}</p>
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="break-words font-bold text-[#123D2A]">{member.fullName}</p>
                 <p className="mt-1 text-xs text-[#6C7A70]">{member.memberCode}</p>
               </div>
               <StatusBadge tone={memberStatusTone(member.officialMemberStatus)}>
                 {member.officialMemberStatus}
               </StatusBadge>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#294B39]">
+            <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
               <Info label="Type" value={member.membershipType} />
               <Info label="Barangay" value={member.barangay ?? "Unspecified"} />
               <Info label="Contact" value={member.email ?? member.contactNumber ?? "Not provided"} />
@@ -1354,18 +1360,18 @@ function UnifiedHistorySection({
 
   return (
     <div className="grid gap-5">
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <section className="grid min-w-0 gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
           <History className="size-4" aria-hidden="true" />
           Unified Status History
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="relative block">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="relative block min-w-0">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
             <input
               value={query.search}
               onChange={(event) => updateQuery({ search: event.target.value })}
-              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
+              className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
               placeholder="Search history"
               type="search"
             />
@@ -1388,7 +1394,7 @@ function UnifiedHistorySection({
         <EmptyState icon={History} title="No status history found" description="Application, member, and linked account status changes will appear here." />
       ) : (
         <>
-          <div className="hidden lg:block">
+          <div className="hidden 2xl:block">
             <DataTable>
               <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
                 <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
@@ -1421,17 +1427,17 @@ function UnifiedHistorySection({
               </table>
             </DataTable>
           </div>
-          <div className="grid gap-3 lg:hidden">
+          <div className="grid gap-3 2xl:hidden">
             {entries.map((entry) => (
               <article key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-[#123D2A]">{entry.subjectName}</p>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words font-bold text-[#123D2A]">{entry.subjectName}</p>
                     <p className="mt-1 text-xs text-[#6C7A70]">{entry.subjectCode}</p>
                   </div>
                   <StatusBadge tone="neutral">{entry.sourceModule}</StatusBadge>
                 </div>
-                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#294B39]">
+                <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
                   <Info label="Old" value={entry.oldStatus ?? "New"} />
                   <Info label="New" value={entry.newStatus} />
                   <Info label="Actor" value={entry.actor ?? "System"} />
@@ -1519,18 +1525,18 @@ function ApplicationFilters({
           <option value="Incomplete">Incomplete</option>
         </Select>
       </div>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <input
           value={submittedFrom}
           onChange={(event) => setSubmittedFrom(event.target.value)}
-          className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
+          className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
           type="date"
           aria-label="Submitted from"
         />
         <input
           value={submittedTo}
           onChange={(event) => setSubmittedTo(event.target.value)}
-          className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
+          className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
           type="date"
           aria-label="Submitted to"
         />
@@ -1560,7 +1566,7 @@ function ApplicationsResponsiveList({
 }) {
   return (
     <>
-      <div className="hidden lg:block">
+      <div className="hidden 2xl:block">
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
@@ -1618,22 +1624,22 @@ function ApplicationsResponsiveList({
         </DataTable>
       </div>
 
-      <div className="grid gap-3 lg:hidden">
+      <div className="grid gap-3 2xl:hidden">
         {applications.map((application) => {
           const detail = detailsById[application.id];
           const progress = detail ? requirementProgress(detail) : null;
           return (
             <article key={application.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-bold text-[#123D2A]">{application.fullName}</p>
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-bold text-[#123D2A]">{application.fullName}</p>
                   <p className="mt-1 text-xs text-[#6C7A70]">{application.applicationCode}</p>
                 </div>
                 <StatusBadge tone={statusTone(application.applicationStatus)}>
                   {application.applicationStatus}
                 </StatusBadge>
               </div>
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#294B39]">
+              <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
                 <Info label="Type" value={application.requestedMembershipType} />
                 <Info label="Barangay" value={application.barangay ?? "Unspecified"} />
                 <Info label="Submitted" value={formatDate(application.submittedAt)} />
@@ -1709,9 +1715,10 @@ function ApplicationDetailDialog({
       onOpenChange={onOpenChange}
       title={`${detail.applicationCode} - ${detail.fullName}`}
       description="Review application details, requirements, documents, timeline, and conversion actions."
+      contentClassName="w-[min(72rem,calc(100vw-2rem))]"
     >
-      <div className="grid gap-6">
-        <div className="flex flex-wrap gap-2">
+      <div className="grid min-w-0 gap-6">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <ActionButton icon={Pencil} label="Edit" onClick={onEdit} />
           <ActionButton icon={ClipboardCheck} label="Start Review" onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })} />
           <ActionButton icon={Send} label="Request Info" onClick={() => onConfirmAction({ type: "transition", action: "request-information", label: "Request information" })} />
@@ -1720,7 +1727,7 @@ function ApplicationDetailDialog({
           <ActionButton icon={Download} label="Print PDF" onClick={() => void onPrint(detail)} />
         </div>
 
-        <section className="rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4">
+        <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <StatusBadge tone={statusTone(detail.applicationStatus)}>{detail.applicationStatus}</StatusBadge>
             <p className="text-sm font-bold text-[#123D2A]">
@@ -1734,7 +1741,7 @@ function ApplicationDetailDialog({
           </p>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2">
+        <section className="grid min-w-0 gap-4 md:grid-cols-2">
           <Info label="Source" value={detail.applicationSource} />
           <Info label="Requested type" value={detail.requestedMembershipType} />
           <Info label="Email" value={detail.email ?? "Not provided"} />
@@ -1993,7 +2000,36 @@ function ApplicationFormDialog({
         <Select value={draft.requestedMembershipType} onChange={(value) => setDraft((current) => ({ ...current, requestedMembershipType: value as RequestedMembershipType }))}>
           {requestedMembershipTypes.map((type) => <option key={type}>{type}</option>)}
         </Select>
-        <TextInput label="Full name" value={draft.fullName} onChange={(value) => setDraft((current) => ({ ...current, fullName: value, applicantSignatureName: current.applicantSignatureName || value }))} />
+        <TextInput
+          label="First name"
+          value={draft.firstName}
+          onChange={(value) =>
+            setDraft((current) => {
+              const next = { ...current, firstName: value };
+              return { ...next, applicantSignatureName: current.applicantSignatureName || applicationFullName(next) };
+            })
+          }
+        />
+        <TextInput
+          label="Middle name"
+          value={draft.middleName}
+          onChange={(value) => setDraft((current) => ({ ...current, middleName: value }))}
+        />
+        <TextInput
+          label="Last name"
+          value={draft.lastName}
+          onChange={(value) =>
+            setDraft((current) => {
+              const next = { ...current, lastName: value };
+              return { ...next, applicantSignatureName: current.applicantSignatureName || applicationFullName(next) };
+            })
+          }
+        />
+        <TextInput
+          label="Suffix"
+          value={draft.suffix}
+          onChange={(value) => setDraft((current) => ({ ...current, suffix: value }))}
+        />
         <TextInput label="Contact number" value={draft.contactNumber} onChange={(value) => setDraft((current) => ({ ...current, contactNumber: value }))} />
         <TextInput label="Email" value={draft.email ?? ""} onChange={(value) => setDraft((current) => ({ ...current, email: value }))} />
         <Select value={draft.civilStatus ?? "Single"} onChange={(value) => setDraft((current) => ({ ...current, civilStatus: value as ApplicationFormState["civilStatus"] }))}>
@@ -2211,9 +2247,9 @@ function Commitments({ detail }: { detail: ChairmanApplicationDetail }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-[#CAD8CB] bg-white p-4">
+    <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
       <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#123D2A]">{title}</h3>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0">{children}</div>
     </section>
   );
 }
@@ -2258,7 +2294,7 @@ function Select({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm text-[#123D2A] outline-none focus:border-[#1F6B43]"
+      className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm text-[#123D2A] outline-none focus:border-[#1F6B43]"
     >
       {children}
     </select>
@@ -2288,7 +2324,7 @@ function TextInput({
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3">
+    <div className="min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6C7A70]">{label}</p>
       <p className="mt-1 break-words text-sm font-semibold text-[#123D2A]">{value}</p>
     </div>
@@ -2363,11 +2399,21 @@ function memberPayload(draft: MemberFormState): MemberProfileInput {
   };
 }
 
+function applicationFullName(draft: Pick<ApplicationFormState, "firstName" | "middleName" | "lastName" | "suffix">) {
+  return [draft.firstName, draft.middleName, draft.lastName, draft.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 function toCreatePayload(draft: ApplicationFormState): ChairmanMembershipApplicationInput {
   return {
     applicationSource: draft.applicationSource,
     requestedMembershipType: draft.requestedMembershipType,
-    fullName: draft.fullName,
+    firstName: draft.firstName,
+    middleName: draft.middleName || null,
+    lastName: draft.lastName,
+    suffix: draft.suffix || null,
     email: draft.email || null,
     contactNumber: draft.contactNumber,
     civilStatus: draft.civilStatus ?? null,
@@ -2412,7 +2458,10 @@ function fromDetail(detail: ChairmanApplicationDetail): ApplicationFormState {
     applicationSource:
       detail.applicationSource === "Public Website" ? "Chairman Entry" : detail.applicationSource,
     requestedMembershipType: detail.requestedMembershipType,
-    fullName: detail.fullName,
+    firstName: detail.firstName,
+    middleName: detail.middleName ?? "",
+    lastName: detail.lastName,
+    suffix: detail.suffix ?? "",
     email: detail.email ?? "",
     contactNumber: detail.contactNumber,
     civilStatus: detail.civilStatus ?? "Single",
@@ -2442,4 +2491,4 @@ function fromDetail(detail: ChairmanApplicationDetail): ApplicationFormState {
 }
 
 const inputClass =
-  "h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm text-[#123D2A] outline-none focus:border-[#1F6B43]";
+  "h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm text-[#123D2A] outline-none focus:border-[#1F6B43]";

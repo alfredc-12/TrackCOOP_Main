@@ -89,7 +89,10 @@ const beneficiarySchema = z
 const applicationSchema = z
   .object({
     requestedMembershipType: z.enum(requestedMembershipTypes),
-    fullName: requiredText("Full name"),
+    firstName: requiredText("First name"),
+    middleName: optionalText,
+    lastName: requiredText("Last name"),
+    suffix: optionalText,
     email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
     contactNumber: requiredText("Contact number"),
     civilStatus: z.enum(civilStatuses),
@@ -139,7 +142,7 @@ const applicationSchema = z
       }
     }
 
-    if (!signatureMatchesName(value.signatureName, value.fullName)) {
+    if (!signatureMatchesName(value.signatureName, applicantFullName(value))) {
       ctx.addIssue({
         code: "custom",
         path: ["signatureName"],
@@ -152,7 +155,10 @@ export type MembershipApplicationFormValues = z.infer<typeof applicationSchema>;
 
 const defaultValues: MembershipApplicationFormValues = {
   requestedMembershipType: "Associate",
-  fullName: "",
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  suffix: "",
   email: "",
   contactNumber: "",
   civilStatus: "Single",
@@ -185,7 +191,10 @@ const defaultValues: MembershipApplicationFormValues = {
 const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
   [
     "requestedMembershipType",
-    "fullName",
+    "firstName",
+    "middleName",
+    "lastName",
+    "suffix",
     "email",
     "contactNumber",
     "civilStatus",
@@ -355,11 +364,11 @@ export function MembershipApplicationForm() {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="border border-[#DDE8D8] bg-white p-5 shadow-sm sm:p-8"
+      className="rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-8"
     >
       <ApplicationProgress currentStep={currentStep} />
 
-      <div className="mt-8">
+      <div className="mt-8 rounded-[1.5rem] bg-[#FFFAF2] p-4 ring-1 ring-[#E7DCC7] sm:p-6">
         {currentStep === 0 ? (
           <PersonalInfoStep register={register} watch={watch} errors={errors} setValue={setValue} />
         ) : null}
@@ -394,7 +403,7 @@ export function MembershipApplicationForm() {
       </div>
 
       {submitError ? (
-        <div className="mt-6 flex gap-3 border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+        <div className="mt-6 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <p>{submitError}</p>
         </div>
@@ -405,7 +414,7 @@ export function MembershipApplicationForm() {
           type="button"
           onClick={goBack}
           disabled={currentStep === 0 || isSubmittingApplication}
-          className="h-11 border border-[#DDE8D8] bg-white px-5 text-[#123D2A] hover:bg-[#EAF3E8]"
+          className="h-11 rounded-full border border-[#DDE8D8] bg-white px-5 text-[#123D2A] hover:bg-[#EAF3E8]"
         >
           <ArrowLeft className="size-4" />
           Back
@@ -415,7 +424,7 @@ export function MembershipApplicationForm() {
           <Button
             type="button"
             onClick={advanceStep}
-            className="h-11 bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43]"
+            className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43]"
           >
             Continue
             <ArrowRight className="size-4" />
@@ -424,7 +433,7 @@ export function MembershipApplicationForm() {
           <Button
             type="submit"
             disabled={isSubmittingApplication}
-            className="h-11 bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43]"
+            className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43]"
           >
             {isSubmittingApplication ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             {isSubmittingApplication ? "Submitting..." : "Submit Application"}
@@ -471,7 +480,10 @@ function PersonalInfoStep({
             </option>
           ))}
         </SelectField>
-        <TextField label="Full name" error={errors.fullName?.message} inputProps={register("fullName")} />
+        <TextField label="First name" error={errors.firstName?.message} inputProps={register("firstName")} />
+        <TextField label="Middle name (optional)" error={errors.middleName?.message} inputProps={register("middleName")} />
+        <TextField label="Last name" error={errors.lastName?.message} inputProps={register("lastName")} />
+        <TextField label="Suffix (optional)" error={errors.suffix?.message} inputProps={register("suffix")} />
         <TextField label="Email (optional)" type="email" error={errors.email?.message} inputProps={register("email")} />
         <TextField label="Contact number" error={errors.contactNumber?.message} inputProps={register("contactNumber")} />
         <SelectField label="Civil status" error={errors.civilStatus?.message} inputProps={register("civilStatus")}>
@@ -519,14 +531,14 @@ function ReviewStep({
     <div className="grid gap-6">
       <ReviewSummary watch={watch} />
 
-      <section className="border border-[#DDE8D8] bg-[#F8F1E5] p-5">
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5 shadow-sm">
         <h3 className="text-lg font-bold text-[#123D2A]">Signature</h3>
         <div className="mt-4 grid gap-5 md:grid-cols-3">
           <TextField label="Typed signature name" error={errors.signatureName?.message} inputProps={register("signatureName")} />
           <TextField label="Signed place" error={errors.signedPlace?.message} inputProps={register("signedPlace")} />
           <TextField label="Signed date" type="date" error={errors.signedAt?.message} inputProps={register("signedAt")} />
         </div>
-        <label className="mt-5 flex gap-3 text-sm font-semibold leading-6 text-[#123D2A]">
+        <label className="mt-5 flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
           <input
             type="checkbox"
             className="mt-1 size-4 accent-[#1F6B43]"
@@ -544,7 +556,7 @@ function ReviewStep({
         </label>
       </section>
 
-      <section className="border border-[#DDE8D8] bg-white p-5">
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-bold text-[#123D2A]">Optional uploads</h3>
@@ -555,7 +567,7 @@ function ReviewStep({
           <Button
             type="button"
             onClick={addUpload}
-            className="h-10 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
+            className="h-10 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
           >
             <FileUp className="size-4" />
             Add Upload
@@ -587,7 +599,7 @@ function UploadRow({
   onChange: (patch: Partial<DocumentUploadDraft>) => void;
 }) {
   return (
-    <div className="grid gap-3 border border-[#DDE8D8] bg-[#F8F1E5] p-4 md:grid-cols-[220px_1fr_auto]">
+    <div className="grid gap-3 rounded-2xl border border-[#DDE8D8] bg-[#F8F1E5] p-4 md:grid-cols-[220px_1fr_auto]">
       <label className="block text-sm font-semibold text-[#365F4A]">
         Document type
         <select
@@ -597,7 +609,7 @@ function UploadRow({
               documentType: event.target.value as DocumentUploadDraft["documentType"],
             })
           }
-          className="mt-2 h-11 w-full border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
+          className="mt-2 h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
         >
           {documentTypes.map((type) => (
             <option key={type} value={type}>
@@ -615,7 +627,7 @@ function UploadRow({
             const file = event.target.files?.[0] ?? null;
             onChange({ file, clientError: validateUpload(file) });
           }}
-          className="mt-2 block w-full text-sm text-[#123D2A] file:mr-4 file:h-10 file:border-0 file:bg-[#123D2A] file:px-4 file:font-bold file:text-white"
+          className="mt-2 block w-full text-sm text-[#123D2A] file:mr-4 file:h-10 file:rounded-full file:border-0 file:bg-[#123D2A] file:px-4 file:font-bold file:text-white"
         />
         {upload.clientError ? (
           <span className="mt-1 block text-xs text-red-700">{upload.clientError}</span>
@@ -624,7 +636,7 @@ function UploadRow({
       <Button
         type="button"
         onClick={onRemove}
-        className="h-11 self-end border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50"
+        className="h-11 self-end rounded-full border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50"
       >
         Remove
       </Button>
@@ -650,7 +662,7 @@ function TextField({
       {label}
       <input
         type={type}
-        className="mt-2 h-12 w-full border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
         aria-invalid={Boolean(error)}
         {...inputProps}
       />
@@ -674,7 +686,7 @@ function SelectField({
     <label className="block text-sm font-semibold text-[#365F4A]">
       {label}
       <select
-        className="mt-2 h-12 w-full border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
         aria-invalid={Boolean(error)}
         {...inputProps}
       >
@@ -688,7 +700,10 @@ function SelectField({
 function toPayload(values: MembershipApplicationFormValues): PublicMembershipApplicationInput {
   return {
     requestedMembershipType: values.requestedMembershipType,
-    fullName: values.fullName.trim(),
+    firstName: values.firstName.trim(),
+    middleName: values.middleName?.trim() || undefined,
+    lastName: values.lastName.trim(),
+    suffix: values.suffix?.trim() || undefined,
     email: values.email?.trim() || undefined,
     contactNumber: values.contactNumber.trim(),
     civilStatus: values.civilStatus,
@@ -721,6 +736,13 @@ function toPayload(values: MembershipApplicationFormValues): PublicMembershipApp
     signedAt: values.signedAt,
     website: values.website,
   };
+}
+
+function applicantFullName(values: Pick<MembershipApplicationFormValues, "firstName" | "middleName" | "lastName" | "suffix">) {
+  return [values.firstName, values.middleName, values.lastName, values.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 function signatureMatchesName(signatureName: string, fullName: string) {

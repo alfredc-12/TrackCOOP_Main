@@ -22,7 +22,10 @@ export function BeneficiaryFields({
   return (
     <div className="space-y-4">
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="border border-[#DDE8D8] bg-white p-4">
+        <div
+          key={index}
+          className="rounded-[1.25rem] border border-[#DDE8D8] bg-white p-4 shadow-sm"
+        >
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-base font-bold text-[#123D2A]">
               Beneficiary {index + 1}
@@ -30,7 +33,7 @@ export function BeneficiaryFields({
             <button
               type="button"
               onClick={() => onRemove(index)}
-              className="inline-flex size-10 items-center justify-center border border-red-200 text-red-700 transition hover:bg-red-50"
+              className="inline-flex size-10 items-center justify-center rounded-full border border-red-200 text-red-700 transition hover:bg-red-50"
               aria-label={`Remove beneficiary ${index + 1}`}
             >
               <Trash2 className="size-4" />
@@ -40,7 +43,7 @@ export function BeneficiaryFields({
             <label className="grid gap-2 text-sm font-semibold text-[#365F4A]">
               Full name
               <input
-                className="h-11 border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
+                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
                 {...register(`beneficiaries.${index}.fullName`)}
               />
               {errors.beneficiaries?.[index]?.fullName ? (
@@ -52,7 +55,7 @@ export function BeneficiaryFields({
             <label className="grid gap-2 text-sm font-semibold text-[#365F4A]">
               Relationship
               <input
-                className="h-11 border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
+                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
                 {...register(`beneficiaries.${index}.relationship`)}
               />
             </label>
@@ -62,7 +65,7 @@ export function BeneficiaryFields({
                 type="number"
                 min="0"
                 max="130"
-                className="h-11 border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
+                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
                 {...register(`beneficiaries.${index}.age`)}
               />
               {errors.beneficiaries?.[index]?.age ? (
@@ -75,7 +78,7 @@ export function BeneficiaryFields({
               Birth date
               <input
                 type="date"
-                className="h-11 border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
+                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
                 {...register(`beneficiaries.${index}.birthDate`)}
               />
               {errors.beneficiaries?.[index]?.birthDate ? (
@@ -91,7 +94,7 @@ export function BeneficiaryFields({
       <button
         type="button"
         onClick={onAdd}
-        className="inline-flex h-11 items-center gap-2 border border-[#1F6B43] bg-[#EAF3E8] px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#DDE8D8]"
+        className="inline-flex h-11 items-center gap-2 rounded-full border border-[#1F6B43] bg-[#EAF3E8] px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#DDE8D8]"
       >
         <Plus className="size-4" />
         Add beneficiary

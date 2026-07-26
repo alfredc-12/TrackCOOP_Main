@@ -153,7 +153,7 @@ class FakeMembershipApplicationRepository {
       id: "1",
       applicationCode: this.created.code,
       publicTrackingTokenHash: this.created.hash,
-      fullName: this.created.input.fullName,
+      fullName: applicationFullName(this.created.input),
       submittedAt: this.created.submittedAt,
       applicationStatus: "Submitted",
       latestApplicantMessage: "Your application was submitted and is waiting for Chairman review.",
@@ -194,7 +194,10 @@ class FakeMembershipApplicationRepository {
 function validApplicationPayload() {
   return {
     requestedMembershipType: "True Member",
-    fullName: "Maria Santos",
+    firstName: "Maria",
+    middleName: "",
+    lastName: "Santos",
+    suffix: "",
     email: "Applicant@Example.Test",
     contactNumber: "0917 123 4567",
     civilStatus: "Married",
@@ -247,12 +250,23 @@ function createTestApp(repository = new FakeMembershipApplicationRepository()) {
   return { app, repository };
 }
 
+function applicationFullName(input: { firstName: string; middleName?: string | null; lastName: string; suffix?: string | null }) {
+  return [input.firstName, input.middleName, input.lastName, input.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 function detail(status: MembershipApplicationStatus = "Submitted"): ChairmanApplicationDetail {
   return {
     id: "1",
     applicationCode: "MEM-APP-2026-000001",
     applicationSource: "Public Website",
     requestedMembershipType: "True Member",
+    firstName: "Maria",
+    middleName: null,
+    lastName: "Santos",
+    suffix: null,
     fullName: "Maria Santos",
     email: "maria@example.test",
     contactNumber: "09171234567",
@@ -344,7 +358,8 @@ class FakeChairmanService {
   }
   async updateApplication(_id: string, input: ChairmanMembershipApplicationUpdateInput) {
     this.lastUpdate = input;
-    return { ...detail(this.status), ...input };
+    const updated = { ...detail(this.status), ...input };
+    return { ...updated, fullName: applicationFullName(updated) };
   }
   async createBeneficiary(_id: string, input: MembershipApplicationBeneficiaryInput & { displayOrder?: number }) {
     return { id: "2", applicationId: "1", displayOrder: input.displayOrder ?? 0, ...input };
@@ -644,7 +659,7 @@ test("GET and PATCH /api/membership-applications/:id support Chairman detail and
   const updateResponse = await request(app)
     .patch("/api/membership-applications/1")
     .set("Cookie", "trackcoop_session=opaque-cookie-value")
-    .send({ fullName: "Maria R. Santos", contactNumber: "0917 000 0000" });
+    .send({ firstName: "Maria", middleName: "R.", lastName: "Santos", contactNumber: "0917 000 0000" });
 
   assert.equal(updateResponse.status, 200);
   assert.equal(updateResponse.body.data.fullName, "Maria R. Santos");

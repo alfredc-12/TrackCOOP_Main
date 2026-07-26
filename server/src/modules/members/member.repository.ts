@@ -586,7 +586,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
                'Application' AS sourceModule,
                CAST(a.membership_application_id AS CHAR) AS subjectId,
                a.application_code AS subjectCode,
-               a.full_name AS subjectName,
+               TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) AS subjectName,
                h.old_status AS oldStatus,
                h.new_status AS newStatus,
                COALESCE(h.internal_note, h.applicant_message) AS reason,

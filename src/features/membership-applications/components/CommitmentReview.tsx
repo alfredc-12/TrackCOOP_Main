@@ -47,7 +47,7 @@ const commitments = [
 export function CommitmentReview({ register, errors }: CommitmentReviewProps) {
   return (
     <div className="space-y-4">
-      <div className="border border-[#DDE8D8] bg-[#EAF3E8] p-4 text-sm leading-6 text-[#365F4A]">
+      <div className="rounded-2xl border border-[#DDE8D8] bg-[#EAF3E8] p-4 text-sm leading-6 text-[#365F4A] shadow-sm">
         The cooperative caps validated share capital at PHP 15,000. Annual interest
         rate and required share count are not shown until officially configured.
       </div>
@@ -55,7 +55,7 @@ export function CommitmentReview({ register, errors }: CommitmentReviewProps) {
       {commitments.map((item) => (
         <label
           key={item.name}
-          className="flex gap-3 border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]"
+          className="flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A] shadow-sm transition hover:border-[#1F6B43]/40 hover:bg-[#FFFAF2]"
         >
           <input
             type="checkbox"
@@ -79,13 +79,17 @@ export function CommitmentReview({ register, errors }: CommitmentReviewProps) {
 export function ReviewSummary({ watch }: Pick<CommitmentReviewProps, "watch">) {
   const values = watch();
   const beneficiaries = values.beneficiaries.filter((item) => item.fullName?.trim());
+  const fullName = [values.firstName, values.middleName, values.lastName, values.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="grid gap-5">
-      <section className="border border-[#DDE8D8] bg-white p-5">
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-[#123D2A]">Applicant</h3>
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <SummaryItem label="Name" value={values.fullName} />
+          <SummaryItem label="Name" value={fullName} />
           <SummaryItem label="Membership type" value={values.requestedMembershipType} />
           <SummaryItem label="Email" value={values.email || "Not provided"} />
           <SummaryItem label="Contact" value={values.contactNumber} />
@@ -94,7 +98,7 @@ export function ReviewSummary({ watch }: Pick<CommitmentReviewProps, "watch">) {
         </dl>
       </section>
 
-      <section className="border border-[#DDE8D8] bg-white p-5">
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-[#123D2A]">Beneficiaries</h3>
         {beneficiaries.length ? (
           <ul className="mt-3 space-y-2 text-sm text-[#365F4A]">

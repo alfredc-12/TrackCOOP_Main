@@ -48,6 +48,18 @@ function signatureMatches(fullName: string, signature: string) {
   );
 }
 
+function applicantFullName(value: {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  suffix?: string | null;
+}) {
+  return [value.firstName, value.middleName, value.lastName, value.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 export const beneficiarySchema = z
   .object({
     fullName: requiredText(190),
@@ -70,7 +82,10 @@ export const beneficiarySchema = z
 export const publicMembershipApplicationSchema = z
   .object({
     requestedMembershipType: z.enum(requestedMembershipTypes).default("Associate"),
-    fullName: requiredText(190),
+    firstName: requiredText(100),
+    middleName: optionalText(100),
+    lastName: requiredText(100),
+    suffix: optionalText(30),
     email: z.email().max(190).optional().nullable(),
     contactNumber: requiredText(40),
     civilStatus: z.enum(civilStatuses).optional().nullable(),
@@ -110,7 +125,7 @@ export const publicMembershipApplicationSchema = z
       });
     }
 
-    if (!signatureMatches(value.fullName, value.applicantSignatureName)) {
+    if (!signatureMatches(applicantFullName(value), value.applicantSignatureName)) {
       context.addIssue({
         code: "custom",
         path: ["applicantSignatureName"],
@@ -160,7 +175,10 @@ export const chairmanMembershipApplicationSchema = publicMembershipApplicationSc
 export const chairmanMembershipApplicationUpdateSchema = z
   .object({
     requestedMembershipType: z.enum(requestedMembershipTypes).optional(),
-    fullName: requiredText(190).optional(),
+    firstName: requiredText(100).optional(),
+    middleName: optionalText(100),
+    lastName: requiredText(100).optional(),
+    suffix: optionalText(30),
     email: z.email().max(190).optional().nullable(),
     contactNumber: requiredText(40).optional(),
     civilStatus: z.enum(civilStatuses).optional().nullable(),
