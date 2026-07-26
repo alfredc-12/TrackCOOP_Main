@@ -12,12 +12,16 @@ import {
   UserMinus,
   UserPlus,
   UsersRound,
+  Trash2,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
-  DataTable,
   EmptyState,
   ErrorState,
   FormDialog,
@@ -41,6 +45,11 @@ import {
   revokeUserSession,
   unlinkUserMember,
   updateUser,
+  deleteUser,
+  resetUserPassword,
+  bulkUserAction,
+  exportUsersCsv,
+  getUserAuditLogs,
   type AccountStatus,
   type ActivationLinkResult,
   type LinkableMember,
@@ -50,6 +59,7 @@ import {
   type UserSession,
   type UserSummary,
   type UserSummaryCounts,
+  type AuditLogEntry,
 } from "@/features/chairman/people-api";
 
 const accountStatuses: AccountStatus[] = ["Pending", "Active", "Suspended", "Inactive"];
@@ -69,7 +79,9 @@ type ActionKind =
   | "revoke-session"
   | "revoke-all"
   | "link-member"
-  | "unlink-member";
+  | "unlink-member"
+  | "delete"
+  | "reset-password";
 
 type PendingAction = {
   kind: ActionKind;
@@ -135,7 +147,7 @@ export function UsersClient() {
   });
   const [query, setQuery] = useState<UserListQuery>({
     page: 1,
-    pageSize: 10,
+    pageSize: 5,
     search: "",
     role: "all",
     status: "all",
@@ -152,6 +164,10 @@ export function UsersClient() {
   const [editUser, setEditUser] = useState<UserDetail | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [activationResult, setActivationResult] = useState<ActivationLinkResult | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [auditLogsOpen, setAuditLogsOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
 
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
@@ -226,16 +242,57 @@ export function UsersClient() {
 
   function updateQuery(next: Partial<UserListQuery>) {
     setQuery((current) => ({ ...current, ...next, page: next.page ?? 1 }));
+    setSelectedUserIds(new Set()); // Clear selection on pagination/filter change
+  }
+
+  function handleExportCsv() {
+    window.location.href = exportUsersCsv(query);
+  }
+
+  function toggleSelection(userId: string) {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function toggleAllSelection() {
+    if (selectedUserIds.size === users.length) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(users.map((u) => u.id)));
+    }
+  }
+
+  async function openAuditLogs(userId: string) {
+    setIsMutating(true);
+    try {
+      setAuditLogs(await getUserAuditLogs(userId));
+      setAuditLogsOpen(true);
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "Audit logs could not be loaded.");
+    } finally {
+      setIsMutating(false);
+    }
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-6">
       <PageHeader
         eyebrow="People"
         title="User Accounts"
         description="Chairman-controlled account access, role assignments, activation links, and session lifecycle."
         actions={
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-white px-4 text-sm font-bold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50"
+            >
+              Export CSV
+            </button>
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
@@ -308,28 +365,79 @@ export function UsersClient() {
         />
       ) : (
         <>
-          <UserTable users={users} onOpen={openDetail} />
+          {selectedUserIds.size > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-[#CAD8CB] bg-[#EEF2EC] p-3 text-sm font-semibold text-[#123D2A]">
+              <span>{selectedUserIds.size} selected</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkActionOpen(true)}
+                  className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-[#123D2A] shadow-sm ring-1 ring-inset ring-[#CAD8CB] hover:bg-gray-50"
+                >
+                  Bulk Actions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserIds(new Set())}
+                  className="rounded-md px-3 py-1.5 text-xs font-bold text-[#5D6D63] hover:bg-[#CAD8CB]"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+          <UserTable
+            users={users}
+            onOpen={openDetail}
+            selectedUserIds={selectedUserIds}
+            toggleSelection={toggleSelection}
+            toggleAllSelection={toggleAllSelection}
+          />
           <UserCards users={users} onOpen={openDetail} />
-          <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 text-sm font-semibold text-[#294B39] sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              Page {page} of {totalPages} · {total} accounts
-            </span>
-            <div className="flex gap-2">
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-[#CAD8CB] bg-white p-4 text-sm font-semibold text-[#294B39] sm:flex-row">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => updateQuery({ page: 1 })}
+                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="First page"
+              >
+                <ChevronsLeft className="size-4" aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => updateQuery({ page: page - 1 })}
-                className="h-10 rounded-md border border-[#CAD8CB] px-4 disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Previous page"
               >
-                Previous
+                <ChevronLeft className="size-4" aria-hidden="true" />
               </button>
+            </div>
+
+            <span className="px-2">
+              Page {page} of {totalPages} &middot; {total} accounts
+            </span>
+
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => updateQuery({ page: page + 1 })}
-                className="h-10 rounded-md border border-[#CAD8CB] px-4 disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Next page"
               >
-                Next
+                <ChevronRight className="size-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => updateQuery({ page: totalPages })}
+                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Last page"
+              >
+                <ChevronsRight className="size-4" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -381,9 +489,13 @@ export function UsersClient() {
         onOpenChange={(open) => {
           if (!open) setSelectedUser(null);
         }}
-        onEdit={(user) => setEditUser(user)}
-        onAction={(action) => setPendingAction(action)}
+        onEdit={(user) => {
+          setSelectedUser(null);
+          setEditUser(user);
+        }}
+        onAction={setPendingAction}
         onRefresh={refreshSelected}
+        onViewAuditLogs={openAuditLogs}
       />
 
       <LifecycleActionDialog
@@ -414,6 +526,12 @@ export function UsersClient() {
           } else if (action.kind === "unlink-member") {
             const detail = await unlinkUserMember(action.user.id, payload.reason);
             setSelectedUser(detail);
+          } else if (action.kind === "reset-password") {
+            if (!payload.password) throw new Error("Password is required.");
+            await resetUserPassword(action.user.id, payload.password, payload.reason);
+          } else if (action.kind === "delete") {
+            await deleteUser(action.user.id, payload.reason, payload.selfConfirmation);
+            setSelectedUser(null);
           } else {
             const status = actionStatus(action.kind);
             if (status) {
@@ -439,17 +557,62 @@ export function UsersClient() {
           if (!open) setActivationResult(null);
         }}
       />
+
+      <BulkActionDialog
+        open={bulkActionOpen}
+        onOpenChange={setBulkActionOpen}
+        selectedCount={selectedUserIds.size}
+        onConfirm={async (action, reason) => {
+          await runMutation(`Successfully processed ${selectedUserIds.size} accounts.`, async () => {
+            await bulkUserAction(Array.from(selectedUserIds), action, reason);
+            setSelectedUserIds(new Set());
+          });
+        }}
+      />
+
+      <AuditLogDialog
+        open={auditLogsOpen}
+        onOpenChange={setAuditLogsOpen}
+        logs={auditLogs}
+      />
     </div>
   );
 }
 
-function UserTable({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: string) => Promise<void> }) {
+function UserTable({
+  users,
+  onOpen,
+  selectedUserIds,
+  toggleSelection,
+  toggleAllSelection,
+}: {
+  users: UserSummary[];
+  onOpen: (userId: string) => Promise<void>;
+  selectedUserIds: Set<string>;
+  toggleSelection: (userId: string) => void;
+  toggleAllSelection: () => void;
+}) {
+  const allSelected = users.length > 0 && selectedUserIds.size === users.length;
+  const someSelected = selectedUserIds.size > 0 && !allSelected;
+
   return (
-    <div className="hidden 2xl:block">
-      <DataTable>
-        <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
+    <div className="hidden 2xl:block min-w-0">
+      <div className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-sm">
+        <table className="w-full divide-y divide-[#E2E8E2] text-left text-sm table-fixed">
           <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
             <tr>
+              <th className="px-5 py-4 w-10">
+                <input
+                  type="checkbox"
+                  className="rounded border-[#CAD8CB] text-[#123D2A] focus:ring-[#1F6B43]"
+                  checked={allSelected}
+                  ref={(input) => {
+                    if (input) input.indeterminate = someSelected;
+                  }}
+                  onChange={toggleAllSelection}
+                  aria-label="Select all"
+                />
+              </th>
               <th className="px-5 py-4">Display Name</th>
               <th className="px-5 py-4">Email</th>
               <th className="px-5 py-4">Username</th>
@@ -464,7 +627,16 @@ function UserTable({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: s
           </thead>
           <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
             {users.map((user) => (
-              <tr key={user.id} className="hover:bg-[#F7F8F3]">
+              <tr key={user.id} className={`hover:bg-[#F7F8F3] ${selectedUserIds.has(user.id) ? "bg-[#EEF2EC]" : ""}`}>
+                <td className="px-5 py-4">
+                  <input
+                    type="checkbox"
+                    className="rounded border-[#CAD8CB] text-[#123D2A] focus:ring-[#1F6B43]"
+                    checked={selectedUserIds.has(user.id)}
+                    onChange={() => toggleSelection(user.id)}
+                    aria-label={`Select ${user.displayName}`}
+                  />
+                </td>
                 <td className="px-5 py-4 font-bold text-[#123D2A]">{user.displayName}</td>
                 <td className="px-5 py-4">{user.email}</td>
                 <td className="px-5 py-4">{user.username ?? "None"}</td>
@@ -489,7 +661,7 @@ function UserTable({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: s
             ))}
           </tbody>
         </table>
-      </DataTable>
+      </div>
     </div>
   );
 }
@@ -533,6 +705,7 @@ function UserDetailDialog({
   onEdit,
   onAction,
   onRefresh,
+  onViewAuditLogs,
 }: {
   user: UserDetail | null;
   currentUserId: string;
@@ -541,6 +714,7 @@ function UserDetailDialog({
   onEdit: (user: UserDetail) => void;
   onAction: (action: PendingAction) => void;
   onRefresh: (userId: string) => Promise<UserDetail>;
+  onViewAuditLogs: (userId: string) => void;
 }) {
   if (!user) return null;
 
@@ -564,21 +738,38 @@ function UserDetailDialog({
           <Info label="Pending Activation" value={user.activationTokenExpiresAt ? formatDate(user.activationTokenExpiresAt) : "None"} />
         </section>
 
-        <section>
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Lifecycle Actions</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton icon={UserCog} label="Edit" onClick={() => onEdit(user)} />
-            <ActionButton icon={ShieldCheck} label="Activate" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activate", user })} />
-            <ActionButton icon={UserMinus} label="Suspend" disabled={user.accountStatus === "Suspended"} onClick={() => onAction({ kind: "suspend", user })} />
-            <ActionButton icon={UserMinus} label="Deactivate" disabled={user.accountStatus === "Inactive"} onClick={() => onAction({ kind: "deactivate", user })} />
-            <ActionButton icon={UserCheck} label="Reactivate" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "reactivate", user })} />
-            <ActionButton icon={UserCog} label="Change Role" onClick={() => onAction({ kind: "role", user })} />
-            <ActionButton icon={KeyRound} label="Issue Activation Link" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activation", user })} />
-            <ActionButton icon={Link2} label="Link Member" disabled={!canLink} onClick={() => onAction({ kind: "link-member", user })} />
-            <ActionButton icon={Link2} label="Unlink Member" disabled={!canUnlink} onClick={() => onAction({ kind: "unlink-member", user })} />
+        <section className="grid gap-6">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Profile & Role</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionButton icon={UserCog} label="Edit Profile" onClick={() => onEdit(user)} />
+              <ActionButton icon={UserCog} label="Change Role" onClick={() => onAction({ kind: "role", user })} />
+              <ActionButton icon={Link2} label="Link Member" disabled={!canLink} onClick={() => onAction({ kind: "link-member", user })} />
+              <ActionButton icon={Link2} label="Unlink Member" disabled={!canUnlink} onClick={() => onAction({ kind: "unlink-member", user })} />
+            </div>
           </div>
+
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Access & Security</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionButton icon={KeyRound} label="Reset Password" onClick={() => onAction({ kind: "reset-password", user })} />
+              <ActionButton icon={KeyRound} label="Issue Activation Link" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activation", user })} />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-[#E7B8A8] bg-[#FFF5F3] p-4">
+            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#9A392A]">Danger Zone</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionButton icon={ShieldCheck} label="Activate" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activate", user })} />
+              <ActionButton icon={UserMinus} label="Suspend" disabled={user.accountStatus === "Suspended"} onClick={() => onAction({ kind: "suspend", user })} />
+              <ActionButton icon={UserMinus} label="Deactivate" disabled={user.accountStatus === "Inactive"} onClick={() => onAction({ kind: "deactivate", user })} />
+              <ActionButton icon={UserCheck} label="Reactivate" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "reactivate", user })} />
+              <ActionButton icon={Trash2} label="Delete Account" onClick={() => onAction({ kind: "delete", user })} />
+            </div>
+          </div>
+
           {user.id === currentUserId ? (
-            <p className="mt-3 rounded-md bg-[#FFF4D7] p-3 text-sm font-semibold text-[#7A5A00]">
+            <p className="rounded-md bg-[#FFF4D7] p-3 text-sm font-semibold text-[#7A5A00]">
               Changes that disable your own account require typing your display name.
             </p>
           ) : null}
@@ -620,13 +811,22 @@ function UserDetailDialog({
               ))
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => void onRefresh(user.id)}
-            className="mt-3 h-9 rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
-          >
-            Refresh Details
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void onRefresh(user.id)}
+              className="h-9 rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
+            >
+              Refresh Details
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewAuditLogs(user.id)}
+              className="h-9 rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
+            >
+              View Activity Log
+            </button>
+          </div>
         </section>
       </div>
     </FormDialog>
@@ -649,14 +849,14 @@ function UserFormDialog({
   const [draft, setDraft] = useState<UserFormState>(
     user
       ? {
-          displayName: user.displayName,
-          email: user.email,
-          username: user.username ?? "",
-          role: user.role,
-          accountStatus: user.accountStatus,
-          password: "",
-          issueActivationLink: false,
-        }
+        displayName: user.displayName,
+        email: user.email,
+        username: user.username ?? "",
+        role: user.role,
+        accountStatus: user.accountStatus,
+        password: "",
+        issueActivationLink: false,
+      }
       : blankForm,
   );
 
@@ -743,6 +943,7 @@ function LifecycleActionDialog({
     selfConfirmation?: string;
     role: RoleSlug;
     memberId: string;
+    password?: string;
     successMessage: string;
   }) => Promise<void>;
 }) {
@@ -752,6 +953,7 @@ function LifecycleActionDialog({
   const [memberId, setMemberId] = useState("");
   const [memberSearch, setMemberSearch] = useState("");
   const [members, setMembers] = useState<LinkableMember[]>([]);
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (action?.kind !== "link-member") return;
@@ -776,7 +978,8 @@ function LifecycleActionDialog({
 
   const status = actionStatus(action.kind);
   const requiresSelfConfirmation =
-    action.user.id === currentUserId && status !== null && status !== "Active";
+    action.kind === "delete" ||
+    (action.user.id === currentUserId && status !== null && status !== "Active");
   const title = actionTitle(action);
 
   return (
@@ -790,11 +993,16 @@ function LifecycleActionDialog({
           setMemberId("");
           setMemberSearch("");
           setMembers([]);
+          setPassword("");
         }
         onOpenChange(open);
       }}
       title={title}
-      description="This action requires a reason and will be recorded in the audit log."
+      description={
+        action.kind === "delete"
+          ? "WARNING: This will permanently delete the user account and cannot be undone."
+          : "This action requires a reason and will be recorded in the audit log."
+      }
     >
       <form
         className="grid gap-4"
@@ -805,6 +1013,7 @@ function LifecycleActionDialog({
             selfConfirmation,
             role,
             memberId,
+            password,
             successMessage: successMessage(action),
           });
         }}
@@ -815,6 +1024,12 @@ function LifecycleActionDialog({
             <select className={inputClass} value={role} onChange={(event) => setRole(event.target.value as RoleSlug)}>
               {roles.map((item) => <option key={item} value={item}>{roleLabel(item)}</option>)}
             </select>
+          </label>
+        ) : null}
+        {action.kind === "reset-password" ? (
+          <label className={labelClass}>
+            New Password
+            <input className={inputClass} required minLength={12} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
           </label>
         ) : null}
         {action.kind === "link-member" ? (
@@ -856,7 +1071,7 @@ function LifecycleActionDialog({
           <button type="button" onClick={() => onOpenChange(false)} className="h-11 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#294B39]">
             Cancel
           </button>
-          <button disabled={isMutating} type="submit" className="h-11 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
+          <button disabled={isMutating} type="submit" className={`h-11 rounded-md px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${action.kind === "delete" ? "bg-[#B91C1C]" : "bg-[#123D2A]"}`}>
             Confirm
           </button>
         </div>
@@ -934,6 +1149,8 @@ function actionTitle(action: PendingAction) {
     "revoke-all": "Revoke All Sessions",
     "link-member": "Link Member Profile",
     "unlink-member": "Unlink Member Profile",
+    delete: "Hard Delete Account",
+    "reset-password": "Reset Password",
   };
 
   return titles[action.kind];
@@ -951,7 +1168,129 @@ function successMessage(action: PendingAction) {
     "revoke-all": "Sessions revoked.",
     "link-member": "Member profile linked.",
     "unlink-member": "Member profile unlinked.",
+    delete: "User account deleted permanently.",
+    "reset-password": "User password reset successfully.",
   };
 
   return messages[action.kind];
+}
+
+function BulkActionDialog({
+  open,
+  onOpenChange,
+  selectedCount,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedCount: number;
+  onConfirm: (action: "Suspend" | "Activate" | "Delete", reason: string) => Promise<void>;
+}) {
+  const [action, setAction] = useState<"Suspend" | "Activate" | "Delete">("Suspend");
+  const [reason, setReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Bulk Account Actions"
+      description={`Apply an action to ${selectedCount} selected accounts simultaneously.`}
+    >
+      <form
+        className="grid gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setIsSubmitting(true);
+          onConfirm(action, reason).finally(() => {
+            setIsSubmitting(false);
+            onOpenChange(false);
+            setReason("");
+          });
+        }}
+      >
+        <label className="block text-sm font-bold text-[#123D2A]">
+          Action to Apply
+          <select
+            className="mt-1 block h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+            value={action}
+            onChange={(event) => setAction(event.target.value as "Suspend" | "Activate" | "Delete")}
+            required
+          >
+            <option value="Suspend">Suspend Accounts</option>
+            <option value="Activate">Activate Accounts</option>
+            <option value="Delete">Delete Accounts Permanently</option>
+          </select>
+        </label>
+
+        <label className="block text-sm font-bold text-[#123D2A]">
+          Reason
+          <textarea
+            required
+            rows={3}
+            className="mt-1 block w-full rounded-md border border-[#CAD8CB] bg-white px-3 py-2 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Why are you taking this action?"
+          />
+        </label>
+
+        {action === "Delete" ? (
+          <p className="rounded-md bg-[#FFF4D7] p-3 text-sm font-semibold text-[#7A5A00]">
+            Warning: Deleting accounts is permanent and cannot be undone.
+          </p>
+        ) : null}
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button type="button" onClick={() => onOpenChange(false)} className="h-11 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#294B39]">
+            Cancel
+          </button>
+          <button disabled={isSubmitting} type="submit" className={`h-11 rounded-md px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${action === "Delete" ? "bg-[#B91C1C]" : "bg-[#123D2A]"}`}>
+            Confirm Action
+          </button>
+        </div>
+      </form>
+    </FormDialog>
+  );
+}
+
+function AuditLogDialog({
+  open,
+  onOpenChange,
+  logs,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  logs: AuditLogEntry[];
+}) {
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Activity Log"
+      description="Recent lifecycle and security actions for this account."
+    >
+      <div className="max-h-[60vh] overflow-y-auto">
+        {logs.length === 0 ? (
+          <p className="rounded-md border border-dashed border-[#CAD8CB] p-4 text-sm text-[#5D6D63]">No recent activity found.</p>
+        ) : (
+          <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-[#CAD8CB] before:to-transparent">
+            {logs.map((log) => (
+              <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-[#123D2A] text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2" />
+                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] rounded-md border border-[#CAD8CB] bg-white p-3 shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-[#123D2A] text-sm">{log.action}</span>
+                    <time className="text-xs text-[#6C7A70]">{formatDate(log.actionTime)}</time>
+                  </div>
+                  <p className="text-sm text-[#5D6D63]">{log.description || "System action"}</p>
+                  <p className="text-xs text-[#6C7A70] mt-1">by {log.actorName || "System"} ({log.ipAddress || "Internal"})</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </FormDialog>
+  );
 }

@@ -13,6 +13,9 @@ import {
   updateUserRoleSchema,
   updateUserSchema,
   updateUserStatusSchema,
+  deleteUserSchema,
+  resetUserPasswordSchema,
+  bulkUserActionSchema,
 } from "./user.schema";
 import type { UserService } from "./user.service";
 
@@ -185,6 +188,55 @@ export function createUserController(service: UserService) {
         request.auth,
       );
       return sendSuccess(response, user, { message: "Member profile unlinked" });
+    }),
+
+    deleteUser: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(deleteUserSchema, request.body);
+      await service.deleteUser(
+        requireParam(request.params.id, "id"),
+        input.reason,
+        input.selfConfirmation,
+        request.auth,
+      );
+      return sendSuccess(response, null, { message: "User account deleted" });
+    }),
+
+    resetPassword: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(resetUserPasswordSchema, request.body);
+      await service.resetPassword(
+        requireParam(request.params.id, "id"),
+        input.password,
+        input.reason,
+        request.auth,
+      );
+      return sendSuccess(response, null, {
+        message: "Password has been successfully reset.",
+      });
+    }),
+
+    exportCsv: asyncHandler(async (request, response) => {
+      const query = parseBody(listUsersQuerySchema, request.query);
+      const csvString = await service.exportUsersCsv(query);
+      response.setHeader("Content-Type", "text/csv");
+      response.setHeader("Content-Disposition", `attachment; filename="users-export-${new Date().toISOString().split("T")[0]}.csv"`);
+      return response.status(200).send(csvString);
+    }),
+
+    bulkAction: asyncHandler(async (request, response) => {
+      if (!request.auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
+      const input = parseBody(bulkUserActionSchema, request.body);
+      const result = await service.bulkAction(input, request.auth);
+      return sendSuccess(response, result, {
+        message: `Successfully processed ${result.count} users`,
+      });
+    }),
+
+    auditLogs: asyncHandler(async (request, response) => {
+      const userId = requireParam(request.params.id, "id");
+      const logs = await service.getAuditLogs(userId);
+      return sendSuccess(response, logs);
     }),
   };
 }

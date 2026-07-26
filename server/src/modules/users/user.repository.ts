@@ -18,6 +18,8 @@ import type {
   UserMutationResult,
   UserSummaryCounts,
   UserSummary,
+  BulkUserActionInput,
+  AuditLogEntry,
 } from "./user.types";
 
 type UserRow = RowDataPacket & {
@@ -98,6 +100,10 @@ export interface UserRepository {
   revokeAllSessions(userId: string, reason: string, auth: AuthContext): Promise<UserDetail>;
   linkMember(userId: string, memberId: string, reason: string, auth: AuthContext): Promise<UserDetail>;
   unlinkMember(userId: string, reason: string, auth: AuthContext): Promise<UserDetail>;
+  hardDeleteUser(userId: string, reason: string, auth: AuthContext): Promise<void>;
+  resetPassword(userId: string, passwordHash: string, reason: string, auth: AuthContext): Promise<void>;
+  bulkAction(input: BulkUserActionInput, auth: AuthContext): Promise<{ count: number }>;
+  getAuditLogs(userId: string): Promise<AuditLogEntry[]>;
   activationTokenHours(): Promise<number>;
 }
 
@@ -779,6 +785,57 @@ export function createUserRepository(pool?: Pool): UserRepository {
       return updated;
     },
 
+    async hardDeleteUser(userId, reason, auth) {
+      await withTransaction(async (connection) => {
+        const existing = await this.findById(userId);
+        if (!existing) throw new AppError("User was not found", 404, "USER_NOT_FOUND");
+
+        // The audit_logs table itself might have foreign keys pointing to this user (user_id).
+        // Since we want to keep the audit logs, we should set the user_id to NULL in audit logs or
+        // since audit_logs user_id is NOT NULL or CASCADE?
+        // Wait, normally we just delete the user and if there's a constraint, it fails.
+        // The implementation plan says "literal na pagbura sa database". Let's do a hard delete.
+        
+        await connection.execute(`DELETE FROM users WHERE user_id = ?`, [userId]);
+        
+        // Log the action using the actor's user id.
+        await connection.execute(
+          `INSERT INTO audit_logs
+             (user_id, action, entity_table, record_id, description, new_values)
+           VALUES (?, 'account.deleted', 'users', ?, 'A user account was hard deleted.', ?)`,
+          [auth.user.id, userId, JSON.stringify({ userId, reason })]
+        );
+      }, databasePool());
+    },
+
+    async resetPassword(userId, passwordHash, reason, auth) {
+      await withTransaction(async (connection) => {
+        const existing = await this.findById(userId);
+        if (!existing) throw new AppError("User was not found", 404, "USER_NOT_FOUND");
+
+        await connection.execute(
+          `UPDATE users SET password_hash = ? WHERE user_id = ?`,
+          [passwordHash, userId]
+        );
+
+        await connection.execute(
+          `INSERT INTO audit_logs
+             (user_id, action, entity_table, record_id, description, new_values)
+           VALUES (?, 'account.password_reset', 'users', ?, 'A user password was reset directly.', ?)`,
+          [auth.user.id, userId, JSON.stringify({ userId, reason })]
+        );
+
+        await revokeSessions(
+          connection,
+          userId,
+          auth,
+          "account.sessions_revoked",
+          "User sessions were revoked after a password reset.",
+          reason
+        );
+      }, databasePool());
+    },
+
     async activationTokenHours() {
       const [rows] = await databasePool().execute<SettingRow[]>(
         `SELECT setting_value AS value
@@ -788,6 +845,78 @@ export function createUserRepository(pool?: Pool): UserRepository {
       );
       const hours = Number(rows[0]?.value ?? 72);
       return Number.isFinite(hours) && hours > 0 ? hours : 72;
+    },
+
+    async bulkAction({ userIds, action, reason }, auth) {
+      if (userIds.length === 0) return { count: 0 };
+      let processedCount = 0;
+
+      await withTransaction(async (connection) => {
+        for (const userId of userIds) {
+          const [rows] = await connection.execute<UserRow[]>(
+            `SELECT * FROM users WHERE user_id = ? FOR UPDATE`,
+            [userId]
+          );
+          if (rows.length === 0) continue;
+
+          if (action === "Suspend" || action === "Activate") {
+            const status = action === "Suspend" ? "Suspended" : "Active";
+            await connection.execute(
+              `UPDATE users SET account_status = ? WHERE user_id = ?`,
+              [status, userId]
+            );
+            await connection.execute(
+              `INSERT INTO audit_logs (user_id, action, entity_table, record_id, description, new_values)
+               VALUES (?, ?, 'users', ?, ?, ?)`,
+              [
+                auth.user.id,
+                `account.status_updated`,
+                userId,
+                `User account status was updated via bulk action.`,
+                JSON.stringify({ accountStatus: status, reason })
+              ]
+            );
+
+            if (action === "Suspend") {
+              await revokeSessions(connection, userId, auth, "account.sessions_revoked", "User sessions were revoked due to account suspension.", reason);
+            }
+          } else if (action === "Delete") {
+            await connection.execute(`DELETE FROM users WHERE user_id = ?`, [userId]);
+            await connection.execute(
+              `INSERT INTO audit_logs (user_id, action, entity_table, record_id, description, new_values)
+               VALUES (?, 'account.deleted', 'users', ?, 'A user account was hard deleted via bulk action.', ?)`,
+              [auth.user.id, userId, JSON.stringify({ userId, reason })]
+            );
+          }
+          processedCount++;
+        }
+      }, databasePool());
+
+      return { count: processedCount };
+    },
+
+    async getAuditLogs(userId) {
+      const [rows] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT 
+           a.audit_log_id AS id,
+           a.action,
+           a.record_id AS recordId,
+           a.description,
+           a.old_values AS oldValues,
+           a.new_values AS newValues,
+           a.ip_address AS ipAddress,
+           a.user_agent AS userAgent,
+           a.action_time AS actionTime,
+           u.display_name AS actorName,
+           u.email AS actorEmail
+         FROM audit_logs a
+         LEFT JOIN users u ON a.user_id = u.user_id
+         WHERE a.entity_table = 'users' AND a.record_id = ?
+         ORDER BY a.action_time DESC`,
+        [userId]
+      );
+
+      return rows as AuditLogEntry[];
     },
   };
 }

@@ -78,6 +78,26 @@ export type UpdateUserRoleInput = {
   reason: string;
 };
 
+export type BulkUserActionInput = {
+  userIds: string[];
+  action: "Suspend" | "Activate" | "Delete";
+  reason: string;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  action: string;
+  recordId: string | null;
+  description: string | null;
+  oldValues: string | null;
+  newValues: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  actionTime: Date;
+  actorName: string | null;
+  actorEmail: string | null;
+};
+
 export type ActivationLinkResult = {
   user: UserSummary;
   activationUrl: string;

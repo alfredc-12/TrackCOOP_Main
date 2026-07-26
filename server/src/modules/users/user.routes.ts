@@ -17,8 +17,11 @@ export function createUserRouter(
   router.get("/users/summary", ...chairmanOnly, controller.summary);
   router.get("/users/linkable-members", ...chairmanOnly, controller.linkableMembers);
   router.get("/users", ...chairmanOnly, controller.list);
+  router.get("/users/export", ...chairmanOnly, controller.exportCsv);
   router.post("/users", ...chairmanOnly, controller.create);
+  router.post("/users/bulk", ...chairmanOnly, controller.bulkAction);
   router.get("/users/:id", ...chairmanOnly, controller.detail);
+  router.get("/users/:id/audit-logs", ...chairmanOnly, controller.auditLogs);
   router.patch("/users/:id", ...chairmanOnly, controller.update);
   router.patch("/users/:id/status", ...chairmanOnly, controller.status);
   router.patch("/users/:id/role", ...chairmanOnly, controller.role);
@@ -27,6 +30,8 @@ export function createUserRouter(
   router.post("/users/:id/sessions/:sessionId/revoke", ...chairmanOnly, controller.revokeSession);
   router.post("/users/:id/member-link", ...chairmanOnly, controller.linkMember);
   router.delete("/users/:id/member-link", ...chairmanOnly, controller.unlinkMember);
+  router.delete("/users/:id", ...chairmanOnly, controller.deleteUser);
+  router.post("/users/:id/password-reset", ...chairmanOnly, controller.resetPassword);
 
   return router;
 }

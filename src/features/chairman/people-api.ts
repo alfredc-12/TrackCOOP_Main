@@ -59,6 +59,20 @@ export type UserListResult = {
   pageSize: number;
 };
 
+export type AuditLogEntry = {
+  id: string;
+  action: string;
+  recordId: string | null;
+  description: string | null;
+  oldValues: string | null;
+  newValues: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  actionTime: string;
+  actorName: string | null;
+  actorEmail: string | null;
+};
+
 export type UserMutationResult = {
   user: UserSummary;
   activationUrl?: string;
@@ -477,6 +491,45 @@ export function revokeAllUserSessions(userId: string, reason: string) {
     method: "POST",
     body: JSON.stringify({ reason }),
   });
+}
+
+export function deleteUser(userId: string, reason: string, selfConfirmation?: string) {
+  return apiRequest<void>(`/api/users/${userId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ reason, selfConfirmation }),
+  });
+}
+
+export function resetUserPassword(userId: string, password: string, reason: string) {
+  return apiRequest<void>(`/api/users/${userId}/password-reset`, {
+    method: "POST",
+    body: JSON.stringify({ password, reason }),
+  });
+}
+
+export function exportUsersCsv(query: UserListQuery = {}): string {
+  const params = new URLSearchParams({
+    page: String(query.page ?? 1),
+    pageSize: String(query.pageSize ?? 20),
+    sortBy: query.sortBy ?? "createdAt",
+    sortDirection: query.sortDirection ?? "desc",
+  });
+  if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.role && query.role !== "all") params.set("role", query.role);
+  if (query.status && query.status !== "all") params.set("status", query.status);
+
+  return `${env.apiUrl}/api/users/export?${params}`;
+}
+
+export function bulkUserAction(userIds: string[], action: "Suspend" | "Activate" | "Delete", reason: string) {
+  return apiRequest<{ count: number }>("/api/users/bulk", {
+    method: "POST",
+    body: JSON.stringify({ userIds, action, reason }),
+  });
+}
+
+export function getUserAuditLogs(userId: string) {
+  return apiRequest<AuditLogEntry[]>(`/api/users/${userId}/audit-logs`);
 }
 
 export function listLinkableMembers(search?: string) {

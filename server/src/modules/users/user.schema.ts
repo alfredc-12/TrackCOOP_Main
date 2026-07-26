@@ -96,3 +96,26 @@ export const linkMemberSchema = z.object({
 export const unlinkMemberSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });
+
+export const resetUserPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(12)
+    .max(128)
+    .regex(/[a-z]/, "Password must include a lowercase letter")
+    .regex(/[A-Z]/, "Password must include an uppercase letter")
+    .regex(/[0-9]/, "Password must include a number"),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const deleteUserSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  selfConfirmation: z.string().trim().max(160).optional(),
+});
+
+export const bulkUserActionSchema = z.object({
+  userIds: z.array(z.string().min(1)).min(1).max(100),
+  action: z.enum(["Suspend", "Activate", "Delete"]),
+  reason: z.string().trim().min(3).max(500),
+});
+

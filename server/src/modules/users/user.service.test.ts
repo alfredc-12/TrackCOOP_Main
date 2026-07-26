@@ -114,6 +114,8 @@ function createRepository(overrides: Partial<UserRepository> = {}): UserReposito
     async activationTokenHours() {
       return 72;
     },
+    async hardDeleteUser() {},
+    async resetPassword() {},
     ...overrides,
   };
 }

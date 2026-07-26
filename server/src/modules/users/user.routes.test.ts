@@ -145,6 +145,8 @@ function createUserService(): UserService {
     async unlinkMember() {
       return { ...userDetail, linkedMemberId: null, linkedMemberCode: null, linkedMemberName: null };
     },
+    async deleteUser() {},
+    async resetPassword() {},
   };
 }
 
