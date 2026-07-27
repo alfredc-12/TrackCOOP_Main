@@ -1,13 +1,15 @@
-import { LayoutDashboard } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { DashboardClient } from "./DashboardClient";
 
 export default function ChairmanDashboardPage() {
   return (
-    <PortalRoutePage
-      eyebrow="Overview"
-      title="Chairman Dashboard"
-      description="Oversight for member growth, payments, operations, and cooperative activity."
-      icon={LayoutDashboard}
-    />
+    <div className="grid gap-6">
+      <PageHeader
+        eyebrow="Overview"
+        title="Chairman Dashboard"
+        description="Oversight for member growth, payments, operations, and cooperative activity."
+      />
+      <DashboardClient />
+    </div>
   );
 }
