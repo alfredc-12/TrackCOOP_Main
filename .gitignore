@@ -49,4 +49,5 @@ graphify-out/
 .graphifyignore
 .codex/skills/graphify/
 .graphify_*
-*.graphify-cache
+*.graphify-
+.codex/hooks.json
