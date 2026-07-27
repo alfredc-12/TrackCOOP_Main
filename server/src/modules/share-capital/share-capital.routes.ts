@@ -18,7 +18,7 @@ export function createShareCapitalRouter(
   const bookkeeperOnly = [createAuthenticate(authService), requireRoles("bookkeeper")];
 
   router.get("/share-capital", ...staff, controller.list);
-  router.post("/share-capital", ...bookkeeperOnly, controller.create);
+  router.post("/share-capital", ...staff, controller.create);
   router.get("/share-capital/summary", ...staff, controller.summary);
   router.get("/share-capital/member/:memberId", ...staff, controller.memberProgress);
   router.get("/share-capital/:id", ...staff, controller.detail);

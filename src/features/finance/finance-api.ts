@@ -260,6 +260,23 @@ export function getShareCapitalSummary() {
   return apiRequest<ShareCapitalSummary>("/api/share-capital/summary");
 }
 
+export interface CreateShareCapitalInput {
+  memberId: string;
+  amount: number;
+  paymentDate: string;
+  paymentStatus: "Pending" | "Validated" | "Rejected" | "Reversed";
+  remarks?: string | null;
+}
+
+export function createShareCapital(input: CreateShareCapitalInput) {
+  return apiRequest<ShareCapitalPayment>("/api/share-capital", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+
 export function listFinancialCategories() {
   return apiRequest<FinancialCategory[]>("/api/financial-categories");
 }
