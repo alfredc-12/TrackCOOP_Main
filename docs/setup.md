@@ -1,83 +1,21 @@
-# TrackCOOP Setup
+# Setup
 
-## Requirements
-
-- Node.js 20.9 or newer
-- npm
-- MySQL 8-compatible database access for backend database features
+Requirements: Node.js 20.9+, npm, MySQL 8-compatible access, and Chromium for Playwright.
 
 ```bash
 npm install
-npm run typecheck
-npm run lint
-npm run test:api
-npx playwright install chromium
-npm run test:e2e
-npm run dev
-npm run build
+cp server/.env.example server/.env
 ```
 
-`npm run dev` starts the Next.js web application on port 3000 and the Express
-API on port 5000. Use `npm run dev:web` or `npm run dev:api` to start one process.
+Browser-safe root environment:
 
-Copy `server/.env.example` to the ignored `server/.env` file before using live
-database routes. Database import and reference seeding are manual operations;
-see [`database.md`](database.md).
-
-For a clean database, import `server/database/TrackCOOP_MAIN_Database.sql`, run
-`npm run db:check`, then manually run
-`server/database/testing_data_and_admin_settings.sql` if local testing data and
-default admin settings are needed.
-
-For a database that already has the older 34-table TrackCOOP schema, take a
-backup, manually apply
-`server/database/migrations/20260724_add_membership_application_workflow.sql`,
-run `npm run db:check`, then manually run
-`server/database/testing_data_and_admin_settings.sql` if local testing data and
-default admin settings are needed.
-
-Do not wire schema imports or seed files into `npm run dev`, API startup,
-tests, or builds. They are manual database-operator actions only.
-
-After importing the schema and reference seed, create the first portal accounts
-from an interactive terminal. The password is prompted without terminal echo
-and is never accepted as a command-line argument:
-
-```bash
-npm run user:create -- --email chair@example.com --name "Chair Person" --role chairman
-npm run user:create -- --email books@example.com --name "Book Keeper" --role bookkeeper
-```
-
-The root `SESSION_COOKIE_NAME` and `server/.env` value must match if the default
-cookie name is changed. See [`authentication.md`](authentication.md) for the
-session and lockout model.
-
-## Environment Files
-
-The Next.js app reads public browser configuration from the root `.env` file.
-Keep values public-safe:
-
-```bash
+```text
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
-The Express API reads private configuration from `server/.env`. Start from
-`server/.env.example` and never commit real database credentials, upload paths,
-or production cookie settings.
+Private `server/.env` configuration keeps PayMongo disabled and in Test Mode unless explicitly enabled. Configure `PAYMONGO_ENABLED`, `PAYMONGO_MODE=test`, the test secret key, webhook secret, supported payment methods, and `PAYMONGO_SYSTEM_ACTOR_USER_ID` only in that file. Live mode and live keys are rejected outside production.
 
-## Local Verification Order
+For a clean database, import `TrackCOOP_MAIN_Database.sql`, then manually apply `TrackCOOP_PAYMONGO_Core_Completion.sql`. For an existing database, take a backup and apply only outstanding dated migrations; do not run the clean overlay. Run `npm run db:check` afterward.
 
-Use this order before committing a phase:
-
-```bash
-npm run typecheck
-npm run lint
-npm run test:api
-npm run test:e2e
-npm run build
-```
-
-`npm run test:e2e` starts the Next.js web app with Playwright. It covers public
-membership application/status pages and protected Chairman people workflows in
-addition to the role redirect checks.
+Start with `npm run dev`. Use an HTTPS development tunnel to API port 5000 only when receiving sandbox webhooks. Register `/api/webhooks/paymongo` as documented in the sandbox guide.

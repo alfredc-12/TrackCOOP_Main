@@ -1,49 +1,44 @@
 # TrackCOOP
 
-TrackCOOP is a cooperative management system for NFFAC with a Next.js web
-application and an Express TypeScript API. The current implementation includes
-public landing pages, Chairman and Bookkeeper portals, authentication/RBAC,
-membership workflows, payments/share capital/finance, POS/inventory/rentals,
-documents, reports, announcements, requests, notifications, and landing content
-administration.
+TrackCOOP is a Next.js and Express TypeScript cooperative-management system with public membership applications, Chairman and Bookkeeper portals, Member access, payments, Share Capital, finance, records, POS, inventory, rentals, and protected documents.
 
-## Quick Start
+## Start
 
 ```bash
 npm install
+cp server/.env.example server/.env
 npm run typecheck
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The Express API defaults to
-[http://localhost:5000](http://localhost:5000).
+PayMongo is disabled and uses Test Mode by default. Keep all PayMongo keys in the ignored `server/.env`; never use `NEXT_PUBLIC_*` for secrets.
 
-## Checks
+## Final checks
 
 ```bash
-npm run typecheck
+npm run typecheck:api
+npm run build:api
+npm run typecheck:web
 npm run lint
 npm run test:api
+npm run test:paymongo-core
 npm run test:e2e
 npm run build
+npm run db:check
+npm run security:scan
+git diff --check
 ```
 
-Run `npx playwright install chromium` once on a machine before
-`npm run test:e2e`.
-
-## Documentation
+## Guides
 
 - [Setup](docs/setup.md)
 - [API](docs/api.md)
-- [Authentication and roles](docs/authentication.md)
-- [Database](docs/database.md)
+- [Database and migrations](docs/database.md)
 - [Membership workflow](docs/membership-workflow.md)
-- [Operations, deployment, uploads, reporting, backups, and security](docs/operations.md)
+- [Payment architecture](docs/payment-architecture.md)
+- [PayMongo sandbox workflow](docs/paymongo-sandbox.md)
 - [Testing](docs/testing.md)
+- [Operations and security](docs/operations.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
-## Safety Notes
-
-Never commit `.env`, database credentials, raw session tokens, password reset
-tokens, payment proofs, or protected uploads. Schema import and reference seeds
-are manual operator actions; the app never migrates or seeds the database on
-startup.
+Never commit `.env`, credentials, raw tokens, PayMongo keys, webhook secrets, payment proofs, protected uploads, or production database dumps.
