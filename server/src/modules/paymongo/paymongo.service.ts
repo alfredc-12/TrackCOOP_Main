@@ -19,6 +19,10 @@ import {
   createPaymongoRepository,
   type PaymongoRepository,
 } from "./paymongo.repository";
+import {
+  createPaymongoMembershipInstallmentRepository,
+  type PaymongoMembershipInstallmentRepository,
+} from "./paymongo.membership-installment.repository";
 import type {
   PaymongoCheckoutRequest,
   PaymongoCheckoutResult,
@@ -100,7 +104,7 @@ function assertCanAccessPayment(record: PaymongoPaymentReferenceRecord, auth: Au
 }
 
 function assertApplicationCanStartCheckout(application: PaymongoMembershipApplicationRecord) {
-  if (["Rejected", "Withdrawn"].includes(application.applicationStatus)) {
+  if (["Approved", "Rejected", "Withdrawn"].includes(application.applicationStatus)) {
     throw new AppError(
       "This membership application is not eligible for online payment",
       409,
@@ -289,12 +293,15 @@ export function createPaymongoService(options: {
   client?: PaymongoClient;
   repository?: PaymongoRepository;
   attemptRepository?: PaymongoCheckoutAttemptRepository;
+  membershipInstallmentRepository?: PaymongoMembershipInstallmentRepository;
 } = {}): PaymongoService {
   const config = options.config ?? createPaymongoConfigFromEnv();
   const client = options.client ?? createPaymongoClient(config);
   const repository = options.repository ?? createPaymongoRepository();
   const attemptRepository = options.attemptRepository
     ?? createPaymongoCheckoutAttemptRepository();
+  const membershipInstallmentRepository = options.membershipInstallmentRepository
+    ?? createPaymongoMembershipInstallmentRepository();
 
   return {
     async createPaymentReferenceCheckout(paymentReferenceId, auth) {
@@ -345,67 +352,47 @@ export function createPaymongoService(options: {
       assertApplicationCanStartCheckout(application);
 
       const settings = await repository.getMembershipPaymentSettings();
-      let amount: number;
-      if (input.paymentPurpose === "Associate Membership Fee") {
-        amount = settings.associateFee;
-        const validatedFee = await repository.getValidatedMembershipPaymentTotal({
-          applicationId: application.id,
-          paymentPurpose: "Associate Membership Fee",
-        });
-        if (validatedFee >= settings.associateFee) {
-          throw new AppError(
-            "The associate membership fee has already been paid",
-            409,
-            "MEMBERSHIP_FEE_ALREADY_VALIDATED",
-          );
-        }
-      } else {
-        if (application.requestedMembershipType !== "True Member") {
-          throw new AppError(
-            "Share capital checkout is only available for True Member applicants",
-            409,
-            "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
-          );
-        }
-        amount = input.requestedAmount ?? 0;
-        if (amount < settings.initialShareCapital) {
-          throw new AppError(
-            "Initial share capital payment must be at least PHP 1,500",
-            400,
-            "SHARE_CAPITAL_AMOUNT_BELOW_MINIMUM",
-          );
-        }
-        const validatedCapital = await repository.getValidatedMembershipPaymentTotal({
-          applicationId: application.id,
-          paymentPurpose: "Share Capital",
-        });
-        if (validatedCapital + amount > settings.maximumShareCapital) {
-          throw new AppError(
-            "Share capital payment would exceed the maximum allowed amount",
-            409,
-            "SHARE_CAPITAL_MAXIMUM_EXCEEDED",
-          );
-        }
+      const environment = gatewayEnvironment(config.mode);
+      const requestedAmount = input.paymentPurpose === "Associate Membership Fee"
+        ? settings.associateFee
+        : input.requestedAmount ?? 0;
+
+      if (input.paymentPurpose === "Share Capital" && application.requestedMembershipType !== "True Member") {
+        throw new AppError(
+          "Share capital checkout is only available for True Member applicants",
+          409,
+          "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
+        );
       }
 
-      const record = await repository.prepareMembershipPaymentReference({
+      const record = await membershipInstallmentRepository.prepareMembershipPaymentReference({
         application,
-        paymentPurpose: input.paymentPurpose,
-        amount,
+        purpose: input.paymentPurpose,
+        requestedAmount,
+        settings,
+        environment,
       });
-      const environment = gatewayEnvironment(config.mode);
       const result = await attemptRepository.createOrReuseCheckoutAttempt({
         paymentReferenceId: record.id,
         environment,
         reuseMinutes: checkoutReuseMinutes(config),
-        validateRecord(lockedRecord) {
+        async validateRecord(lockedRecord, connection) {
           assertApplicationPaymentReferenceMatches({
             record: lockedRecord,
             application,
             paymentPurpose: input.paymentPurpose,
-            amount,
+            amount: record.amount,
           });
           assertMembershipReferenceEligible(lockedRecord, environment);
+          await membershipInstallmentRepository.assertCheckoutCapacity({
+            connection,
+            applicationId: application.id,
+            paymentReferenceId: lockedRecord.id,
+            purpose: input.paymentPurpose,
+            amount: lockedRecord.amount,
+            settings,
+            environment,
+          });
         },
         createSession(lockedRecord, idempotencyKey) {
           return client.createCheckoutSession(

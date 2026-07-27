@@ -242,7 +242,10 @@ export interface PaymongoCheckoutAttemptRepository {
     paymentReferenceId: string;
     environment: PaymongoOnlineGatewayEnvironment;
     reuseMinutes: number;
-    validateRecord(record: PaymongoPaymentReferenceRecord): void;
+    validateRecord(
+      record: PaymongoPaymentReferenceRecord,
+      connection?: PoolConnection | null,
+    ): void | Promise<void>;
     createSession(
       record: PaymongoPaymentReferenceRecord,
       idempotencyKey: string,
@@ -278,7 +281,7 @@ export function createPaymongoCheckoutAttemptRepository(
           );
         }
 
-        input.validateRecord(record);
+        await input.validateRecord(record, connection);
         await preserveLegacyCheckoutAttempt(connection, record, input.environment);
 
         const reusable = await selectReusableAttempt(

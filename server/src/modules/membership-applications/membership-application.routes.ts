@@ -6,6 +6,11 @@ import { requireRoles } from "../../middleware/authorize";
 import { AppError } from "../../utils/app-error";
 import { createAuthService, type AuthService } from "../auth/auth.service";
 import { createMembershipApplicationController } from "./membership-application.controller";
+import { createPublicMembershipApplicationStatusHandler } from "./membership-application.public-payment.controller";
+import {
+  createPublicMembershipPaymentService,
+  type PublicMembershipPaymentService,
+} from "./membership-application.public-payment.service";
 import {
   createMembershipApplicationService,
   isAllowedMembershipDocumentExtension,
@@ -95,10 +100,18 @@ const documentUploadMiddleware: RequestHandler = (request, response, next) => {
 
 export function createMembershipApplicationRouter(
   authService: AuthService = createAuthService(),
-  membershipApplicationService: MembershipApplicationService = createMembershipApplicationService(),
+  membershipApplicationService?: MembershipApplicationService,
+  publicPaymentService?: PublicMembershipPaymentService,
 ) {
   const router = Router();
-  const controller = createMembershipApplicationController(membershipApplicationService);
+  const applicationService = membershipApplicationService
+    ?? createMembershipApplicationService();
+  const controller = createMembershipApplicationController(applicationService);
+  const paymentService = publicPaymentService
+    ?? (membershipApplicationService ? null : createPublicMembershipPaymentService());
+  const publicStatus = paymentService
+    ? createPublicMembershipApplicationStatusHandler(applicationService, paymentService)
+    : controller.publicStatus;
   const publicLimiter = createPublicLimiter();
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
 
@@ -110,7 +123,7 @@ export function createMembershipApplicationRouter(
   router.get(
     "/membership-applications/public/:applicationCode/status",
     publicLimiter,
-    controller.publicStatus,
+    publicStatus,
   );
   router.post(
     "/membership-applications/public/:applicationCode/documents",

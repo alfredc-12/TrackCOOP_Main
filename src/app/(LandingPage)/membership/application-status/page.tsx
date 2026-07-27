@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Image from "next/image";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
-import { ApplicationStatusLookup } from "@/features/membership-applications/components/ApplicationStatusLookup";
+import { ApplicationStatusPayments } from "@/features/membership-applications/components/ApplicationStatusPayments";
 
 export default function MembershipApplicationStatusPage() {
   return (
@@ -20,7 +20,7 @@ export default function MembershipApplicationStatusPage() {
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-9 text-[#365F4A]">
                 Use your application code and private tracking secret to follow
-                the public review status.
+                the review status and eligible PayMongo Test Mode payments.
               </p>
             </div>
 
@@ -36,14 +36,14 @@ export default function MembershipApplicationStatusPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-[#123D2A]/72 via-[#123D2A]/12 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                 <p className="text-sm font-black leading-tight">
-                  Safe public tracking for submitted membership applications.
+                  Safe public tracking for application review and payment progress.
                 </p>
               </div>
             </div>
           </div>
 
           <Suspense fallback={<StatusFallback />}>
-            <ApplicationStatusLookup />
+            <ApplicationStatusPayments />
           </Suspense>
         </div>
       </section>
