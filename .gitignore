@@ -40,3 +40,6 @@ storage/protected/*
 # TypeScript / Next generated
 *.tsbuildinfo
 next-env.d.ts
+ 
+# Scratch files
+scratch/

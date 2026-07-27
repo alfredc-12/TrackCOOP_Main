@@ -26,6 +26,10 @@ import {
   UsersRound,
   WalletCards,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -592,8 +596,12 @@ export function MembersClient() {
           setQuery={setMemberQuery}
           onCreate={() => setMemberFormOpen(true)}
           onOpen={async (memberId) => {
-            const detail = await getMemberDetail(memberId);
-            setSelectedMember(detail);
+            try {
+              const detail = await getMemberDetail(memberId);
+              setSelectedMember(detail);
+            } catch (caught) {
+              toast.error(caught instanceof ApiClientError ? caught.message : "Failed to load member details.");
+            }
           }}
         />
       ) : (
@@ -697,7 +705,7 @@ export function MembersClient() {
         onEdit={(member) => setEditingMember(member)}
         onStatus={(member) => setStatusMember(member)}
         onAccountAction={setAccountAction}
-        onRefresh={refreshMemberDetail}
+        onRefresh={async (id) => { await refreshMemberDetail(id); }}
       />
 
       <MemberStatusDialog
@@ -863,9 +871,9 @@ function MemberResponsiveList({
 }) {
   return (
     <>
-      <div className="hidden 2xl:block">
+      <div className="hidden 2xl:block w-full min-w-0 max-w-full overflow-hidden">
         <DataTable>
-          <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
+          <table className="min-w-full divide-y divide-[#E2E8E2] whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
               <tr>
                 <th className="px-5 py-4">Member</th>
@@ -946,8 +954,9 @@ function MemberDetailDialog({
   onEdit: (member: MemberDetail) => void;
   onStatus: (member: MemberDetail) => void;
   onAccountAction: (action: MemberAccountAction) => void;
-  onRefresh: (memberId: string) => Promise<MemberDetail>;
+  onRefresh: (memberId: string) => Promise<void>;
 }) {
+  const [step, setStep] = useState<number>(1);
   if (!member) return null;
 
   const capitalPercent = Math.min(100, Math.round((member.shareCapital.validatedTotal / member.shareCapital.fullRequirement) * 100));
@@ -958,8 +967,16 @@ function MemberDetailDialog({
       onOpenChange={onOpenChange}
       title={`${member.memberCode} - ${member.fullName}`}
       description="Member profile, official status, linked account, share capital progress, and recent cooperative activity."
+      contentClassName="w-[min(72rem,calc(100vw-2rem))]"
     >
-      <div className="grid gap-6">
+      <div className="mb-4 flex items-center justify-between border-b border-[#CAD8CB] pb-4">
+        <h2 className="text-lg font-bold text-[#123D2A]">
+          Step {step} of 4: {step === 1 ? "Profile" : step === 2 ? "Sales" : step === 3 ? "Rentals" : "System & History"}
+        </h2>
+      </div>
+      <div className="grid gap-4">
+        {step === 1 && (
+        <>
         <div className="flex flex-wrap gap-2">
           <ActionButton icon={Pencil} label="Edit" onClick={() => onEdit(member)} />
           <ActionButton icon={ShieldCheck} label="Update Status / Type" onClick={() => onStatus(member)} />
@@ -972,7 +989,7 @@ function MemberDetailDialog({
           <ActionButton icon={RefreshCcw} label="Refresh" onClick={() => void onRefresh(member.id)} />
         </div>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-3 md:grid-cols-6">
           <Info label="Official Status" value={member.officialMemberStatus} />
           <Info label="Membership Type" value={member.membershipType} />
           <Info label="Approval" value={member.approvalStatus} />
@@ -1000,8 +1017,11 @@ function MemberDetailDialog({
             </div>
           </div>
         </Panel>
+        </>
+        )}
 
-        <section className="grid gap-4 xl:grid-cols-3">
+        {step === 2 && (
+        <section className="grid gap-4">
           <ActivityPanel
             title="Recent Payments"
             icon={CreditCard}
@@ -1026,6 +1046,11 @@ function MemberDetailDialog({
               date: formatDate(sale.saleDate),
             }))}
           />
+        </section>
+        )}
+
+        {step === 3 && (
+        <section className="grid gap-4">
           <ActivityPanel
             title="Recent Rentals"
             icon={CalendarDays}
@@ -1039,7 +1064,10 @@ function MemberDetailDialog({
             }))}
           />
         </section>
+        )}
 
+        {step === 4 && (
+        <>
         <Panel title="Latest Indicator">
           {member.latestIndicator ? (
             <div className="grid gap-3 md:grid-cols-3">
@@ -1072,6 +1100,24 @@ function MemberDetailDialog({
             )}
           </ol>
         </Panel>
+        </>
+        )}
+      </div>
+
+      <div className="mt-6 flex justify-between border-t border-[#CAD8CB] pt-4">
+        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Close</Button>
+        <div className="flex gap-2">
+          {step > 1 && (
+            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
+              Back
+            </Button>
+          )}
+          {step < 4 && (
+            <Button type="button" className="bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
+              Next
+            </Button>
+          )}
+        </div>
       </div>
     </FormDialog>
   );
@@ -1127,6 +1173,7 @@ function MemberFormDialog({
 }) {
   const [draft, setDraft] = useState<MemberFormState>(member ? memberToDraft(member) : blankMemberForm);
   const [isSaving, setIsSaving] = useState(false);
+  const [step, setStep] = useState<number>(1);
 
   const save = async () => {
     setIsSaving(true);
@@ -1145,21 +1192,44 @@ function MemberFormDialog({
 
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title={mode === "create" ? "Create Manual Member" : "Edit Member Profile"}>
+      <div className="mb-4 flex items-center justify-between border-b border-[#CAD8CB] pb-4">
+        <h2 className="text-lg font-bold text-[#123D2A]">
+          Step {step} of 3: {step === 1 ? "Basic Info" : step === 2 ? "Demographics" : "Membership Info"}
+        </h2>
+      </div>
+
+      {step === 1 && (
       <div className="grid gap-4 md:grid-cols-2">
         <TextInput label="Member code" value={draft.memberCode} onChange={(value) => setDraft((current) => ({ ...current, memberCode: value }))} />
         <TextInput label="Full name" value={draft.fullName} onChange={(value) => setDraft((current) => ({ ...current, fullName: value }))} />
         <TextInput label="Contact number" value={draft.contactNumber} onChange={(value) => setDraft((current) => ({ ...current, contactNumber: value }))} />
         <TextInput label="Email" value={draft.email} onChange={(value) => setDraft((current) => ({ ...current, email: value }))} />
+      </div>
+      )}
+
+      {step === 2 && (
+      <div className="grid gap-4 md:grid-cols-2">
         <TextInput label="Barangay" value={draft.barangay} onChange={(value) => setDraft((current) => ({ ...current, barangay: value }))} />
         <TextInput label="Sector" value={draft.sector} onChange={(value) => setDraft((current) => ({ ...current, sector: value }))} />
         <TextInput label="Municipality" value={draft.municipality} onChange={(value) => setDraft((current) => ({ ...current, municipality: value }))} />
         <TextInput label="Province" value={draft.province} onChange={(value) => setDraft((current) => ({ ...current, province: value }))} />
-        <Select value={draft.membershipType} onChange={(value) => setDraft((current) => ({ ...current, membershipType: value as MembershipType }))}>
-          {membershipTypes.map((type) => <option key={type}>{type}</option>)}
-        </Select>
-        <Select value={draft.officialMemberStatus} onChange={(value) => setDraft((current) => ({ ...current, officialMemberStatus: value as OfficialMemberStatus }))}>
-          {officialMemberStatuses.map((status) => <option key={status}>{status}</option>)}
-        </Select>
+      </div>
+      )}
+
+      {step === 3 && (
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+          Membership type
+          <Select value={draft.membershipType} onChange={(value) => setDraft((current) => ({ ...current, membershipType: value as MembershipType }))}>
+            {membershipTypes.map((type) => <option key={type}>{type}</option>)}
+          </Select>
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+          Official Status
+          <Select value={draft.officialMemberStatus} onChange={(value) => setDraft((current) => ({ ...current, officialMemberStatus: value as OfficialMemberStatus }))}>
+            {officialMemberStatuses.map((status) => <option key={status}>{status}</option>)}
+          </Select>
+        </label>
         <TextInput label="Application date" type="date" value={draft.applicationDate} onChange={(value) => setDraft((current) => ({ ...current, applicationDate: value }))} />
         <TextInput label="Share-capital deadline" type="date" value={draft.shareCapitalDeadline} onChange={(value) => setDraft((current) => ({ ...current, shareCapitalDeadline: value }))} />
         <label className="grid gap-2 text-sm font-semibold text-[#294B39] md:col-span-2">
@@ -1167,12 +1237,28 @@ function MemberFormDialog({
           <textarea className="min-h-28 rounded-md border border-[#CAD8CB] bg-white p-3 text-sm outline-none focus:border-[#1F6B43]" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
         </label>
       </div>
-      <div className="mt-6 flex justify-end gap-3">
+      )}
+
+      <div className="mt-6 flex justify-between border-t border-[#CAD8CB] pt-4">
         <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button type="button" disabled={isSaving} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
-          {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-          Save
-        </Button>
+        <div className="flex gap-2">
+          {step > 1 && (
+            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
+              Back
+            </Button>
+          )}
+          {step < 3 && (
+            <Button type="button" className="bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
+              Next
+            </Button>
+          )}
+          {step === 3 && (
+            <Button type="button" disabled={isSaving} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              Save
+            </Button>
+          )}
+        </div>
       </div>
     </FormDialog>
   );
@@ -1394,9 +1480,9 @@ function UnifiedHistorySection({
         <EmptyState icon={History} title="No status history found" description="Application, member, and linked account status changes will appear here." />
       ) : (
         <>
-          <div className="hidden 2xl:block">
+          <div className="hidden 2xl:block w-full min-w-0 max-w-full overflow-hidden">
             <DataTable>
-              <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
+              <table className="min-w-full divide-y divide-[#E2E8E2] whitespace-nowrap text-left text-sm">
                 <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
                   <tr>
                     <th className="px-5 py-4">Date</th>
@@ -1566,9 +1652,9 @@ function ApplicationsResponsiveList({
 }) {
   return (
     <>
-      <div className="hidden 2xl:block">
+      <div className="hidden 2xl:block w-full min-w-0 max-w-full overflow-hidden">
         <DataTable>
-          <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
+          <table className="min-w-full divide-y divide-[#E2E8E2] whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
               <tr>
                 <th className="px-5 py-4">Application</th>
@@ -1704,6 +1790,7 @@ function ApplicationDetailDialog({
   });
   const [documentType, setDocumentType] = useState<MembershipDocumentType>("Valid ID");
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [step, setStep] = useState<number>(1);
 
   if (!detail) return null;
 
@@ -1717,7 +1804,14 @@ function ApplicationDetailDialog({
       description="Review application details, requirements, documents, timeline, and conversion actions."
       contentClassName="w-[min(72rem,calc(100vw-2rem))]"
     >
-      <div className="grid min-w-0 gap-6">
+      <div className="mb-2 flex items-center justify-between border-b border-[#CAD8CB] pb-2">
+        <h2 className="text-lg font-bold text-[#123D2A]">
+          Step {step} of 4: {step === 1 ? "Requirements" : step === 2 ? "Beneficiaries" : step === 3 ? "Documents" : "Timeline & Approval"}
+        </h2>
+      </div>
+      <div className="grid min-w-0 gap-2">
+        {step === 1 && (
+        <>
         <div className="flex min-w-0 flex-wrap gap-2">
           <ActionButton icon={Pencil} label="Edit" onClick={onEdit} />
           <ActionButton icon={ClipboardCheck} label="Start Review" onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })} />
@@ -1727,7 +1821,7 @@ function ApplicationDetailDialog({
           <ActionButton icon={Download} label="Print PDF" onClick={() => void onPrint(detail)} />
         </div>
 
-        <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4">
+        <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <StatusBadge tone={statusTone(detail.applicationStatus)}>{detail.applicationStatus}</StatusBadge>
             <p className="text-sm font-bold text-[#123D2A]">
@@ -1741,7 +1835,7 @@ function ApplicationDetailDialog({
           </p>
         </section>
 
-        <section className="grid min-w-0 gap-4 md:grid-cols-2">
+        <section className="grid min-w-0 gap-4 sm:grid-cols-3 md:grid-cols-6">
           <Info label="Source" value={detail.applicationSource} />
           <Info label="Requested type" value={detail.requestedMembershipType} />
           <Info label="Email" value={detail.email ?? "Not provided"} />
@@ -1758,6 +1852,47 @@ function ApplicationDetailDialog({
 
         <Commitments detail={detail} />
 
+        <Panel title="Requirements">
+          <div className="grid gap-2">
+            {detail.requirements.map((requirement) => (
+              <RequirementRow
+                key={requirement.id}
+                requirement={requirement}
+                onSave={(requirementStatus, remarks) =>
+                  runMutation("Requirement updated.", async () => {
+                    await updateApplicationRequirement(requirement.id, { requirementStatus, remarks });
+                    await onRefresh();
+                  })
+                }
+              />
+            ))}
+            <div className="grid gap-2 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-[220px_1fr_auto]">
+              <Select value={requirementDraft.requirementType} onChange={(value) => setRequirementDraft((current) => ({ ...current, requirementType: value as RequirementType }))}>
+                {requirementTypes.map((type) => <option key={type}>{type}</option>)}
+              </Select>
+              <input className={inputClass} placeholder="Remarks" value={requirementDraft.remarks} onChange={(event) => setRequirementDraft((current) => ({ ...current, remarks: event.target.value }))} />
+              <Button
+                type="button"
+                className="h-11 bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+                onClick={() => void runMutation("Requirement added.", async () => {
+                  await addApplicationRequirement(detail.id, {
+                    requirementType: requirementDraft.requirementType,
+                    requirementStatus: "Pending",
+                    remarks: requirementDraft.remarks || null,
+                  });
+                  setRequirementDraft({ requirementType: "Other", remarks: "" });
+                  await onRefresh();
+                })}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </Panel>
+        </>
+        )}
+
+        {step === 2 && (
         <Panel title="Beneficiaries">
           <div className="grid gap-2">
             {detail.beneficiaries.map((beneficiary) => (
@@ -1808,7 +1943,9 @@ function ApplicationDetailDialog({
             </div>
           </div>
         </Panel>
+        )}
 
+        {step === 3 && (
         <Panel title="Documents">
           <div className="grid gap-2">
             {detail.documents.map((document) => (
@@ -1851,45 +1988,10 @@ function ApplicationDetailDialog({
             </div>
           </div>
         </Panel>
+        )}
 
-        <Panel title="Requirements">
-          <div className="grid gap-2">
-            {detail.requirements.map((requirement) => (
-              <RequirementRow
-                key={requirement.id}
-                requirement={requirement}
-                onSave={(requirementStatus, remarks) =>
-                  runMutation("Requirement updated.", async () => {
-                    await updateApplicationRequirement(requirement.id, { requirementStatus, remarks });
-                    await onRefresh();
-                  })
-                }
-              />
-            ))}
-            <div className="grid gap-2 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-[220px_1fr_auto]">
-              <Select value={requirementDraft.requirementType} onChange={(value) => setRequirementDraft((current) => ({ ...current, requirementType: value as RequirementType }))}>
-                {requirementTypes.map((type) => <option key={type}>{type}</option>)}
-              </Select>
-              <input className={inputClass} placeholder="Remarks" value={requirementDraft.remarks} onChange={(event) => setRequirementDraft((current) => ({ ...current, remarks: event.target.value }))} />
-              <Button
-                type="button"
-                className="h-11 bg-[#123D2A] text-white hover:bg-[#1F6B43]"
-                onClick={() => void runMutation("Requirement added.", async () => {
-                  await addApplicationRequirement(detail.id, {
-                    requirementType: requirementDraft.requirementType,
-                    requirementStatus: "Pending",
-                    remarks: requirementDraft.remarks || null,
-                  });
-                  setRequirementDraft({ requirementType: "Other", remarks: "" });
-                  await onRefresh();
-                })}
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-        </Panel>
-
+        {step === 4 && (
+        <>
         <Panel title="Status Timeline">
           <ol className="grid gap-3">
             {detail.history.map((entry) => (
@@ -1924,7 +2026,26 @@ function ApplicationDetailDialog({
             Approve and Convert
           </Button>
         </Panel>
+        </>
+        )}
       </div>
+
+      <div className="mt-6 flex justify-between border-t border-[#CAD8CB] pt-4">
+        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Close</Button>
+        <div className="flex gap-2">
+          {step > 1 && (
+            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
+              Back
+            </Button>
+          )}
+          {step < 4 && (
+            <Button type="button" className="bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
+              Next
+            </Button>
+          )}
+        </div>
+      </div>
+
       <ConfirmDialog
         open={approvalConfirmOpen}
         onOpenChange={setApprovalConfirmOpen}
@@ -1964,6 +2085,7 @@ function ApplicationFormDialog({
   );
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [step, setStep] = useState<number>(1);
 
   const save = async () => {
     setIsSaving(true);
@@ -1992,14 +2114,27 @@ function ApplicationFormDialog({
 
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title={title}>
+      <div className="mb-4 flex items-center justify-between border-b border-[#CAD8CB] pb-4">
+        <h2 className="text-lg font-bold text-[#123D2A]">
+          Step {step} of 4: {step === 1 ? "Basic Details" : step === 2 ? "Demographics & Location" : step === 3 ? "Family & Signature" : "Agreements"}
+        </h2>
+      </div>
+
+      {step === 1 && (
       <div className="grid gap-4 md:grid-cols-2">
-        <Select value={draft.applicationSource} onChange={(value) => setDraft((current) => ({ ...current, applicationSource: value as ApplicationFormState["applicationSource"] }))}>
-          <option value="Chairman Entry">Chairman Entry</option>
-          <option value="Imported Paper Form">Imported Paper Form</option>
-        </Select>
-        <Select value={draft.requestedMembershipType} onChange={(value) => setDraft((current) => ({ ...current, requestedMembershipType: value as RequestedMembershipType }))}>
-          {requestedMembershipTypes.map((type) => <option key={type}>{type}</option>)}
-        </Select>
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+          Source
+          <Select value={draft.applicationSource} onChange={(value) => setDraft((current) => ({ ...current, applicationSource: value as ApplicationFormState["applicationSource"] }))}>
+            <option value="Chairman Entry">Chairman Entry</option>
+            <option value="Imported Paper Form">Imported Paper Form</option>
+          </Select>
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+          Requested Type
+          <Select value={draft.requestedMembershipType} onChange={(value) => setDraft((current) => ({ ...current, requestedMembershipType: value as RequestedMembershipType }))}>
+            {requestedMembershipTypes.map((type) => <option key={type}>{type}</option>)}
+          </Select>
+        </label>
         <TextInput
           label="First name"
           value={draft.firstName}
@@ -2032,15 +2167,28 @@ function ApplicationFormDialog({
         />
         <TextInput label="Contact number" value={draft.contactNumber} onChange={(value) => setDraft((current) => ({ ...current, contactNumber: value }))} />
         <TextInput label="Email" value={draft.email ?? ""} onChange={(value) => setDraft((current) => ({ ...current, email: value }))} />
-        <Select value={draft.civilStatus ?? "Single"} onChange={(value) => setDraft((current) => ({ ...current, civilStatus: value as ApplicationFormState["civilStatus"] }))}>
-          {civilStatuses.map((status) => <option key={status}>{status}</option>)}
-        </Select>
+      </div>
+      )}
+
+      {step === 2 && (
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+          Civil status
+          <Select value={draft.civilStatus ?? "Single"} onChange={(value) => setDraft((current) => ({ ...current, civilStatus: value as ApplicationFormState["civilStatus"] }))}>
+            {civilStatuses.map((status) => <option key={status}>{status}</option>)}
+          </Select>
+        </label>
         <TextInput label="Place of birth" value={draft.placeOfBirth ?? ""} onChange={(value) => setDraft((current) => ({ ...current, placeOfBirth: value }))} />
         <TextInput label="Date of birth" type="date" value={draft.dateOfBirth ?? ""} onChange={(value) => setDraft((current) => ({ ...current, dateOfBirth: value }))} />
         <TextInput label="Current address" value={draft.currentAddress} onChange={(value) => setDraft((current) => ({ ...current, currentAddress: value }))} className="md:col-span-2" />
         <TextInput label="Barangay" value={draft.barangay ?? ""} onChange={(value) => setDraft((current) => ({ ...current, barangay: value }))} />
         <TextInput label="Municipality" value={draft.municipality} onChange={(value) => setDraft((current) => ({ ...current, municipality: value }))} />
         <TextInput label="Province" value={draft.province} onChange={(value) => setDraft((current) => ({ ...current, province: value }))} />
+      </div>
+      )}
+
+      {step === 3 && (
+      <div className="grid gap-4 md:grid-cols-2">
         <TextInput label="Father name" value={draft.fatherName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, fatherName: value }))} />
         <TextInput label="Mother name" value={draft.motherName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, motherName: value }))} />
         <TextInput label="Spouse name" value={draft.spouseName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, spouseName: value }))} />
@@ -2055,6 +2203,9 @@ function ApplicationFormDialog({
           </label>
         ) : null}
       </div>
+      )}
+
+      {step === 4 && (
       <div className="mt-5 grid gap-2 sm:grid-cols-3">
         {[
           ["orientationCommitmentAccepted", "Orientation"],
@@ -2074,14 +2225,28 @@ function ApplicationFormDialog({
           </label>
         ))}
       </div>
-      <div className="mt-6 flex justify-end gap-3">
-        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>
-          Cancel
-        </Button>
-        <Button type="button" disabled={isSaving} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
-          {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-          Save
-        </Button>
+      )}
+
+      <div className="mt-6 flex justify-between border-t border-[#CAD8CB] pt-4">
+        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <div className="flex gap-2">
+          {step > 1 && (
+            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
+              Back
+            </Button>
+          )}
+          {step < 4 && (
+            <Button type="button" className="bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
+              Next
+            </Button>
+          )}
+          {step === 4 && (
+            <Button type="button" disabled={isSaving} className="bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => void save()}>
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              Save
+            </Button>
+          )}
+        </div>
       </div>
     </FormDialog>
   );
@@ -2174,18 +2339,27 @@ function SimplePagination({
 }) {
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-semibold text-[#5D6D63]">
-        Showing {shown} of {total} {noun}
-      </p>
-      <div className="flex items-center gap-2">
-        <Button type="button" disabled={page <= 1} className="h-10 border border-[#CAD8CB] bg-white px-3 text-[#123D2A]" onClick={() => setPage(Math.max(1, page - 1))}>
-          Previous
-        </Button>
-        <span className="text-sm font-bold text-[#123D2A]">Page {page} / {maxPage}</span>
-        <Button type="button" disabled={page >= maxPage} className="h-10 border border-[#CAD8CB] bg-white px-3 text-[#123D2A]" onClick={() => setPage(Math.min(maxPage, page + 1))}>
-          Next
-        </Button>
+    <div className="flex items-center justify-center rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1">
+          <Button type="button" disabled={page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(1)}>
+            <ChevronsLeft className="size-4" />
+          </Button>
+          <Button type="button" disabled={page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(Math.max(1, page - 1))}>
+            <ChevronLeft className="size-4" />
+          </Button>
+        </div>
+        <span className="text-sm font-bold text-[#123D2A]">
+          Page {page} of {maxPage} &middot; {total} {noun}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button type="button" disabled={page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(Math.min(maxPage, page + 1))}>
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button type="button" disabled={page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(maxPage)}>
+            <ChevronsRight className="size-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -2204,18 +2378,27 @@ function Pagination({
 }) {
   const maxPage = Math.max(1, Math.ceil(total / query.pageSize));
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-semibold text-[#5D6D63]">
-        Showing {shown} of {total} applications
-      </p>
-      <div className="flex items-center gap-2">
-        <Button type="button" disabled={query.page <= 1} className="h-10 border border-[#CAD8CB] bg-white px-3 text-[#123D2A]" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}>
-          Previous
-        </Button>
-        <span className="text-sm font-bold text-[#123D2A]">Page {query.page} / {maxPage}</span>
-        <Button type="button" disabled={query.page >= maxPage} className="h-10 border border-[#CAD8CB] bg-white px-3 text-[#123D2A]" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, current.page + 1) }))}>
-          Next
-        </Button>
+    <div className="flex items-center justify-center rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1">
+          <Button type="button" disabled={query.page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: 1 }))}>
+            <ChevronsLeft className="size-4" />
+          </Button>
+          <Button type="button" disabled={query.page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}>
+            <ChevronLeft className="size-4" />
+          </Button>
+        </div>
+        <span className="text-sm font-bold text-[#123D2A]">
+          Page {query.page} of {maxPage} &middot; {total} applications
+        </span>
+        <div className="flex items-center gap-1">
+          <Button type="button" disabled={query.page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, current.page + 1) }))}>
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button type="button" disabled={query.page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: maxPage }))}>
+            <ChevronsRight className="size-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -2224,7 +2407,7 @@ function Pagination({
 function Commitments({ detail }: { detail: ChairmanApplicationDetail }) {
   return (
     <Panel title="Commitments">
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {[
           ["Orientation", detail.orientationCommitmentAccepted],
           ["Membership fee", detail.membershipFeeCommitmentAccepted],
@@ -2247,9 +2430,9 @@ function Commitments({ detail }: { detail: ChairmanApplicationDetail }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
+    <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-3">
       <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#123D2A]">{title}</h3>
-      <div className="mt-4 min-w-0">{children}</div>
+      <div className="mt-3 min-w-0">{children}</div>
     </section>
   );
 }
