@@ -13,6 +13,10 @@ import {
   Search,
   TriangleAlert,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -136,7 +140,7 @@ export function MemberIndicatorsClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [basisMonths, setBasisMonths] = useState(12);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize] = useState(5);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -438,7 +442,7 @@ export function MemberIndicatorsClient() {
                 <th className="px-5 py-4">Scores</th>
                 <th className="px-5 py-4">Total</th>
                 <th className="px-5 py-4">Basis</th>
-                <th className="px-5 py-4">Actions</th>
+                <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
@@ -472,7 +476,7 @@ export function MemberIndicatorsClient() {
                       <p>{formatDate(indicator.basisPeriodEnd)}</p>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => void openDetail(indicator)}
@@ -500,27 +504,47 @@ export function MemberIndicatorsClient() {
         </DataTable>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <p className="text-sm font-semibold text-[#5D6D63]">
-          Page {page} of {totalPages}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-            disabled={page <= 1}
-            className="h-10 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-            disabled={page >= totalPages}
-            className="h-10 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Next
-          </button>
+      <div className="flex items-center justify-center border-t border-[#CAD8CB] bg-white py-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={page <= 1}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
+              onClick={() => setPage(1)}
+            >
+              <ChevronsLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              disabled={page <= 1}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          </div>
+          <span className="text-sm font-bold text-[#123D2A]">
+            Page {page} of {totalPages} &middot; {total} indicators
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            >
+              <ChevronRight className="size-4" />
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
+              onClick={() => setPage(totalPages)}
+            >
+              <ChevronsRight className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -575,12 +599,17 @@ function IndicatorDetailDialog({
   onClose: () => void;
 }) {
   const basis = parseBasisSummary(indicator?.basisSummary ?? null);
+  const [activePage, setActivePage] = useState<number>(1);
+
+  useEffect(() => {
+    if (indicator) setActivePage(1);
+  }, [indicator]);
 
   return (
     <Dialog.Root open={Boolean(indicator)} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content className="fixed right-0 top-0 z-[60] h-screen w-[min(42rem,100vw)] overflow-y-auto border-l border-[#CAD8CB] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] max-h-[85vh] w-[calc(100vw-3rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <Dialog.Title className="text-xl font-black text-[#123D2A]">
@@ -597,7 +626,9 @@ function IndicatorDetailDialog({
 
           {indicator ? (
             <div className="mt-6 grid gap-5">
-              <section className="rounded-lg border border-[#CAD8CB] p-4">
+              {activePage === 1 && (
+                <>
+                  <section className="rounded-lg border border-[#CAD8CB] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <StatusBadge tone={indicatorTone(indicator.statusLabel)}>
                     {indicator.statusLabel}
@@ -629,7 +660,10 @@ function IndicatorDetailDialog({
                   {basis?.scoring.explanation ?? "No calculation explanation was recorded."}
                 </p>
               </section>
+              </>
+              )}
 
+              {activePage === 2 && (
               <section className="rounded-lg border border-[#CAD8CB] p-4">
                 <h3 className="text-sm font-black uppercase tracking-[0.16em] text-[#123D2A]">
                   Included Sources
@@ -642,7 +676,9 @@ function IndicatorDetailDialog({
                   <Metric label="Financial Records" value={String(basis?.rawMetrics.sourceCounts.financialRecords ?? 0)} />
                 </div>
               </section>
+              )}
 
+              {activePage === 3 && (
               <section className="rounded-lg border border-[#CAD8CB] p-4">
                 <div className="flex items-center gap-2">
                   <FileText className="size-4 text-[#1F6B43]" aria-hidden="true" />
@@ -675,6 +711,30 @@ function IndicatorDetailDialog({
                   </div>
                 )}
               </section>
+              )}
+
+              <div className="mt-2 flex items-center justify-between border-t border-[#CAD8CB] pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activePage === 1) onClose();
+                    else setActivePage((p) => Math.max(1, p - 1));
+                  }}
+                  className="rounded-md border border-[#CAD8CB] bg-white px-6 py-2 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] transition"
+                >
+                  {activePage === 1 ? "Cancel" : "Previous"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activePage === 3) onClose();
+                    else setActivePage((p) => Math.min(3, p + 1));
+                  }}
+                  className="rounded-md bg-[#123D2A] px-8 py-2 text-sm font-bold text-white hover:bg-[#061B11] transition"
+                >
+                  {activePage === 3 ? "Close" : "Next"}
+                </button>
+              </div>
             </div>
           ) : null}
         </Dialog.Content>
