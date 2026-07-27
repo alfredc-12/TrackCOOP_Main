@@ -1,5 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import type { ApplicationCapitalValidationStatus } from "../membership-applications/membership-application.capital";
+import type { ReceiptProcessingStatus } from "./paymongo.settlement.receipt";
 
 export type PaymentValidationSource = "Manual Bookkeeper" | "PayMongo Webhook";
 export type GatewaySettlementDetails = {
@@ -26,6 +27,8 @@ export type SettlementResult = {
   paymentReferenceId: string;
   alreadySettled: boolean;
   validationStatus: "Validated";
+  receiptStatus: ReceiptProcessingStatus | null;
+  receiptErrorCode: string | null;
 };
 export type PaymentReferenceForSettlement = RowDataPacket & {
   id: string;
@@ -45,6 +48,8 @@ export type PaymentReferenceForSettlement = RowDataPacket & {
   gatewayCheckoutId: string | null;
   gatewayPaymentId: string | null;
   gatewayPaymentIntentId: string | null;
+  paidAt?: Date | null;
+  validatedAt?: Date | null;
 };
 export type MembershipApplicationSettlementRow = RowDataPacket & {
   id: string;

@@ -1,10 +1,6 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import {
-  ensureMemberShareCapitalReceipt,
-  type MemberShareCapitalReceiptResult,
-} from "./paymongo.settlement.receipt";
-import {
   membershipNumberSetting,
   settlementMoney,
   settlementRecordDate,
@@ -70,9 +66,11 @@ async function selectShareCapitalCategory(connection: PoolConnection) {
 export type MemberShareCapitalPostingResult = {
   shareCapitalCreated: boolean;
   financeCreated: boolean;
-  receipt: MemberShareCapitalReceiptResult;
-  notificationCreated: boolean;
-  auditCreated: boolean;
+  memberId: string;
+  memberUserId: string | null;
+  subjectReference: string;
+  subjectName: string;
+  membershipType: "Associate" | "True Member";
 };
 
 export async function postMemberShareCapitalSettlement(input: {
@@ -80,9 +78,7 @@ export async function postMemberShareCapitalSettlement(input: {
   payment: PaymentReferenceForSettlement;
   actorUserId: string;
   gatewayDetails?: GatewaySettlementDetails | null;
-}, dependencies: {
-  ensureReceipt?: typeof ensureMemberShareCapitalReceipt;
-} = {}): Promise<MemberShareCapitalPostingResult> {
+}): Promise<MemberShareCapitalPostingResult> {
   if (
     input.payment.paymentPurpose !== "Share Capital"
     || input.payment.relatedEntityType !== "member_profile"
@@ -166,7 +162,7 @@ export async function postMemberShareCapitalSettlement(input: {
       input.payment.amount,
       settlementRecordDate(input.gatewayDetails?.paidAt),
       input.actorUserId,
-      `Authenticated Member PayMongo Share Capital settlement for ${input.payment.referenceNumber}`,
+      `Member Share Capital settlement for ${input.payment.referenceNumber}`,
       input.payment.id,
     ],
   );
@@ -192,61 +188,24 @@ export async function postMemberShareCapitalSettlement(input: {
     ],
   );
 
-  const receipt = await (dependencies.ensureReceipt ?? ensureMemberShareCapitalReceipt)({
-    connection: input.connection,
-    payment: input.payment,
-    memberId: member.id,
-    memberCode: member.memberCode,
-    memberName: member.fullName,
-    actorUserId: input.actorUserId,
-    gatewayDetails: input.gatewayDetails,
-  });
-
-  let notificationCreated = false;
-  let auditCreated = false;
-  if (shareResult.affectedRows > 0) {
-    if (member.userId) {
-      await input.connection.execute(
-        `INSERT INTO notifications
-           (user_id, notification_type, title, message,
-            related_entity_type, related_entity_id)
-         VALUES (?, 'Share Capital', ?, ?, 'payment_reference', ?)`,
-        [
-          member.userId,
-          "Share Capital payment confirmed",
-          `${input.payment.referenceNumber} for PHP ${Number(input.payment.amount).toFixed(2)} was confirmed. Receipt ${receipt.receiptNumber} is available in your records.`,
-          input.payment.id,
-        ],
-      );
-      notificationCreated = true;
-    }
-    await input.connection.execute(
-      `INSERT INTO audit_logs
-         (user_id, action, entity_table, record_id, description, new_values)
-       VALUES (?, 'member.share_capital_paymongo_settled',
-               'share_capital_payments', ?, ?, ?)`,
-      [
-        input.actorUserId,
-        input.payment.id,
-        "A Member PayMongo Share Capital contribution was posted without automatic membership promotion.",
-        JSON.stringify({
-          memberId: member.id,
-          memberCode: member.memberCode,
-          paymentReferenceId: input.payment.id,
-          amount: Number(input.payment.amount),
-          receiptNumber: receipt.receiptNumber,
-          membershipTypeUnchanged: member.membershipType,
-        }),
-      ],
-    );
-    auditCreated = true;
-  }
+  await input.connection.execute(
+    `INSERT INTO member_status_history
+       (member_id, old_membership_type, new_membership_type,
+        old_official_status, new_official_status, reason, changed_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [member.id, member.membershipType, member.membershipType,
+      member.officialMemberStatus, member.officialMemberStatus,
+      `Share Capital payment ${input.payment.referenceNumber} was settled without automatic membership promotion.`,
+      input.actorUserId],
+  );
 
   return {
     shareCapitalCreated: shareResult.affectedRows > 0,
     financeCreated: financeResult.affectedRows > 0,
-    receipt,
-    notificationCreated,
-    auditCreated,
+    memberId: member.id,
+    memberUserId: member.userId,
+    subjectReference: member.memberCode,
+    subjectName: member.fullName,
+    membershipType: member.membershipType,
   };
 }

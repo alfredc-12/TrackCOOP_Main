@@ -62,7 +62,9 @@ export async function selectPaymentForSettlement(
             gateway_environment AS gatewayEnvironment,
             gateway_checkout_id AS gatewayCheckoutId,
             gateway_payment_id AS gatewayPaymentId,
-            gateway_payment_intent_id AS gatewayPaymentIntentId
+            gateway_payment_intent_id AS gatewayPaymentIntentId,
+            paid_at AS paidAt,
+            validated_at AS validatedAt
        FROM payment_references
       WHERE payment_reference_id = ? LIMIT 1 FOR UPDATE`,
     [paymentReferenceId],

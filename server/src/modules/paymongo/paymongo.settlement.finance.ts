@@ -47,7 +47,7 @@ export async function insertSettlementFinanceRecord(input: {
     input.connection,
     input.payment.paymentPurpose,
   );
-  await input.connection.execute(
+  const [result] = await input.connection.execute(
     `INSERT IGNORE INTO financial_records
        (record_number, payment_reference_id, member_id, financial_category_id,
         recorded_by, approved_by, record_type, source_module, source_record_id,
@@ -66,4 +66,5 @@ export async function insertSettlementFinanceRecord(input: {
       `${input.payment.paymentPurpose} settlement for ${input.application.applicationCode}`,
     ],
   );
+  return Number((result as { affectedRows?: number }).affectedRows ?? 0) > 0;
 }

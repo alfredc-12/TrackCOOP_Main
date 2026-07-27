@@ -1,11 +1,6 @@
 import type { PoolConnection } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import { synchronizedInitialCapitalRequirementStatus } from "../membership-applications/membership-application.capital";
-import {
-  insertSettlementApplicantMessage,
-  notifySettlementMember,
-  notifySettlementStaff,
-} from "./paymongo.settlement.communication";
 import { insertSettlementFinanceRecord } from "./paymongo.settlement.finance";
 import {
   memberCapitalOutsideApplication,
@@ -226,7 +221,7 @@ export async function postMembershipSettlement(input: {
     );
   }
 
-  await insertSettlementFinanceRecord({
+  const financeCreated = await insertSettlementFinanceRecord({
     connection: input.connection,
     payment: input.payment,
     application,
@@ -255,25 +250,15 @@ export async function postMembershipSettlement(input: {
     );
   }
 
-  await insertSettlementApplicantMessage(input.connection, {
-    application,
-    actorUserId: input.actorUserId,
-    message: `${input.payment.paymentPurpose} payment has been confirmed.`,
-  });
-  await notifySettlementStaff(input.connection, {
+  return {
+    financeCreated,
+    shareCapitalCreated: input.payment.paymentPurpose === "Share Capital"
+      && Boolean(application.convertedMemberId),
+    memberId: application.convertedMemberId,
+    memberUserId: application.memberUserId,
     applicationId: application.id,
-    title: "Membership payment confirmed",
-    message: `${application.applicationCode} ${input.payment.paymentPurpose} was confirmed.`,
-  });
-  await notifySettlementMember(input.connection, {
-    userId: application.memberUserId,
-    applicationId: application.id,
-    title: input.payment.paymentPurpose === "Share Capital"
-      ? "Share capital payment confirmed"
-      : "Membership fee confirmed",
-    message: `${input.payment.paymentPurpose} payment was confirmed.`,
-    notificationType: input.payment.paymentPurpose === "Share Capital"
-      ? "Share Capital"
-      : "Payment",
-  });
+    applicationStatus: application.applicationStatus,
+    subjectReference: application.applicationCode,
+    subjectName: application.fullName,
+  };
 }
