@@ -13,7 +13,7 @@ class SettlementConnection implements PoolConnection {
   async rollback() {}
   release() {}
   async getConnection() { return this; }
-  async execute<T = unknown>(sql: string): Promise<[T, unknown]> {
+  async execute<T = unknown>(sql: string, values: unknown[] = []): Promise<[T, unknown]> {
     if (sql.includes("FROM payment_references") && sql.includes("FOR UPDATE")) {
       return [[{
         id: "501", memberId: "member-10", payerName: "Member Ten",
@@ -26,7 +26,13 @@ class SettlementConnection implements PoolConnection {
         gatewayPaymentIntentId: null, paidAt: null, validatedAt: null,
       }] as T, null];
     }
-    if (sql.includes("FROM users u JOIN roles")) return [[{ id: "bookkeeper-1" }] as T, null];
+    if (sql.includes("FROM users u") && sql.includes("WHERE u.user_id = ?")) {
+      return [[{
+        id: String(values[0]), displayName: "PayMongo System Service",
+        username: "paymongo-system", accountStatus: "Active",
+        role: "bookkeeper", roleIsActive: 1,
+      }] as T, null];
+    }
     if (sql.includes("FROM member_profiles") && sql.includes("member_code")) {
       return [[{ id: "member-10", userId: "user-10", memberCode: "NFFAC-10", fullName: "Member Ten" }] as T, null];
     }
@@ -55,6 +61,7 @@ test("duplicate webhook settlement posts the Member contribution exactly once", 
     },
     async recordSettlementCommunication() {},
     async queuePaymentReceipt() {},
+    systemActorUserId: "900",
     receiptService: {
       async getStatus() { return null; },
       async process() {

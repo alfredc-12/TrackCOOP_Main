@@ -12,13 +12,15 @@ class CentralConnection implements PoolConnection {
   communication = 0;
   queued = 0;
   audits = 0;
+  actorQueries: string[] = [];
+  auditDescriptions: string[] = [];
   constructor(readonly channel: string) {}
   async beginTransaction() {}
   async commit() { this.commits += 1; }
   async rollback() { this.rollbacks += 1; }
   release() {}
   async getConnection() { return this; }
-  async execute<T = unknown>(sql: string): Promise<[T, unknown]> {
+  async execute<T = unknown>(sql: string, values: unknown[] = []): Promise<[T, unknown]> {
     if (sql.includes("FROM payment_references") && sql.includes("FOR UPDATE")) {
       return [[{
         id: "701", memberId: "member-7", payerName: "Member Seven", payerEmail: null,
@@ -32,7 +34,19 @@ class CentralConnection implements PoolConnection {
         gatewayPaymentIntentId: null, paidAt: null, validatedAt: null,
       }] as T, null];
     }
-    if (sql.includes("FROM users u JOIN roles")) return [[{ id: "bookkeeper-1" }] as T, null];
+    if (sql.includes("FROM users u") && sql.includes("WHERE u.user_id = ?")) {
+      const id = String(values[0]);
+      this.actorQueries.push(id);
+      if (id === "900") return [[{
+        id, displayName: "PayMongo System Service", username: "paymongo-system",
+        accountStatus: "Active", role: "bookkeeper", roleIsActive: 1,
+      }] as T, null];
+      if (id === "bookkeeper-1") return [[{
+        id, displayName: "Bookkeeper One", username: "bookkeeper-one",
+        accountStatus: "Active", role: "bookkeeper", roleIsActive: 1,
+      }] as T, null];
+      return [[] as T, null];
+    }
     if (sql.includes("FROM member_profiles") && sql.includes("member_code")) {
       return [[{ id: "member-7", userId: "user-7", memberCode: "NFFAC-7", fullName: "Member Seven" }] as T, null];
     }
@@ -40,7 +54,10 @@ class CentralConnection implements PoolConnection {
       this.status = "Validated";
       return [{ affectedRows: 1, insertId: 0 } as T, null];
     }
-    if (sql.includes("INSERT INTO audit_logs")) this.audits += 1;
+    if (sql.includes("INSERT INTO audit_logs")) {
+      this.audits += 1;
+      if (typeof values[2] === "string") this.auditDescriptions.push(values[2]);
+    }
     return [{ affectedRows: 1, insertId: 1 } as T, null];
   }
 }
@@ -58,6 +75,7 @@ function repositoryFor(connection: CentralConnection, receiptStates: Array<"Fail
     },
     async recordSettlementCommunication() { connection.communication += 1; },
     async queuePaymentReceipt() { connection.queued += 1; },
+    systemActorUserId: "900",
     receiptService: {
       async getStatus() { return null; },
       async process() {
@@ -96,7 +114,12 @@ test("manual and PayMongo paths use the same centralized settlement workflow", a
     assert.equal(connection.queued, 1);
     assert.equal(connection.audits, 1);
     assert.equal(connection.commits, 1);
+    assert.equal(connection.actorQueries.length, 1);
   }
+  assert.deepEqual(manual.actorQueries, ["bookkeeper-1"]);
+  assert.deepEqual(gateway.actorQueries, ["900"]);
+  assert.match(manual.auditDescriptions[0], /authenticated Bookkeeper/);
+  assert.match(gateway.auditDescriptions[0], /automated PayMongo webhook/);
 });
 
 test("source and channel mismatches are rejected", async () => {

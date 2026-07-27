@@ -1,6 +1,7 @@
 import type { Pool } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
+import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { postMembershipSettlement } from "./paymongo.settlement.membership";
 import { postMemberShareCapitalSettlement } from "./paymongo.settlement.member-share-capital";
@@ -13,10 +14,10 @@ import {
 } from "./paymongo.settlement.receipt";
 import {
   selectPaymentForSettlement,
-  selectSettlementActor,
   settlementDateTime,
   settlementMoney,
 } from "./paymongo.settlement.queries";
+import { resolvePaymongoSettlementActor } from "./paymongo.system-actor";
 import type {
   SettlePaymentReferenceInput,
   SettlementResult,
@@ -99,6 +100,7 @@ type Dependencies = {
   recordSettlementCommunication?: typeof recordSettlementCommunication;
   queuePaymentReceipt?: typeof queuePaymentReceipt;
   receiptService?: PaymentReceiptService;
+  systemActorUserId?: string;
 };
 
 export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dependencies = {}): PaymentSettlementRepository {
@@ -113,7 +115,13 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
         if (!Number.isFinite(Number(payment.amount)) || Number(payment.amount) <= 0) {
           throw new AppError("Payment amount must be positive", 422, "PAYMENT_AMOUNT_INVALID");
         }
-        const actorUserId = await selectSettlementActor(connection, input.actorUserId);
+        const actor = await resolvePaymongoSettlementActor(connection, {
+          validationSource: input.validationSource,
+          actorUserId: input.actorUserId,
+          configuredSystemActorUserId:
+            dependencies.systemActorUserId ?? env.PAYMONGO_SYSTEM_ACTOR_USER_ID,
+        });
+        const actorUserId = actor.id;
         validateSettlementChannel({
           validationSource: input.validationSource,
           paymentChannel: payment.paymentChannel,
@@ -234,9 +242,13 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
              (user_id, action, entity_table, record_id, description, old_values, new_values)
            VALUES (?, 'payment_reference.settled', 'payment_references', ?, ?,
                    JSON_OBJECT('validationStatus', ?),
-                   JSON_OBJECT('validationStatus', 'Validated', 'validationSource', ?))`,
-          [actorUserId, payment.id, "A payment reference was settled through the centralized workflow.",
-            payment.validationStatus, input.validationSource],
+                   JSON_OBJECT('validationStatus', 'Validated', 'validationSource', ?,
+                                'actorType', ?, 'gatewayEventId', ?))`,
+          [actorUserId, payment.id,
+            input.validationSource === "PayMongo Webhook"
+              ? "An automated PayMongo webhook settled the payment reference."
+              : "The authenticated Bookkeeper manually settled the payment reference.",
+            payment.validationStatus, input.validationSource, actor.actorType, input.gatewayEventId ?? null],
         );
         if (input.gatewayEventId) {
           await connection.execute(

@@ -36,6 +36,7 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
     PAYMONGO_MODE: "test",
     PAYMONGO_SECRET_KEY: "sk_test_example",
     PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+    PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
     PAYMONGO_CHECKOUT_REUSE_MINUTES: "45",
     PAYMONGO_PAYMENT_METHOD_TYPES: "card",
     PAYMONGO_PASS_ON_FEES: "true",
@@ -44,6 +45,7 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
   assert.equal(config.PAYMONGO_ENABLED, true);
   assert.equal(config.PAYMONGO_SECRET_KEY, "sk_test_example");
   assert.equal(config.PAYMONGO_WEBHOOK_SECRET, "whsec_test_example");
+  assert.equal(config.PAYMONGO_SYSTEM_ACTOR_USER_ID, "900");
   assert.equal(config.PAYMONGO_CHECKOUT_REUSE_MINUTES, 45);
   assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
   assert.equal(config.PAYMONGO_PASS_ON_FEES, true);
@@ -65,7 +67,7 @@ test("parseServerEnv requires PayMongo secrets when enabled", () => {
         ...baseEnv,
         PAYMONGO_ENABLED: "true",
       }),
-    /PAYMONGO_SECRET_KEY.*PAYMONGO_WEBHOOK_SECRET/,
+    /PAYMONGO_SECRET_KEY.*PAYMONGO_WEBHOOK_SECRET.*PAYMONGO_SYSTEM_ACTOR_USER_ID/,
   );
 });
 
@@ -78,6 +80,7 @@ test("parseServerEnv rejects PayMongo live keys outside production", () => {
         PAYMONGO_MODE: "test",
         PAYMONGO_SECRET_KEY: "sk_live_example",
         PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+        PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
       }),
     /PayMongo live secret keys are not allowed outside production/,
   );
@@ -91,8 +94,35 @@ test("parseServerEnv rejects unsupported PayMongo payment methods", () => {
         PAYMONGO_ENABLED: "true",
         PAYMONGO_SECRET_KEY: "sk_test_example",
         PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+        PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
         PAYMONGO_PAYMENT_METHOD_TYPES: "card,unsupported",
       }),
     /Unsupported PayMongo payment method type: unsupported/,
+  );
+});
+
+
+test("parseServerEnv requires a configured PayMongo system actor when enabled", () => {
+  assert.throws(
+    () => parseServerEnv({
+      ...baseEnv,
+      PAYMONGO_ENABLED: "true",
+      PAYMONGO_SECRET_KEY: "sk_test_example",
+      PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+    }),
+    /PAYMONGO_SYSTEM_ACTOR_USER_ID/,
+  );
+});
+
+test("parseServerEnv rejects a nonnumeric PayMongo system actor ID", () => {
+  assert.throws(
+    () => parseServerEnv({
+      ...baseEnv,
+      PAYMONGO_ENABLED: "true",
+      PAYMONGO_SECRET_KEY: "sk_test_example",
+      PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+      PAYMONGO_SYSTEM_ACTOR_USER_ID: "bookkeeper-first",
+    }),
+    /positive numeric user ID/,
   );
 });

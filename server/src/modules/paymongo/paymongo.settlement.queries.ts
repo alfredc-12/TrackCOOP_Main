@@ -1,12 +1,10 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
-import { AppError } from "../../utils/app-error";
 import type {
   MembershipApplicationSettlementRow,
   PaymentReferenceForSettlement,
   RequirementSettlementRow,
 } from "./paymongo.settlement.types";
 
-type IdRow = RowDataPacket & { id: string };
 type AmountRow = RowDataPacket & { total: string | number | null };
 
 export function settlementMoney(value: number) {
@@ -17,28 +15,6 @@ export function settlementDateTime(value: Date | null | undefined) {
 }
 export function settlementRecordDate(value: Date | null | undefined) {
   return (value ?? new Date()).toISOString().slice(0, 10);
-}
-
-export async function selectSettlementActor(
-  connection: PoolConnection,
-  actorUserId: string | null,
-) {
-  if (actorUserId) return actorUserId;
-  const [rows] = await connection.execute<IdRow[]>(
-    `SELECT CAST(u.user_id AS CHAR) AS id
-       FROM users u JOIN roles r ON r.role_id = u.role_id
-      WHERE r.role_slug IN ('bookkeeper', 'chairman')
-        AND u.account_status = 'Active'
-      ORDER BY r.role_slug = 'bookkeeper' DESC, u.user_id ASC LIMIT 1`,
-  );
-  if (!rows[0]) {
-    throw new AppError(
-      "A settlement actor account is required before posting finance records",
-      409,
-      "PAYMENT_SETTLEMENT_ACTOR_REQUIRED",
-    );
-  }
-  return rows[0].id;
 }
 
 export async function selectPaymentForSettlement(

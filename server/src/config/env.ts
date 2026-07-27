@@ -58,6 +58,7 @@ const envSchema = z.object({
   PAYMONGO_API_BASE_URL: z.string().url().default("https://api.paymongo.com"),
   PAYMONGO_SECRET_KEY: optionalTrimmedString,
   PAYMONGO_WEBHOOK_SECRET: optionalTrimmedString,
+  PAYMONGO_SYSTEM_ACTOR_USER_ID: optionalTrimmedString,
   PAYMONGO_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
   PAYMONGO_CHECKOUT_REUSE_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
   PAYMONGO_PAYMENT_METHOD_TYPES: paymongoPaymentMethodTypes,
@@ -67,6 +68,7 @@ const envSchema = z.object({
 }).superRefine((value, context) => {
   const secretKey = value.PAYMONGO_SECRET_KEY;
   const webhookSecret = value.PAYMONGO_WEBHOOK_SECRET;
+  const systemActorUserId = value.PAYMONGO_SYSTEM_ACTOR_USER_ID;
 
   if (!value.PAYMONGO_ENABLED) {
     return;
@@ -85,6 +87,20 @@ const envSchema = z.object({
       code: "custom",
       path: ["PAYMONGO_WEBHOOK_SECRET"],
       message: "PAYMONGO_WEBHOOK_SECRET is required when PayMongo is enabled",
+    });
+  }
+
+  if (!systemActorUserId) {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_SYSTEM_ACTOR_USER_ID"],
+      message: "PAYMONGO_SYSTEM_ACTOR_USER_ID is required when PayMongo is enabled",
+    });
+  } else if (!/^[1-9]\d*$/.test(systemActorUserId)) {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_SYSTEM_ACTOR_USER_ID"],
+      message: "PAYMONGO_SYSTEM_ACTOR_USER_ID must be a positive numeric user ID",
     });
   }
 
