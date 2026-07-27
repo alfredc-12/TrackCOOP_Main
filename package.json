@@ -24,7 +24,10 @@
     "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",
     "records:verify": "tsx scripts/verify-records-modules.ts",
     "test:records": "tsx --test src/features/records/**/*.test.ts",
-    "user:create": "tsx server/src/scripts/create-user.ts"
+    "user:create": "tsx server/src/scripts/create-user.ts",
+    "graph:build": "graphify . --mode deep",
+    "graph:hook-status": "graphify hook status",
+    "graph:watch": "graphify watch ."
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
