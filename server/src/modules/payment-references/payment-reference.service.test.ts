@@ -33,6 +33,18 @@ const payment: PaymentReference = {
   amount: 1000,
   proofFilePath: null,
   validationStatus: "Pending",
+  paymentChannel: "Manual GCash",
+  gatewayEnvironment: "Manual",
+  gatewayCheckoutId: null,
+  gatewayPaymentId: null,
+  gatewayPaymentIntentId: null,
+  gatewayStatus: null,
+  gatewayPaymentMethod: null,
+  gatewayFeeAmount: null,
+  gatewayNetAmount: null,
+  paidAt: null,
+  webhookReceivedAt: null,
+  validationSource: null,
   validatedBy: null,
   validatedAt: null,
   rejectionReason: null,
@@ -46,8 +58,41 @@ function createRepository(overrides: Partial<PaymentReferenceRepository> = {}): 
     async list() {
       return { paymentReferences: [], total: 0, page: 1, pageSize: 20 };
     },
+    async summary() {
+      return {
+        total: 0,
+        pendingManual: 0,
+        needsClarification: 0,
+        validatedToday: 0,
+        paymongoTestPayments: 0,
+        rejected: 0,
+        validatedAmount: 0,
+      };
+    },
     async findById() {
       return payment;
+    },
+    async detail() {
+      return {
+        ...payment,
+        memberCode: null,
+        memberName: null,
+        submittedByName: null,
+        validatedByName: null,
+        validationHistory: [],
+        gatewayEvents: [],
+        posting: {
+          financialRecordId: null,
+          financialRecordNumber: null,
+          financialRecordStatus: null,
+          shareCapitalPaymentId: null,
+          shareCapitalStatus: null,
+          membershipRequirementId: null,
+          membershipRequirementStatus: null,
+          membershipApplicationStatus: null,
+          warnings: [],
+        },
+      };
     },
     async create() {
       return payment;
@@ -57,6 +102,29 @@ function createRepository(overrides: Partial<PaymentReferenceRepository> = {}): 
     },
     async setValidationStatus() {
       return { ...payment, validationStatus: "Rejected" };
+    },
+    async reverse() {
+      return {
+        ...payment,
+        validationStatus: "Reversed",
+        memberCode: null,
+        memberName: null,
+        submittedByName: null,
+        validatedByName: null,
+        validationHistory: [],
+        gatewayEvents: [],
+        posting: {
+          financialRecordId: null,
+          financialRecordNumber: null,
+          financialRecordStatus: null,
+          shareCapitalPaymentId: null,
+          shareCapitalStatus: null,
+          membershipRequirementId: null,
+          membershipRequirementStatus: null,
+          membershipApplicationStatus: null,
+          warnings: [],
+        },
+      };
     },
     ...overrides,
   };
@@ -72,19 +140,86 @@ test("rejectPaymentReference requires a reason", async () => {
   );
 });
 
-test("validatePaymentReference delegates a real status transition", async () => {
-  let delegated = false;
+test("validatePaymentReference delegates to the shared settlement service", async () => {
+  let settlementCalled = false;
+  let findCount = 0;
   const service = createPaymentReferenceService(
     createRepository({
+      async findById() {
+        findCount += 1;
+        return findCount === 1
+          ? payment
+          : { ...payment, validationStatus: "Validated" };
+      },
       async setValidationStatus() {
-        delegated = true;
-        return { ...payment, validationStatus: "Validated" };
+        throw new Error("manual validation must use settlement service");
       },
     }),
+    {
+      async settlePaymentReference(input) {
+        settlementCalled = true;
+        assert.equal(input.paymentReferenceId, payment.id);
+        assert.equal(input.validationSource, "Manual Bookkeeper");
+        assert.equal(input.actorUserId, auth.user.id);
+        return {
+          paymentReferenceId: input.paymentReferenceId,
+          alreadySettled: false,
+          validationStatus: "Validated",
+        };
+      },
+    },
   );
 
   const updated = await service.validatePaymentReference(payment.id, {}, auth);
 
-  assert.equal(delegated, true);
+  assert.equal(settlementCalled, true);
   assert.equal(updated.validationStatus, "Validated");
+});
+
+test("reversePaymentReference delegates a confirmed reversal", async () => {
+  let reversalCalled = false;
+  const service = createPaymentReferenceService(
+    createRepository({
+      async reverse(id, input, actionAuth) {
+        reversalCalled = true;
+        assert.equal(id, payment.id);
+        assert.equal(input.reason, "Duplicate payment posting");
+        assert.equal(input.confirmation, payment.referenceNumber);
+        assert.equal(actionAuth.user.role, "bookkeeper");
+        return {
+          ...payment,
+          validationStatus: "Reversed",
+          memberCode: null,
+          memberName: null,
+          submittedByName: null,
+          validatedByName: null,
+          validationHistory: [],
+          gatewayEvents: [],
+          posting: {
+            financialRecordId: null,
+            financialRecordNumber: null,
+            financialRecordStatus: null,
+            shareCapitalPaymentId: null,
+            shareCapitalStatus: null,
+            membershipRequirementId: null,
+            membershipRequirementStatus: null,
+            membershipApplicationStatus: null,
+            warnings: [],
+          },
+        };
+      },
+    }),
+  );
+
+  const reversed = await service.reversePaymentReference(
+    payment.id,
+    {
+      reason: "Duplicate payment posting",
+      confirmation: payment.referenceNumber,
+    },
+    auth,
+  );
+
+  assert.equal(reversalCalled, true);
+  assert.equal(reversed.validationStatus, "Reversed");
 });

@@ -3,7 +3,7 @@
 ## Source of Truth
 
 `server/database/TrackCOOP_MAIN_Database.sql` is the authoritative MySQL schema.
-It defines exactly 40 application tables. Do not rename its tables, columns,
+It defines exactly 42 application tables. Do not rename its tables, columns,
 enum values, keys, or relationships in application code. TrackCOOP does not use
 Prisma, triggers, or stored procedures.
 
@@ -15,6 +15,12 @@ For an existing database that already has the earlier 34-table schema, apply
 manually with a trusted MySQL client after taking a backup. The application must
 report missing required tables if this migration has not been applied; it must
 not attempt to create the membership-application tables itself.
+
+For an existing database that already has the pre-PayMongo 40-table schema,
+apply `server/database/migrations/20260726_add_paymongo_test_gateway.sql`
+manually with a trusted MySQL client after taking a backup. This adds PayMongo
+test-gateway fields, safe webhook event summaries, and payment-validation
+history without deleting existing payment records.
 
 For a clean database, import `server/database/TrackCOOP_MAIN_Database.sql`
 directly. It already includes the membership-application workflow tables in
@@ -40,7 +46,7 @@ npm run db:check
 ```
 
 The checker executes only `SELECT 1` and a parameterized query against
-`information_schema.TABLES`. It verifies that all 40 required TrackCOOP tables
+`information_schema.TABLES`. It verifies that all 42 required TrackCOOP tables
 exist, reports missing or additional tables, and never modifies data.
 
 The API also exposes `GET /api/health/database`. Its response contains only
@@ -99,6 +105,18 @@ indicator recalculation never changes official status.
 
 Automated tests use injected database doubles. Never point automated tests at
 the production RDS database.
+
+## PayMongo Payment Gateway Table Mapping
+
+The PayMongo test integration adds two tables and extends `payment_references`
+with gateway metadata. Gateway event storage keeps safe summaries and hashes
+only; raw webhook bodies, signatures, API keys, and webhook secrets are not
+stored in the database.
+
+| Table | Purpose | Depends On |
+| --- | --- | --- |
+| `payment_gateway_events` | Safe PayMongo webhook event summaries, fingerprints, processing status, and payload hashes | `payment_references` |
+| `payment_validation_history` | Manual, webhook, and system payment-validation status history for reconciliation and reversal workflows | `payment_references`, `payment_gateway_events`, `users` |
 
 ## Runtime Data Boundaries
 

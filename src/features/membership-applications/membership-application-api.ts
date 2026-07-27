@@ -14,6 +14,8 @@ import type {
   MembershipDocumentType,
   PublicApplicationStatus,
   PublicMembershipApplicationInput,
+  PublicPaymongoCheckoutInput,
+  PublicPaymongoCheckoutResult,
   PublicSubmissionResult,
   RequirementInput,
   RequirementUpdateInput,
@@ -110,6 +112,29 @@ export function getMembershipApplicationStatus(input: {
         "X-Application-Tracking-Token": input.trackingToken,
       },
       cache: "no-store",
+    },
+  );
+}
+
+export function createMembershipApplicationPaymongoCheckout(
+  input: PublicPaymongoCheckoutInput,
+) {
+  const body =
+    input.paymentPurpose === "Share Capital"
+      ? {
+          paymentPurpose: input.paymentPurpose,
+          requestedAmount: input.requestedAmount,
+        }
+      : { paymentPurpose: input.paymentPurpose };
+
+  return apiRequest<PublicPaymongoCheckoutResult>(
+    `/api/paymongo/checkouts/membership-applications/${encodeURIComponent(input.applicationCode)}`,
+    {
+      method: "POST",
+      headers: {
+        "X-Application-Tracking-Token": input.trackingToken,
+      },
+      body: JSON.stringify(body),
     },
   );
 }

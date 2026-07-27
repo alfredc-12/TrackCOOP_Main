@@ -6,6 +6,8 @@ files:
 1. `TrackCOOP_MAIN_Database.sql`
    - Creates the full TrackCOOP database schema.
    - Use this first when setting up a fresh database.
+   - Includes PayMongo test-gateway support tables and payment validation
+     history for new installs.
    - When the system needs new tables, add those `CREATE TABLE`, index, view,
      and required schema changes here so fresh installs are complete.
 
@@ -22,3 +24,7 @@ Older one-off SQL files and historical migration scripts live in
 `server/database/migrations/`. Keep those files for existing databases that need
 manual upgrade history, but do not treat them as the fresh-install source of
 truth.
+
+Existing databases that were created before the PayMongo test integration should
+apply `migrations/20260726_add_paymongo_test_gateway.sql` manually after a
+backup.

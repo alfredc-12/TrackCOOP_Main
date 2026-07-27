@@ -107,13 +107,41 @@ export type PublicStatusRequirement = {
   remarks: string | null;
 };
 
+export type PublicPaymentRequirement = {
+  requirementType: "Associate Membership Fee" | "Initial Share Capital";
+  requirementStatus: string;
+  paymentPurpose: "Associate Membership Fee" | "Share Capital";
+  paymentStatus: "Waiting" | "Confirmed";
+  amount: number | null;
+};
+
 export type PublicApplicationStatus = {
   applicationCode: string;
+  requestedMembershipType: RequestedMembershipType;
   fullName: string;
   submittedAt: string;
   applicationStatus: string;
   latestApplicantMessage: string | null;
   missingOrRejectedRequirements: PublicStatusRequirement[];
+  paymentRequirements: PublicPaymentRequirement[];
+};
+
+export type PublicPaymongoCheckoutInput = {
+  applicationCode: string;
+  trackingToken: string;
+  paymentPurpose: "Associate Membership Fee" | "Share Capital";
+  requestedAmount?: number;
+};
+
+export type PublicPaymongoCheckoutResult = {
+  referenceNumber: string;
+  checkoutUrl: string;
+  gatewayStatus: string | null;
+  paymentPurpose: "Associate Membership Fee" | "Share Capital";
+  amount: number;
+  currency: "PHP";
+  mode: "test" | "live";
+  status: "Waiting" | "Confirmed";
 };
 
 export type DocumentUploadDraft = {

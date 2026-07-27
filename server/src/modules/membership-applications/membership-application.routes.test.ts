@@ -153,11 +153,21 @@ class FakeMembershipApplicationRepository {
       id: "1",
       applicationCode: this.created.code,
       publicTrackingTokenHash: this.created.hash,
+      requestedMembershipType: this.created.input.requestedMembershipType,
       fullName: applicationFullName(this.created.input),
       submittedAt: this.created.submittedAt,
       applicationStatus: "Submitted",
       latestApplicantMessage: "Your application was submitted and is waiting for Chairman review.",
       missingOrRejectedRequirements: this.created.requirements,
+      paymentRequirements: [
+        {
+          requirementType: "Associate Membership Fee",
+          requirementStatus: "Pending",
+          paymentPurpose: "Associate Membership Fee",
+          paymentStatus: "Waiting",
+          amount: null,
+        },
+      ],
     };
   }
 

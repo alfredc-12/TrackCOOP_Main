@@ -7,6 +7,38 @@ const booleanString = z
   .enum(["true", "false"])
   .transform((value) => value === "true");
 
+const optionalTrimmedString = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => value || undefined);
+
+const allowedPaymongoPaymentMethodTypes = ["card"] as const;
+
+const paymongoPaymentMethodTypes = z
+  .preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().trim().default("card"),
+  )
+  .transform((value, context) => {
+    const methods = [...new Set(value.split(",").map((method) => method.trim().toLowerCase()).filter(Boolean))];
+
+    if (!methods.length) {
+      return ["card"];
+    }
+
+    for (const method of methods) {
+      if (!allowedPaymongoPaymentMethodTypes.includes(method as (typeof allowedPaymongoPaymentMethodTypes)[number])) {
+        context.addIssue({
+          code: "custom",
+          message: `Unsupported PayMongo payment method type: ${method}`,
+        });
+      }
+    }
+
+    return methods;
+  });
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(5000),
@@ -21,17 +53,89 @@ const envSchema = z.object({
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
+  PAYMONGO_ENABLED: booleanString.default(false),
+  PAYMONGO_MODE: z.enum(["test", "live"]).default("test"),
+  PAYMONGO_API_BASE_URL: z.string().url().default("https://api.paymongo.com"),
+  PAYMONGO_SECRET_KEY: optionalTrimmedString,
+  PAYMONGO_WEBHOOK_SECRET: optionalTrimmedString,
+  PAYMONGO_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
+  PAYMONGO_PAYMENT_METHOD_TYPES: paymongoPaymentMethodTypes,
+  PAYMONGO_PASS_ON_FEES: booleanString.default(false),
+  PAYMENT_SUCCESS_URL: z.string().url().default("http://localhost:3000/payment/success"),
+  PAYMENT_CANCEL_URL: z.string().url().default("http://localhost:3000/payment/cancelled"),
+}).superRefine((value, context) => {
+  const secretKey = value.PAYMONGO_SECRET_KEY;
+  const webhookSecret = value.PAYMONGO_WEBHOOK_SECRET;
+
+  if (!value.PAYMONGO_ENABLED) {
+    return;
+  }
+
+  if (!secretKey) {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_SECRET_KEY"],
+      message: "PAYMONGO_SECRET_KEY is required when PayMongo is enabled",
+    });
+  }
+
+  if (!webhookSecret) {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_WEBHOOK_SECRET"],
+      message: "PAYMONGO_WEBHOOK_SECRET is required when PayMongo is enabled",
+    });
+  }
+
+  if (value.NODE_ENV !== "production" && value.PAYMONGO_MODE === "live") {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_MODE"],
+      message: "PayMongo live mode is not allowed outside production",
+    });
+  }
+
+  if (secretKey?.startsWith("sk_live_") && value.NODE_ENV !== "production") {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_SECRET_KEY"],
+      message: "PayMongo live secret keys are not allowed outside production",
+    });
+  }
+
+  if (value.PAYMONGO_MODE === "test" && secretKey && !secretKey.startsWith("sk_test_")) {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_SECRET_KEY"],
+      message: "PayMongo test mode requires a sk_test_ secret key",
+    });
+  }
+
+  if (value.PAYMONGO_MODE === "live" && secretKey && !secretKey.startsWith("sk_live_")) {
+    context.addIssue({
+      code: "custom",
+      path: ["PAYMONGO_SECRET_KEY"],
+      message: "PayMongo live mode requires a sk_live_ secret key",
+    });
+  }
 });
 
-const parsedEnv = envSchema.safeParse(process.env);
+export type ServerEnvironment = z.infer<typeof envSchema>;
 
-if (!parsedEnv.success) {
-  const details = parsedEnv.error.issues
-    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-    .join("; ");
+export function parseServerEnv(
+  source: Record<string, string | undefined>,
+): ServerEnvironment {
+  const result = envSchema.safeParse(source);
 
-  throw new Error(`Invalid API environment configuration: ${details}`);
+  if (!result.success) {
+    const details = result.error.issues
+      .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("; ");
+
+    throw new Error(`Invalid API environment configuration: ${details}`);
+  }
+
+  return result.data;
 }
 
-export const env = parsedEnv.data;
-export type ServerEnvironment = typeof env;
+export const env = parseServerEnv(process.env);
