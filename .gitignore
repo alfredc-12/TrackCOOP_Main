@@ -43,3 +43,10 @@ next-env.d.ts
  
 # Scratch files
 scratch/
+
+# Graphify generated files and local configuration
+graphify-out/
+.graphifyignore
+.codex/skills/graphify/
+.graphify_*
+*.graphify-cache
