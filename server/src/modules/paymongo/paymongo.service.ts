@@ -29,6 +29,10 @@ import type {
 
 const pendingStatuses = new Set(["Pending", "Needs Clarification"]);
 const manualChannels = new Set(["Manual GCash", "Cash", "Bank Transfer"]);
+const supportedPaymongoPurposes = new Set([
+  "Associate Membership Fee",
+  "Share Capital",
+]);
 
 function gatewayEnvironment(mode: PaymongoConfig["mode"]): PaymongoGatewayEnvironment {
   return mode === "live" ? "Live" : "Test";
@@ -92,6 +96,16 @@ function assertApplicationCanStartCheckout(application: PaymongoMembershipApplic
   }
 }
 
+function assertPaymongoPurposeSupported(paymentPurpose: string) {
+  if (!supportedPaymongoPurposes.has(paymentPurpose)) {
+    throw new AppError(
+      "PayMongo checkout is not implemented for this payment purpose",
+      409,
+      "PAYMENT_PURPOSE_GATEWAY_NOT_IMPLEMENTED",
+    );
+  }
+}
+
 function assertEligibleForCheckout(record: PaymongoPaymentReferenceRecord, environment: PaymongoGatewayEnvironment) {
   if (record.validationStatus === "Validated") {
     throw new AppError("This payment has already been validated", 409, "PAYMENT_ALREADY_VALIDATED");
@@ -102,6 +116,7 @@ function assertEligibleForCheckout(record: PaymongoPaymentReferenceRecord, envir
   if (record.amount <= 0) {
     throw new AppError("This payment has an invalid amount", 409, "PAYMENT_AMOUNT_INVALID");
   }
+  assertPaymongoPurposeSupported(record.paymentPurpose);
   if (manualChannels.has(record.paymentChannel)) {
     throw new AppError("Manual payment references cannot create PayMongo checkouts", 409, "PAYMENT_CHANNEL_MANUAL");
   }
