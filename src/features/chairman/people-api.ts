@@ -435,10 +435,17 @@ export function createUser(input: {
   accountStatus: AccountStatus;
   password?: string;
   issueActivationLink?: boolean;
+  memberId?: string;
 }) {
   return apiRequest<UserMutationResult>("/api/users", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      issueActivationLink: false,
+      username: input.username?.trim() || null,
+      password: input.password || "Track_coop123",
+      memberId: input.memberId || undefined,
+    }),
   });
 }
 

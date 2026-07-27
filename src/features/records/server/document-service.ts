@@ -1,0 +1,1272 @@
+import { createHash, randomUUID } from "node:crypto";
+import { readFile, unlink } from "node:fs/promises";
+import type {
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
+import type { AuthorizedUser } from "@/lib/next-api-auth";
+import { db } from "@/lib/db";
+import {
+  DOCUMENT_ACCESS_LEVELS,
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_TYPES,
+  RELATED_MODULES,
+} from "../record-constants";
+import type {
+  DocumentAccessLevel,
+  DocumentDetail,
+  DocumentListResponse,
+  DocumentRecord,
+  DocumentStatus,
+} from "../records-types";
+import {
+  canAccessDocument,
+  canManageDocument,
+  canUploadDocument,
+  type DocumentPolicyActor,
+  type DocumentPolicyRecord,
+} from "./document-policy";
+import {
+  resolveProtectedDocumentPath,
+  storeProtectedDocument,
+  validateDocumentFile,
+  type UploadedFileLike,
+} from "./document-security";
+import { RecordsError } from "./records-error";
+
+type DocumentRow = RowDataPacket & {
+  id: string;
+  reference: string | null;
+  title: string;
+  description: string | null;
+  category: string | null;
+  documentType: string;
+  accessLevel: string;
+  databaseStatus: string;
+  fileName: string | null;
+  mimeType: string | null;
+  fileExtension: string | null;
+  fileSizeBytes: string | number | null;
+  relatedModule: string | null;
+  relatedRecordId: string | null;
+  relatedRecordReference: string | null;
+  relationshipType: string | null;
+  memberId: string | null;
+  documentDate: string | null;
+  expirationDate: string | null;
+  tags: string | null;
+  internalNote: string | null;
+  currentVersion: number;
+  uploadedBy: string | null;
+  uploadedById: string | null;
+  uploadedAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  archiveReason: string | null;
+};
+
+type VersionRow = RowDataPacket & {
+  id: string;
+  versionNumber: number;
+  originalFileName: string;
+  storedFileName: string;
+  storagePath: string;
+  mimeType: string;
+  fileExtension: string;
+  fileSizeBytes: string | number;
+  checksum: string | null;
+  changeNote: string | null;
+  uploadedBy: string;
+  uploadedAt: string;
+};
+
+type SummaryRow = RowDataPacket & {
+  total: string | number;
+  recentlyUploaded: string | number;
+  expiringSoon: string | number;
+  archived: string | number;
+  restricted: string | number;
+};
+
+type CountRow = RowDataPacket & { total: string | number };
+type IdRow = RowDataPacket & { id: string };
+type ChecksumRow = RowDataPacket & { id: string; checksum: string | null };
+
+export type DocumentListInput = {
+  search?: string;
+  category?: string;
+  documentType?: string;
+  accessLevel?: DocumentAccessLevel;
+  relatedModule?: string;
+  status?: DocumentStatus;
+  uploadedBy?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  expirationFrom?: string;
+  expirationTo?: string;
+  fileType?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type DocumentUploadInput = {
+  title: string;
+  description?: string;
+  category: string;
+  documentType: string;
+  accessLevel: DocumentAccessLevel;
+  relatedModule?: string;
+  relatedRecordId?: string;
+  relatedRecordReference?: string;
+  relationshipType?: string;
+  memberId?: string;
+  documentDate?: string;
+  expirationDate?: string;
+  tags?: string;
+  internalNote?: string;
+  file: UploadedFileLike;
+};
+
+export type DocumentMetadataInput = Omit<DocumentUploadInput, "file">;
+
+export type RequestMetadata = {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
+const databaseAccess: Record<DocumentAccessLevel, string> = {
+  PUBLIC: "Public",
+  MEMBER_ONLY: "Member-only",
+  ADMIN_ONLY: "Admin-only",
+  BOOKKEEPER_ONLY: "Bookkeeper-only",
+};
+
+function apiAccess(value: string): DocumentAccessLevel {
+  const entry = Object.entries(databaseAccess).find(
+    ([, database]) => database === value,
+  );
+  return (entry?.[0] ?? "ADMIN_ONLY") as DocumentAccessLevel;
+}
+
+function dateKey(value: string | null) {
+  return value ? value.slice(0, 10) : null;
+}
+
+export function calculateDocumentStatus(
+  databaseStatus: string,
+  expirationDate: string | null,
+  now = new Date(),
+): DocumentStatus {
+  if (databaseStatus === "Archived") return "ARCHIVED";
+  if (!expirationDate) return "ACTIVE";
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const expiration = new Date(`${expirationDate.slice(0, 10)}T00:00:00`);
+  if (expiration < today) return "EXPIRED";
+  const warning = new Date(today);
+  warning.setDate(warning.getDate() + 30);
+  return expiration <= warning ? "EXPIRING_SOON" : "ACTIVE";
+}
+
+function mapDocument(row: DocumentRow): DocumentRecord {
+  const expirationDate = dateKey(row.expirationDate);
+  return {
+    id: row.id,
+    reference: row.reference ?? `DOC-${row.id}`,
+    title: row.title,
+    description: row.description,
+    category: row.category ?? "OTHER",
+    documentType: row.documentType,
+    accessLevel: apiAccess(row.accessLevel),
+    status: calculateDocumentStatus(row.databaseStatus, expirationDate),
+    fileName: row.fileName ?? `document-${row.id}`,
+    mimeType: row.mimeType ?? "application/octet-stream",
+    fileExtension: row.fileExtension ?? "",
+    fileSizeBytes: Number(row.fileSizeBytes ?? 0),
+    relatedModule: row.relatedModule,
+    relatedRecordId: row.relatedRecordId,
+    relatedRecordReference: row.relatedRecordReference,
+    relationshipType: row.relationshipType,
+    memberId: row.memberId,
+    documentDate: dateKey(row.documentDate),
+    expirationDate,
+    tags: row.tags,
+    currentVersion: Number(row.currentVersion ?? 1),
+    uploadedBy: row.uploadedBy ?? "Public submission",
+    uploadedById: row.uploadedById,
+    uploadedAt: row.uploadedAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+    archiveReason: row.archiveReason,
+  };
+}
+
+function documentSelect() {
+  return `
+    SELECT CAST(d.document_id AS CHAR) AS id,
+           d.document_reference AS reference,
+           d.title,
+           d.description,
+           d.category,
+           d.document_type AS documentType,
+           d.access_level AS accessLevel,
+           d.document_status AS databaseStatus,
+           COALESCE(v.original_file_name, d.original_file_name) AS fileName,
+           COALESCE(v.mime_type, d.mime_type) AS mimeType,
+           v.file_extension AS fileExtension,
+           COALESCE(v.file_size_bytes, d.file_size_bytes) AS fileSizeBytes,
+           d.related_module AS relatedModule,
+           CAST(d.related_record_id AS CHAR) AS relatedRecordId,
+           d.related_record_reference AS relatedRecordReference,
+           d.relationship_type AS relationshipType,
+           CAST(d.member_id AS CHAR) AS memberId,
+           d.document_date AS documentDate,
+           d.expiration_date AS expirationDate,
+           d.tags,
+           d.internal_note AS internalNote,
+           d.current_version AS currentVersion,
+           u.display_name AS uploadedBy,
+           CAST(d.uploaded_by AS CHAR) AS uploadedById,
+           d.uploaded_at AS uploadedAt,
+           d.updated_at AS updatedAt,
+           d.archived_at AS archivedAt,
+           d.archive_reason AS archiveReason
+      FROM documents d
+      LEFT JOIN users u ON u.user_id = d.uploaded_by
+      LEFT JOIN document_versions v
+        ON v.document_id = d.document_id
+       AND v.version_number = d.current_version`;
+}
+
+async function getActor(user: AuthorizedUser): Promise<DocumentPolicyActor> {
+  let memberId: number | null = null;
+  if (user.role === "member") {
+    const [rows] = await db.query<IdRow[]>(
+      "SELECT CAST(member_id AS CHAR) AS id FROM member_profiles WHERE user_id = ? LIMIT 1",
+      [user.numericId],
+    );
+    memberId = rows[0] ? Number(rows[0].id) : null;
+  }
+  return { role: user.role, userId: user.numericId, memberId };
+}
+
+async function ensureMemberExists(memberId: string | null) {
+  if (!memberId) return;
+  const [rows] = await db.query<IdRow[]>(
+    "SELECT CAST(member_id AS CHAR) AS id FROM member_profiles WHERE member_id = ? LIMIT 1",
+    [memberId],
+  );
+  if (!rows[0]) {
+    throw new RecordsError(
+      "The linked member record does not exist.",
+      422,
+      "INVALID_MEMBER_LINK",
+    );
+  }
+}
+
+function policyRecord(document: DocumentRecord): DocumentPolicyRecord {
+  return {
+    accessLevel: document.accessLevel,
+    category: document.category,
+    documentType: document.documentType,
+    memberId: document.memberId ? Number(document.memberId) : null,
+  };
+}
+
+function visibilitySql(actor: DocumentPolicyActor | null) {
+  if (actor?.role === "chairman") return { sql: "1 = 1", values: [] };
+  if (actor?.role === "bookkeeper") {
+    return {
+      sql: `(d.access_level IN ('Public', 'Bookkeeper-only')
+             OR (d.access_level <> 'Admin-only' AND (
+               d.category IN ('FINANCIAL','RECEIPT','RENTAL','POS_AND_SALES','INVENTORY')
+               OR d.document_type IN ('Receipt','Financial Document')
+             )))`,
+      values: [],
+    };
+  }
+  if (actor?.role === "member" && actor.memberId) {
+    return {
+      sql: "(d.access_level = 'Public' OR (d.access_level = 'Member-only' AND (d.member_id IS NULL OR d.member_id = ?)))",
+      values: [actor.memberId],
+    };
+  }
+  return { sql: "d.access_level = 'Public'", values: [] };
+}
+
+function validDate(value: string | undefined) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
+function cleanText(value: string | undefined, maximum: number) {
+  const clean = value?.trim();
+  return clean ? clean.slice(0, maximum) : null;
+}
+
+function requireChoice(
+  value: string,
+  choices: readonly string[],
+  label: string,
+) {
+  if (!choices.includes(value)) {
+    throw new RecordsError(`Select a valid ${label}.`, 422, "VALIDATION_ERROR");
+  }
+  return value;
+}
+
+function validateMetadata(input: DocumentMetadataInput) {
+  const title = input.title.trim();
+  if (title.length < 2 || title.length > 255) {
+    throw new RecordsError(
+      "Document title must contain 2 to 255 characters.",
+      422,
+      "VALIDATION_ERROR",
+    );
+  }
+  requireChoice(input.category, DOCUMENT_CATEGORIES, "document category");
+  requireChoice(input.documentType, DOCUMENT_TYPES, "document type");
+  requireChoice(
+    input.accessLevel,
+    DOCUMENT_ACCESS_LEVELS.map((item) => item.value),
+    "access level",
+  );
+  if (input.relatedModule) {
+    requireChoice(input.relatedModule, RELATED_MODULES, "related module");
+  }
+  const documentDate = validDate(input.documentDate);
+  const expirationDate = validDate(input.expirationDate);
+  if (input.documentDate && !documentDate) {
+    throw new RecordsError(
+      "Enter a valid document date.",
+      422,
+      "VALIDATION_ERROR",
+    );
+  }
+  if (input.expirationDate && !expirationDate) {
+    throw new RecordsError(
+      "Enter a valid expiration date.",
+      422,
+      "VALIDATION_ERROR",
+    );
+  }
+  return {
+    title,
+    description: cleanText(input.description, 5000),
+    category: input.category,
+    documentType: input.documentType,
+    accessLevel: input.accessLevel,
+    relatedModule: cleanText(input.relatedModule, 80),
+    relatedRecordId:
+      input.relatedRecordId && /^\d+$/.test(input.relatedRecordId)
+        ? input.relatedRecordId
+        : null,
+    relatedRecordReference: cleanText(input.relatedRecordReference, 120),
+    relationshipType: cleanText(input.relationshipType, 80),
+    memberId:
+      input.memberId && /^\d+$/.test(input.memberId) ? input.memberId : null,
+    documentDate: documentDate ?? null,
+    expirationDate: expirationDate ?? null,
+    tags: cleanText(input.tags, 1000),
+    internalNote: cleanText(input.internalNote, 5000),
+  };
+}
+
+export async function listDocuments(
+  input: DocumentListInput,
+  user: AuthorizedUser,
+): Promise<DocumentListResponse> {
+  if (user.role === "chairman") {
+    await db.query(
+      `INSERT INTO notifications
+         (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+       SELECT u.user_id, 'Document', 'Document expiring soon',
+              CONCAT(d.document_reference, ' expires on ', DATE_FORMAT(d.expiration_date, '%Y-%m-%d'), '.'),
+              'Document', d.document_id
+         FROM users u
+         JOIN roles r ON r.role_id = u.role_id
+         JOIN documents d
+           ON d.document_status <> 'Archived'
+          AND d.expiration_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)
+        WHERE r.role_slug = 'chairman' AND u.account_status = 'Active'
+          AND NOT EXISTS (
+            SELECT 1 FROM notifications n
+             WHERE n.user_id = u.user_id
+               AND n.notification_type = 'Document'
+               AND n.title = 'Document expiring soon'
+               AND n.related_entity_type = 'Document'
+               AND n.related_entity_id = d.document_id
+          )`,
+    );
+  }
+  const actor = await getActor(user);
+  const visibility = visibilitySql(actor);
+  const where = [visibility.sql];
+  const values: Array<string | number> = [...visibility.values];
+
+  const search = input.search?.trim();
+  if (search) {
+    const term = `%${search.slice(0, 120)}%`;
+    where.push(`(d.title LIKE ? OR d.document_reference LIKE ? OR d.original_file_name LIKE ?
+      OR d.description LIKE ? OR d.tags LIKE ? OR d.related_record_reference LIKE ?)`);
+    values.push(term, term, term, term, term, term);
+  }
+  if (input.category) {
+    where.push("d.category = ?");
+    values.push(input.category);
+  }
+  if (input.documentType) {
+    where.push("d.document_type = ?");
+    values.push(input.documentType);
+  }
+  if (input.accessLevel) {
+    where.push("d.access_level = ?");
+    values.push(databaseAccess[input.accessLevel]);
+  }
+  if (input.relatedModule) {
+    where.push("d.related_module = ?");
+    values.push(input.relatedModule);
+  }
+  if (input.uploadedBy && /^\d+$/.test(input.uploadedBy)) {
+    where.push("d.uploaded_by = ?");
+    values.push(input.uploadedBy);
+  }
+  if (validDate(input.dateFrom)) {
+    where.push("DATE(d.uploaded_at) >= ?");
+    values.push(input.dateFrom!);
+  }
+  if (validDate(input.dateTo)) {
+    where.push("DATE(d.uploaded_at) <= ?");
+    values.push(input.dateTo!);
+  }
+  if (validDate(input.expirationFrom)) {
+    where.push("d.expiration_date >= ?");
+    values.push(input.expirationFrom!);
+  }
+  if (validDate(input.expirationTo)) {
+    where.push("d.expiration_date <= ?");
+    values.push(input.expirationTo!);
+  }
+  if (input.fileType?.trim()) {
+    where.push("v.file_extension = ?");
+    values.push(input.fileType.trim().toLowerCase());
+  }
+  if (input.status === "ARCHIVED") {
+    where.push("d.document_status = 'Archived'");
+  } else if (input.status === "EXPIRED") {
+    where.push(
+      "d.document_status <> 'Archived' AND d.expiration_date < CURRENT_DATE()",
+    );
+  } else if (input.status === "EXPIRING_SOON") {
+    where.push(
+      "d.document_status <> 'Archived' AND d.expiration_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)",
+    );
+  } else if (input.status === "ACTIVE") {
+    where.push(
+      "d.document_status <> 'Archived' AND (d.expiration_date IS NULL OR d.expiration_date > DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY))",
+    );
+  }
+
+  const page = Math.max(1, Number(input.page) || 1);
+  const pageSize = Math.min(100, Math.max(10, Number(input.pageSize) || 20));
+  const offset = (page - 1) * pageSize;
+  const whereSql = where.join(" AND ");
+  const [rows] = await db.query<DocumentRow[]>(
+    `${documentSelect()}
+      WHERE ${whereSql}
+      ORDER BY d.updated_at DESC, d.document_id DESC
+      LIMIT ${pageSize} OFFSET ${offset}`,
+    values,
+  );
+  const [counts] = await db.query<CountRow[]>(
+    `SELECT COUNT(*) AS total FROM documents d
+      LEFT JOIN document_versions v
+        ON v.document_id = d.document_id AND v.version_number = d.current_version
+      WHERE ${whereSql}`,
+    values,
+  );
+  const summaryVisibility = visibilitySql(actor);
+  const [summaryRows] = await db.query<SummaryRow[]>(
+    `SELECT COUNT(*) AS total,
+            SUM(d.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recentlyUploaded,
+            SUM(d.document_status <> 'Archived' AND d.expiration_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)) AS expiringSoon,
+            SUM(d.document_status = 'Archived') AS archived,
+            SUM(d.access_level <> 'Public') AS restricted
+       FROM documents d
+      WHERE ${summaryVisibility.sql}`,
+    summaryVisibility.values,
+  );
+  const [uploaderRows] = await db.query<
+    (RowDataPacket & { id: string; name: string })[]
+  >(
+    `SELECT DISTINCT CAST(u.user_id AS CHAR) AS id, u.display_name AS name
+       FROM users u JOIN documents d ON d.uploaded_by = u.user_id
+      ORDER BY u.display_name`,
+  );
+  const summary = summaryRows[0];
+  return {
+    documents: rows.map(mapDocument),
+    total: Number(counts[0]?.total ?? 0),
+    page,
+    pageSize,
+    summary: {
+      total: Number(summary?.total ?? 0),
+      recentlyUploaded: Number(summary?.recentlyUploaded ?? 0),
+      expiringSoon: Number(summary?.expiringSoon ?? 0),
+      archived: Number(summary?.archived ?? 0),
+      restricted: Number(summary?.restricted ?? 0),
+    },
+    filterOptions: { uploaders: uploaderRows },
+  };
+}
+
+async function findDocumentRow(
+  documentId: string,
+  connection?: PoolConnection,
+) {
+  if (!/^\d+$/.test(documentId)) return null;
+  const executor = connection ?? db;
+  const [rows] = await executor.query<DocumentRow[]>(
+    `${documentSelect()} WHERE d.document_id = ? LIMIT 1`,
+    [documentId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function getDocumentDetail(
+  documentId: string,
+  user: AuthorizedUser,
+): Promise<DocumentDetail> {
+  const row = await findDocumentRow(documentId);
+  if (!row)
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  const document = mapDocument(row);
+  const actor = await getActor(user);
+  if (!canAccessDocument(actor, policyRecord(document))) {
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  }
+  const [versions, access, audit] = await Promise.all([
+    db.query<VersionRow[]>(
+      `SELECT CAST(v.document_version_id AS CHAR) AS id,
+              v.version_number AS versionNumber,
+              v.original_file_name AS originalFileName,
+              v.stored_file_name AS storedFileName,
+              v.storage_path AS storagePath,
+              v.mime_type AS mimeType,
+              v.file_extension AS fileExtension,
+              v.file_size_bytes AS fileSizeBytes,
+              v.checksum_sha256 AS checksum,
+              v.change_note AS changeNote,
+              COALESCE(u.display_name, 'Public submission') AS uploadedBy,
+              v.created_at AS uploadedAt
+         FROM document_versions v
+         LEFT JOIN users u ON u.user_id = v.uploaded_by
+        WHERE v.document_id = ?
+        ORDER BY v.version_number DESC`,
+      [documentId],
+    ),
+    db.query<
+      (RowDataPacket & {
+        id: string;
+        user: string;
+        role: string | null;
+        action: string;
+        versionNumber: number | null;
+        occurredAt: string;
+      })[]
+    >(
+      `SELECT CAST(l.document_access_log_id AS CHAR) AS id,
+              COALESCE(u.display_name, 'Public visitor') AS user,
+              l.user_role AS role,
+              l.access_action AS action,
+              v.version_number AS versionNumber,
+              l.accessed_at AS occurredAt
+         FROM document_access_logs l
+         LEFT JOIN users u ON u.user_id = l.user_id
+         LEFT JOIN document_versions v ON v.document_version_id = l.document_version_id
+        WHERE l.document_id = ?
+        ORDER BY l.accessed_at DESC
+        LIMIT 100`,
+      [documentId],
+    ),
+    db.query<
+      (RowDataPacket & {
+        id: string;
+        action: string;
+        description: string | null;
+        actor: string;
+        occurredAt: string;
+      })[]
+    >(
+      `SELECT CAST(a.audit_log_id AS CHAR) AS id,
+              a.action,
+              a.description,
+              COALESCE(u.display_name, 'System') AS actor,
+              a.action_time AS occurredAt
+         FROM audit_logs a
+         LEFT JOIN users u ON u.user_id = a.user_id
+        WHERE a.entity_table = 'documents' AND a.record_id = ?
+        ORDER BY a.action_time DESC
+        LIMIT 100`,
+      [documentId],
+    ),
+  ]);
+  return {
+    ...document,
+    internalNote:
+      actor.role === "chairman" ||
+      canManageDocument(actor, policyRecord(document))
+        ? row.internalNote
+        : null,
+    versions: versions[0].map((version) => ({
+      id: version.id,
+      versionNumber: Number(version.versionNumber),
+      originalFileName: version.originalFileName,
+      mimeType: version.mimeType,
+      fileExtension: version.fileExtension,
+      fileSizeBytes: Number(version.fileSizeBytes),
+      checksum: version.checksum ?? "",
+      changeNote: version.changeNote,
+      uploadedBy: version.uploadedBy,
+      uploadedAt: version.uploadedAt,
+    })),
+    accessHistory: actor.role === "chairman" ? access[0] : [],
+    auditHistory: actor.role === "chairman" ? audit[0] : [],
+  };
+}
+
+async function insertAudit(
+  connection: PoolConnection,
+  userId: number,
+  action: string,
+  documentId: string | number,
+  description: string,
+  oldValues?: object | null,
+  newValues?: object | null,
+  metadata?: RequestMetadata,
+) {
+  await connection.query(
+    `INSERT INTO audit_logs
+       (user_id, action, entity_table, record_id, description, old_values, new_values, ip_address, user_agent)
+     VALUES (?, ?, 'documents', ?, ?, ?, ?, ?, ?)`,
+    [
+      userId,
+      action,
+      documentId,
+      description,
+      oldValues ? JSON.stringify(oldValues) : null,
+      newValues ? JSON.stringify(newValues) : null,
+      metadata?.ipAddress ?? null,
+      metadata?.userAgent?.slice(0, 500) ?? null,
+    ],
+  );
+}
+
+async function insertAccess(
+  connection: PoolConnection,
+  documentId: string | number,
+  versionId: string | number | null,
+  user: AuthorizedUser | null,
+  action: string,
+  metadata?: RequestMetadata,
+) {
+  await connection.query(
+    `INSERT INTO document_access_logs
+       (document_id, document_version_id, user_id, user_role, access_action, ip_address, user_agent)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      documentId,
+      versionId,
+      user?.numericId ?? null,
+      user?.role ?? "public",
+      action,
+      metadata?.ipAddress ?? null,
+      metadata?.userAgent?.slice(0, 500) ?? null,
+    ],
+  );
+}
+
+export async function uploadDocument(
+  input: DocumentUploadInput,
+  user: AuthorizedUser,
+  metadata?: RequestMetadata,
+) {
+  const details = validateMetadata(input);
+  await ensureMemberExists(details.memberId);
+  const actor = await getActor(user);
+  if (
+    !canUploadDocument(actor, {
+      accessLevel: details.accessLevel,
+      category: details.category,
+      documentType: details.documentType,
+      memberId: details.memberId ? Number(details.memberId) : null,
+    })
+  ) {
+    throw new RecordsError(
+      "You cannot upload a document with those access settings.",
+      403,
+      "DOCUMENT_UPLOAD_FORBIDDEN",
+    );
+  }
+  const validated = await validateDocumentFile(input.file).catch(
+    (error: unknown) => {
+      throw new RecordsError(
+        error instanceof Error
+          ? error.message
+          : "The document file is invalid.",
+        422,
+        "INVALID_DOCUMENT_FILE",
+      );
+    },
+  );
+  const [duplicates] = await db.query<ChecksumRow[]>(
+    `SELECT CAST(d.document_id AS CHAR) AS id, v.checksum_sha256 AS checksum
+       FROM documents d
+       JOIN document_versions v
+         ON v.document_id = d.document_id AND v.version_number = d.current_version
+      WHERE v.checksum_sha256 = ? AND d.document_status <> 'Archived'
+      LIMIT 1`,
+    [validated.checksum],
+  );
+  if (duplicates[0]) {
+    throw new RecordsError(
+      "This file is already stored as an active document.",
+      409,
+      "DUPLICATE_DOCUMENT",
+    );
+  }
+
+  const stored = await storeProtectedDocument(validated);
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const temporaryReference = `DOC-TMP-${randomUUID()}`;
+    const [result] = await connection.query<ResultSetHeader>(
+      `INSERT INTO documents (
+        document_reference, uploaded_by, member_id, title, category, document_type,
+        access_level, document_status, file_path, original_file_name, mime_type,
+        file_size_bytes, checksum_sha256, description, related_module,
+        related_record_id, related_record_reference, relationship_type, document_date,
+        expiration_date, current_version, tags, internal_note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [
+        temporaryReference,
+        user.numericId,
+        details.memberId,
+        details.title,
+        details.category,
+        details.documentType,
+        databaseAccess[details.accessLevel],
+        stored.storagePath,
+        validated.originalFileName,
+        validated.mimeType,
+        validated.size,
+        validated.checksum,
+        details.description,
+        details.relatedModule,
+        details.relatedRecordId,
+        details.relatedRecordReference,
+        details.relationshipType,
+        details.documentDate,
+        details.expirationDate,
+        details.tags,
+        details.internalNote,
+      ],
+    );
+    const documentId = result.insertId;
+    const reference = `DOC-${new Date().getFullYear()}-${String(documentId).padStart(6, "0")}`;
+    await connection.query(
+      "UPDATE documents SET document_reference = ? WHERE document_id = ?",
+      [reference, documentId],
+    );
+    const [versionResult] = await connection.query<ResultSetHeader>(
+      `INSERT INTO document_versions (
+        document_id, version_number, original_file_name, stored_file_name,
+        storage_path, mime_type, file_extension, file_size_bytes, checksum_sha256,
+        change_note, uploaded_by
+      ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, 'Initial document upload.', ?)`,
+      [
+        documentId,
+        validated.originalFileName,
+        stored.storedFileName,
+        stored.storagePath,
+        validated.mimeType,
+        validated.extension,
+        validated.size,
+        validated.checksum,
+        user.numericId,
+      ],
+    );
+    await insertAccess(
+      connection,
+      documentId,
+      versionResult.insertId,
+      user,
+      "Upload",
+      metadata,
+    );
+    await insertAudit(
+      connection,
+      user.numericId,
+      "document.uploaded",
+      documentId,
+      "A protected cooperative document was uploaded.",
+      null,
+      {
+        reference,
+        title: details.title,
+        category: details.category,
+        accessLevel: details.accessLevel,
+        relatedModule: details.relatedModule,
+      },
+      metadata,
+    );
+    if (user.role === "bookkeeper") {
+      await connection.query(
+        `INSERT INTO notifications
+          (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+         SELECT u.user_id, 'Document', 'Financial document uploaded',
+                CONCAT(?, ' was added to the Documents register.'),
+                'Document', ?
+           FROM users u
+           JOIN roles r ON r.role_id = u.role_id
+          WHERE r.role_slug = 'chairman' AND u.account_status = 'Active'`,
+        [details.title, documentId],
+      );
+    }
+    await connection.commit();
+    return { id: String(documentId), reference };
+  } catch (error) {
+    await connection.rollback();
+    await unlink(stored.absolutePath).catch(() => undefined);
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function recordDocumentRegisterExport(
+  user: AuthorizedUser,
+  metadata?: RequestMetadata,
+) {
+  await db.query(
+    `INSERT INTO audit_logs
+       (user_id, action, entity_table, description, ip_address, user_agent)
+     VALUES (?, 'document.register_exported', 'documents',
+             'The authorized document register was exported.', ?, ?)`,
+    [
+      user.numericId,
+      metadata?.ipAddress ?? null,
+      metadata?.userAgent?.slice(0, 500) ?? null,
+    ],
+  );
+}
+
+export async function updateDocumentMetadata(
+  documentId: string,
+  input: DocumentMetadataInput,
+  user: AuthorizedUser,
+  metadata?: RequestMetadata,
+) {
+  const details = validateMetadata(input);
+  await ensureMemberExists(details.memberId);
+  const actor = await getActor(user);
+  const existingRow = await findDocumentRow(documentId);
+  if (!existingRow)
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  const existing = mapDocument(existingRow);
+  if (!canManageDocument(actor, policyRecord(existing))) {
+    throw new RecordsError(
+      "You cannot edit this document.",
+      403,
+      "DOCUMENT_EDIT_FORBIDDEN",
+    );
+  }
+  if (
+    !canUploadDocument(actor, {
+      accessLevel: details.accessLevel,
+      category: details.category,
+      documentType: details.documentType,
+      memberId: details.memberId ? Number(details.memberId) : null,
+    })
+  ) {
+    throw new RecordsError(
+      "Those access settings are not allowed.",
+      403,
+      "ACCESS_FORBIDDEN",
+    );
+  }
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.query(
+      `UPDATE documents
+          SET title = ?, description = ?, category = ?, document_type = ?,
+              access_level = ?, related_module = ?, related_record_id = ?,
+              related_record_reference = ?, relationship_type = ?, member_id = ?,
+              document_date = ?, expiration_date = ?, tags = ?, internal_note = ?
+        WHERE document_id = ?`,
+      [
+        details.title,
+        details.description,
+        details.category,
+        details.documentType,
+        databaseAccess[details.accessLevel],
+        details.relatedModule,
+        details.relatedRecordId,
+        details.relatedRecordReference,
+        details.relationshipType,
+        details.memberId,
+        details.documentDate,
+        details.expirationDate,
+        details.tags,
+        details.internalNote,
+        documentId,
+      ],
+    );
+    const accessChanged = existing.accessLevel !== details.accessLevel;
+    if (accessChanged) {
+      await insertAccess(
+        connection,
+        documentId,
+        null,
+        user,
+        "Permission Change",
+        metadata,
+      );
+    }
+    await insertAudit(
+      connection,
+      user.numericId,
+      accessChanged ? "document.access_changed" : "document.metadata_updated",
+      documentId,
+      accessChanged
+        ? "Document access level and metadata were updated."
+        : "Document metadata was updated.",
+      {
+        title: existing.title,
+        category: existing.category,
+        accessLevel: existing.accessLevel,
+      },
+      {
+        title: details.title,
+        category: details.category,
+        accessLevel: details.accessLevel,
+      },
+      metadata,
+    );
+    await connection.commit();
+    return { updated: true };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function uploadDocumentVersion(
+  documentId: string,
+  file: UploadedFileLike,
+  changeNote: string,
+  user: AuthorizedUser,
+  metadata?: RequestMetadata,
+) {
+  if (changeNote.trim().length < 3) {
+    throw new RecordsError(
+      "Describe what changed in this version.",
+      422,
+      "CHANGE_NOTE_REQUIRED",
+    );
+  }
+  const existingRow = await findDocumentRow(documentId);
+  if (!existingRow)
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  const existing = mapDocument(existingRow);
+  const actor = await getActor(user);
+  if (!canManageDocument(actor, policyRecord(existing))) {
+    throw new RecordsError(
+      "You cannot replace this document.",
+      403,
+      "VERSION_FORBIDDEN",
+    );
+  }
+  if (existing.status === "ARCHIVED") {
+    throw new RecordsError(
+      "Restore the document before uploading a new version.",
+      409,
+      "DOCUMENT_ARCHIVED",
+    );
+  }
+  const validated = await validateDocumentFile(file).catch((error: unknown) => {
+    throw new RecordsError(
+      error instanceof Error ? error.message : "The document file is invalid.",
+      422,
+      "INVALID_DOCUMENT_FILE",
+    );
+  });
+  const [same] = await db.query<ChecksumRow[]>(
+    `SELECT CAST(v.document_version_id AS CHAR) AS id, v.checksum_sha256 AS checksum
+       FROM document_versions v
+      WHERE v.document_id = ? AND v.checksum_sha256 = ? LIMIT 1`,
+    [documentId, validated.checksum],
+  );
+  if (same[0]) {
+    throw new RecordsError(
+      "That file already exists in this document's version history.",
+      409,
+      "DUPLICATE_VERSION",
+    );
+  }
+  const stored = await storeProtectedDocument(validated);
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [locked] = await connection.query<
+      (RowDataPacket & { version: number })[]
+    >(
+      "SELECT current_version AS version FROM documents WHERE document_id = ? FOR UPDATE",
+      [documentId],
+    );
+    if (!locked[0]) {
+      throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+    }
+    const nextVersion = Number(locked[0].version) + 1;
+    const [versionResult] = await connection.query<ResultSetHeader>(
+      `INSERT INTO document_versions (
+        document_id, version_number, original_file_name, stored_file_name,
+        storage_path, mime_type, file_extension, file_size_bytes, checksum_sha256,
+        change_note, uploaded_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        documentId,
+        nextVersion,
+        validated.originalFileName,
+        stored.storedFileName,
+        stored.storagePath,
+        validated.mimeType,
+        validated.extension,
+        validated.size,
+        validated.checksum,
+        changeNote.trim().slice(0, 5000),
+        user.numericId,
+      ],
+    );
+    await connection.query(
+      `UPDATE documents
+          SET current_version = ?, file_path = ?, original_file_name = ?,
+              mime_type = ?, file_size_bytes = ?, checksum_sha256 = ?,
+              document_status = 'Active'
+        WHERE document_id = ?`,
+      [
+        nextVersion,
+        stored.storagePath,
+        validated.originalFileName,
+        validated.mimeType,
+        validated.size,
+        validated.checksum,
+        documentId,
+      ],
+    );
+    await insertAccess(
+      connection,
+      documentId,
+      versionResult.insertId,
+      user,
+      "Replace",
+      metadata,
+    );
+    await insertAudit(
+      connection,
+      user.numericId,
+      "document.version_uploaded",
+      documentId,
+      `Document version ${nextVersion} was uploaded.`,
+      { version: nextVersion - 1 },
+      { version: nextVersion, changeNote: changeNote.trim().slice(0, 5000) },
+      metadata,
+    );
+    await connection.commit();
+    return { version: nextVersion };
+  } catch (error) {
+    await connection.rollback();
+    await unlink(stored.absolutePath).catch(() => undefined);
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function setDocumentArchived(
+  documentId: string,
+  archived: boolean,
+  reason: string | undefined,
+  user: AuthorizedUser,
+  metadata?: RequestMetadata,
+) {
+  if (archived && (!reason || reason.trim().length < 3)) {
+    throw new RecordsError(
+      "Provide an archive reason.",
+      422,
+      "ARCHIVE_REASON_REQUIRED",
+    );
+  }
+  const row = await findDocumentRow(documentId);
+  if (!row)
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  const document = mapDocument(row);
+  const actor = await getActor(user);
+  if (!canManageDocument(actor, policyRecord(document))) {
+    throw new RecordsError(
+      "You cannot change this document.",
+      403,
+      "DOCUMENT_EDIT_FORBIDDEN",
+    );
+  }
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.query(
+      archived
+        ? `UPDATE documents SET document_status = 'Archived', archived_by = ?,
+             archived_at = NOW(), archive_reason = ? WHERE document_id = ?`
+        : `UPDATE documents SET document_status = 'Active', archived_by = NULL,
+             archived_at = NULL, archive_reason = NULL WHERE document_id = ?`,
+      archived
+        ? [user.numericId, reason!.trim().slice(0, 5000), documentId]
+        : [documentId],
+    );
+    await insertAccess(
+      connection,
+      documentId,
+      null,
+      user,
+      archived ? "Archive" : "Restore",
+      metadata,
+    );
+    await insertAudit(
+      connection,
+      user.numericId,
+      archived ? "document.archived" : "document.restored",
+      documentId,
+      archived
+        ? "The document was archived and preserved."
+        : "The document was restored.",
+      { status: document.status },
+      { status: archived ? "ARCHIVED" : "ACTIVE", reason: reason ?? null },
+      metadata,
+    );
+    await connection.commit();
+    return { archived };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function getDocumentFile(
+  documentId: string,
+  versionNumber: number | undefined,
+  user: AuthorizedUser | null,
+  action: "Preview" | "Download" | "Print",
+  metadata?: RequestMetadata,
+) {
+  const row = await findDocumentRow(documentId);
+  if (!row)
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  const document = mapDocument(row);
+  const actor = user ? await getActor(user) : null;
+  if (!canAccessDocument(actor, policyRecord(document))) {
+    throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
+  }
+  const requestedVersion = versionNumber ?? document.currentVersion;
+  const [versions] = await db.query<VersionRow[]>(
+    `SELECT CAST(v.document_version_id AS CHAR) AS id,
+            v.version_number AS versionNumber,
+            v.original_file_name AS originalFileName,
+            v.stored_file_name AS storedFileName,
+            v.storage_path AS storagePath,
+            v.mime_type AS mimeType,
+            v.file_extension AS fileExtension,
+            v.file_size_bytes AS fileSizeBytes,
+            v.checksum_sha256 AS checksum,
+            v.change_note AS changeNote,
+            COALESCE(u.display_name, 'Public submission') AS uploadedBy,
+            v.created_at AS uploadedAt
+       FROM document_versions v
+       LEFT JOIN users u ON u.user_id = v.uploaded_by
+      WHERE v.document_id = ? AND v.version_number = ? LIMIT 1`,
+    [documentId, requestedVersion],
+  );
+  const version = versions[0];
+  if (!version)
+    throw new RecordsError(
+      "Document version not found.",
+      404,
+      "VERSION_NOT_FOUND",
+    );
+  let contents: Buffer;
+  try {
+    const absolutePath = resolveProtectedDocumentPath(version.storagePath);
+    contents = await readFile(/* turbopackIgnore: true */ absolutePath);
+  } catch {
+    throw new RecordsError(
+      "The stored file is unavailable. Its metadata has been preserved.",
+      404,
+      "DOCUMENT_FILE_MISSING",
+    );
+  }
+  if (
+    version.checksum &&
+    !/^0{64}$/.test(version.checksum) &&
+    createHash("sha256").update(contents).digest("hex") !== version.checksum
+  ) {
+    throw new RecordsError(
+      "The stored file failed its integrity check.",
+      409,
+      "DOCUMENT_INTEGRITY_FAILURE",
+    );
+  }
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await insertAccess(
+      connection,
+      documentId,
+      version.id,
+      user,
+      action,
+      metadata,
+    );
+    if (
+      user &&
+      (action === "Download" ||
+        action === "Print" ||
+        document.accessLevel !== "PUBLIC")
+    ) {
+      await insertAudit(
+        connection,
+        user.numericId,
+        `document.${action.toLowerCase()}`,
+        documentId,
+        `Document version ${version.versionNumber} was ${action.toLowerCase()}ed.`,
+        null,
+        { version: version.versionNumber, accessLevel: document.accessLevel },
+        metadata,
+      );
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+  return {
+    contents,
+    fileName: version.originalFileName.replaceAll('"', ""),
+    mimeType: version.mimeType,
+  };
+}

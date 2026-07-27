@@ -97,6 +97,7 @@ type UserFormState = {
   accountStatus: AccountStatus;
   password: string;
   issueActivationLink: boolean;
+  memberId?: string;
 };
 
 const blankForm: UserFormState = {
@@ -597,8 +598,8 @@ function UserTable({
 
   return (
     <div className="hidden 2xl:block min-w-0">
-      <div className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-sm">
-        <table className="w-full divide-y divide-[#E2E8E2] text-left text-sm table-fixed">
+      <div className="overflow-x-auto rounded-lg border border-[#CAD8CB] bg-white shadow-sm">
+        <table className="w-full divide-y divide-[#E2E8E2] text-left text-sm whitespace-nowrap">
           <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
             <tr>
               <th className="px-5 py-4 w-10">
@@ -871,7 +872,11 @@ function UserFormDialog({
         className="grid gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onSave(draft);
+          const finalDraft = { ...draft };
+          if (mode === "create" && !finalDraft.issueActivationLink && !finalDraft.password) {
+            finalDraft.password = "Track_coop123";
+          }
+          void onSave(finalDraft);
         }}
       >
         <label className={labelClass}>
@@ -897,21 +902,16 @@ function UserFormDialog({
               </label>
               <label className={labelClass}>
                 Status
-                <select className={inputClass} value={draft.accountStatus} disabled={draft.issueActivationLink} onChange={(event) => setDraft((current) => ({ ...current, accountStatus: event.target.value as AccountStatus }))}>
+                <select className={inputClass} value={draft.accountStatus} onChange={(event) => setDraft((current) => ({ ...current, accountStatus: event.target.value as AccountStatus }))}>
                   {accountStatuses.map((status) => <option key={status}>{status}</option>)}
                 </select>
               </label>
             </div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-[#294B39]">
-              <input type="checkbox" checked={draft.issueActivationLink} onChange={(event) => setDraft((current) => ({ ...current, issueActivationLink: event.target.checked, accountStatus: event.target.checked ? "Pending" : current.accountStatus }))} />
-              Issue activation link instead of setting a password
+            
+            <label className={labelClass}>
+              Temporary Password (leave blank to use Track_coop123)
+              <input className={inputClass} minLength={3} type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} />
             </label>
-            {!draft.issueActivationLink ? (
-              <label className={labelClass}>
-                Temporary Password
-                <input className={inputClass} required minLength={12} type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} />
-              </label>
-            ) : null}
           </>
         ) : null}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -1029,7 +1029,7 @@ function LifecycleActionDialog({
         {action.kind === "reset-password" ? (
           <label className={labelClass}>
             New Password
-            <input className={inputClass} required minLength={12} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            <input className={inputClass} required minLength={3} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
           </label>
         ) : null}
         {action.kind === "link-member" ? (
@@ -1085,13 +1085,13 @@ function ActivationResultDialog({ result, onOpenChange }: { result: ActivationLi
     <FormDialog
       open={Boolean(result)}
       onOpenChange={onOpenChange}
-      title="Activation Link Issued"
-      description="This raw activation URL is shown once for secure delivery."
+      title="Account Setup Link Created"
+      description="Please copy this link and send it to the new user so they can set up their password. This link will only be shown once."
     >
       {result ? (
         <div className="grid gap-4">
-          <Info label="Account" value={result.user.displayName} />
-          <Info label="Expires" value={formatDate(result.activationTokenExpiresAt)} />
+          <Info label="For Account" value={result.user.displayName} />
+          <Info label="Link Expires On" value={formatDate(result.activationTokenExpiresAt)} />
           <div className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3 text-sm font-semibold text-[#123D2A] break-all">
             {result.activationUrl}
           </div>

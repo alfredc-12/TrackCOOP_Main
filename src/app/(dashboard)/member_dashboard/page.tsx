@@ -46,7 +46,8 @@ import {
   ShieldCheck,
   AlertCircle,
   Info,
-  X
+  X,
+  Link2
 } from "lucide-react";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { ProfileSettings } from "./components/ProfileSettings";
@@ -407,10 +408,22 @@ export default function MemberDashboardPage() {
           {activeTab === "Dashboard" && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-              {/* 1. ENHANCED WELCOME BANNER */}
-              <section className="relative overflow-hidden rounded-3xl bg-white p-8 shadow-sm lg:p-12 border border-[#E5E7EB]">
-                <div className="absolute right-0 top-0 h-full w-2/3 bg-gradient-to-l from-[#DFF5E8]/60 via-[#DFF5E8]/10 to-transparent"></div>
-                <div className="relative z-10 flex flex-col justify-between gap-12 md:flex-row md:items-center">
+              {dashboardData?.isLinked === false ? (
+                <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border border-[#CAD8CB] bg-white p-12 text-center shadow-sm">
+                  <div className="mb-6 rounded-full bg-[#F8F6EF] p-4 text-[#2F7D57]">
+                    <Link2 className="h-12 w-12" />
+                  </div>
+                  <h2 className="mb-3 text-2xl font-bold text-[#173626]">Account Not Yet Linked</h2>
+                  <p className="max-w-md text-[#6C7A70] leading-relaxed">
+                    Welcome! Your account is active, but it hasn't been linked to your cooperative records yet. Please ask the Chairman or Bookkeeper to link your profile to view your data.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* 1. ENHANCED WELCOME BANNER */}
+                  <section className="relative overflow-hidden rounded-3xl bg-white p-8 shadow-sm lg:p-12 border border-[#E5E7EB]">
+                    <div className="absolute right-0 top-0 h-full w-2/3 bg-gradient-to-l from-[#DFF5E8]/60 via-[#DFF5E8]/10 to-transparent"></div>
+                    <div className="relative z-10 flex flex-col justify-between gap-12 md:flex-row md:items-center">
                   <div className="max-w-xl">
                     <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#F8F6EF] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#2F7D57] border border-[#DDE8D8]">
                       <span className="relative flex h-2 w-2">
@@ -619,6 +632,8 @@ export default function MemberDashboardPage() {
                   </button>
                 </div>
               </section>
+              </>
+              )}
             </div>
           )}
 

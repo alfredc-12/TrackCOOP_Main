@@ -134,6 +134,7 @@ export function createAuthService(
           email: account.email,
           username: account.username,
           role: account.role,
+          mustChangePassword: input.password === "Track_coop123",
         },
       };
     },

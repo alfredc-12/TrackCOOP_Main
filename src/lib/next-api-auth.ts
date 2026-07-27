@@ -65,6 +65,14 @@ export async function requireApiUser(
   };
 }
 
+export async function getOptionalApiUser(): Promise<AuthorizedUser | null> {
+  const user = await getServerAuthUser();
+  if (!user) return null;
+  const numericId = Number(user.id);
+  if (!Number.isInteger(numericId) || numericId <= 0) return null;
+  return { ...user, numericId };
+}
+
 export async function getMemberProfileIdForUser(userId: number) {
   const [rows] = await db.query<MemberProfileRow[]>(
     `SELECT CAST(member_id AS CHAR) AS memberId

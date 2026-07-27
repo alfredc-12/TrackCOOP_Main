@@ -33,15 +33,13 @@ export const createUserSchema = z.object({
   displayName: z.string().trim().min(2).max(160),
   password: z
     .string()
-    .min(12)
+    .min(3)
     .max(128)
-    .regex(/[a-z]/, "Password must include a lowercase letter")
-    .regex(/[A-Z]/, "Password must include an uppercase letter")
-    .regex(/[0-9]/, "Password must include a number")
     .optional(),
   role: z.enum(roleSlugs),
   accountStatus: z.enum(accountStatuses).default("Active"),
   issueActivationLink: z.boolean().optional().default(false),
+  memberId: z.string().uuid().optional(),
 }).superRefine((value, context) => {
   if (!value.issueActivationLink && !value.password) {
     context.addIssue({
@@ -100,11 +98,8 @@ export const unlinkMemberSchema = z.object({
 export const resetUserPasswordSchema = z.object({
   password: z
     .string()
-    .min(12)
-    .max(128)
-    .regex(/[a-z]/, "Password must include a lowercase letter")
-    .regex(/[A-Z]/, "Password must include an uppercase letter")
-    .regex(/[0-9]/, "Password must include a number"),
+    .min(3)
+    .max(128),
   reason: z.string().trim().min(3).max(500),
 });
 

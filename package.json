@@ -20,8 +20,14 @@
     "test:e2e": "playwright test",
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
+    "db:migrate:records": "tsx server/src/scripts/migrate-records.ts",
     "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",
-    "user:create": "tsx server/src/scripts/create-user.ts"
+    "records:verify": "tsx scripts/verify-records-modules.ts",
+    "test:records": "tsx --test src/features/records/**/*.test.ts",
+    "user:create": "tsx server/src/scripts/create-user.ts",
+    "graph:build": "graphify . --mode deep",
+    "graph:hook-status": "graphify hook status",
+    "graph:watch": "graphify watch ."
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

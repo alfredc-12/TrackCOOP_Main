@@ -73,7 +73,13 @@ DROP TABLE IF EXISTS `rental_pos_records`;
 
 DROP TABLE IF EXISTS `rental_status_history`;
 
+DROP TABLE IF EXISTS `rental_idempotency_keys`;
+
+DROP TABLE IF EXISTS `rental_booking_sequences`;
+
 DROP TABLE IF EXISTS `rental_bookings`;
+
+DROP TABLE IF EXISTS `rental_maintenance_periods`;
 
 DROP TABLE IF EXISTS `rental_assets`;
 
@@ -915,6 +921,44 @@ CREATE INDEX `idx_rental_assets_name_status` ON `rental_assets` (asset_name, ass
 
 CREATE INDEX `idx_rental_assets_category` ON `rental_assets` (category, asset_status);
 
+CREATE TABLE rental_maintenance_periods (
+    rental_maintenance_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    rental_asset_id BIGINT UNSIGNED NOT NULL,
+    maintenance_type VARCHAR(120) NOT NULL,
+    start_datetime DATETIME NOT NULL,
+    end_datetime DATETIME NOT NULL,
+    description TEXT NOT NULL,
+    technician_provider VARCHAR(190) NULL,
+    cost DECIMAL(12, 2) NULL,
+    internal_note TEXT NULL,
+    operational_impact ENUM(
+        'Limited Availability',
+        'Unavailable',
+        'Out of Service'
+    ) NOT NULL DEFAULT 'Unavailable',
+    maintenance_status ENUM(
+        'Scheduled',
+        'In Progress',
+        'Completed',
+        'Cancelled'
+    ) NOT NULL DEFAULT 'Scheduled',
+    created_by BIGINT UNSIGNED NOT NULL,
+    completed_by BIGINT UNSIGNED NULL,
+    completed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rental_maintenance_asset FOREIGN KEY (rental_asset_id) REFERENCES rental_assets (rental_asset_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_rental_maintenance_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_rental_maintenance_completer FOREIGN KEY (completed_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_rental_maintenance_asset_period` ON `rental_maintenance_periods` (
+    rental_asset_id,
+    start_datetime,
+    end_datetime,
+    maintenance_status
+);
+
 CREATE TABLE rental_bookings (
     rental_booking_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     booking_number VARCHAR(60) NOT NULL,
@@ -978,6 +1022,42 @@ CREATE INDEX `idx_rental_bookings_status` ON `rental_bookings` (
     payment_status,
     start_datetime
 );
+
+CREATE TABLE rental_idempotency_keys (
+    idempotency_key VARCHAR(120) PRIMARY KEY,
+    operation VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100) NULL,
+    entity_id BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_rental_idempotency_entity` ON `rental_idempotency_keys` (entity_type, entity_id);
+
+CREATE INDEX `idx_rental_idempotency_expiry` ON `rental_idempotency_keys` (expires_at);
+
+CREATE TABLE rental_booking_sequences (
+    reference_year SMALLINT UNSIGNED PRIMARY KEY,
+    last_number INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE = InnoDB;
+
+INSERT INTO rental_booking_sequences (reference_year, last_number)
+SELECT
+    YEAR(CURDATE()),
+    COALESCE(
+        MAX(
+            CASE
+                WHEN booking_number REGEXP CONCAT('^RNT-', YEAR(CURDATE()), '-[0-9]+$')
+                THEN CAST(SUBSTRING_INDEX(booking_number, '-', -1) AS UNSIGNED)
+                ELSE 0
+            END
+        ),
+        0
+    )
+FROM rental_bookings
+ON DUPLICATE KEY UPDATE
+    last_number = GREATEST(last_number, VALUES(last_number));
 
 CREATE TABLE rental_status_history (
     rental_status_history_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

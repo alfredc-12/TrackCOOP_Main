@@ -6,6 +6,7 @@ export type AuthUser = {
   email: string;
   username: string | null;
   role: Role;
+  mustChangePassword?: boolean;
 };
 
 export type LoginInput = {

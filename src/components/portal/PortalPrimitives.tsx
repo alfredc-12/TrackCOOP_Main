@@ -83,8 +83,10 @@ export function SearchAndFilters({ children }: { children?: ReactNode }) {
 
 export function DataTable({ children }: { children: ReactNode }) {
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-      <div className="min-w-0 max-w-full overflow-x-auto">{children}</div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+      <div className="w-full min-w-0 max-w-full overflow-x-auto">
+        {children}
+      </div>
     </div>
   );
 }
@@ -129,26 +131,31 @@ export function FormDialog({
       {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content
-          className={cn(
-            "fixed left-1/2 top-1/2 z-[60] max-h-[88vh] w-[min(38rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-lg border border-[#CAD8CB] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
-            contentClassName,
-          )}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <Dialog.Title className="break-words text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
-              {description ? (
-                <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
-                  {description}
-                </Dialog.Description>
-              ) : null}
+        <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto bg-transparent focus:outline-none">
+          <div className="relative flex min-h-full items-center justify-center p-2 sm:p-4 py-4 sm:py-6">
+            <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
+            <div
+              className={cn(
+                "relative z-10 w-[min(38rem,calc(100vw-2rem))] rounded-lg border border-[#CAD8CB] bg-white p-4 sm:p-5 shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
+                contentClassName,
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <Dialog.Title className="break-words text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
+                  {description ? (
+                    <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
+                      {description}
+                    </Dialog.Description>
+                  ) : null}
+                </div>
+                <Dialog.Close className="grid size-9 shrink-0 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC]">
+                  <X className="size-4" aria-hidden="true" />
+                </Dialog.Close>
+              </div>
+              <div className="mt-2">{children}</div>
             </div>
-            <Dialog.Close className="grid size-9 shrink-0 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC]">
-              <X className="size-4" aria-hidden="true" />
-            </Dialog.Close>
           </div>
-          <div className="mt-6">{children}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -179,25 +186,30 @@ export function ConfirmDialog({
       {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[#CAD8CB] bg-white p-6 text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
-          <span className="mx-auto grid size-12 place-items-center rounded-lg bg-[#FFF4D7] text-[#8A6200]">
-            <AlertCircle className="size-6" aria-hidden="true" />
-          </span>
-          <Dialog.Title className="mt-4 text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
-          <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
-            {description}
-          </Dialog.Description>
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <Dialog.Close className="rounded-md border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-bold text-[#294B39] transition hover:bg-[#EEF2EC]">
-              {cancelLabel}
-            </Dialog.Close>
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="rounded-md bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
-            >
-              {confirmLabel}
-            </button>
+        <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto bg-transparent focus:outline-none">
+          <div className="relative flex min-h-full items-center justify-center p-4 py-12">
+            <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
+            <div className="relative z-10 w-[min(26rem,calc(100vw-2rem))] rounded-lg border border-[#CAD8CB] bg-white p-6 text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
+              <span className="mx-auto grid size-12 place-items-center rounded-lg bg-[#FFF4D7] text-[#8A6200]">
+                <AlertCircle className="size-6" aria-hidden="true" />
+              </span>
+              <Dialog.Title className="mt-4 text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
+                {description}
+              </Dialog.Description>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <Dialog.Close className="rounded-md border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-bold text-[#294B39] transition hover:bg-[#EEF2EC]">
+                  {cancelLabel}
+                </Dialog.Close>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  className="rounded-md bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
+                >
+                  {confirmLabel}
+                </button>
+              </div>
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

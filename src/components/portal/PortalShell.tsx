@@ -59,19 +59,21 @@ export function PortalShell({ role, children }: PortalShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8F3] text-[#17211C]">
+    <div className="min-h-screen overflow-x-hidden bg-[#F7F8F3] text-[#17211C]">
       <PortalSidebar
         role={role}
         isMobileOpen={isMobileOpen}
         onMobileClose={() => setIsMobileOpen(false)}
       />
-      <div className="min-h-screen lg:pl-72">
+      <div className="min-w-0 min-h-screen lg:pl-72">
         <PortalTopbar
           user={user}
           onMenuClick={() => setIsMobileOpen(true)}
           onLogout={handleLogout}
         />
-        <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="min-w-0 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {children}
+        </main>
       </div>
       <Toaster richColors position="top-right" />
     </div>

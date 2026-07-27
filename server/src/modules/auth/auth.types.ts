@@ -9,6 +9,7 @@ export type AuthUser = {
   email: string;
   username: string | null;
   role: RoleSlug;
+  mustChangePassword?: boolean;
 };
 
 export type LoginAccount = AuthUser & {
