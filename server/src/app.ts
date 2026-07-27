@@ -26,6 +26,9 @@ import { createMembershipRouter } from "./modules/membership/membership.routes";
 import type { MembershipService } from "./modules/membership/membership.service";
 import { createMembershipApplicationRouter } from "./modules/membership-applications/membership-application.routes";
 import type { MembershipApplicationService } from "./modules/membership-applications/membership-application.service";
+import { createPaymongoRouter } from "./modules/paymongo/paymongo.routes";
+import { createPaymongoWebhookRouter } from "./modules/paymongo/paymongo.webhook.routes";
+import type { PaymongoWebhookService } from "./modules/paymongo/paymongo.webhook.service";
 import { createPaymentReferenceRouter } from "./modules/payment-references/payment-reference.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
@@ -38,6 +41,7 @@ type CreateAppOptions = {
   frontendUrl?: string;
   membershipApplicationService?: MembershipApplicationService;
   membershipService?: MembershipService;
+  paymongoWebhookService?: PaymongoWebhookService;
 };
 
 function createCorsOptions(frontendUrl: string): CorsOptions {
@@ -74,6 +78,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
   }));
+  app.use("/api/webhooks/paymongo", createPaymongoWebhookRouter(options.paymongoWebhookService));
   app.use(cors(createCorsOptions(frontendUrl)));
   app.use(validateOrigin(frontendUrl));
   app.use(
@@ -107,6 +112,7 @@ export function createApp(options: CreateAppOptions = {}) {
     ),
   );
   app.use("/api", createMemberIndicatorRouter(options.authService));
+  app.use("/api", createPaymongoRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));

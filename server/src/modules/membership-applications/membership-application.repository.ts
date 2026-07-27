@@ -26,6 +26,7 @@ import type {
   PublicApplicationRecord,
   PublicDocumentUploadInput,
   PublicMembershipApplicationInput,
+  PublicPaymentRequirement,
   PublicStatusRequirement,
   PublicSubmissionContext,
   PublicSubmissionResult,
@@ -50,6 +51,7 @@ type PublicApplicationRow = RowDataPacket & {
   id: string;
   applicationCode: string;
   publicTrackingTokenHash: string;
+  requestedMembershipType: RequestedMembershipType;
   fullName: string;
   submittedAt: Date;
   applicationStatus: MembershipApplicationStatus;
@@ -60,6 +62,14 @@ type PublicRequirementRow = RowDataPacket & {
   requirementType: RequirementType;
   requirementStatus: PublicStatusRequirement["requirementStatus"];
   remarks: string | null;
+};
+
+type PublicPaymentRequirementRow = RowDataPacket & {
+  requirementType: PublicPaymentRequirement["requirementType"];
+  requirementStatus: RequirementStatus;
+  paymentPurpose: PublicPaymentRequirement["paymentPurpose"];
+  paymentStatus: PublicPaymentRequirement["paymentStatus"];
+  amount: string | number | null;
 };
 
 type CountRow = RowDataPacket & { total: number };
@@ -380,6 +390,7 @@ async function selectPublicApplication(
     `SELECT CAST(a.membership_application_id AS CHAR) AS id,
             a.application_code AS applicationCode,
             a.public_tracking_token_hash AS publicTrackingTokenHash,
+            a.requested_membership_type AS requestedMembershipType,
             ${applicantFullNameSql} AS fullName,
             a.submitted_at AS submittedAt,
             a.application_status AS applicationStatus,
@@ -411,9 +422,30 @@ async function selectPublicApplication(
     [application.id],
   );
 
+  const [paymentRows] = await connection.execute<PublicPaymentRequirementRow[]>(
+    `SELECT r.requirement_type AS requirementType,
+            r.requirement_status AS requirementStatus,
+            CASE
+              WHEN r.requirement_type = 'Initial Share Capital' THEN 'Share Capital'
+              ELSE 'Associate Membership Fee'
+            END AS paymentPurpose,
+            CASE WHEN pr.validation_status = 'Validated' THEN 'Confirmed' ELSE 'Waiting' END AS paymentStatus,
+            pr.amount
+       FROM membership_application_requirements r
+       LEFT JOIN payment_references pr ON pr.payment_reference_id = r.payment_reference_id
+      WHERE r.membership_application_id = ?
+        AND r.requirement_type IN ('Associate Membership Fee', 'Initial Share Capital')
+      ORDER BY r.membership_application_requirement_id ASC`,
+    [application.id],
+  );
+
   return {
     ...application,
     missingOrRejectedRequirements: requirementRows,
+    paymentRequirements: paymentRows.map((row) => ({
+      ...row,
+      amount: row.amount === null ? null : Number(row.amount),
+    })),
   };
 }
 

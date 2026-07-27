@@ -129,13 +129,23 @@ export type PublicStatusRequirement = {
   remarks: string | null;
 };
 
+export type PublicPaymentRequirement = {
+  requirementType: Extract<RequirementType, "Associate Membership Fee" | "Initial Share Capital">;
+  requirementStatus: RequirementStatus;
+  paymentPurpose: "Associate Membership Fee" | "Share Capital";
+  paymentStatus: "Waiting" | "Confirmed";
+  amount: number | null;
+};
+
 export type PublicApplicationStatus = {
   applicationCode: string;
+  requestedMembershipType: RequestedMembershipType;
   fullName: string;
   submittedAt: Date;
   applicationStatus: MembershipApplicationStatus;
   latestApplicantMessage: string | null;
   missingOrRejectedRequirements: PublicStatusRequirement[];
+  paymentRequirements: PublicPaymentRequirement[];
 };
 
 export type PublicApplicationRecord = PublicApplicationStatus & {

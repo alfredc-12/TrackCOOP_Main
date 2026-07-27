@@ -34,6 +34,12 @@ import type {
   StoredMembershipApplicationDocument,
 } from "./membership-application.types";
 import type { AuthContext } from "../auth/auth.types";
+import {
+  generateApplicationTrackingToken,
+  hashApplicationTrackingToken,
+  requireApplicationTrackingToken,
+  verifyApplicationTrackingToken,
+} from "./public-tracking-token";
 
 type PublicSubmissionWithSecret = PublicSubmissionResult & {
   trackingToken: string;
@@ -93,22 +99,6 @@ function normalizeContact(value: string) {
 
 function hashToken(rawToken: string) {
   return crypto.createHash("sha256").update(rawToken, "utf8").digest("hex");
-}
-
-function timingSafeHashEquals(expectedHash: string, rawToken: string) {
-  const actualHash = hashToken(rawToken);
-  const expected = Buffer.from(expectedHash, "hex");
-  const actual = Buffer.from(actualHash, "hex");
-
-  if (expected.length !== actual.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(expected, actual);
-}
-
-function generateTrackingToken() {
-  return crypto.randomBytes(32).toString("base64url");
 }
 
 function generateActivationToken() {
@@ -271,17 +261,6 @@ async function buildPrintablePdf(detail: ChairmanApplicationDetail) {
   });
 }
 
-function requireTrackingToken(rawToken: string | undefined) {
-  if (!rawToken) {
-    throw new AppError(
-      "Application tracking token is required",
-      401,
-      "APPLICATION_TRACKING_TOKEN_REQUIRED",
-    );
-  }
-  return rawToken;
-}
-
 export interface MembershipApplicationService {
   submitPublicApplication(
     input: PublicMembershipApplicationInput,
@@ -354,7 +333,8 @@ export function createMembershipApplicationService(
       );
     }
 
-    if (!timingSafeHashEquals(application.publicTrackingTokenHash, requireTrackingToken(rawTrackingToken))) {
+    const trackingToken = requireApplicationTrackingToken(rawTrackingToken);
+    if (!verifyApplicationTrackingToken(application.publicTrackingTokenHash, trackingToken)) {
       throw new AppError(
         "Application tracking token is invalid",
         403,
@@ -376,12 +356,12 @@ export function createMembershipApplicationService(
       const settings = await repository.getMembershipSettings();
       const duplicateWarning = await repository.hasRecentDuplicate(normalizedInput);
       const warnings = duplicateWarning ? [duplicateWarningMessage] : [];
-      const trackingToken = generateTrackingToken();
+      const trackingToken = generateApplicationTrackingToken();
 
       const result = await repository.createPublicApplication({
         application: normalizedInput,
         context,
-        publicTrackingTokenHash: hashToken(trackingToken),
+        publicTrackingTokenHash: hashApplicationTrackingToken(trackingToken),
         settings,
         duplicateWarning,
         warnings,
@@ -398,11 +378,13 @@ export function createMembershipApplicationService(
 
       return {
         applicationCode: application.applicationCode,
+        requestedMembershipType: application.requestedMembershipType,
         fullName: application.fullName,
         submittedAt: application.submittedAt,
         applicationStatus: application.applicationStatus,
         latestApplicantMessage: application.latestApplicantMessage,
         missingOrRejectedRequirements: application.missingOrRejectedRequirements,
+        paymentRequirements: application.paymentRequirements,
       };
     },
 
@@ -446,7 +428,7 @@ export function createMembershipApplicationService(
       const settings = await repository.getMembershipSettings();
       return repository.createChairmanApplication({
         application: normalizeChairmanApplication(input),
-        publicTrackingTokenHash: hashToken(generateTrackingToken()),
+        publicTrackingTokenHash: hashApplicationTrackingToken(generateApplicationTrackingToken()),
         settings,
         auth,
       });
