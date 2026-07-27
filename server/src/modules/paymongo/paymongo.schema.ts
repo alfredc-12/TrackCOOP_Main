@@ -45,6 +45,25 @@ export type PaymongoMembershipCheckoutBody = z.infer<
   typeof paymongoMembershipCheckoutBodySchema
 >;
 
+const paymongoWebhookDataObjectEnvelopeSchema = z.object({
+  id: z.string().optional(),
+  type: z.string().optional(),
+}).passthrough();
+
+export const paymongoWebhookEnvelopeSchema = z.object({
+  data: z.object({
+    id: z.string().optional(),
+    type: z.literal("event").optional(),
+    attributes: z.object({
+      type: z.string().min(1),
+      livemode: z.boolean().optional(),
+      data: paymongoWebhookDataObjectEnvelopeSchema.optional(),
+    }).passthrough(),
+  }).passthrough(),
+}).passthrough();
+
+export type PaymongoWebhookEnvelopeBody = z.infer<typeof paymongoWebhookEnvelopeSchema>;
+
 const paymongoWebhookPaymentSchema = z.object({
   id: z.string().min(1),
   type: z.string().optional(),
