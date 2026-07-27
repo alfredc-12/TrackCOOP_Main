@@ -204,5 +204,13 @@
   "202": "@playwright/test",
   "203": "@types/pdfkit",
   "204": "@types/react-dom",
-  "205": "typescript"
+  "205": "typescript",
+  "206": "multer",
+  "207": "react",
+  "208": "supertest",
+  "209": "@tailwindcss/postcss",
+  "210": "@types/react",
+  "211": "@types/supertest",
+  "212": "seed-membership-settings.sql",
+  "213": "seed-reference.sql"
 }

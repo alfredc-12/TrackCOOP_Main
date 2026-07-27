@@ -1,16 +1,16 @@
-# Graph Report - TrackCOOP_Main  (2026-07-27)
+# Graph Report - TrackCOOP_PayMongo_Phase0  (2026-07-27)
 
 ## Corpus Check
-- 513 files · ~595,247 words
+- 535 files · ~615,208 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3337 nodes · 7579 edges · 206 communities (138 shown, 68 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 45 edges (avg confidence: 0.72)
+- 3629 nodes · 8198 edges · 214 communities (153 shown, 61 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 44 edges (avg confidence: 0.72)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1307ffcd`
+- Built from commit: `50a0282c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -175,6 +175,8 @@
 - config/app.ts
 - lib/logger.ts
 - global.ts
+- seed-membership-settings.sql
+- seed-reference.sql
 - @radix-ui/react-tabs
 - react-chartjs-2
 - tailwind-merge
@@ -198,15 +200,21 @@
 - @types/pdfkit
 - @types/react-dom
 - typescript
+- multer
+- react
+- supertest
+- @tailwindcss/postcss
+- @types/react
+- @types/supertest
 
 ## God Nodes (most connected - your core abstractions)
-1. `AuthContext` - 185 edges
-2. `apiRequest()` - 77 edges
-3. `requireApiUser()` - 62 edges
-4. `AppError` - 49 edges
-5. `CommunicationRepository` - 45 edges
-6. `users` - 41 edges
-7. `getPool()` - 41 edges
+1. `AuthContext` - 192 edges
+2. `apiRequest()` - 86 edges
+3. `AppError` - 63 edges
+4. `requireApiUser()` - 62 edges
+5. `getPool()` - 47 edges
+6. `CommunicationRepository` - 45 edges
+7. `users` - 42 edges
 8. `useRentalData()` - 38 edges
 9. `createCommunicationController()` - 34 edges
 10. `formatRentalDate()` - 34 edges
@@ -214,23 +222,23 @@
 ## Surprising Connections (you probably didn't know these)
 - `RentalInquiryForm()` --indirect_call--> `file()`  [INFERRED]
   src/app/rental/_components/RentalInquiryForm.tsx → scripts/verify-records-modules.ts
+- `submitAdditionalInformation()` --indirect_call--> `file()`  [INFERRED]
+  src/features/membership/membership-api.ts → scripts/verify-records-modules.ts
 - `ChairmanPosInventoryClient()` --indirect_call--> `file()`  [INFERRED]
   src/features/pos/components/ChairmanPosInventoryClient.tsx → scripts/verify-records-modules.ts
-- `createAuthController()` --indirect_call--> `request()`  [INFERRED]
-  server/src/modules/auth/auth.controller.ts → src/app/rental/_lib/rentalApi.ts
 - `createCommunicationController()` --indirect_call--> `request()`  [INFERRED]
   server/src/modules/communication/communication.controller.ts → src/app/rental/_lib/rentalApi.ts
-- `createMembershipApplicationController()` --indirect_call--> `request()`  [INFERRED]
-  server/src/modules/membership-applications/membership-application.controller.ts → src/app/rental/_lib/rentalApi.ts
+- `createMemberIndicatorController()` --indirect_call--> `indicator()`  [INFERRED]
+  server/src/modules/member-indicators/member-indicator.controller.ts → tests/e2e/chairman-member-indicators.spec.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (206 total, 68 thin omitted)
+## Communities (214 total, 61 thin omitted)
 
 ### Community 0 - "useRentalData"
-Cohesion: 0.18
-Nodes (15): columns, RentalAccessGate(), blank, tabs, columns, RentalPageHeader(), emptyPayment, RentalPaymentStatusBadge() (+7 more)
+Cohesion: 0.13
+Nodes (19): columns, RentalAccessGate(), RentalChartCard(), blank, tabs, columns, RentalPageHeader(), RentalPaymentStatusBadge() (+11 more)
 
 ### Community 1 - "finance.repository.ts"
 Cohesion: 0.05
@@ -241,24 +249,24 @@ Cohesion: 0.05
 Nodes (75): MemberAccountLinkDialog(), accountStatuses, ActionKind, actionStatus(), actionTitle(), ActivationResultDialog(), AuditLogDialog(), blankForm (+67 more)
 
 ### Community 3 - "membership.repository.ts"
-Cohesion: 0.17
-Nodes (4): ApplicationRow, CountRow, IdRow, PaymentRow
+Cohesion: 0.14
+Nodes (5): ApplicationRow, CountRow, IdRow, PaymentRow, ApplicationStatus
 
 ### Community 4 - "member.repository.ts"
-Cohesion: 0.06
-Nodes (38): createMemberController(), CountRow, createMemberRepository(), HistoryRow, LatestIndicatorRow, MemberRepository, MemberRow, PaymentActivityRow (+30 more)
+Cohesion: 0.08
+Nodes (25): CountRow, createMemberRepository(), HistoryRow, LatestIndicatorRow, MemberRow, PaymentActivityRow, PosActivityRow, RentalActivityRow (+17 more)
 
 ### Community 5 - "MembersClient.tsx"
-Cohesion: 0.04
-Nodes (60): ApplicationDetailDialog(), ApplicationFormDialog(), ApplicationFormState, applicationFullName(), ApplicationsResponsiveList(), blankApplication, blankMemberForm, ConfirmAction (+52 more)
+Cohesion: 0.03
+Nodes (93): ApplicationDetailDialog(), ApplicationFormDialog(), ApplicationFormState, applicationFullName(), ApplicationsResponsiveList(), blankApplication, blankMemberForm, ConfirmAction (+85 more)
 
 ### Community 6 - "landing.controller.ts"
 Cohesion: 0.07
-Nodes (40): createLandingController(), createSchemas, parse(), requireAuth(), requireCollection(), requireParam(), sendList(), updateSchemas (+32 more)
+Nodes (42): sendList(), createLandingController(), createSchemas, parse(), requireAuth(), requireCollection(), requireParam(), sendList() (+34 more)
 
 ### Community 7 - "communication.types.ts"
 Cohesion: 0.06
-Nodes (52): parse(), requestContext(), requireAuth(), requireParam(), sendList(), validationError(), archiveReportSchema, baseRequestSchema (+44 more)
+Nodes (51): parse(), requestContext(), requireAuth(), requireParam(), validationError(), archiveReportSchema, baseRequestSchema, createAnnouncementSchema (+43 more)
 
 ### Community 8 - "share-capital.repository.ts"
 Cohesion: 0.07
@@ -266,71 +274,71 @@ Nodes (29): createShareCapitalController(), parseBody(), requireAuth(), requireP
 
 ### Community 9 - "TrackCOOP_MAIN_Database.sql"
 Cohesion: 0.11
-Nodes (50): `announcement_acknowledgments`, announcement_recipients, announcements, audit_logs, document_access_logs, documents, financial_categories, financial_records (+42 more)
+Nodes (52): `announcement_acknowledgments`, announcement_recipients, announcements, audit_logs, document_access_logs, documents, financial_categories, financial_records (+44 more)
 
 ### Community 10 - "communication.repository.ts"
 Cohesion: 0.05
-Nodes (32): AnnouncementRow, announcementSortColumns, CountRow, CreateAnnouncementInput, createCommunicationRepository(), CreateDocumentInput, CreateReportInput, CreateRequestInput (+24 more)
+Nodes (32): limitOffsetSql(), normalizeSqlInteger(), AnnouncementRow, announcementSortColumns, CountRow, CreateAnnouncementInput, createCommunicationRepository(), CreateDocumentInput (+24 more)
 
 ### Community 11 - "rental.ts"
-Cohesion: 0.07
-Nodes (38): RentalConflictModal(), blank, RentalScheduleForm(), scheduleCandidate(), schedulePayload(), scheduleWithInquiry(), RentalContextValue, codeForStatus() (+30 more)
+Cohesion: 0.08
+Nodes (34): AssetDetailsData, ChairmanRentalAssetDetails(), formatDate(), formatDateRange(), RentalContextValue, RentalApiError, checkRentalScheduleConflict(), scheduleTime() (+26 more)
 
 ### Community 12 - "components/MembershipApplicationForm.tsx"
-Cohesion: 0.06
-Nodes (31): file(), ApplicationProgress(), steps, BeneficiaryFields(), BeneficiaryFieldsProps, CommitmentReview(), CommitmentReviewProps, commitments (+23 more)
+Cohesion: 0.05
+Nodes (34): file(), ApplicationProgress(), steps, ApplicationSuccess(), ApplicationSuccessProps, BeneficiaryFields(), BeneficiaryFieldsProps, CommitmentReview() (+26 more)
 
 ### Community 13 - "api-client.ts"
-Cohesion: 0.11
-Nodes (26): PageHeader(), PageHeaderProps, DataTable(), ErrorState(), createMembershipAccount(), getMembershipApplication(), listMembershipApplications(), listMembershipPayments() (+18 more)
+Cohesion: 0.09
+Nodes (32): DataTable(), StatusBadge(), env, createMembershipAccount(), getMembershipApplication(), listMembershipApplications(), listMembershipPayments(), lookupMembershipApplication() (+24 more)
 
 ### Community 14 - "requireApiUser"
-Cohesion: 0.06
-Nodes (37): GET(), DELETE(), InventoryProductUpdateInput, PUT(), InventoryBalanceRow, POST(), GET(), InventoryProductInput (+29 more)
+Cohesion: 0.07
+Nodes (35): GET(), GET(), GET(), InventoryBalanceRow, POST(), GET(), GET(), PUT() (+27 more)
 
 ### Community 15 - "payment-reference.repository.ts"
-Cohesion: 0.08
-Nodes (28): createPaymentReferenceController(), parseBody(), requireAuth(), requireParam(), validationError(), CountRow, createPaymentReferenceRepository(), PaymentReferenceRepository (+20 more)
+Cohesion: 0.05
+Nodes (43): createPaymentReferenceController(), parseBody(), requireAuth(), requireParam(), sendProtectedProof(), validationError(), CountRow, createPaymentReferenceRepository() (+35 more)
 
 ### Community 16 - "auth.service.ts"
-Cohesion: 0.15
-Nodes (30): createApp(), CreateAppOptions, createCorsOptions(), createAuthenticate(), requireRoles(), notFound(), requestId(), requestLogger() (+22 more)
+Cohesion: 0.24
+Nodes (15): createAuthenticate(), requireRoles(), AuthService, createAuthService(), createCommunicationRouter(), upload, uploadStorage, createFinanceRouter() (+7 more)
 
 ### Community 17 - "membership-application-api.ts"
-Cohesion: 0.06
-Nodes (42): env, ApplicationStatusLookup(), StatusFormValues, statusSchema, ApiFailure, ApiSuccess, getMembershipApplicationStatus(), ApprovalInput (+34 more)
+Cohesion: 0.18
+Nodes (7): ApplicationStatusLookup(), StatusFormValues, statusSchema, createMembershipApplicationPaymongoCheckout(), getMembershipApplicationStatus(), PublicApplicationStatus, PublicPaymentRequirement
 
 ### Community 18 - "AuthContext"
-Cohesion: 0.13
-Nodes (7): AuthContext, createCommunicationController(), CommunicationRepository, CommunicationService, AnnouncementRecord, DocumentRecord, NotificationRecord
+Cohesion: 0.09
+Nodes (13): AuthContext, createCommunicationController(), CommunicationRepository, CreateRequestInput, CommunicationService, AnnouncementRecord, DocumentRecord, NotificationRecord (+5 more)
 
 ### Community 19 - "TrackCOOP_Table_Reference_Only.sql"
 Cohesion: 0.11
-Nodes (40): announcement_recipients, announcements, audit_logs, document_access_logs, documents, financial_categories, financial_records, gallery_items (+32 more)
+Nodes (42): announcement_recipients, announcements, audit_logs, document_access_logs, documents, financial_categories, financial_records, gallery_items (+34 more)
 
 ### Community 20 - "errorHandler"
-Cohesion: 0.07
-Nodes (37): createRoleApp(), errorHandler(), createErrorApp(), auth, user, AuthUser, RoleSlug, baseUser (+29 more)
+Cohesion: 0.14
+Nodes (21): createRoleApp(), errorHandler(), createErrorApp(), RoleSlug, createLandingRouter(), baseUser, createApp(), createAuthService() (+13 more)
 
 ### Community 21 - "membership-application.repository.ts"
 Cohesion: 0.06
-Nodes (28): allowedTransitions, applicationSelect(), BeneficiaryRow, ChairmanApplicationRow, CountRow, dateMonthsFromNow(), defaultSettings, DocumentRow (+20 more)
+Nodes (29): allowedTransitions, applicationSelect(), BeneficiaryRow, ChairmanApplicationRow, CountRow, dateMonthsFromNow(), defaultSettings, DocumentRow (+21 more)
 
 ### Community 22 - "FinanceViews.tsx"
-Cohesion: 0.09
-Nodes (22): CurrencyDisplay(), FinancialCategory, FinancialRecord, FinancialSummary, getFinancialSummary(), getShareCapitalSummary(), listFinancialCategories(), listFinancialRecords() (+14 more)
+Cohesion: 0.06
+Nodes (44): CurrencyDisplay(), FinancialCategory, FinancialRecord, FinancialSummary, getFinancialSummary(), getPaymentReferenceDetail(), getPaymentReferenceSummary(), getPaymongoPaymentStatus() (+36 more)
 
 ### Community 23 - "member-indicator.repository.ts"
-Cohesion: 0.05
-Nodes (42): limitOffsetSql(), normalizeSqlInteger(), createMemberIndicatorController(), parseBody(), requireParam(), validationError(), ActivityMetricRow, addUtcMonths() (+34 more)
+Cohesion: 0.06
+Nodes (37): createMemberIndicatorController(), parseBody(), requireParam(), validationError(), ActivityMetricRow, addUtcMonths(), CountRow, createMemberIndicatorRepository() (+29 more)
 
 ### Community 24 - "useRental"
 Cohesion: 0.10
 Nodes (25): RentalBreadcrumbs(), RentalHeader(), roles, items, RentalMobileNavigation(), RentalModuleShell(), links, RentalPublicHeader() (+17 more)
 
 ### Community 25 - "SiteHeader.tsx"
-Cohesion: 0.10
-Nodes (10): boardMembers, metadata, metadata, contactCards, metadata, socialLinks, metadata, SiteFooter() (+2 more)
+Cohesion: 0.06
+Nodes (21): ActivityItem, HelpCenter(), Ticket, ProfileSettings(), boardMembers, metadata, classifications, metadata (+13 more)
 
 ### Community 26 - "(LandingPage)/page.tsx"
 Cohesion: 0.06
@@ -338,11 +346,11 @@ Nodes (13): certifications, CertificationSlide, fadeUp, heroFloatingSeeds, heroS
 
 ### Community 27 - "auth.types.ts"
 Cohesion: 0.08
-Nodes (16): AuthRepository, createAuthRepository(), CreateSessionInput, FailedLoginInput, LoginAccountRow, SessionRow, SessionSummaryRow, activeAccount (+8 more)
+Nodes (17): AuthRepository, createAuthRepository(), CreateSessionInput, FailedLoginInput, LoginAccountRow, SessionRow, SessionSummaryRow, AuthServiceOptions (+9 more)
 
 ### Community 28 - "membership-application.controller.ts"
-Cohesion: 0.08
-Nodes (32): MulterFile, approvalSchema, beneficiaryCreateSchema, beneficiarySchema, beneficiaryUpdateSchema, chairmanApplicationListQuerySchema, chairmanMembershipApplicationSchema, chairmanMembershipApplicationUpdateSchema (+24 more)
+Cohesion: 0.07
+Nodes (31): authContext(), documentFile(), MulterFile, parse(), publicContext(), trackingToken(), UploadRequest, validationError() (+23 more)
 
 ### Community 29 - "members/service.ts"
 Cohesion: 0.11
@@ -350,11 +358,11 @@ Nodes (20): GET(), GET(), GET(), Column, DataTable(), DataTableProps, MemberTabl
 
 ### Community 30 - "formatRentalDate"
 Cohesion: 0.07
-Nodes (13): RentalInquiryReview(), RentalInquirySuccess(), RentalInquiryMobileCard(), RentalPolicyNotice(), ScheduleList(), RentalServiceBrowser(), iconForCategory(), RentalServiceCard() (+5 more)
+Nodes (14): RentalInquiryReview(), RentalInquiryStepper(), steps, RentalInquirySuccess(), RentalInquiryMobileCard(), RentalPolicyNotice(), ScheduleList(), RentalServiceBrowser() (+6 more)
 
 ### Community 31 - "import-facebook-announcements.ts"
-Cohesion: 0.12
-Nodes (25): DATA_FILE, decodeHtml(), downloadImage(), generateTitle(), getImageUrls(), getMeta(), IMAGE_DIR, imageExtension() (+17 more)
+Cohesion: 0.24
+Nodes (14): DATA_FILE, decodeHtml(), downloadImage(), generateTitle(), getImageUrls(), getMeta(), IMAGE_DIR, imageExtension() (+6 more)
 
 ### Community 32 - "LandingAdminViews.tsx"
 Cohesion: 0.11
@@ -365,79 +373,79 @@ Cohesion: 0.07
 Nodes (28): dom, dom.iterable, esnext, **/*.mts, .next/dev/types/**/*.ts, next-env.d.ts, .next/types/**/*.ts, **/*.ts (+20 more)
 
 ### Community 34 - "membership-application.service.ts"
-Cohesion: 0.09
-Nodes (18): createMembershipApplicationRepository(), addPdfLine(), allowedDocuments, buildPrintablePdf(), hashToken(), isAllowedMembershipDocumentExtension(), isAllowedMembershipDocumentMimeType(), normalizeChairmanApplication() (+10 more)
+Cohesion: 0.10
+Nodes (20): addPdfLine(), allowedDocuments, buildPrintablePdf(), isAllowedMembershipDocumentExtension(), isAllowedMembershipDocumentMimeType(), normalizeChairmanApplication(), normalizeContact(), normalizeEmail() (+12 more)
 
 ### Community 35 - "next-api-auth.ts"
-Cohesion: 0.10
-Nodes (47): userFor(), UserRow, verify(), DocumentAccessLevel, bookkeeperCategories, canAccessDocument(), canManageDocument(), canUploadDocument() (+39 more)
+Cohesion: 0.12
+Nodes (43): userFor(), UserRow, verify(), GET(), PATCH(), PatchBody, canAccessDocument(), canManageDocument() (+35 more)
 
 ### Community 36 - "auth-client.ts"
-Cohesion: 0.21
-Nodes (7): destinations, PortalAuthGuard(), requiredRole(), Role, roles, AuthUser, LoginInput
+Cohesion: 0.18
+Nodes (10): LoginPage(), roleDestinations, destinations, LoginFormValues, loginSchema, AuthUser, LoginInput, getOptionalAuthenticatedUser() (+2 more)
 
 ### Community 37 - "asyncHandler"
-Cohesion: 0.10
-Nodes (25): cookieOptions(), createAuthController(), requestContext(), validationError(), loginSchema, sessionIdSchema, createHealthRouter(), DatabaseProbe (+17 more)
+Cohesion: 0.19
+Nodes (12): parseBody(), requireParam(), approvalStatuses, listMembersQuerySchema, listUnifiedStatusHistoryQuerySchema, memberProfileSchema, membershipTypes, officialMemberStatuses (+4 more)
 
 ### Community 38 - "RentalInquiryReview.tsx"
-Cohesion: 0.04
-Nodes (39): Core Routes, POS, Inventory, and Rentals, Staff Route Families, TrackCOOP API Notes, Account Provisioning, Active Roles, Authentication and Roles, Deferred Reset Flow (+31 more)
+Cohesion: 0.20
+Nodes (9): Backup Baseline, Database Setup and Safety, Membership Application Table Mapping, PayMongo Payment Gateway Table Mapping, Private Configuration, Reference Data, Runtime Data Boundaries, Schema Verification (+1 more)
 
 ### Community 39 - "rentalDatabase.ts"
-Cohesion: 0.08
-Nodes (26): AssetRow, assetRows(), AuditRow, bookingByRentalId(), bookingByScheduleId(), BookingRow, bookingRows(), dateKeysBetween() (+18 more)
+Cohesion: 0.05
+Nodes (73): fileRules, InquiryFormValues, inquirySchema, optionalText, rentalRescheduleSchema, rentalScheduleSchema, rentalServiceSchema, requiredConsent (+65 more)
 
 ### Community 40 - "createMembershipApplicationController"
-Cohesion: 0.13
-Nodes (14): authContext(), createMembershipApplicationController(), documentFile(), parse(), publicContext(), trackingToken(), UploadRequest, validationError() (+6 more)
+Cohesion: 0.17
+Nodes (4): createMembershipApplicationController(), MembershipApplicationService, ChairmanApplicationDetail, StatusTransitionInput
 
 ### Community 41 - "MembershipApplicationRepository"
-Cohesion: 0.21
-Nodes (5): FakeMembershipApplicationRepository, MembershipSettings, PublicMembershipApplicationInput, PublicSubmissionContext, PublicSubmissionResult
+Cohesion: 0.08
+Nodes (21): MembershipApplicationRepository, FakeMembershipApplicationRepository, ApprovalInput, ApprovalResult, ChairmanApplicationHistoryEntry, ChairmanApplicationListItem, ChairmanApplicationSummary, ChairmanMembershipApplicationInput (+13 more)
 
 ### Community 42 - "MembershipPaymentsView.tsx"
 Cohesion: 0.08
 Nodes (24): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+16 more)
 
 ### Community 43 - "MemberIndicatorsClient.tsx"
-Cohesion: 0.12
-Nodes (19): emptySummary, formatCurrency(), formatDate(), IndicatorDetailDialog(), indicatorTone(), MemberIndicatorsClient(), parseBasisSummary(), scoreLabel() (+11 more)
+Cohesion: 0.10
+Nodes (23): emptySummary, formatCurrency(), formatDate(), IndicatorDetailDialog(), indicatorTone(), MemberIndicatorsClient(), parseBasisSummary(), scoreLabel() (+15 more)
 
 ### Community 44 - "ChairmanRentalBookingDetails.tsx"
-Cohesion: 0.12
-Nodes (27): GET(), GET(), PATCH(), PatchBody, POST(), cell(), GET(), GET() (+19 more)
+Cohesion: 0.15
+Nodes (20): cell(), GET(), POST(), formString(), GET(), listInput(), POST(), GenerateBody (+12 more)
 
 ### Community 45 - "UserRepository"
-Cohesion: 0.17
-Nodes (6): createUserController(), requireParam(), UserService, AuditLogEntry, UserListQuery, UserSummaryCounts
+Cohesion: 0.05
+Nodes (31): Core Routes, POS, Inventory, and Rentals, Staff Route Families, TrackCOOP API Notes, Account Provisioning, Active Roles, Authentication and Roles, Deferred Reset Flow (+23 more)
 
 ### Community 46 - "PortalShell.tsx"
-Cohesion: 0.17
-Nodes (13): Breadcrumbs(), titleize(), findPortalNavItem(), getPortalRoleFromPath(), PortalNavGroup, PortalNavItem, roleHomePaths, StaffRole (+5 more)
+Cohesion: 0.23
+Nodes (12): Breadcrumbs(), titleize(), findPortalNavItem(), getPortalRoleFromPath(), PortalNavGroup, portalNavigation, PortalNavItem, roleHomePaths (+4 more)
 
 ### Community 47 - "RentalMemberArea.tsx"
-Cohesion: 0.08
-Nodes (46): filterKeys, GET(), GenerateBody, POST(), REPORT_CATALOG, AuditActivity, DocumentActivity, DocumentDetail (+38 more)
+Cohesion: 0.11
+Nodes (36): filterKeys, GET(), POST(), POST(), REPORT_CATALOG, storeProtectedDocument(), addDateRange(), addEquals() (+28 more)
 
 ### Community 48 - "RentalPayments.tsx"
 Cohesion: 0.05
-Nodes (22): EquipmentAvailabilityBoard(), RentalAnalyticsView(), RentalAudit(), RentalExpenseForm(), RentalExpensesList(), RentalInquiryTable(), RentalMemberHome(), RentalMemberNewRequest() (+14 more)
+Nodes (25): EquipmentAvailabilityBoard(), RentalAnalyticsView(), RentalUtilizationView(), RentalAudit(), loader(), RentalDashboard(), RentalExpenseForm(), RentalExpensesList() (+17 more)
 
 ### Community 49 - "getPool"
-Cohesion: 0.29
-Nodes (10): run(), getPool(), probeDatabase(), main(), addColumns(), addIndex(), constraintExists(), exists() (+2 more)
+Cohesion: 0.21
+Nodes (15): run(), createPoolOptions(), getPool(), probeDatabase(), createMembershipApplicationRepository(), main(), addColumns(), addIndex() (+7 more)
 
 ### Community 50 - "membership-application.routes.test.ts"
-Cohesion: 0.11
-Nodes (6): applicationFullName(), detail(), FakeChairmanService, ChairmanApplicationListQuery, ChairmanApplicationListResult, MembershipApplicationStatus
+Cohesion: 0.09
+Nodes (8): applicationFullName(), detail(), FakeChairmanService, ChairmanApplicationListQuery, ChairmanApplicationListResult, ChairmanMembershipApplicationUpdateInput, MembershipApplicationStatus, PublicApplicationRecord
 
 ### Community 51 - "scripts"
-Cohesion: 0.08
-Nodes (26): scripts, build, build:api, build:web, db:check, db:migrate:records, db:migrate:rental, db:seed (+18 more)
+Cohesion: 0.07
+Nodes (28): AmountRow, categoryCodes(), createPaymentSettlementRepository(), createPaymentSettlementService(), GatewaySettlementDetails, IdRow, insertApplicantMessage(), insertFinanceRecord() (+20 more)
 
 ### Community 52 - "membership-application.types.ts"
-Cohesion: 0.28
+Cohesion: 0.29
 Nodes (3): ChairmanApplicationRequirement, RequirementInput, RequirementUpdateInput
 
 ### Community 53 - "ChairmanRentalAssetsClient.tsx"
@@ -445,52 +453,52 @@ Cohesion: 0.13
 Nodes (12): AssetMobileCard(), AssetRow(), AssetStatusFilter, ChairmanRentalAssetsClient(), displayDate(), displayDateRange(), matchesStatusFilter(), PendingAction (+4 more)
 
 ### Community 54 - "RentalInquiryForm.tsx"
-Cohesion: 0.13
-Nodes (20): addMonths(), AvailabilityCalendar(), dateKeysBetween(), defaultValues, Field(), firstBlockedDateInRange(), flattenErrors(), localDateKey() (+12 more)
+Cohesion: 0.16
+Nodes (16): addMonths(), AvailabilityCalendar(), dateKeysBetween(), defaultValues, Field(), firstBlockedDateInRange(), flattenErrors(), localDateKey() (+8 more)
 
 ### Community 55 - "compilerOptions"
 Cohesion: 0.10
-Nodes (20): dist, node, node_modules, src/**/*.d.ts, src/**/*.test.ts, src/**/*.ts, compilerOptions, esModuleInterop (+12 more)
+Nodes (20): compilerOptions, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution, outDir, resolveJsonModule, rootDir (+12 more)
 
 ### Community 56 - "PortalRoutePage.tsx"
 Cohesion: 0.07
-Nodes (33): ActivityList(), DocumentDetailPage(), sourceHref(), statusTone(), DocumentMetadataFields(), DocumentsPage(), emptyFilters, Filters (+25 more)
+Nodes (36): ActivityList(), DocumentDetailPage(), sourceHref(), statusTone(), DocumentMetadataFields(), DocumentsPage(), emptyFilters, Filters (+28 more)
 
 ### Community 57 - "member_dashboard/page.tsx"
-Cohesion: 0.12
-Nodes (12): ActivityItem, HelpCenter(), Ticket, ProfileSettings(), MemberDashboardPage(), Button(), ButtonProps, buttonVariants (+4 more)
+Cohesion: 0.11
+Nodes (19): mapPaymentReference(), MembershipApplicationCheckoutRow, MembershipPaymentRequirementRow, PaymentAmountRow, PaymentReferenceRow, PaymongoRepository, selectPaymentReference(), SettingRow (+11 more)
 
 ### Community 58 - "user.repository.ts"
-Cohesion: 0.09
-Nodes (14): CountRow, LinkableMemberRow, RoleRow, SessionRow, SettingRow, sortColumns, SummaryRow, UserRow (+6 more)
+Cohesion: 0.05
+Nodes (35): createUserController(), CountRow, createUserRepository(), LinkableMemberRow, RoleRow, SessionRow, SettingRow, sortColumns (+27 more)
 
 ### Community 59 - "MembershipPublicShell.tsx"
-Cohesion: 0.18
-Nodes (6): activateMembershipAccount(), submitMembershipPayment(), MembershipActivationForm(), MembershipFollowUpForm(), Verification, MembershipPublicShell()
+Cohesion: 0.15
+Nodes (6): activateMembershipAccount(), MembershipActivationForm(), MembershipFollowUpForm(), MembershipPublicShell(), LastSubmission, MembershipSuccess()
 
 ### Community 60 - "MembersClient"
-Cohesion: 0.09
-Nodes (22): API Client And Fetching, Auth, RBAC, Sessions, And Proxy, Backend Modules, Baseline Checks, Current Implementation Status, Current State Audit, Database And Reference SQL, Frontend People Screens (+14 more)
+Cohesion: 0.13
+Nodes (18): createApp(), CreateAppOptions, createCorsOptions(), env, notFound(), SAFE_METHODS, validateOrigin(), requestId() (+10 more)
 
 ### Community 61 - "@playwright/test"
-Cohesion: 0.16
-Nodes (9): RentalChartCard(), loader(), RentalDashboard(), RentalMetricCard(), RentalStatusBadge(), EXPENSE_CATEGORIES, paymentStatusTone, rentalStatusTone (+1 more)
+Cohesion: 0.12
+Nodes (5): RentalMemberNewRequest(), RentalMemberPaymentProof(), RentalMetricCard(), RentalRequestTimeline(), validateUpload()
 
 ### Community 62 - "stringValue"
 Cohesion: 0.13
-Nodes (16): ChairmanRentalBookingDetails(), displayDate(), displayDateRange(), ReviewDraft, ScheduleDraft, tone(), BookingActions(), assertRentalStatusTransition() (+8 more)
+Nodes (10): ChairmanRentalBookingDetails(), displayDate(), displayDateRange(), ReviewDraft, ScheduleDraft, tone(), ConfirmDialog(), ErrorState() (+2 more)
 
 ### Community 63 - "PortalPrimitives.tsx"
-Cohesion: 0.16
-Nodes (11): bookkeeperNavItems, chairmanNavItems, memberNavItems, Sidebar(), portalNavigation, PortalSidebar(), PortalSidebarProps, SidebarContent() (+3 more)
+Cohesion: 0.19
+Nodes (10): bookkeeperNavItems, chairmanNavItems, memberNavItems, Sidebar(), PortalSidebar(), SidebarContent(), Input(), InputProps (+2 more)
 
 ### Community 64 - "devDependencies"
 Cohesion: 0.11
-Nodes (19): eslint, devDependencies, eslint, supertest, tailwindcss, @tailwindcss/postcss, @types/cookie-parser, @types/express (+11 more)
+Nodes (19): devDependencies, eslint, eslint-config-next, tailwindcss, tsx, @types/cookie-parser, @types/cors, @types/express (+11 more)
 
 ### Community 65 - "src/app.ts"
-Cohesion: 0.05
-Nodes (39): createMembershipController(), parse(), parseJson(), requireParam(), sendProtectedFile(), uploadedDocuments(), MembershipRepository, accountCreationSchema (+31 more)
+Cohesion: 0.19
+Nodes (3): createMembershipController(), MembershipRepository, MembershipService
 
 ### Community 66 - "transaction.ts"
 Cohesion: 0.18
@@ -501,32 +509,32 @@ Cohesion: 0.13
 Nodes (11): CategoryComboboxProps, ChairmanPosInventoryClient(), EditableInventoryItem, formatQuantityUnit(), InventoryItem, PosOrder, PosOrderItem, STOCK_UNIT_OPTIONS (+3 more)
 
 ### Community 68 - "user.controller.ts"
-Cohesion: 0.19
-Nodes (17): roleSlugs, parseBody(), validationError(), accountStatuses, bulkUserActionSchema, createUserSchema, deleteUserSchema, issueActivationLinkSchema (+9 more)
+Cohesion: 0.17
+Nodes (18): roleSlugs, parseBody(), requireParam(), validationError(), accountStatuses, bulkUserActionSchema, createUserSchema, deleteUserSchema (+10 more)
 
 ### Community 69 - "member.controller.ts"
-Cohesion: 0.14
-Nodes (29): datePart(), isoDateTime(), isPaymentStatus(), isRentalStatus(), isScheduleStatus(), mapAsset(), mapAudit(), mapBooking() (+21 more)
+Cohesion: 0.08
+Nodes (26): scripts, build, build:api, build:web, db:check, db:migrate:records, db:migrate:rental, db:seed (+18 more)
 
 ### Community 70 - "user.service.test.ts"
-Cohesion: 0.13
-Nodes (12): createUserRepository(), activationUrl(), createActivation(), createUserService(), hashToken(), chairmanAuth, CreateCallInput, userDetail (+4 more)
+Cohesion: 0.11
+Nodes (17): createPaymongoClient(), checkoutRequest, config, application, config, makeMembershipService(), paymentReference, createPaymongoRepository() (+9 more)
 
 ### Community 71 - "[...path]/route.ts"
-Cohesion: 0.13
-Nodes (24): normalizeProtectedStoragePath(), protectedUploadRoot, authorize(), authorizeActor(), badRequest(), body(), GET(), json() (+16 more)
+Cohesion: 0.25
+Nodes (16): normalizeDocumentInput(), normalizeProtectedStoragePath(), protectedUploadRoot, authorize(), authorizeActor(), badRequest(), body(), GET() (+8 more)
 
 ### Community 72 - "ChairmanRentalCalendar.tsx"
-Cohesion: 0.25
-Nodes (11): CalendarView, ChairmanRentalCalendar(), formatDate(), formatDateRange(), localDateKey(), monthDays(), MonthGrid(), parseDate() (+3 more)
+Cohesion: 0.23
+Nodes (12): CalendarView, ChairmanRentalCalendar(), formatDate(), formatDateRange(), localDateKey(), monthDays(), MonthGrid(), parseDate() (+4 more)
 
 ### Community 73 - "ChairmanRentalBookingsClient.tsx"
-Cohesion: 0.13
-Nodes (9): ChairmanAnnouncementsClient(), AssetDetailsData, ChairmanRentalAssetDetails(), formatDate(), formatDateRange(), ConfirmDialog(), EmptyState(), LoadingSkeleton() (+1 more)
+Cohesion: 0.09
+Nodes (22): Role, roles, AuditActivity, DocumentAccessLevel, DocumentActivity, DocumentDetail, DocumentListResponse, DocumentRecord (+14 more)
 
 ### Community 74 - "user.service.ts"
-Cohesion: 0.22
-Nodes (9): SAFE_METHODS, validateOrigin(), createMembershipRepository(), createMembershipService(), main(), staffAuth(), StaffRow, ApiErrorDetail (+1 more)
+Cohesion: 0.31
+Nodes (6): createMembershipRepository(), createMembershipService(), AccountCreationInput, main(), staffAuth(), StaffRow
 
 ### Community 75 - "usePublishedLandingContent.ts"
 Cohesion: 0.23
@@ -541,80 +549,80 @@ Cohesion: 0.16
 Nodes (9): StorePublicHeader(), CartItem, formatQuantityUnit(), InventoryItem, MemberPosClient(), MemberPosClientProps, PosOrder, PosOrderItem (+1 more)
 
 ### Community 78 - "createMemberIndicatorController"
-Cohesion: 0.14
-Nodes (13): Baseline, Chairman and Bookkeeper Portals Implementation Plan, Current Repository Audit, Database Table to Module Mapping, Implementation Sequence and Commit Boundaries, Migration Constraints, Mock and Placeholder Implementations, Permission Matrix (+5 more)
+Cohesion: 0.08
+Nodes (23): Architecture Plan, Checkout Flow, Communication And Audit, Conflicts And Risks Found, Current Payment Model, Current State, Environment Plan, Membership Applications And Requirements (+15 more)
 
 ### Community 80 - "ChairmanRentalAssetEditor.tsx"
 Cohesion: 0.15
 Nodes (12): Ask the graph a question, Check automatic hooks, Explain one node, Graphify, Initial build, Open full graph, Refresh after pulling repository changes, Refresh after uncommitted changes (+4 more)
 
 ### Community 81 - "RentalScheduleForm.tsx"
-Cohesion: 0.24
-Nodes (3): UserRepository, UpdateUserInput, UserDetail
+Cohesion: 0.09
+Nodes (22): API Client And Fetching, Auth, RBAC, Sessions, And Proxy, Backend Modules, Baseline Checks, Current Implementation Status, Current State Audit, Database And Reference SQL, Frontend People Screens (+14 more)
 
 ### Community 82 - "proxy.ts"
 Cohesion: 0.23
 Nodes (12): AuthPayload, canonicalPath(), config, getSessionRole(), internalPath(), isRole(), landingPaths, loginRedirect() (+4 more)
 
 ### Community 83 - "schema-check.ts"
-Cohesion: 0.33
-Nodes (7): expectedDatabaseTables, checkDatabaseSchema(), compareDatabaseTables(), DatabaseTableRow, SchemaComparison, getErrorCode(), main()
+Cohesion: 0.21
+Nodes (11): app, expectedDatabaseTables, closePool(), checkDatabaseSchema(), compareDatabaseTables(), DatabaseTableRow, SchemaComparison, server (+3 more)
 
 ### Community 84 - "rentalValidation.ts"
-Cohesion: 0.24
-Nodes (9): GET(), CheckoutItem, CheckoutPayload, CheckoutProductRow, getErrorMessage(), POST(), StaffRecorderRow, AuthResponse (+1 more)
+Cohesion: 0.12
+Nodes (16): createPaymongoConfigFromEnv(), validatePaymongoConfig(), paymongoWebhookEventSchema, ParsedPaymongoWebhook, ParsedSignature, parseSignatureHeader(), paymongoEventFingerprint(), createPaymongoWebhookRepository() (+8 more)
 
 ### Community 85 - "isoDateTime"
-Cohesion: 0.21
-Nodes (11): BookingMobileCard(), BookingRow(), BookingView, bookingViews, ChairmanRentalBookingsClient(), formatDate(), formatDateRange(), matchesBookingView() (+3 more)
+Cohesion: 0.13
+Nodes (19): BookingActions(), BookingMobileCard(), BookingRow(), BookingView, bookingViews, ChairmanRentalBookingsClient(), formatDate(), formatDateRange() (+11 more)
 
 ### Community 86 - "member.routes.test.ts"
-Cohesion: 0.27
-Nodes (9): cell(), GET(), formString(), GET(), listInput(), POST(), DocumentStatus, DocumentListInput (+1 more)
+Cohesion: 0.17
+Nodes (11): cookieOptions(), createAuthController(), requestContext(), validationError(), createAuthRouter(), loginSchema, sessionIdSchema, ApiFailure (+3 more)
 
 ### Community 87 - "execute"
-Cohesion: 0.24
-Nodes (9): fileRules, InquiryFormValues, inquirySchema, optionalText, rentalRescheduleSchema, rentalScheduleSchema, rentalServiceSchema, requiredConsent (+1 more)
+Cohesion: 0.12
+Nodes (12): PaymongoClient, PaymongoClientError, nullableString, PaymongoCheckoutSessionResponse, paymongoCheckoutSessionResponseSchema, PaymongoMembershipCheckoutBody, paymongoPaymentIntentSchema, paymongoPaymentSchema (+4 more)
 
 ### Community 88 - "dependencies"
 Cohesion: 0.22
-Nodes (9): chart.js, multer, dependencies, chart.js, multer, react, react-hook-form, react (+1 more)
+Nodes (9): dependencies, chart.js, next, react-dom, react-hook-form, chart.js, next, react-dom (+1 more)
 
 ### Community 89 - "inventoryQueries.ts"
-Cohesion: 0.31
-Nodes (7): GET(), InventoryMovementRow, InventoryProduct, InventoryProductRow, listInventoryProducts(), ListInventoryProductsOptions, mapProductStatus()
+Cohesion: 0.16
+Nodes (14): DELETE(), InventoryProductUpdateInput, PUT(), GET(), InventoryProductInput, POST(), GET(), InventoryMovementRow (+6 more)
 
 ### Community 90 - "PosSalesClient.tsx"
 Cohesion: 0.25
 Nodes (4): formatMoney(), PosOrder, PosOrderItem, PosSalesClient()
 
 ### Community 91 - "persistedScheduleConflict"
-Cohesion: 0.21
-Nodes (6): FormDialog(), exportHref(), HistoryActions(), ReportHistoryPage(), report(), GeneratedReportRecord
+Cohesion: 0.13
+Nodes (9): payload(), ChairmanAnnouncementsClient(), PageHeader(), PageHeaderProps, EmptyState(), FormDialog(), exportHref(), HistoryActions() (+1 more)
 
 ### Community 92 - "database.ts"
-Cohesion: 0.18
-Nodes (11): DatabaseConfig, databaseEnvSchema, getDatabaseConfig(), parseDatabaseConfig(), booleanString, envSchema, parsedEnv, ServerEnvironment (+3 more)
+Cohesion: 0.33
+Nodes (6): DatabaseConfig, databaseEnvSchema, getDatabaseConfig(), parseDatabaseConfig(), getServerEnvPath(), loadServerEnv()
 
 ### Community 93 - "member-indicator.controller.ts"
-Cohesion: 0.33
-Nodes (10): actorUserId(), addNotification(), addRentalAudit(), addStatusHistory(), cleanParams(), execute(), nextReferenceNumber(), rentalCategoryId() (+2 more)
+Cohesion: 0.16
+Nodes (10): amountToCentavos(), assertEligibleForCheckout(), assertMembershipReferenceEligible(), buildCheckoutRequest(), checkoutDescription(), checkoutLineName(), checkoutMetadata(), gatewayEnvironment() (+2 more)
 
 ### Community 94 - "20260724_add_membership_application_workflow.sql"
-Cohesion: 0.52
-Nodes (6): membership_application_beneficiaries, membership_application_documents, membership_application_requirements, membership_application_status_history, membership_applications, user_activation_tokens
+Cohesion: 0.16
+Nodes (10): MembershipDraft, consent, FormValues, schema, labelMembershipType(), MembershipApplicationReview(), DraftContext, DraftContextValue (+2 more)
 
 ### Community 95 - "20260724_membership_applications.sql"
-Cohesion: 0.48
-Nodes (6): membership_account_activations, membership_application_documents, membership_application_notes, membership_application_payments, membership_application_status_history, membership_applications
+Cohesion: 0.20
+Nodes (13): parse(), parseJson(), requireParam(), sendProtectedFile(), uploadedDocuments(), accountCreationSchema, activationSchema, additionalInformationSchema (+5 more)
 
 ### Community 98 - "MembershipApplicationBeneficiaryInput"
-Cohesion: 0.17
-Nodes (4): MembershipApplicationRepository, ChairmanApplicationHistoryEntry, ChairmanApplicationSummary, PublicApplicationRecord
+Cohesion: 0.19
+Nodes (12): createPaymongoController(), parse(), requireAuth(), requireParam(), trackingToken(), validationError(), paymongoMembershipCheckoutBodySchema, PaymongoService (+4 more)
 
 ### Community 99 - "confirm/route.ts"
-Cohesion: 0.29
-Nodes (9): CentralDocumentInput, createCentralDocument(), createGeneratedPdfDocument(), GeneratedPdfDocumentInput, renderPdf(), safeBaseName(), CountRow, documentColumns (+1 more)
+Cohesion: 0.22
+Nodes (11): CentralDocumentInput, createCentralDocument(), createGeneratedPdfDocument(), GeneratedPdfDocumentInput, renderPdf(), safeBaseName(), FinancialCategoryRow, InventoryBalanceRow (+3 more)
 
 ### Community 100 - "ProductCatalogClient.tsx"
 Cohesion: 0.40
@@ -633,36 +641,40 @@ Cohesion: 0.60
 Nodes (4): apiPort, envelope(), member(), mockApiResponse()
 
 ### Community 106 - "chairman-member-indicators.spec.ts"
-Cohesion: 0.60
-Nodes (4): document_access_logs, document_versions, documents, reports
+Cohesion: 0.13
+Nodes (4): PaymongoWebhookRepository, config, signed(), update()
 
 ### Community 107 - "chairman-membership-applications.spec.ts"
 Cohesion: 0.60
 Nodes (4): apiPort, detail(), envelope(), mockApiResponse()
 
 ### Community 108 - "package.json"
-Cohesion: 0.50
-Nodes (3): name, private, version
+Cohesion: 0.16
+Nodes (10): auth, user, AuthUser, createUserRouter(), chairman, createApp(), createAuthService(), createUserService() (+2 more)
 
 ### Community 109 - "20260723_rental_operations.sql"
-Cohesion: 0.50
-Nodes (3): rental_booking_sequences, rental_idempotency_keys, rental_maintenance_periods
+Cohesion: 0.23
+Nodes (12): createMembershipApplicationRouter(), createPublicLimiter(), documentUpload, documentUploadMiddleware(), chairmanUser, createAuthService(), createChairmanApp(), CreatedApplication (+4 more)
 
 ### Community 110 - "ReportRecord"
 Cohesion: 0.22
 Nodes (8): graphify reference: extra exports and benchmark, Step 6b - Wiki (only if --wiki flag), Step 7 - Neo4j export (only if --neo4j or --neo4j-push flag), Step 7a - FalkorDB export (only if --falkordb or --falkordb-push flag), Step 7b - SVG export (only if --svg flag), Step 7c - GraphML export (only if --graphml flag), Step 7d - MCP server (only if --mcp flag), Step 8 - Token reduction benchmark (only if total_words > 5000)
 
+### Community 112 - "NotificationRecord"
+Cohesion: 0.15
+Nodes (8): RentalSettings(), rolePermissions, BARANGAYS, EXPENSE_CATEGORIES, paymentStatusTone, rentalStatusTone, PaymentStatus, RentalStatus
+
 ### Community 113 - "express.d.ts"
-Cohesion: 0.27
-Nodes (8): ForceChangePasswordPage(), destinations, PortalRedirectPage(), getAuthenticatedUser(), login(), logout(), OptionalSessionResponse, getCurrentUser()
+Cohesion: 0.39
+Nodes (5): ForceChangePasswordPage(), PortalRedirectPage(), MemberDashboardPage(), getAuthenticatedUser(), getCurrentUser()
 
 ### Community 114 - "rental/settings/page.tsx"
 Cohesion: 0.33
 Nodes (5): For /graphify explain, For /graphify path, graphify reference: query, path, explain, Step 0 — Constrained query expansion (REQUIRED before traversal), Step 1 — Traversal
 
 ### Community 116 - "chart.js"
-Cohesion: 0.29
-Nodes (3): validApplication, membershipRules, validStatusTransitions
+Cohesion: 0.15
+Nodes (10): validApplication, Actor, applicationStatuses, ApprovedMembershipType, MembershipPaymentStatus, membershipRules, paymentStatuses, PreferredMembershipType (+2 more)
 
 ### Community 117 - "class-variance-authority"
 Cohesion: 0.50
@@ -676,37 +688,93 @@ Nodes (3): For git commit hook, For native CLAUDE.md integration, graphify refer
 Cohesion: 0.50
 Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
 
+### Community 120 - "cors"
+Cohesion: 0.14
+Nodes (13): Baseline, Chairman and Bookkeeper Portals Implementation Plan, Current Repository Audit, Database Table to Module Mapping, Implementation Sequence and Commit Boundaries, Migration Constraints, Mock and Placeholder Implementations, Permission Matrix (+5 more)
+
 ### Community 121 - "date-fns"
-Cohesion: 0.43
-Nodes (5): LoginPage(), roleDestinations, LoginFormValues, loginSchema, getOptionalAuthenticatedUser()
+Cohesion: 0.22
+Nodes (7): RentalConflictModal(), blank, RentalScheduleForm(), scheduleCandidate(), schedulePayload(), scheduleWithInquiry(), ScheduleStatus
 
 ### Community 128 - "helmet"
 Cohesion: 0.38
-Nodes (3): RentalReports(), reportTypes, toCsv()
+Nodes (3): createMemberController(), MemberRepository, MemberService
+
+### Community 133 - "next"
+Cohesion: 0.29
+Nodes (8): beginsWith(), extensionMimeTypes, hasExpectedSignature(), resolveProtectedDocumentPath(), safeOriginalFileName(), UploadedFileLike, ValidatedDocumentFile, validateDocumentFile()
+
+### Community 142 - "react-dom"
+Cohesion: 0.24
+Nodes (6): createMemberService(), ApprovalStatus, MemberProfile, MemberProfileInput, UpdateMemberProfileInput, UpdateMemberStatusInput
+
+### Community 148 - "eslint-config-next"
+Cohesion: 0.22
+Nodes (8): allowedPaymongoPaymentMethodTypes, booleanString, envSchema, optionalTrimmedString, parseServerEnv(), paymongoPaymentMethodTypes, ServerEnvironment, baseEnv
+
+### Community 177 - "seed-membership-settings.sql"
+Cohesion: 0.36
+Nodes (7): announcements, AnnouncementsArchiveSection(), formatDate(), getPreview(), getAnnouncements(), sortByLatestPostedAt(), Announcement
+
+### Community 178 - "seed-reference.sql"
+Cohesion: 0.39
+Nodes (7): GET(), GET(), getReportFilterOptions(), listGeneratedReports(), parseStoredFilters(), reportCatalogFor(), reportCatalogSummary()
+
+### Community 185 - "supertest"
+Cohesion: 0.25
+Nodes (4): auth, member, memberDetail, MemberDetail
 
 ### Community 186 - "tailwindcss"
+Cohesion: 0.32
+Nodes (3): LoadingAccess(), PortalShell(), PortalShellProps
+
+### Community 187 - "@tailwindcss/postcss"
+Cohesion: 0.52
+Nodes (6): membership_application_beneficiaries, membership_application_documents, membership_application_requirements, membership_application_status_history, membership_applications, user_activation_tokens
+
+### Community 188 - "tsx"
+Cohesion: 0.48
+Nodes (6): membership_account_activations, membership_application_documents, membership_application_notes, membership_application_payments, membership_application_status_history, membership_applications
+
+### Community 189 - "@types/cookie-parser"
+Cohesion: 0.47
+Nodes (3): destinations, PortalAuthGuard(), requiredRole()
+
+### Community 190 - "@types/cors"
+Cohesion: 0.60
+Nodes (4): document_access_logs, document_versions, documents, reports
+
+### Community 192 - "@types/supertest"
+Cohesion: 0.60
+Nodes (4): announcements, AnnouncementsSection(), formatDate(), getPreview()
+
+### Community 194 - "ReportRecord"
 Cohesion: 0.50
-Nodes (4): app, closePool(), server, shutdown()
+Nodes (3): name, private, version
+
+### Community 195 - "LinkableMember"
+Cohesion: 0.50
+Nodes (3): rental_booking_sequences, rental_idempotency_keys, rental_maintenance_periods
 
 ## Knowledge Gaps
-- **738 isolated node(s):** `graphify`, `name`, `version`, `private`, `dev:web` (+733 more)
+- **824 isolated node(s):** `roles`, `financial_categories`, `financial_records`, `rental_assets`, `site_content_blocks` (+819 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **68 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **61 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AuthContext` connect `AuthContext` to `finance.repository.ts`, `membership.repository.ts`, `member.repository.ts`, `landing.controller.ts`, `share-capital.repository.ts`, `communication.repository.ts`, `payment-reference.repository.ts`, `auth.service.ts`, `errorHandler`, `membership-application.repository.ts`, `member-indicator.repository.ts`, `auth.types.ts`, `membership-application.controller.ts`, `membership-application.service.ts`, `asyncHandler`, `createMembershipApplicationController`, `UserRepository`, `membership-application.routes.test.ts`, `membership-application.types.ts`, `supertest`, `user.repository.ts`, `@tailwindcss/postcss`, `src/app.ts`, `ReportRecord`, `express.d.ts`, `user.service.test.ts`, `user.service.ts`, `RentalScheduleForm.tsx`, `RequestRecord`, `MembershipApplicationBeneficiaryInput`, `chart.js`?**
-  _High betweenness centrality (0.094) - this node is a cross-community bridge._
-- **Why does `withTransaction()` connect `transaction.ts` to `finance.repository.ts`, `membership.repository.ts`, `member.repository.ts`, `landing.controller.ts`, `rentalDatabase.ts`, `share-capital.repository.ts`, `communication.repository.ts`, `payment-reference.repository.ts`, `membership-application.repository.ts`, `member-indicator.repository.ts`, `user.repository.ts`, `auth.types.ts`?**
+- **Why does `AuthContext` connect `AuthContext` to `helmet`, `finance.repository.ts`, `membership.repository.ts`, `member.repository.ts`, `landing.controller.ts`, `share-capital.repository.ts`, `communication.repository.ts`, `react-dom`, `payment-reference.repository.ts`, `auth.service.ts`, `errorHandler`, `membership-application.repository.ts`, `member-indicator.repository.ts`, `auth.types.ts`, `membership-application.controller.ts`, `membership-application.service.ts`, `createMembershipApplicationController`, `MembershipApplicationRepository`, `membership-application.routes.test.ts`, `membership-application.types.ts`, `supertest`, `member_dashboard/page.tsx`, `user.repository.ts`, `src/app.ts`, `user.service.test.ts`, `RentalPaymentForm`, `user.service.ts`, `member.routes.test.ts`, `member-indicator.controller.ts`, `RequestRecord`, `MembershipApplicationBeneficiaryInput`, `package.json`, `20260723_rental_operations.sql`, `chart.js`?**
+  _High betweenness centrality (0.081) - this node is a cross-community bridge._
+- **Why does `withTransaction()` connect `transaction.ts` to `finance.repository.ts`, `membership.repository.ts`, `member.repository.ts`, `landing.controller.ts`, `rentalDatabase.ts`, `share-capital.repository.ts`, `communication.repository.ts`, `payment-reference.repository.ts`, `scripts`, `membership-application.repository.ts`, `member-indicator.repository.ts`, `member_dashboard/page.tsx`, `user.repository.ts`, `auth.types.ts`?**
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
+- **Why does `AppError` connect `user.service.test.ts` to `finance.repository.ts`, `membership.repository.ts`, `member.repository.ts`, `landing.controller.ts`, `communication.types.ts`, `share-capital.repository.ts`, `communication.repository.ts`, `react-dom`, `payment-reference.repository.ts`, `auth.service.ts`, `errorHandler`, `membership-application.repository.ts`, `member-indicator.repository.ts`, `auth.types.ts`, `membership-application.controller.ts`, `membership-application.service.ts`, `asyncHandler`, `scripts`, `supertest`, `member_dashboard/page.tsx`, `user.repository.ts`, `MembersClient`, `transaction.ts`, `user.controller.ts`, `[...path]/route.ts`, `user.service.ts`, `rentalValidation.ts`, `member.routes.test.ts`, `execute`, `member-indicator.controller.ts`, `20260724_membership_applications.sql`, `MembershipApplicationBeneficiaryInput`, `chairman-member-indicators.spec.ts`, `20260723_rental_operations.sql`?**
   _High betweenness centrality (0.058) - this node is a cross-community bridge._
-- **Why does `request()` connect `rental.ts` to `createMembershipApplicationController`, `AuthContext`, `asyncHandler`?**
-  _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **What connects `graphify`, `name`, `version` to the rest of the system?**
-  _738 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `roles`, `financial_categories`, `financial_records` to the rest of the system?**
+  _824 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `useRentalData` be split into smaller, more focused modules?**
+  _Cohesion score 0.1334730957372467 - nodes in this community are weakly interconnected._
 - **Should `finance.repository.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.052982456140350874 - nodes in this community are weakly interconnected._
 - **Should `people-api.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.04760505436379665 - nodes in this community are weakly interconnected._
-- **Should `member.repository.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06189640035118525 - nodes in this community are weakly interconnected._
