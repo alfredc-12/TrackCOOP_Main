@@ -62,8 +62,22 @@ export async function GET() {
         [member.member_id]
       );
 
+      const [pendingDeposits] = await connection.query<RowDataPacket[]>(
+        `SELECT 
+           payment_reference_id as id,
+           submitted_at as date,
+           amount,
+           validation_status as status,
+           'Share Capital Deposit' as type
+         FROM payment_references
+         WHERE related_entity_id = ? AND payment_purpose = 'Share Capital' AND validation_status = 'Pending'
+         ORDER BY submitted_at DESC
+         LIMIT 5`,
+        [member.member_id]
+      );
+
       // Combine and sort recent activity
-      const recentActivity = [...sales, ...deposits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+      const recentActivity = [...sales, ...deposits, ...pendingDeposits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
       // 4. Get stats
       const [allAnnouncements] = await connection.query<RowDataPacket[]>(

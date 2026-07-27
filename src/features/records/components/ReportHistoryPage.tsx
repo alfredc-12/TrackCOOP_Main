@@ -35,8 +35,10 @@ import {
 
 export function ReportHistoryPage({
   role,
+  isModal,
 }: {
   role: "chairman" | "bookkeeper";
+  isModal?: boolean;
 }) {
   const basePath = `/portal/${role}`;
   const [reports, setReports] = useState<GeneratedReportRecord[]>([]);
@@ -152,26 +154,30 @@ export function ReportHistoryPage({
   }
 
   return (
-    <div className="grid min-w-0 gap-6">
-      <Link
-        href={`${basePath}/reports`}
-        className={`${secondaryButtonClass} w-fit`}
-      >
-        <ArrowLeft className="size-4" /> Back to Reports
-      </Link>
-      <PageHeader
-        eyebrow="Records"
-        title="Generated Reports"
-        description="Review report generation history, filters, linked documents, exports, regenerations, and archived records."
-        actions={
+    <div className={`grid min-w-0 ${isModal ? "gap-4" : "gap-6"}`}>
+      {!isModal && (
+        <>
           <Link
-            href="/api/reports/history/export"
-            className={secondaryButtonClass}
+            href={`${basePath}/reports`}
+            className={`${secondaryButtonClass} w-fit`}
           >
-            <Download className="size-4" /> Export Register
+            <ArrowLeft className="size-4" /> Back to Reports
           </Link>
-        }
-      />
+          <PageHeader
+            eyebrow="Records"
+            title="Generated Reports"
+            description="Review report generation history, filters, linked documents, exports, regenerations, and archived records."
+            actions={
+              <Link
+                href="/api/reports/history/export"
+                className={secondaryButtonClass}
+              >
+                <Download className="size-4" /> Export Register
+              </Link>
+            }
+          />
+        </>
+      )}
       {error ? <ErrorState message={error} /> : null}
       {loading && reports.length === 0 ? <LoadingSkeleton /> : null}
       {!loading && reports.length === 0 ? (
