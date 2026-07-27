@@ -59,6 +59,7 @@ const envSchema = z.object({
   PAYMONGO_SECRET_KEY: optionalTrimmedString,
   PAYMONGO_WEBHOOK_SECRET: optionalTrimmedString,
   PAYMONGO_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
+  PAYMONGO_CHECKOUT_REUSE_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
   PAYMONGO_PAYMENT_METHOD_TYPES: paymongoPaymentMethodTypes,
   PAYMONGO_PASS_ON_FEES: booleanString.default(false),
   PAYMENT_SUCCESS_URL: z.string().url().default("http://localhost:3000/payment/success"),

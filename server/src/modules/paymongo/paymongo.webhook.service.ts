@@ -11,7 +11,11 @@ import {
   type GatewaySettlementDetails,
   type PaymentSettlementRepository,
 } from "./paymongo.settlement";
-import type { PaymongoConfig, PaymongoGatewayEnvironment } from "./paymongo.types";
+import type {
+  PaymongoConfig,
+  PaymongoGatewayEnvironment,
+  PaymongoOnlineGatewayEnvironment,
+} from "./paymongo.types";
 import {
   parsePaymongoPaidCheckoutWebhookPayload,
   paymongoEventFingerprint,
@@ -32,7 +36,14 @@ type PaymentReferenceLookup = {
   gatewayPaymentId: string | null;
 };
 
+type CheckoutAttemptLookup = {
+  id: string;
+  gatewayEnvironment: PaymongoOnlineGatewayEnvironment;
+  amount: string | number;
+};
+
 type PaymentReferenceLookupRow = RowDataPacket & PaymentReferenceLookup;
+type CheckoutAttemptLookupRow = RowDataPacket & CheckoutAttemptLookup;
 type GatewayEventRow = RowDataPacket & {
   id: string;
   processingStatus: GatewayProcessingStatus;
@@ -180,15 +191,57 @@ function assertMetadataMatches(metadata: Record<string, string>, reference: Paym
   }
 }
 
-function assertGatewayIdsMatch(reference: PaymentReferenceLookup, details: GatewaySettlementDetails) {
-  if (reference.gatewayEnvironment !== "Manual" && reference.gatewayEnvironment !== details.environment) {
-    throw new AppError("This payment was created for a different gateway environment", 409, "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH");
+function assertGatewayIdsMatch(input: {
+  reference: PaymentReferenceLookup;
+  attempt: CheckoutAttemptLookup | null;
+  details: GatewaySettlementDetails;
+}) {
+  if (
+    input.reference.gatewayEnvironment !== "Manual"
+    && input.reference.gatewayEnvironment !== input.details.environment
+  ) {
+    throw new AppError(
+      "This payment was created for a different gateway environment",
+      409,
+      "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH",
+    );
   }
-  if (reference.gatewayCheckoutId && reference.gatewayCheckoutId !== details.checkoutId) {
-    throw new AppError("PayMongo checkout ID conflicts with the payment reference", 409, "PAYMENT_CHECKOUT_CONFLICT");
+
+  if (input.attempt) {
+    if (input.attempt.gatewayEnvironment !== input.details.environment) {
+      throw new AppError(
+        "The checkout attempt belongs to a different gateway environment",
+        409,
+        "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH",
+      );
+    }
+    if (toMoney(Number(input.attempt.amount)) !== toMoney(input.details.amount)) {
+      throw new AppError(
+        "PayMongo checkout attempt amount does not match the payment",
+        422,
+        "PAYMENT_AMOUNT_MISMATCH",
+      );
+    }
+  } else if (
+    input.reference.gatewayCheckoutId
+    && input.reference.gatewayCheckoutId !== input.details.checkoutId
+  ) {
+    throw new AppError(
+      "PayMongo checkout ID conflicts with the payment reference",
+      409,
+      "PAYMENT_CHECKOUT_CONFLICT",
+    );
   }
-  if (reference.gatewayPaymentId && reference.gatewayPaymentId !== details.paymentId) {
-    throw new AppError("PayMongo payment ID conflicts with the payment reference", 409, "PAYMENT_GATEWAY_PAYMENT_CONFLICT");
+
+  if (
+    input.reference.gatewayPaymentId
+    && input.reference.gatewayPaymentId !== input.details.paymentId
+  ) {
+    throw new AppError(
+      "PayMongo payment ID conflicts with the payment reference",
+      409,
+      "PAYMENT_GATEWAY_PAYMENT_CONFLICT",
+    );
   }
 }
 
@@ -244,12 +297,24 @@ export interface PaymongoWebhookRepository {
     paymentReferenceId?: string;
     referenceNumber: string;
   }): Promise<PaymentReferenceLookup | null>;
+  findCheckoutAttempt?(input: {
+    paymentReferenceId: string;
+    checkoutId: string;
+  }): Promise<CheckoutAttemptLookup | null>;
   insertGatewayEvent(input: SafeGatewayEventSummary): Promise<GatewayEventInsertResult>;
   markGatewayEventProcessing(input: {
     gatewayEventId: string;
     retryFailed: boolean;
   }): Promise<boolean>;
   markGatewayEventIgnored(gatewayEventId: string): Promise<void>;
+  markCheckoutAttemptPaid?(input: {
+    paymentReferenceId: string;
+    checkoutId: string;
+    paymentId: string;
+    paymentIntentId: string | null;
+    gatewayStatus: string;
+    environment: PaymongoOnlineGatewayEnvironment;
+  }): Promise<void>;
 }
 
 export function createPaymongoWebhookRepository(pool?: Pool): PaymongoWebhookRepository {
@@ -281,6 +346,21 @@ export function createPaymongoWebhookRepository(pool?: Pool): PaymongoWebhookRep
           ORDER BY payment_reference_id DESC
           LIMIT 1`,
         values,
+      );
+      return rows[0] ?? null;
+    },
+
+    async findCheckoutAttempt(input) {
+      const [rows] = await databasePool().execute<CheckoutAttemptLookupRow[]>(
+        `SELECT CAST(payment_gateway_checkout_attempt_id AS CHAR) AS id,
+                gateway_environment AS gatewayEnvironment,
+                amount
+           FROM payment_gateway_checkout_attempts
+          WHERE payment_reference_id = ?
+            AND gateway_name = 'PayMongo'
+            AND gateway_checkout_id = ?
+          LIMIT 1`,
+        [input.paymentReferenceId, input.checkoutId],
       );
       return rows[0] ?? null;
     },
@@ -362,6 +442,50 @@ export function createPaymongoWebhookRepository(pool?: Pool): PaymongoWebhookRep
                 safe_error_message = NULL
           WHERE payment_gateway_event_id = ?`,
         [gatewayEventId],
+      );
+    },
+
+    async markCheckoutAttemptPaid(input) {
+      await databasePool().execute(
+        `UPDATE payment_gateway_checkout_attempts
+            SET gateway_status = ?,
+                completed_at = COALESCE(completed_at, UTC_TIMESTAMP()),
+                last_checked_at = UTC_TIMESTAMP(),
+                updated_at = UTC_TIMESTAMP()
+          WHERE payment_reference_id = ?
+            AND gateway_name = 'PayMongo'
+            AND gateway_checkout_id = ?`,
+        [input.gatewayStatus, input.paymentReferenceId, input.checkoutId],
+      );
+      await databasePool().execute(
+        `UPDATE payment_gateway_checkout_attempts
+            SET superseded_at = COALESCE(superseded_at, UTC_TIMESTAMP()),
+                updated_at = UTC_TIMESTAMP()
+          WHERE payment_reference_id = ?
+            AND gateway_name = 'PayMongo'
+            AND gateway_checkout_id <> ?
+            AND completed_at IS NULL
+            AND superseded_at IS NULL`,
+        [input.paymentReferenceId, input.checkoutId],
+      );
+      await databasePool().execute(
+        `UPDATE payment_references
+            SET gateway_environment = ?,
+                gateway_checkout_id = ?,
+                gateway_payment_id = COALESCE(?, gateway_payment_id),
+                gateway_payment_intent_id = COALESCE(?, gateway_payment_intent_id),
+                gateway_status = ?,
+                updated_at = UTC_TIMESTAMP()
+          WHERE payment_reference_id = ?
+            AND validation_status IN ('Pending', 'Needs Clarification')`,
+        [
+          input.environment,
+          input.checkoutId,
+          input.paymentId,
+          input.paymentIntentId,
+          input.gatewayStatus,
+          input.paymentReferenceId,
+        ],
       );
     },
   };
@@ -465,6 +589,16 @@ export function createPaymongoWebhookService(options: {
       }
       assertMetadataMatches(checkoutAttributes.metadata, reference);
 
+      const feeAmount = typeof paymentAttributes.fee === "number"
+        ? centsToAmount(paymentAttributes.fee)
+        : null;
+      const netAmount = typeof paymentAttributes.net_amount === "number"
+        ? centsToAmount(paymentAttributes.net_amount)
+        : null;
+      const paidAtValue = typeof paymentAttributes.paid_at === "string"
+        || typeof paymentAttributes.paid_at === "number"
+        ? paymentAttributes.paid_at
+        : null;
       const gatewayDetails: GatewaySettlementDetails = {
         checkoutId: checkout.id,
         paymentId: payment.id,
@@ -473,16 +607,18 @@ export function createPaymongoWebhookService(options: {
         paymentMethod: paymentMethod(paymentAttributes),
         amount: centsToAmount(paymentAttributes.amount),
         currency: "PHP",
-        feeAmount: paymentAttributes.fee === null || paymentAttributes.fee === undefined
-          ? null
-          : centsToAmount(paymentAttributes.fee),
-        netAmount: paymentAttributes.net_amount === null || paymentAttributes.net_amount === undefined
-          ? null
-          : centsToAmount(paymentAttributes.net_amount),
-        paidAt: paidAtDate(paymentAttributes.paid_at),
+        feeAmount,
+        netAmount,
+        paidAt: paidAtDate(paidAtValue),
         environment: config.mode === "live" ? "Live" : "Test",
       };
-      assertGatewayIdsMatch(reference, gatewayDetails);
+      const checkoutAttempt = repository.findCheckoutAttempt
+        ? await repository.findCheckoutAttempt({
+          paymentReferenceId: reference.id,
+          checkoutId: checkout.id,
+        })
+        : null;
+      assertGatewayIdsMatch({ reference, attempt: checkoutAttempt, details: gatewayDetails });
 
       const eventRow = await repository.insertGatewayEvent({
         paymentReferenceId: reference.id,
@@ -505,11 +641,22 @@ export function createPaymongoWebhookService(options: {
         amount: gatewayDetails.amount,
         currency: gatewayDetails.currency,
         paymentStatus: String(paymentAttributes.status),
-        paymentMethod: gatewayDetails.paymentMethod,
+        paymentMethod: gatewayDetails.paymentMethod ?? null,
         feeAmount: gatewayDetails.feeAmount ?? null,
         netAmount: gatewayDetails.netAmount ?? null,
         paidAt: gatewayDetails.paidAt ?? null,
       });
+
+      if (repository.markCheckoutAttemptPaid && checkoutAttempt) {
+        await repository.markCheckoutAttemptPaid({
+          paymentReferenceId: reference.id,
+          checkoutId: checkout.id,
+          paymentId: payment.id,
+          paymentIntentId: checkoutAttributes.payment_intent?.id ?? null,
+          gatewayStatus: checkoutAttributes.status ?? "paid",
+          environment: gatewayDetails.environment ?? (config.mode === "live" ? "Live" : "Test"),
+        });
+      }
 
       if (eventRow.duplicate) {
         if (eventRow.processingStatus === "Processed") {
