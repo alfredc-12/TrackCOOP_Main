@@ -12,6 +12,7 @@ import {
   Package,
   CreditCard
 } from "lucide-react";
+import { FormDialog } from "@/components/portal/PortalPrimitives";
 import {
   PieChart,
   Pie,
@@ -87,18 +88,8 @@ export function DashboardClient() {
     return () => {
       mounted = false;
     };
-  }, [period]);
 
-  useEffect(() => {
-    if (isNotificationsModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isNotificationsModalOpen]);
+  }, [period]);
 
   if (isLoading && !data) {
     return <div className="p-8 text-center text-[#5D6D63]">Loading dashboard data...</div>;
@@ -370,7 +361,7 @@ export function DashboardClient() {
           ) : (
             <>
               <div className="min-h-0 flex-1 space-y-4 overflow-hidden">
-                {actionItems.slice(0, 3).map((item) => (
+                {actionItems.slice(0, 2).map((item) => (
                   <Link 
                     href="/chairman/members" 
                     key={item.id} 
@@ -389,7 +380,7 @@ export function DashboardClient() {
                   </Link>
                 ))}
               </div>
-              {actionItems.length > 3 && (
+              {actionItems.length > 2 && (
                 <div className="mt-4 shrink-0 border-t border-[#EEF2EC] pt-4 text-center">
                   <button 
                     onClick={() => setIsNotificationsModalOpen(true)}
@@ -405,44 +396,39 @@ export function DashboardClient() {
       </div>
 
       {/* Notifications Modal */}
-      {isNotificationsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#EEF2EC] p-6">
-              <h2 className="text-xl font-bold text-[#123D2A]">All Notifications</h2>
-              <button 
-                onClick={() => setIsNotificationsModalOpen(false)}
-                className="text-[#5D6D63] hover:text-[#123D2A]"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-4">
-                {actionItems.map((item) => (
-                  <Link 
-                    href="/chairman/members" 
-                    key={item.id} 
-                    onClick={() => setIsNotificationsModalOpen(false)}
-                    className="flex items-start gap-4 rounded-lg border border-[#EEF2EC] bg-[#F7F8F3] p-4 transition-colors hover:border-[#1F6B43] hover:bg-white"
-                  >
-                    <div className="mt-0.5 shrink-0 rounded-full bg-[#EAB308]/20 p-2 text-[#EAB308]">
-                      <AlertCircle className="size-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="truncate text-sm font-bold text-[#123D2A]">{item.title}</h4>
-                      <p className="truncate text-xs text-[#5D6D63]">{item.description}</p>
-                    </div>
-                    <div className="shrink-0 text-xs text-[#5D6D63]">
-                      {format(new Date(item.date), "MMM d, yyyy")}
-                    </div>
-                  </Link>
-                ))}
+      <FormDialog 
+        open={isNotificationsModalOpen} 
+        onOpenChange={setIsNotificationsModalOpen} 
+        title="All Notifications"
+        contentClassName="max-w-2xl"
+      >
+        <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <style>{`
+            .max-h-\\[60vh\\]::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
+          {actionItems.map((item) => (
+            <Link 
+              href="/chairman/members" 
+              key={item.id} 
+              onClick={() => setIsNotificationsModalOpen(false)}
+              className="flex items-start gap-4 rounded-lg border border-[#EEF2EC] bg-[#F7F8F3] p-4 transition-colors hover:border-[#1F6B43] hover:bg-white"
+            >
+              <div className="mt-0.5 shrink-0 rounded-full bg-[#EAB308]/20 p-2 text-[#EAB308]">
+                <AlertCircle className="size-5" />
               </div>
-            </div>
-          </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="truncate text-sm font-bold text-[#123D2A]">{item.title}</h4>
+                <p className="truncate text-xs text-[#5D6D63]">{item.description}</p>
+              </div>
+              <div className="shrink-0 text-xs text-[#5D6D63]">
+                {format(new Date(item.date), "MMM d, yyyy")}
+              </div>
+            </Link>
+          ))}
         </div>
-      )}
+      </FormDialog>
     </div>
   );
 }

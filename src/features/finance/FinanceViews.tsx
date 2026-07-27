@@ -4,6 +4,10 @@ import {
   AlertTriangle,
   BadgeCheck,
   Banknote,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock3,
   Eye,
   Landmark,
@@ -239,6 +243,11 @@ export function PaymentReferencesView({ role }: { role: "chairman" | "bookkeeper
     sortDirection: "desc",
     gatewayManual: "all",
   });
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.max(1, Math.ceil(payments.length / itemsPerPage));
+  const paginatedPayments = payments.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
   const [selected, setSelected] = useState<PaymentReferenceDetail | null>(null);
   const [reason, setReason] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -350,18 +359,18 @@ export function PaymentReferencesView({ role }: { role: "chairman" | "bookkeeper
         description={role === "bookkeeper" ? "Validate manual payments, review PayMongo webhook outcomes, and reverse posted references without deleting originals." : "Read-only oversight for submitted payment references and validation outcomes."}
         actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper workflow" : "Read-only oversight"}</StatusBadge>}
       />
-      <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total" value={String(summary.total)} icon={ReceiptText} />
-        <StatCard label="Pending Manual" value={String(summary.pendingManual)} icon={Clock3} />
-        <StatCard label="Clarification" value={String(summary.needsClarification)} icon={Send} />
-        <StatCard label="Validated Today" value={String(summary.validatedToday)} icon={BadgeCheck} />
-        <StatCard label="PayMongo Test" value={String(summary.paymongoTestPayments)} icon={WalletCards} />
+        <StatCard label="Pending" value={String(summary.pendingManual)} icon={Clock3} />
+        <StatCard label="Clarify" value={String(summary.needsClarification)} icon={Send} />
+        <StatCard label="Valid Today" value={String(summary.validatedToday)} icon={BadgeCheck} />
+        <StatCard label="PayMongo" value={String(summary.paymongoTestPayments)} icon={WalletCards} />
         <StatCard label="Rejected" value={String(summary.rejected)} icon={X} />
-        <StatCard label="Validated Amount" value={money(summary.validatedAmount)} icon={Banknote} />
+        <StatCard label="Total ₱" value={money(summary.validatedAmount)} icon={Banknote} />
       </div>
-      <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_repeat(3,minmax(10rem,12rem))]">
-          <label className="relative block">
+      <div className="grid gap-4 rounded-lg border border-[#CAD8CB] bg-white p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative block w-full sm:flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
             <input
               value={filters.search ?? ""}
@@ -371,16 +380,26 @@ export function PaymentReferencesView({ role }: { role: "chairman" | "bookkeeper
               type="search"
             />
           </label>
-          <Select value={filters.validationStatus ?? ""} onChange={(value) => setFilter("validationStatus", value)} options={statusOptions} label="All statuses" />
-          <Select value={filters.paymentPurpose ?? ""} onChange={(value) => setFilter("paymentPurpose", value)} options={purposeOptions} label="All purposes" />
-          <Select value={filters.paymentChannel ?? ""} onChange={(value) => setFilter("paymentChannel", value)} options={channelOptions} label="All channels" />
+          <div className="w-full sm:w-auto">
+            <Select value={filters.validationStatus ?? ""} onChange={(value) => setFilter("validationStatus", value)} options={statusOptions} label="All statuses" />
+          </div>
+          <div className="w-full sm:w-auto">
+            <Select value={filters.paymentPurpose ?? ""} onChange={(value) => setFilter("paymentPurpose", value)} options={purposeOptions} label="All purposes" />
+          </div>
+          <div className="w-full sm:w-auto">
+            <Select value={filters.paymentChannel ?? ""} onChange={(value) => setFilter("paymentChannel", value)} options={channelOptions} label="All channels" />
+          </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <Select value={filters.validationSource ?? ""} onChange={(value) => setFilter("validationSource", value)} options={sourceOptions} label="All sources" />
-          <Select value={filters.gatewayManual ?? "all"} onChange={(value) => setFilter("gatewayManual", value)} options={["all", "gateway", "manual"]} label="Gateway/manual" />
-          <input value={filters.dateFrom ?? ""} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="Date from" />
-          <input value={filters.dateTo ?? ""} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="Date to" />
-          <input value={filters.amountMin ?? ""} onChange={(event) => setFilter("amountMin", event.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Min amount" />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full sm:w-auto">
+            <Select value={filters.validationSource ?? ""} onChange={(value) => setFilter("validationSource", value)} options={sourceOptions} label="All sources" />
+          </div>
+          <div className="w-full sm:w-auto">
+            <Select value={filters.gatewayManual ?? "all"} onChange={(value) => setFilter("gatewayManual", value)} options={["all", "gateway", "manual"]} label="Gateway/manual" />
+          </div>
+          <input value={filters.dateFrom ?? ""} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-11 flex-1 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="Date from" />
+          <input value={filters.dateTo ?? ""} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-11 flex-1 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="Date to" />
+          <input value={filters.amountMin ?? ""} onChange={(event) => setFilter("amountMin", event.target.value)} className="h-11 w-28 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Min amount" />
           <button type="button" onClick={() => void load()} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]">
             <RefreshCcw className="size-4" aria-hidden="true" />
             Refresh
@@ -397,7 +416,7 @@ export function PaymentReferencesView({ role }: { role: "chairman" | "bookkeeper
               <tr><th className="px-5 py-4">Reference</th><th className="px-5 py-4">Payer</th><th className="px-5 py-4">Purpose</th><th className="px-5 py-4">Channel</th><th className="px-5 py-4">Amount</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-              {payments.map((payment) => (
+              {paginatedPayments.map((payment) => (
                 <tr key={payment.id} className="hover:bg-[#F7F8F3]">
                   <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{payment.referenceNumber}</p><p className="mt-1 text-xs text-[#6C7A70]">{payment.provider}</p></td>
                   <td className="px-5 py-4"><p className="font-semibold text-[#123D2A]">{safeValue(payment.payerName)}</p><p className="mt-1 text-xs text-[#6C7A70]">{safeValue(payment.payerContact)}</p></td>
@@ -417,6 +436,57 @@ export function PaymentReferencesView({ role }: { role: "chairman" | "bookkeeper
           </table>
         </DataTable>
       )}
+
+      {!isLoading && payments.length > 0 && (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-[#CAD8CB] bg-white p-4 text-sm font-semibold text-[#294B39] sm:flex-row mt-4">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage(1)}
+              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="First page"
+            >
+              <ChevronsLeft className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <span className="px-2">
+            Page {page} of {totalPages} &middot; {payments.length} applications
+          </span>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage(totalPages)}
+              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Last page"
+            >
+              <ChevronsRight className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <FormDialog
         open={Boolean(selected)}
         onOpenChange={(open) => {

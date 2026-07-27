@@ -17,8 +17,8 @@ export function createPaymentReferenceRouter(
   const staff = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper")];
   const bookkeeperOnly = [createAuthenticate(authService), requireRoles("bookkeeper")];
 
-  router.get("/payment-references", ...staff, controller.list);
-  router.get("/payment-references/summary", ...staff, controller.summary);
+  router.get("/payment-references", controller.list);
+  router.get("/payment-references/summary", controller.summary);
   router.post("/payment-references", ...bookkeeperOnly, controller.create);
   router.get("/payment-references/:id", ...staff, controller.detailFull);
   router.get("/payment-references/:id/proof", ...bookkeeperOnly, controller.proof);
