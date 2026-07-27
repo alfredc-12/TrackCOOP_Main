@@ -190,4 +190,56 @@ export type PaymongoPaymentStatus = {
   gatewayLastCheckedAt: Date | null;
 };
 
+
+export type PaymongoMemberShareCapitalProfile = {
+  id: string;
+  userId: string;
+  memberCode: string;
+  fullName: string;
+  email: string | null;
+  contactNumber: string | null;
+  membershipType: "Associate" | "True Member";
+  approvalStatus: string;
+  officialMemberStatus: string;
+};
+
+export type PaymongoMemberShareCapitalCheckoutInput = {
+  requestedAmount: number;
+  clientRequestId: string;
+};
+
+export type PaymongoMemberShareCapitalHistoryItem = {
+  paymentReferenceId: string;
+  referenceNumber: string;
+  amount: number;
+  validationStatus: ValidationStatus;
+  gatewayStatus: string | null;
+  submittedAt: Date;
+  paidAt: Date | null;
+  receiptNumber: string | null;
+};
+
+export type PaymongoMemberShareCapitalSummary = {
+  memberId: string;
+  memberCode: string;
+  membershipType: "Associate" | "True Member";
+  officialMemberStatus: string;
+  validatedCapital: number;
+  activePendingCapital: number;
+  remainingToTrueMember: number;
+  maximumShareCapital: number;
+  availableCapacity: number;
+  mode: PaymongoMode;
+  eligible: boolean;
+  activeCheckout: {
+    paymentReferenceId: string;
+    checkoutId: string | null;
+    checkoutUrl: string;
+    attemptNumber: number | null;
+    gatewayStatus: string | null;
+    amount: number;
+  } | null;
+  history: PaymongoMemberShareCapitalHistoryItem[];
+};
+
 export type PaymongoCheckoutActor = AuthContext;

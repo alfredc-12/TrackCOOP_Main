@@ -50,6 +50,16 @@ export type PaymongoMembershipCheckoutBody = z.infer<
   typeof paymongoMembershipCheckoutBodySchema
 >;
 
+
+export const paymongoMemberShareCapitalCheckoutBodySchema = z.object({
+  requestedAmount: z.coerce.number().finite().positive(),
+  clientRequestId: z.string().uuid(),
+});
+
+export type PaymongoMemberShareCapitalCheckoutBody = z.infer<
+  typeof paymongoMemberShareCapitalCheckoutBodySchema
+>;
+
 const paymongoWebhookDataObjectEnvelopeSchema = z.object({
   id: z.string().optional(),
   type: z.string().optional(),

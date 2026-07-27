@@ -3,6 +3,7 @@ import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import { postMembershipSettlement } from "./paymongo.settlement.membership";
+import { postMemberShareCapitalSettlement } from "./paymongo.settlement.member-share-capital";
 import {
   selectPaymentForSettlement,
   selectSettlementActor,
@@ -92,8 +93,15 @@ export interface PaymentSettlementRepository {
   }): Promise<void>;
 }
 
-export function createPaymentSettlementRepository(pool?: Pool): PaymentSettlementRepository {
+export function createPaymentSettlementRepository(
+  pool?: Pool,
+  dependencies: {
+    postMemberShareCapitalSettlement?: typeof postMemberShareCapitalSettlement;
+  } = {},
+): PaymentSettlementRepository {
   const databasePool = () => pool ?? getPool();
+  const postMemberSettlement = dependencies.postMemberShareCapitalSettlement
+    ?? postMemberShareCapitalSettlement;
 
   return {
     async settlePaymentReference(input) {
@@ -198,7 +206,17 @@ export function createPaymentSettlementRepository(pool?: Pool): PaymentSettlemen
           ],
         );
 
-        if (["Associate Membership Fee", "Share Capital"].includes(payment.paymentPurpose)) {
+        if (
+          payment.paymentPurpose === "Share Capital"
+          && payment.relatedEntityType === "member_profile"
+        ) {
+          await postMemberSettlement({
+            connection,
+            payment: { ...payment, validationStatus: "Validated" },
+            actorUserId,
+            gatewayDetails: input.gatewayDetails,
+          });
+        } else if (["Associate Membership Fee", "Share Capital"].includes(payment.paymentPurpose)) {
           await postMembershipSettlement({
             connection,
             payment: { ...payment, validationStatus: "Validated" },

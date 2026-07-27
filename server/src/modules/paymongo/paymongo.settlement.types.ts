@@ -31,6 +31,9 @@ export type PaymentReferenceForSettlement = RowDataPacket & {
   id: string;
   memberId: string | null;
   payerName: string | null;
+  payerEmail: string | null;
+  payerContact: string | null;
+  provider: string;
   referenceNumber: string;
   paymentPurpose: string;
   relatedEntityType: string | null;
