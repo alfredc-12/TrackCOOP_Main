@@ -25,7 +25,14 @@ export const errorHandler: ErrorRequestHandler = (
   };
 
   if (appError.statusCode >= 500) {
-    logger.error("request failed", logMeta);
+    logger.error(`[${request.requestId}] Internal server error`, {
+      ...logMeta,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    const fs = require('fs');
+    const path = require('path');
+    const msg = error instanceof Error ? error.stack || error.message : String(error);
+    fs.appendFileSync(path.join(process.cwd(), '..', 'error.log'), new Date().toISOString() + '\n' + msg + '\n\n');
   } else {
     logger.warn("request rejected", logMeta);
   }

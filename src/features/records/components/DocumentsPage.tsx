@@ -4,6 +4,10 @@ import Link from "next/link";
 import {
   Archive,
   ArchiveRestore,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock3,
   Download,
   FileLock2,
@@ -12,11 +16,12 @@ import {
   Filter,
   FolderArchive,
   MoreVertical,
+  Printer,
   Search,
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
@@ -94,7 +99,7 @@ function statusTone(status: DocumentStatus) {
 function queryFor(filters: Filters, page = 1) {
   const parameters = new URLSearchParams({
     page: String(page),
-    pageSize: "20",
+    pageSize: "5",
   });
   Object.entries(filters).forEach(([key, value]) => {
     if (value) parameters.set(key, value);
@@ -110,7 +115,10 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [data, setData] = useState<DocumentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadStep, setUploadStep] = useState<1 | 2>(1);
+  const formRef = useRef<HTMLFormElement>(null);
   const [uploading, setUploading] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<DocumentRecord | null>(
     null,
@@ -146,7 +154,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     void load();
   }, [load]);
 
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / 20));
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / 5));
   const visibleAccess = DOCUMENT_ACCESS_LEVELS.filter(
     (item) => role === "chairman" || item.value !== "ADMIN_ONLY",
   );
@@ -167,6 +175,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       const result = (await response.json()) as { reference: string };
       toast.success(`${result.reference} uploaded successfully.`);
       setUploadOpen(false);
+      setUploadStep(1);
       event.currentTarget.reset();
       await load();
     } catch (requestError) {
@@ -216,6 +225,14 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         description="Manage cooperative files, access permissions, versions, and document activity."
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(true)}
+              className={secondaryButtonClass}
+            >
+              <Filter className="size-4" /> More Filters{" "}
+              {activeFilterCount ? `(${activeFilterCount})` : ""}
+            </button>
             <Link href={`${basePath}/reports`} className={secondaryButtonClass}>
               <FilePlus2 className="size-4" /> Generate Document
             </Link>
@@ -348,126 +365,6 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               ))}
             </select>
           </div>
-          <details className="rounded-md border border-[#DCE5DC] bg-[#F7F8F3] p-3">
-            <summary className="cursor-pointer text-sm font-bold text-[#294B39]">
-              More filters{" "}
-              {activeFilterCount ? `(${activeFilterCount} applied)` : ""}
-            </summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <FilterSelect
-                label="Related module"
-                value={draftFilters.relatedModule}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    relatedModule: value,
-                  }))
-                }
-                options={RELATED_MODULES.map((item) => ({
-                  value: item,
-                  label: humanizeConstant(item),
-                }))}
-              />
-              <FilterSelect
-                label="Status"
-                value={draftFilters.status}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({ ...current, status: value }))
-                }
-                options={["ACTIVE", "EXPIRING_SOON", "EXPIRED", "ARCHIVED"].map(
-                  (item) => ({ value: item, label: humanizeConstant(item) }),
-                )}
-              />
-              <FilterSelect
-                label="Uploaded by"
-                value={draftFilters.uploadedBy}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    uploadedBy: value,
-                  }))
-                }
-                options={(data?.filterOptions.uploaders ?? []).map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                }))}
-              />
-              <FilterSelect
-                label="File type"
-                value={draftFilters.fileType}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    fileType: value,
-                  }))
-                }
-                options={[
-                  "pdf",
-                  "doc",
-                  "docx",
-                  "xls",
-                  "xlsx",
-                  "csv",
-                  "jpg",
-                  "jpeg",
-                  "png",
-                ].map((item) => ({ value: item, label: item.toUpperCase() }))}
-              />
-              <FilterDate
-                label="Uploaded from"
-                value={draftFilters.dateFrom}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    dateFrom: value,
-                  }))
-                }
-              />
-              <FilterDate
-                label="Uploaded to"
-                value={draftFilters.dateTo}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({ ...current, dateTo: value }))
-                }
-              />
-              <FilterDate
-                label="Expires from"
-                value={draftFilters.expirationFrom}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    expirationFrom: value,
-                  }))
-                }
-              />
-              <FilterDate
-                label="Expires to"
-                value={draftFilters.expirationTo}
-                onChange={(value) =>
-                  setDraftFilters((current) => ({
-                    ...current,
-                    expirationTo: value,
-                  }))
-                }
-              />
-            </div>
-          </details>
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              className={secondaryButtonClass}
-              onClick={() => {
-                setDraftFilters(emptyFilters);
-                setFilters(emptyFilters);
-                setPage(1);
-              }}
-            >
-              Clear Filters
-            </button>
-            <button type="submit" className={primaryButtonClass}>
-              <Filter className="size-4" /> Apply Filters
-            </button>
-          </div>
         </form>
       </section>
 
@@ -492,27 +389,19 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         <>
           <div className="hidden min-w-0 md:block">
             <DataTable>
-              <table className="w-full table-fixed text-left text-xs xl:text-sm">
+              <table className="w-full min-w-[1200px] text-left text-sm">
                 <thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#53675A]">
                   <tr>
-                    <th className="w-[26%] px-3 py-3 font-bold">Document</th>
-                    <th className="w-[13%] px-3 py-3 font-bold">
-                      Reference
-                    </th>
-                    <th className="hidden px-3 py-3 font-bold 2xl:table-cell">
-                      Category
-                    </th>
-                    <th className="hidden px-3 py-3 font-bold 2xl:table-cell">
-                      Related Module
-                    </th>
-                    <th className="w-[14%] px-3 py-3 font-bold">Access</th>
-                    <th className="w-[7%] px-3 py-3 font-bold">Version</th>
-                    <th className="w-[10%] px-3 py-3 font-bold">Status</th>
-                    <th className="hidden px-3 py-3 font-bold 2xl:table-cell">
-                      Uploaded By
-                    </th>
-                    <th className="w-[17%] px-3 py-3 font-bold">Updated</th>
-                    <th className="w-[8%] px-3 py-3 font-bold">Actions</th>
+                    <th className="px-3 py-3 font-bold">Document</th>
+                    <th className="px-3 py-3 font-bold">Reference</th>
+                    <th className="px-3 py-3 font-bold">Category</th>
+                    <th className="px-3 py-3 font-bold">Related Module</th>
+                    <th className="px-3 py-3 font-bold">Access</th>
+                    <th className="px-3 py-3 font-bold">Version</th>
+                    <th className="px-3 py-3 font-bold">Status</th>
+                    <th className="px-3 py-3 font-bold">Uploaded By</th>
+                    <th className="px-3 py-3 font-bold">Updated</th>
+                    <th className="px-3 py-3 font-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -543,10 +432,10 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                       <td className="break-all px-3 py-3 font-mono text-xs">
                         {document.reference}
                       </td>
-                      <td className="hidden px-3 py-3 2xl:table-cell">
+                      <td className="px-3 py-3">
                         {humanizeConstant(document.category)}
                       </td>
-                      <td className="hidden px-3 py-3 2xl:table-cell">
+                      <td className="px-3 py-3">
                         {document.relatedModule
                           ? humanizeConstant(document.relatedModule)
                           : "—"}
@@ -562,7 +451,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                           {humanizeConstant(document.status)}
                         </StatusBadge>
                       </td>
-                      <td className="hidden px-3 py-3 2xl:table-cell">
+                      <td className="px-3 py-3">
                         {document.uploadedBy}
                       </td>
                       <td className="px-3 py-3">
@@ -635,59 +524,238 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               </article>
             ))}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#5D6D63]">
-            <span>
-              {data.total} document{data.total === 1 ? "" : "s"} · page {page}{" "}
-              of {totalPages}
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#5D6D63]">
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
+              disabled={page <= 1}
+              onClick={() => setPage(1)}
+            >
+              <ChevronsLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="px-2 font-medium">
+              Page {page} of {totalPages} &middot; {data.total} document{data.total === 1 ? "" : "s"}
             </span>
-            <div className="flex gap-2">
-              <button
-                className={secondaryButtonClass}
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((current) => current - 1)}
-              >
-                Previous
-              </button>
-              <button
-                className={secondaryButtonClass}
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Next
-              </button>
-            </div>
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              <ChevronRight className="size-4" />
+            </button>
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
+              disabled={page >= totalPages}
+              onClick={() => setPage(totalPages)}
+            >
+              <ChevronsRight className="size-4" />
+            </button>
           </div>
         </>
       ) : null}
 
       <FormDialog
         open={uploadOpen}
-        onOpenChange={setUploadOpen}
-        title="Upload Document"
+        onOpenChange={(open) => {
+          setUploadOpen(open);
+          if (!open) setUploadStep(1);
+        }}
+        title={`Upload Document (Step ${uploadStep} of 2)`}
         description="The file is validated and stored outside public web paths. Access is enforced by the server."
         contentClassName="w-[min(48rem,calc(100vw-2rem))]"
       >
-        <form onSubmit={submitUpload}>
-          <DocumentMetadataFields role={role} includeFile />
+        <form onSubmit={submitUpload} ref={formRef}>
+          <DocumentMetadataFields role={role} includeFile step={uploadStep} />
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setUploadOpen(false)}
-              className={secondaryButtonClass}
-            >
-              Cancel
-            </button>
-            <button disabled={uploading} className={primaryButtonClass}>
-              {uploading ? (
-                <BusyLabel label="Uploading..." />
-              ) : (
-                <>
-                  <Upload className="size-4" /> Upload Document
-                </>
-              )}
-            </button>
+            {uploadStep === 1 ? (
+              <>
+                <button
+                  key="btn-cancel"
+                  type="button"
+                  onClick={() => setUploadOpen(false)}
+                  className={secondaryButtonClass}
+                >
+                  Cancel
+                </button>
+                <button
+                  key="btn-next"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (formRef.current?.reportValidity()) {
+                      setUploadStep(2);
+                    }
+                  }}
+                  className={primaryButtonClass}
+                >
+                  Next
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  key="btn-back"
+                  type="button"
+                  onClick={() => setUploadStep(1)}
+                  className={secondaryButtonClass}
+                >
+                  Back
+                </button>
+                <button key="btn-submit" disabled={uploading} className={primaryButtonClass}>
+                  {uploading ? (
+                    <BusyLabel label="Uploading..." />
+                  ) : (
+                    <>
+                      <Upload className="size-4" /> Upload Document
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </form>
+      </FormDialog>
+
+      <FormDialog
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        title="More Filters"
+        description="Refine your document search"
+        contentClassName="w-[min(48rem,calc(100vw-2rem))]"
+      >
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <FilterSelect
+            label="Related module"
+            value={draftFilters.relatedModule}
+            onChange={(value) =>
+              setDraftFilters((current) => ({
+                ...current,
+                relatedModule: value,
+              }))
+            }
+            options={RELATED_MODULES.map((item) => ({
+              value: item,
+              label: humanizeConstant(item),
+            }))}
+          />
+          <FilterSelect
+            label="Status"
+            value={draftFilters.status}
+            onChange={(value) =>
+              setDraftFilters((current) => ({ ...current, status: value }))
+            }
+            options={["ACTIVE", "EXPIRING_SOON", "EXPIRED", "ARCHIVED"].map(
+              (item) => ({ value: item, label: humanizeConstant(item) }),
+            )}
+          />
+          <FilterSelect
+            label="Uploaded by"
+            value={draftFilters.uploadedBy}
+            onChange={(value) =>
+              setDraftFilters((current) => ({
+                ...current,
+                uploadedBy: value,
+              }))
+            }
+            options={(data?.filterOptions.uploaders ?? []).map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+          />
+          <FilterSelect
+            label="File type"
+            value={draftFilters.fileType}
+            onChange={(value) =>
+              setDraftFilters((current) => ({
+                ...current,
+                fileType: value,
+              }))
+            }
+            options={[
+              "pdf",
+              "doc",
+              "docx",
+              "xls",
+              "xlsx",
+              "csv",
+              "jpg",
+              "jpeg",
+              "png",
+            ].map((item) => ({ value: item, label: item.toUpperCase() }))}
+          />
+          <FilterDate
+            label="Uploaded from"
+            value={draftFilters.dateFrom}
+            onChange={(value) =>
+              setDraftFilters((current) => ({
+                ...current,
+                dateFrom: value,
+              }))
+            }
+          />
+          <FilterDate
+            label="Uploaded to"
+            value={draftFilters.dateTo}
+            onChange={(value) =>
+              setDraftFilters((current) => ({ ...current, dateTo: value }))
+            }
+          />
+          <FilterDate
+            label="Expires from"
+            value={draftFilters.expirationFrom}
+            onChange={(value) =>
+              setDraftFilters((current) => ({
+                ...current,
+                expirationFrom: value,
+              }))
+            }
+          />
+          <FilterDate
+            label="Expires to"
+            value={draftFilters.expirationTo}
+            onChange={(value) =>
+              setDraftFilters((current) => ({
+                ...current,
+                expirationTo: value,
+              }))
+            }
+          />
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            onClick={() => {
+              setDraftFilters(emptyFilters);
+              setFilters(emptyFilters);
+              setPage(1);
+              setFilterOpen(false);
+            }}
+          >
+            Clear Filters
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFilters(draftFilters);
+              setPage(1);
+              setFilterOpen(false);
+            }}
+            className={primaryButtonClass}
+          >
+            <Filter className="size-4" /> Apply Filters
+          </button>
+        </div>
       </FormDialog>
 
       <FormDialog
@@ -860,49 +928,66 @@ function DocumentActions({
       </div>
     );
   }
+  const [open, setOpen] = useState(false);
   return (
-    <details className="relative">
-      <summary
-        aria-label={`Actions for ${document.title}`}
-        className="grid size-10 cursor-pointer list-none place-items-center rounded-md border border-[#CAD8CB] hover:bg-[#EEF2EC]"
-      >
-        <MoreVertical className="size-4" />
-      </summary>
-      <div className="absolute right-0 z-20 mt-1 grid min-w-48 rounded-md border border-[#CAD8CB] bg-white p-1 shadow-lg">
+    <FormDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Document Actions"
+      description=""
+      trigger={
+        <button
+          type="button"
+          aria-label={`Actions for ${document.title}`}
+          className="grid size-10 cursor-pointer list-none place-items-center rounded-md border border-[#CAD8CB] hover:bg-[#EEF2EC]"
+        >
+          <MoreVertical className="size-4" />
+        </button>
+      }
+    >
+      <div className="grid gap-2">
         <Link
           href={`${basePath}/documents/${document.id}`}
-          className="rounded px-3 py-2 hover:bg-[#EEF2EC]"
+          className={secondaryButtonClass}
         >
-          View details
+          <FileText className="size-4" /> View details
         </Link>
         <a
           href={preview}
           target="_blank"
           rel="noreferrer"
-          className="rounded px-3 py-2 hover:bg-[#EEF2EC]"
+          className={secondaryButtonClass}
         >
-          Preview
+          <ShieldCheck className="size-4" /> Preview
         </a>
-        <a href={download} className="rounded px-3 py-2 hover:bg-[#EEF2EC]">
-          Download
+        <a href={download} className={secondaryButtonClass}>
+          <Download className="size-4" /> Download
         </a>
         <a
           href={print}
           target="_blank"
           rel="noreferrer"
-          className="rounded px-3 py-2 hover:bg-[#EEF2EC]"
+          className={secondaryButtonClass}
         >
-          Print
+          <Printer className="size-4" /> Print
         </a>
         <button
           type="button"
-          onClick={onArchive}
-          className="rounded px-3 py-2 text-left hover:bg-[#FFF4D7]"
+          onClick={() => {
+            setOpen(false);
+            onArchive();
+          }}
+          className={warningButtonClass}
         >
+          {document.status === "ARCHIVED" ? (
+            <ArchiveRestore className="size-4" />
+          ) : (
+            <Archive className="size-4" />
+          )}
           {document.status === "ARCHIVED" ? "Restore" : "Archive"}
         </button>
       </div>
-    </details>
+    </FormDialog>
   );
 }
 
