@@ -276,6 +276,8 @@ export default function ChairmanPosInventoryClient() {
 
     const processConfirmPayment = async () => {
         if (orderToConfirmId === null) return;
+        if (isConfirming) return;  // prevent double submission
+        setIsConfirming(true);
         try {
             const res = await fetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
                 method: "PUT"
@@ -294,6 +296,8 @@ export default function ChairmanPosInventoryClient() {
             }
         } catch {
             toast.error("An error occurred.");
+        } finally {
+            setIsConfirming(false);
         }
     };
 
@@ -335,8 +339,10 @@ export default function ChairmanPosInventoryClient() {
     const [newItemStatus, setNewItemStatus] = useState("Available");
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [orderToConfirmId, setOrderToConfirmId] = useState<number | null>(null);
+    const [isConfirming, setIsConfirming] = useState(false);
     const [orderToRejectId, setOrderToRejectId] = useState<number | null>(null);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
+
 
     useEffect(() => {
         if (isAddModalOpen || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
@@ -1443,9 +1449,10 @@ export default function ChairmanPosInventoryClient() {
                             </button>
                             <button
                                 onClick={processConfirmPayment}
-                                className="flex-1 rounded-xl border border-transparent bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90"
+                                disabled={isConfirming}
+                                className="flex-1 rounded-xl border border-transparent bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                Verify
+                                {isConfirming ? "Verifying..." : "Verify"}
                             </button>
                         </div>
                     </div>
