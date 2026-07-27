@@ -11,10 +11,13 @@ export const errorHandler: ErrorRequestHandler = (
 ) => {
   void _next;
 
-  const appError =
-    error instanceof AppError
-      ? error
-      : new AppError("An unexpected error occurred", 500, "INTERNAL_ERROR");
+  let appError = error instanceof AppError ? error : null;
+  if (!appError && error && typeof error === "object" && "name" in error && error.name === "MulterError") {
+    appError = new AppError((error as Error).message || "File upload error", 400, "FILE_UPLOAD_ERROR");
+  }
+  if (!appError) {
+    appError = new AppError("An unexpected error occurred", 500, "INTERNAL_ERROR");
+  }
 
   const logMeta = {
     requestId: request.requestId,
