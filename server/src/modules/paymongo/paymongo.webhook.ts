@@ -1,7 +1,12 @@
 import crypto from "node:crypto";
 import { AppError } from "../../utils/app-error";
 import { validatePaymongoConfig } from "./paymongo.client";
-import { paymongoWebhookEventSchema } from "./paymongo.schema";
+import {
+  paymongoWebhookEnvelopeSchema,
+  paymongoWebhookEventSchema,
+  type PaymongoWebhookEnvelopeBody,
+  type PaymongoWebhookEventBody,
+} from "./paymongo.schema";
 import type { PaymongoConfig } from "./paymongo.types";
 
 type ParsedSignature = {
@@ -11,7 +16,9 @@ type ParsedSignature = {
 };
 
 export type ParsedPaymongoWebhook = {
-  payload: ReturnType<typeof paymongoWebhookEventSchema.parse>;
+  payload: PaymongoWebhookEnvelopeBody;
+  envelope: PaymongoWebhookEnvelopeBody;
+  json: unknown;
   rawBodyUtf8: string;
   payloadHash: string;
 };
@@ -46,6 +53,23 @@ function timingSafeHexEquals(expectedHex: string, actualHex: string) {
   const expected = Buffer.from(expectedHex, "hex");
   const actual = Buffer.from(actualHex, "hex");
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
+export function parsePaymongoPaidCheckoutWebhookPayload(json: unknown): PaymongoWebhookEventBody {
+  const parsedPayload = paymongoWebhookEventSchema.safeParse(json);
+  if (!parsedPayload.success) {
+    throw new AppError(
+      "PayMongo webhook payload is invalid",
+      400,
+      "PAYMONGO_WEBHOOK_PAYLOAD_INVALID",
+      parsedPayload.error.issues.map((issue) => ({
+        code: "VALIDATION_ERROR",
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    );
+  }
+  return parsedPayload.data;
 }
 
 export function verifyAndParsePaymongoWebhook(input: {
@@ -85,34 +109,52 @@ export function verifyAndParsePaymongoWebhook(input: {
   } catch {
     throw new AppError("PayMongo webhook JSON is malformed", 400, "PAYMONGO_WEBHOOK_JSON_INVALID");
   }
-  const parsedPayload = paymongoWebhookEventSchema.safeParse(json);
-  if (!parsedPayload.success) {
+
+  const parsedEnvelope = paymongoWebhookEnvelopeSchema.safeParse(json);
+  if (!parsedEnvelope.success) {
     throw new AppError(
-      "PayMongo webhook payload is invalid",
+      "PayMongo webhook envelope is invalid",
       400,
-      "PAYMONGO_WEBHOOK_PAYLOAD_INVALID",
-      parsedPayload.error.issues.map((issue) => ({
+      "PAYMONGO_WEBHOOK_ENVELOPE_INVALID",
+      parsedEnvelope.error.issues.map((issue) => ({
         code: "VALIDATION_ERROR",
         field: issue.path.join("."),
         message: issue.message,
       })),
     );
   }
+
   return {
-    payload: parsedPayload.data,
+    payload: parsedEnvelope.data,
+    envelope: parsedEnvelope.data,
+    json,
     rawBodyUtf8,
     payloadHash: crypto.createHash("sha256").update(input.rawBody).digest("hex"),
   };
 }
 
 export function paymongoEventFingerprint(input: {
+  eventObjectId?: string | null;
   eventType: string;
-  checkoutId: string;
-  paymentId: string;
+  dataObjectId?: string | null;
+  checkoutId?: string | null;
+  paymentId?: string | null;
   payloadHash: string;
 }) {
+  if (input.eventObjectId) {
+    return crypto
+      .createHash("sha256")
+      .update(`event:${input.eventObjectId}`)
+      .digest("hex");
+  }
+
   return crypto
     .createHash("sha256")
-    .update(`${input.eventType}:${input.checkoutId}:${input.paymentId}:${input.payloadHash}`)
+    .update([
+      input.eventType,
+      input.dataObjectId ?? input.checkoutId ?? "no-data-object",
+      input.paymentId ?? "no-payment",
+      input.payloadHash,
+    ].join(":"))
     .digest("hex");
 }
