@@ -15,6 +15,7 @@ const config: PaymongoConfig = {
   secretKey: "sk_test_example",
   webhookSecret: "whsec_test_example",
   webhookToleranceSeconds: 300,
+  checkoutReuseMinutes: 30,
   paymentMethodTypes: ["card"],
   passOnFees: true,
   successUrl: "http://localhost:3000/payment/success",
@@ -55,7 +56,7 @@ const checkoutRequest: PaymongoCheckoutRequest = {
   },
 };
 
-function successResponse() {
+function successResponse(overrides: { status?: string; payments?: unknown[] } = {}) {
   return new Response(
     JSON.stringify({
       data: {
@@ -63,10 +64,10 @@ function successResponse() {
         type: "checkout_session",
         attributes: {
           checkout_url: "https://checkout.paymongo.com/cs_test_123",
-          status: "active",
+          status: overrides.status ?? "active",
           livemode: false,
           payment_intent: { id: "pi_test_123" },
-          payments: [{ id: "pay_test_123" }],
+          payments: overrides.payments ?? [{ id: "pay_test_123" }],
         },
       },
     }),
@@ -106,10 +107,36 @@ test("createCheckoutSession uses Basic auth, V2 URL, idempotency, and safe metad
   assert.deepEqual(attributes.payment_method_types, ["card"]);
   assert.equal(attributes.pass_on_fees, true);
   assert.equal(attributes.reference_number, "TC-REF-0001");
+  assert.equal(attributes.cancel_url, "http://localhost:3000/payment/cancelled");
   assert.equal(attributes.metadata.trackcoop_payment_reference_id, "1");
   assert.equal(attributes.metadata.payment_purpose, "Associate Membership Fee");
   assert.ok(!String(capturedInit?.body).includes("sk_test_example"));
   assert.equal(result.checkoutUrl, "https://checkout.paymongo.com/cs_test_123");
+});
+
+test("retrieveCheckoutSession uses the documented V1 endpoint and selects the paid payment", async () => {
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  const fetchImpl = (async (url, init) => {
+    capturedUrl = String(url);
+    capturedInit = init;
+    return successResponse({
+      status: "paid",
+      payments: [
+        { id: "pay_failed", attributes: { status: "failed" } },
+        { id: "pay_paid", attributes: { status: "paid" } },
+      ],
+    });
+  }) as typeof fetch;
+
+  const client = createPaymongoClient(config, fetchImpl);
+  const result = await client.retrieveCheckoutSession("cs_test_123");
+
+  assert.equal(capturedUrl, "https://api.paymongo.test/v1/checkout_sessions/cs_test_123");
+  assert.equal(capturedInit?.method, "GET");
+  assert.equal((capturedInit?.headers as Record<string, string>)["Idempotency-Key"], undefined);
+  assert.equal(result.paymentId, "pay_paid");
+  assert.equal(result.status, "paid");
 });
 
 test("createCheckoutSession maps PayMongo API errors to safe structured errors", async () => {
@@ -124,6 +151,19 @@ test("createCheckoutSession maps PayMongo API errors to safe structured errors",
       && error.code === "PAYMONGO_API_ERROR"
       && error.statusCode === 400
       && !error.message.includes("secret raw detail"),
+  );
+});
+
+test("retrieveCheckoutSession maps unknown sessions to a safe not-found error", async () => {
+  const fetchImpl = (async () =>
+    new Response(JSON.stringify({ errors: [{ detail: "raw upstream detail" }] }), { status: 404 })) as typeof fetch;
+  const client = createPaymongoClient(config, fetchImpl);
+
+  await assert.rejects(
+    () => client.retrieveCheckoutSession("cs_missing"),
+    (error) => error instanceof AppError
+      && error.code === "PAYMONGO_CHECKOUT_NOT_FOUND"
+      && !error.message.includes("raw upstream detail"),
   );
 });
 

@@ -17,6 +17,7 @@
     "typecheck:api": "tsc -p server/tsconfig.json --noEmit",
     "typecheck": "npm run typecheck:web && npm run typecheck:api",
     "test:api": "tsx --test server/src/**/*.test.ts",
+    "test:paymongo-core": "tsx --test server/src/modules/paymongo/*.test.ts server/src/modules/payment-references/*.test.ts server/src/modules/membership-applications/*.test.ts server/src/db/*.test.ts src/features/finance/*.test.ts",
     "test:e2e": "playwright test",
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
@@ -24,6 +25,7 @@
     "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",
     "records:verify": "tsx scripts/verify-records-modules.ts",
     "test:records": "tsx --test src/features/records/**/*.test.ts",
+    "security:scan": "tsx scripts/scan-secrets.ts",
     "user:create": "tsx server/src/scripts/create-user.ts"
   },
   "dependencies": {

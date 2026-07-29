@@ -60,6 +60,7 @@ export type PaymentReferenceListQuery = {
   validationSource?: NonNullable<PaymentReference["validationSource"]>;
   gatewayOnly?: boolean;
   manualOnly?: boolean;
+  failedEvents?: boolean;
   dateFrom?: string;
   dateTo?: string;
   amountMin?: number;
@@ -68,8 +69,23 @@ export type PaymentReferenceListQuery = {
   sortDirection: "asc" | "desc";
 };
 
+export type PaymentReferenceListItem = PaymentReference & {
+  memberCode: string | null;
+  memberName: string | null;
+  applicationCode: string | null;
+  applicationName: string | null;
+  failedGatewayEvents: number;
+};
+
 export type PaymentReferenceListResult = {
   paymentReferences: PaymentReference[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type PaymentValidationListResult = {
+  items: PaymentReferenceListItem[];
   total: number;
   page: number;
   pageSize: number;
@@ -104,13 +120,47 @@ export type PaymentGatewayEventSummary = {
   paymentId: string | null;
   paymentIntentId: string | null;
   livemode: boolean;
-  payloadHash: string;
-  processingStatus: "Received" | "Processed" | "Ignored" | "Failed";
+  processingStatus: "Received" | "Processing" | "Processed" | "Ignored" | "Failed";
+  retryCount: number;
+  signatureVerified: boolean;
+  eligibleForRetry: boolean;
   errorCode: string | null;
   errorMessage: string | null;
+  amount: number | null;
+  currency: string | null;
+  paymentStatus: string | null;
+  paymentMethod: string | null;
+  paidAt: Date | null;
   receivedAt: Date;
   processedAt: Date | null;
 };
+
+export type PaymentCheckoutAttemptSummary = {
+  id: string;
+  attemptNumber: number;
+  checkoutId: string;
+  gatewayStatus: string | null;
+  gatewayEnvironment: "Test" | "Live";
+  amount: number;
+  currency: "PHP";
+  lastCheckedAt: Date | null;
+  reusableUntil: Date;
+  supersededAt: Date | null;
+  completedAt: Date | null;
+  active: boolean;
+};
+
+export type PaymentReceiptSummary = {
+  receiptNumber: string;
+  processingStatus: "Pending" | "Processing" | "Generated" | "Failed";
+  documentId: string | null;
+  attemptCount: number;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  generatedAt: Date | null;
+  reversedAt: Date | null;
+  reversalNote: string | null;
+} | null;
 
 export type PaymentPostingSummary = {
   financialRecordId: string | null;
@@ -127,11 +177,26 @@ export type PaymentPostingSummary = {
 export type PaymentReferenceDetail = PaymentReference & {
   memberCode: string | null;
   memberName: string | null;
+  applicationCode?: string | null;
+  applicationName?: string | null;
   submittedByName: string | null;
   validatedByName: string | null;
   validationHistory: PaymentValidationHistoryEntry[];
   gatewayEvents: PaymentGatewayEventSummary[];
+  checkoutAttempts?: PaymentCheckoutAttemptSummary[];
+  activeAttemptId?: string | null;
+  receipt?: PaymentReceiptSummary;
   posting: PaymentPostingSummary;
+};
+
+export type GatewayRetryResult = {
+  gatewayEventId: string;
+  paymentReferenceId: string;
+  processingStatus: "Processed";
+  retryCount: number;
+  alreadyProcessed: boolean;
+  receiptStatus: "Pending" | "Processing" | "Generated" | "Failed" | null;
+  receiptErrorCode: string | null;
 };
 
 export type PaymentReferenceInput = {
@@ -151,12 +216,6 @@ export type PaymentReferenceInput = {
 };
 
 export type UpdatePaymentReferenceInput = Partial<PaymentReferenceInput>;
-
-export type ReviewPaymentReferenceInput = {
-  reason?: string | null;
-};
-
-export type ReversePaymentReferenceInput = {
-  reason: string;
-  confirmation: string;
-};
+export type ReviewPaymentReferenceInput = { reason?: string | null };
+export type ReversePaymentReferenceInput = { reason: string; confirmation: string };
+export type RetryGatewayEventInput = { note: string };

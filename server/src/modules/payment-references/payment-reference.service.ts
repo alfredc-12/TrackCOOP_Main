@@ -5,16 +5,27 @@ import {
   type PaymentSettlementService,
 } from "../paymongo/paymongo.settlement";
 import {
+  createPaymentReceiptService,
+  type PaymentReceiptService,
+} from "../paymongo/paymongo.settlement.receipt";
+import {
   createPaymentReferenceRepository,
   type PaymentReferenceRepository,
 } from "./payment-reference.repository";
+import {
+  createPaymentReferenceReviewService,
+  type PaymentReferenceReviewService,
+} from "./payment-reference.review";
+import {
+  createPaymentReferenceReversalService,
+  type PaymentReferenceReversalService,
+} from "./payment-reference.reversal";
 import type {
   PaymentReferenceInput,
   PaymentReferenceListQuery,
   ReviewPaymentReferenceInput,
   ReversePaymentReferenceInput,
   UpdatePaymentReferenceInput,
-  ValidationStatus,
 } from "./payment-reference.types";
 
 export interface PaymentReferenceService {
@@ -23,120 +34,97 @@ export interface PaymentReferenceService {
   getPaymentReference(id: string): ReturnType<PaymentReferenceRepository["findById"]>;
   getPaymentReferenceDetail(id: string): ReturnType<PaymentReferenceRepository["detail"]>;
   getPaymentReferenceProof(id: string): Promise<{ filePath: string; fileName: string; mimeType: string } | null>;
-  createPaymentReference(input: PaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["create"]>;
+  getPaymentReceiptStatus(id: string): ReturnType<PaymentReceiptService["getStatus"]>;
+  retryPaymentReceipt(id: string): ReturnType<PaymentReceiptService["process"]>;
+  createPaymentReference(input: PaymentReferenceInput, auth: AuthContext): Promise<Awaited<ReturnType<PaymentReferenceRepository["create"]>>>;
   updatePaymentReference(id: string, input: UpdatePaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["update"]>;
-  validatePaymentReference(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["setValidationStatus"]>;
-  rejectPaymentReference(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["setValidationStatus"]>;
-  requestClarification(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["setValidationStatus"]>;
-  reversePaymentReference(id: string, input: ReversePaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["reverse"]>;
+  validatePaymentReference(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): Promise<Awaited<ReturnType<PaymentReferenceRepository["findById"]>>>;
+  rejectPaymentReference(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): Promise<Awaited<ReturnType<PaymentReferenceRepository["findById"]>>>;
+  requestClarification(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): Promise<Awaited<ReturnType<PaymentReferenceRepository["findById"]>>>;
+  returnToPending(id: string, input: ReviewPaymentReferenceInput, auth: AuthContext): Promise<Awaited<ReturnType<PaymentReferenceRepository["findById"]>>>;
+  reversePaymentReference(id: string, input: ReversePaymentReferenceInput, auth: AuthContext): ReturnType<PaymentReferenceRepository["detail"]>;
 }
 
 export function createPaymentReferenceService(
   repository: PaymentReferenceRepository = createPaymentReferenceRepository(),
   settlementService: PaymentSettlementService = createPaymentSettlementService(),
+  reviewService: PaymentReferenceReviewService = createPaymentReferenceReviewService(),
+  reversalService: PaymentReferenceReversalService = createPaymentReferenceReversalService(),
+  receiptService: PaymentReceiptService = createPaymentReceiptService(),
 ): PaymentReferenceService {
-  async function transition(
+  async function requireUpdated(id: string) {
+    const updated = await repository.findById(id);
+    if (!updated) throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
+    return updated;
+  }
+  async function review(
     id: string,
-    status: ValidationStatus,
+    newStatus: "Pending" | "Needs Clarification" | "Rejected",
     input: ReviewPaymentReferenceInput,
     auth: AuthContext,
   ) {
-    const existing = await repository.findById(id);
-    if (!existing) {
-      throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
-    }
-    if (existing.validationStatus === status) {
-      throw new AppError(
-        "Payment reference is already in that status",
-        400,
-        "PAYMENT_REFERENCE_STATUS_UNCHANGED",
-      );
-    }
-    if (status !== "Validated" && !input.reason?.trim()) {
-      throw new AppError(
-        "A reason is required for rejected or clarification statuses",
-        400,
-        "PAYMENT_REVIEW_REASON_REQUIRED",
-      );
-    }
-    return repository.setValidationStatus(id, status, input, auth);
+    await reviewService.transition({
+      paymentReferenceId: id,
+      newStatus,
+      reason: input.reason ?? "",
+      auth,
+    });
+    return requireUpdated(id);
   }
 
   return {
-    listPaymentReferences(query) {
-      return repository.list(query);
-    },
-    getPaymentReferenceSummary() {
-      return repository.summary();
-    },
-    getPaymentReference(id) {
-      return repository.findById(id);
-    },
-    getPaymentReferenceDetail(id) {
-      return repository.detail(id);
-    },
+    listPaymentReferences: (query) => repository.list(query),
+    getPaymentReferenceSummary: () => repository.summary(),
+    getPaymentReference: (id) => repository.findById(id),
+    getPaymentReferenceDetail: (id) => repository.detail(id),
     async getPaymentReferenceProof(id) {
       const payment = await repository.findById(id);
-      if (!payment) {
-        throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
-      }
+      if (!payment) throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
       if (!payment.proofFilePath) return null;
-      const extension = payment.proofFilePath.toLowerCase().endsWith(".pdf")
-        ? "pdf"
-        : payment.proofFilePath.toLowerCase().endsWith(".png")
-          ? "png"
-          : "jpg";
+      const extension = payment.proofFilePath.toLowerCase().endsWith(".pdf") ? "pdf"
+        : payment.proofFilePath.toLowerCase().endsWith(".png") ? "png" : "jpg";
       return {
         filePath: payment.proofFilePath,
         fileName: `${payment.referenceNumber}.${extension}`,
-        mimeType: extension === "pdf"
-          ? "application/pdf"
-          : extension === "png"
-            ? "image/png"
-            : "image/jpeg",
+        mimeType: extension === "pdf" ? "application/pdf" : extension === "png" ? "image/png" : "image/jpeg",
       };
     },
-    createPaymentReference(input, auth) {
-      return repository.create(input, auth);
+    getPaymentReceiptStatus: (id) => receiptService.getStatus(id),
+    retryPaymentReceipt: (id) => receiptService.process(id),
+    async createPaymentReference(input, auth) {
+      const created = await repository.create(input, auth);
+      await reviewService.ensureInitialPendingHistory(created.id, auth);
+      return created;
     },
-    updatePaymentReference(id, input, auth) {
-      return repository.update(id, input, auth);
+    updatePaymentReference: (id, input, auth) => repository.update(id, input, auth),
+    async validatePaymentReference(id, _input, auth) {
+      const existing = await repository.findById(id);
+      if (!existing) throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
+      if (existing.validationStatus === "Validated") {
+        throw new AppError("Payment reference is already in that status", 400, "PAYMENT_REFERENCE_STATUS_UNCHANGED");
+      }
+      await settlementService.settlePaymentReference({
+        paymentReferenceId: id,
+        validationSource: "Manual Bookkeeper",
+        actorUserId: auth.user.id,
+        gatewayEventId: null,
+        gatewayDetails: null,
+      });
+      return requireUpdated(id);
     },
-    validatePaymentReference(id, input, auth) {
-      return (async () => {
-        const existing = await repository.findById(id);
-        if (!existing) {
-          throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
-        }
-        if (existing.validationStatus === "Validated") {
-          throw new AppError(
-            "Payment reference is already in that status",
-            400,
-            "PAYMENT_REFERENCE_STATUS_UNCHANGED",
-          );
-        }
-        await settlementService.settlePaymentReference({
-          paymentReferenceId: id,
-          validationSource: "Manual Bookkeeper",
-          actorUserId: auth.user.id,
-          gatewayEventId: null,
-          gatewayDetails: null,
-        });
-        const updated = await repository.findById(id);
-        if (!updated) {
-          throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
-        }
-        return updated;
-      })();
-    },
-    rejectPaymentReference(id, input, auth) {
-      return transition(id, "Rejected", input, auth);
-    },
-    requestClarification(id, input, auth) {
-      return transition(id, "Needs Clarification", input, auth);
-    },
-    reversePaymentReference(id, input, auth) {
-      return repository.reverse(id, input, auth);
+    rejectPaymentReference: (id, input, auth) => review(id, "Rejected", input, auth),
+    requestClarification: (id, input, auth) => review(id, "Needs Clarification", input, auth),
+    returnToPending: (id, input, auth) => review(id, "Pending", input, auth),
+    async reversePaymentReference(id, input, auth) {
+      await reversalService.reverse({
+        paymentReferenceId: id,
+        confirmation: input.confirmation,
+        reason: input.reason,
+        auth,
+      });
+      const reversed = await repository.detail(id);
+      if (!reversed) throw new AppError("Payment reference was not found", 404, "PAYMENT_REFERENCE_NOT_FOUND");
+      return reversed;
     },
   };
 }

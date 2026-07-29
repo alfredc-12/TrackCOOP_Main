@@ -4,23 +4,28 @@ const nullableString = z.string().nullable().optional();
 
 const paymongoPaymentSchema = z.object({
   id: z.string(),
+  attributes: z.object({
+    status: z.string().nullable().optional(),
+  }).passthrough().optional(),
 }).passthrough();
 
 const paymongoPaymentIntentSchema = z.object({
   id: z.string(),
 }).passthrough();
 
+const paymongoCheckoutSessionAttributesSchema = z.object({
+  checkout_url: z.string().url(),
+  status: nullableString,
+  livemode: z.boolean().nullable().optional(),
+  payment_intent: paymongoPaymentIntentSchema.nullable().optional(),
+  payments: z.array(paymongoPaymentSchema).nullable().optional(),
+}).passthrough();
+
 export const paymongoCheckoutSessionResponseSchema = z.object({
   data: z.object({
     id: z.string(),
     type: z.literal("checkout_session").optional(),
-    attributes: z.object({
-      checkout_url: z.string().url(),
-      status: nullableString,
-      livemode: z.boolean().nullable().optional(),
-      payment_intent: paymongoPaymentIntentSchema.nullable().optional(),
-      payments: z.array(paymongoPaymentSchema).nullable().optional(),
-    }).passthrough(),
+    attributes: paymongoCheckoutSessionAttributesSchema,
   }).passthrough(),
 });
 
@@ -44,6 +49,35 @@ export const paymongoMembershipCheckoutBodySchema = z.discriminatedUnion(
 export type PaymongoMembershipCheckoutBody = z.infer<
   typeof paymongoMembershipCheckoutBodySchema
 >;
+
+
+export const paymongoMemberShareCapitalCheckoutBodySchema = z.object({
+  requestedAmount: z.coerce.number().finite().positive(),
+  clientRequestId: z.string().uuid(),
+});
+
+export type PaymongoMemberShareCapitalCheckoutBody = z.infer<
+  typeof paymongoMemberShareCapitalCheckoutBodySchema
+>;
+
+const paymongoWebhookDataObjectEnvelopeSchema = z.object({
+  id: z.string().optional(),
+  type: z.string().optional(),
+}).passthrough();
+
+export const paymongoWebhookEnvelopeSchema = z.object({
+  data: z.object({
+    id: z.string().optional(),
+    type: z.literal("event").optional(),
+    attributes: z.object({
+      type: z.string().min(1),
+      livemode: z.boolean().optional(),
+      data: paymongoWebhookDataObjectEnvelopeSchema.optional(),
+    }).passthrough(),
+  }).passthrough(),
+}).passthrough();
+
+export type PaymongoWebhookEnvelopeBody = z.infer<typeof paymongoWebhookEnvelopeSchema>;
 
 const paymongoWebhookPaymentSchema = z.object({
   id: z.string().min(1),

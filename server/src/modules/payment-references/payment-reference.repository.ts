@@ -82,8 +82,15 @@ type GatewayEventRow = RowDataPacket & {
   livemode: number;
   payloadHash: string;
   processingStatus: PaymentGatewayEventSummary["processingStatus"];
+  retryCount: number;
+  signatureVerifiedAt: Date | null;
   errorCode: string | null;
   errorMessage: string | null;
+  amount: string | number | null;
+  currency: string | null;
+  paymentStatus: string | null;
+  paymentMethod: string | null;
+  paidAt: Date | null;
   receivedAt: Date;
   processedAt: Date | null;
 };
@@ -336,8 +343,15 @@ export function createPaymentReferenceRepository(
                 livemode,
                 payload_sha256 AS payloadHash,
                 processing_status AS processingStatus,
+                retry_count AS retryCount,
+                signature_verified_at AS signatureVerifiedAt,
                 error_code AS errorCode,
                 error_message AS errorMessage,
+                gateway_amount AS amount,
+                gateway_currency AS currency,
+                gateway_payment_status AS paymentStatus,
+                gateway_payment_method AS paymentMethod,
+                gateway_paid_at AS paidAt,
                 received_at AS receivedAt,
                 processed_at AS processedAt
            FROM payment_gateway_events
@@ -382,6 +396,9 @@ export function createPaymentReferenceRepository(
         gatewayEvents: eventRows.map((event) => ({
           ...event,
           livemode: Boolean(event.livemode),
+          signatureVerified: Boolean(event.signatureVerifiedAt),
+          eligibleForRetry: event.processingStatus === "Failed" && Boolean(event.signatureVerifiedAt),
+          amount: event.amount == null ? null : Number(event.amount),
         })),
         posting: {
           financialRecordId: postingRow?.financialRecordId ?? null,

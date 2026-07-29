@@ -12,16 +12,24 @@ import {
   type PaymongoClient,
 } from "./paymongo.client";
 import {
+  createPaymongoCheckoutAttemptRepository,
+  type PaymongoCheckoutAttemptRepository,
+} from "./paymongo.checkout-attempt.repository";
+import {
   createPaymongoRepository,
   type PaymongoRepository,
 } from "./paymongo.repository";
+import {
+  createPaymongoMembershipInstallmentRepository,
+  type PaymongoMembershipInstallmentRepository,
+} from "./paymongo.membership-installment.repository";
 import type {
   PaymongoCheckoutRequest,
   PaymongoCheckoutResult,
   PaymongoConfig,
-  PaymongoGatewayEnvironment,
   PaymongoMembershipApplicationRecord,
   PaymongoMembershipCheckoutInput,
+  PaymongoOnlineGatewayEnvironment,
   PaymongoPaymentReferenceRecord,
   PaymongoPaymentStatus,
   PaymongoPublicCheckoutResult,
@@ -29,13 +37,26 @@ import type {
 
 const pendingStatuses = new Set(["Pending", "Needs Clarification"]);
 const manualChannels = new Set(["Manual GCash", "Cash", "Bank Transfer"]);
+const supportedPaymongoPurposes = new Set([
+  "Associate Membership Fee",
+  "Share Capital",
+]);
+const defaultCheckoutReuseMinutes = 30;
 
-function gatewayEnvironment(mode: PaymongoConfig["mode"]): PaymongoGatewayEnvironment {
+function gatewayEnvironment(mode: PaymongoConfig["mode"]): PaymongoOnlineGatewayEnvironment {
   return mode === "live" ? "Live" : "Test";
 }
 
-function stableIdempotencyKey(paymentReferenceId: string) {
-  return `trackcoop-paymongo-payment-reference-${paymentReferenceId}`;
+function checkoutReuseMinutes(config: PaymongoConfig) {
+  const value = config.checkoutReuseMinutes ?? defaultCheckoutReuseMinutes;
+  if (!Number.isInteger(value) || value < 1 || value > 1440) {
+    throw new AppError(
+      "PayMongo checkout reuse interval is invalid",
+      503,
+      "PAYMONGO_CHECKOUT_REUSE_INVALID",
+    );
+  }
+  return value;
 }
 
 function requirePaymentReference(record: PaymongoPaymentReferenceRecord | null) {
@@ -83,7 +104,7 @@ function assertCanAccessPayment(record: PaymongoPaymentReferenceRecord, auth: Au
 }
 
 function assertApplicationCanStartCheckout(application: PaymongoMembershipApplicationRecord) {
-  if (["Rejected", "Withdrawn"].includes(application.applicationStatus)) {
+  if (["Approved", "Rejected", "Withdrawn"].includes(application.applicationStatus)) {
     throw new AppError(
       "This membership application is not eligible for online payment",
       409,
@@ -92,27 +113,48 @@ function assertApplicationCanStartCheckout(application: PaymongoMembershipApplic
   }
 }
 
-function assertEligibleForCheckout(record: PaymongoPaymentReferenceRecord, environment: PaymongoGatewayEnvironment) {
+function assertPaymongoPurposeSupported(paymentPurpose: string) {
+  if (!supportedPaymongoPurposes.has(paymentPurpose)) {
+    throw new AppError(
+      "PayMongo checkout is not implemented for this payment purpose",
+      409,
+      "PAYMENT_PURPOSE_GATEWAY_NOT_IMPLEMENTED",
+    );
+  }
+}
+
+function assertEligibleForCheckout(
+  record: PaymongoPaymentReferenceRecord,
+  environment: PaymongoOnlineGatewayEnvironment,
+) {
   if (record.validationStatus === "Validated") {
     throw new AppError("This payment has already been validated", 409, "PAYMENT_ALREADY_VALIDATED");
+  }
+  if (record.validationStatus === "Reversed") {
+    throw new AppError("A reversed payment cannot create a checkout", 409, "PAYMENT_REVERSED");
   }
   if (!pendingStatuses.has(record.validationStatus)) {
     throw new AppError("This payment is not eligible for PayMongo checkout", 409, "PAYMENT_NOT_ELIGIBLE");
   }
-  if (record.amount <= 0) {
+  if (!Number.isFinite(record.amount) || record.amount <= 0) {
     throw new AppError("This payment has an invalid amount", 409, "PAYMENT_AMOUNT_INVALID");
   }
+  assertPaymongoPurposeSupported(record.paymentPurpose);
   if (manualChannels.has(record.paymentChannel)) {
     throw new AppError("Manual payment references cannot create PayMongo checkouts", 409, "PAYMENT_CHANNEL_MANUAL");
   }
   if (record.gatewayEnvironment !== "Manual" && record.gatewayEnvironment !== environment) {
-    throw new AppError("This payment was created for a different gateway environment", 409, "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH");
+    throw new AppError(
+      "This payment was created for a different gateway environment",
+      409,
+      "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH",
+    );
   }
 }
 
 function assertMembershipReferenceEligible(
   record: PaymongoPaymentReferenceRecord,
-  environment: PaymongoGatewayEnvironment,
+  environment: PaymongoOnlineGatewayEnvironment,
 ) {
   try {
     assertEligibleForCheckout(record, environment);
@@ -137,6 +179,38 @@ function assertMembershipReferenceEligible(
   }
 }
 
+function assertApplicationPaymentReferenceMatches(input: {
+  record: PaymongoPaymentReferenceRecord;
+  application: PaymongoMembershipApplicationRecord;
+  paymentPurpose: PaymongoMembershipCheckoutInput["paymentPurpose"];
+  amount: number;
+}) {
+  if (
+    input.record.relatedEntityType !== "membership_application"
+    || input.record.relatedEntityId !== input.application.id
+  ) {
+    throw new AppError(
+      "The payment reference does not belong to this membership application",
+      409,
+      "MEMBERSHIP_PAYMENT_REFERENCE_MISMATCH",
+    );
+  }
+  if (input.record.paymentPurpose !== input.paymentPurpose) {
+    throw new AppError(
+      "The payment reference purpose does not match the requested checkout",
+      409,
+      "MEMBERSHIP_PAYMENT_PURPOSE_MISMATCH",
+    );
+  }
+  if (Math.round(input.record.amount * 100) !== Math.round(input.amount * 100)) {
+    throw new AppError(
+      "The payment reference amount does not match the requested checkout",
+      409,
+      "MEMBERSHIP_PAYMENT_AMOUNT_MISMATCH",
+    );
+  }
+}
+
 function checkoutPublicStatus(record: PaymongoPaymentReferenceRecord) {
   return record.validationStatus === "Validated" ? "Confirmed" : "Waiting";
 }
@@ -149,7 +223,10 @@ function checkoutLineName(record: PaymongoPaymentReferenceRecord) {
   return record.paymentPurpose || "TrackCOOP payment";
 }
 
-function checkoutMetadata(record: PaymongoPaymentReferenceRecord, environment: PaymongoGatewayEnvironment) {
+function checkoutMetadata(
+  record: PaymongoPaymentReferenceRecord,
+  environment: PaymongoOnlineGatewayEnvironment,
+) {
   return {
     trackcoop_payment_reference_id: record.id,
     trackcoop_reference_number: record.referenceNumber,
@@ -215,43 +292,54 @@ export function createPaymongoService(options: {
   config?: PaymongoConfig;
   client?: PaymongoClient;
   repository?: PaymongoRepository;
+  attemptRepository?: PaymongoCheckoutAttemptRepository;
+  membershipInstallmentRepository?: PaymongoMembershipInstallmentRepository;
 } = {}): PaymongoService {
   const config = options.config ?? createPaymongoConfigFromEnv();
   const client = options.client ?? createPaymongoClient(config);
   const repository = options.repository ?? createPaymongoRepository();
+  const attemptRepository = options.attemptRepository
+    ?? createPaymongoCheckoutAttemptRepository();
+  const membershipInstallmentRepository = options.membershipInstallmentRepository
+    ?? createPaymongoMembershipInstallmentRepository();
 
   return {
     async createPaymentReferenceCheckout(paymentReferenceId, auth) {
       validatePaymongoConfig(config);
-      const record = requirePaymentReference(await repository.findPaymentReference(paymentReferenceId));
-      assertCanAccessPayment(record, auth);
+      const initialRecord = requirePaymentReference(
+        await repository.findPaymentReference(paymentReferenceId),
+      );
+      assertCanAccessPayment(initialRecord, auth);
 
       const environment = gatewayEnvironment(config.mode);
-      assertEligibleForCheckout(record, environment);
-
-      const idempotencyKey = record.idempotencyKey ?? stableIdempotencyKey(record.id);
-      const session = await client.createCheckoutSession(
-        buildCheckoutRequest(record, config),
-        idempotencyKey,
-      );
-
-      await repository.recordCheckoutSession({
-        paymentReferenceId: record.id,
-        session,
+      const result = await attemptRepository.createOrReuseCheckoutAttempt({
+        paymentReferenceId: initialRecord.id,
         environment,
-        idempotencyKey,
+        reuseMinutes: checkoutReuseMinutes(config),
+        validateRecord(record) {
+          assertCanAccessPayment(record, auth);
+          assertEligibleForCheckout(record, environment);
+        },
+        createSession(record, idempotencyKey) {
+          return client.createCheckoutSession(
+            buildCheckoutRequest(record, config),
+            idempotencyKey,
+          );
+        },
       });
 
       return {
-        paymentReferenceId: record.id,
-        referenceNumber: record.referenceNumber,
-        checkoutId: session.id,
-        checkoutUrl: session.checkoutUrl,
-        gatewayStatus: session.status,
-        validationStatus: record.validationStatus,
-        amount: record.amount,
+        paymentReferenceId: result.record.id,
+        referenceNumber: result.record.referenceNumber,
+        checkoutId: result.attempt.checkoutId,
+        checkoutUrl: result.attempt.checkoutUrl,
+        gatewayStatus: result.attempt.gatewayStatus,
+        validationStatus: result.record.validationStatus,
+        amount: result.record.amount,
         currency: "PHP",
         mode: config.mode,
+        attemptNumber: result.attempt.attemptNumber,
+        reused: result.reused,
       };
     },
 
@@ -264,85 +352,110 @@ export function createPaymongoService(options: {
       assertApplicationCanStartCheckout(application);
 
       const settings = await repository.getMembershipPaymentSettings();
-      let amount: number;
-      if (input.paymentPurpose === "Associate Membership Fee") {
-        amount = settings.associateFee;
-        const validatedFee = await repository.getValidatedMembershipPaymentTotal({
-          applicationId: application.id,
-          paymentPurpose: "Associate Membership Fee",
-        });
-        if (validatedFee >= settings.associateFee) {
-          throw new AppError(
-            "The associate membership fee has already been paid",
-            409,
-            "MEMBERSHIP_FEE_ALREADY_VALIDATED",
-          );
-        }
-      } else {
-        if (application.requestedMembershipType !== "True Member") {
-          throw new AppError(
-            "Share capital checkout is only available for True Member applicants",
-            409,
-            "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
-          );
-        }
-        amount = input.requestedAmount ?? 0;
-        if (amount < settings.initialShareCapital) {
-          throw new AppError(
-            "Initial share capital payment must be at least PHP 1,500",
-            400,
-            "SHARE_CAPITAL_AMOUNT_BELOW_MINIMUM",
-          );
-        }
-        const validatedCapital = await repository.getValidatedMembershipPaymentTotal({
-          applicationId: application.id,
-          paymentPurpose: "Share Capital",
-        });
-        if (validatedCapital + amount > settings.maximumShareCapital) {
-          throw new AppError(
-            "Share capital payment would exceed the maximum allowed amount",
-            409,
-            "SHARE_CAPITAL_MAXIMUM_EXCEEDED",
-          );
-        }
+      const environment = gatewayEnvironment(config.mode);
+      const requestedAmount = input.paymentPurpose === "Associate Membership Fee"
+        ? settings.associateFee
+        : input.requestedAmount ?? 0;
+
+      if (input.paymentPurpose === "Share Capital" && application.requestedMembershipType !== "True Member") {
+        throw new AppError(
+          "Share capital checkout is only available for True Member applicants",
+          409,
+          "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
+        );
       }
 
-      const record = await repository.prepareMembershipPaymentReference({
+      const record = await membershipInstallmentRepository.prepareMembershipPaymentReference({
         application,
-        paymentPurpose: input.paymentPurpose,
-        amount,
-      });
-      const environment = gatewayEnvironment(config.mode);
-      assertMembershipReferenceEligible(record, environment);
-
-      const idempotencyKey = record.idempotencyKey ?? stableIdempotencyKey(record.id);
-      const session = await client.createCheckoutSession(
-        buildCheckoutRequest(record, config),
-        idempotencyKey,
-      );
-
-      await repository.recordCheckoutSession({
-        paymentReferenceId: record.id,
-        session,
+        purpose: input.paymentPurpose,
+        requestedAmount,
+        settings,
         environment,
-        idempotencyKey,
+      });
+      const result = await attemptRepository.createOrReuseCheckoutAttempt({
+        paymentReferenceId: record.id,
+        environment,
+        reuseMinutes: checkoutReuseMinutes(config),
+        async validateRecord(lockedRecord, connection) {
+          assertApplicationPaymentReferenceMatches({
+            record: lockedRecord,
+            application,
+            paymentPurpose: input.paymentPurpose,
+            amount: record.amount,
+          });
+          assertMembershipReferenceEligible(lockedRecord, environment);
+          await membershipInstallmentRepository.assertCheckoutCapacity({
+            connection,
+            applicationId: application.id,
+            paymentReferenceId: lockedRecord.id,
+            purpose: input.paymentPurpose,
+            amount: lockedRecord.amount,
+            settings,
+            environment,
+          });
+        },
+        createSession(lockedRecord, idempotencyKey) {
+          return client.createCheckoutSession(
+            buildCheckoutRequest(lockedRecord, config),
+            idempotencyKey,
+          );
+        },
       });
 
       return {
-        referenceNumber: record.referenceNumber,
-        checkoutUrl: session.checkoutUrl,
-        gatewayStatus: session.status,
+        referenceNumber: result.record.referenceNumber,
+        checkoutUrl: result.attempt.checkoutUrl,
+        gatewayStatus: result.attempt.gatewayStatus,
         paymentPurpose: input.paymentPurpose,
-        amount: record.amount,
+        amount: result.record.amount,
         currency: "PHP",
         mode: config.mode,
-        status: checkoutPublicStatus(record),
+        status: checkoutPublicStatus(result.record),
+        attemptNumber: result.attempt.attemptNumber,
+        reused: result.reused,
       };
     },
 
     async getPaymentReferenceStatus(paymentReferenceId, auth) {
-      const record = requirePaymentReference(await repository.findPaymentReference(paymentReferenceId));
+      let record = requirePaymentReference(
+        await repository.findPaymentReference(paymentReferenceId),
+      );
       assertCanAccessPayment(record, auth);
+
+      const attempt = await attemptRepository.findLatestCheckoutAttempt(record.id);
+      if (attempt) {
+        validatePaymongoConfig(config);
+        const environment = gatewayEnvironment(config.mode);
+        if (attempt.gatewayEnvironment !== environment) {
+          throw new AppError(
+            "This checkout attempt belongs to a different PayMongo environment",
+            409,
+            "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH",
+          );
+        }
+
+        const session = await client.retrieveCheckoutSession(attempt.checkoutId);
+        if (session.livemode !== null && session.livemode !== (config.mode === "live")) {
+          throw new AppError(
+            "PayMongo returned a checkout session from a different environment",
+            409,
+            "PAYMONGO_CHECKOUT_ENVIRONMENT_MISMATCH",
+          );
+        }
+        await attemptRepository.refreshCheckoutAttempt({
+          paymentReferenceId: record.id,
+          checkoutId: attempt.checkoutId,
+          session,
+        });
+        record = requirePaymentReference(
+          await repository.findPaymentReference(paymentReferenceId),
+        );
+        assertCanAccessPayment(record, auth);
+      }
+
+      const refreshedAttempt = attempt
+        ? await attemptRepository.findLatestCheckoutAttempt(record.id)
+        : null;
 
       return {
         paymentReferenceId: record.id,
@@ -357,6 +470,8 @@ export function createPaymongoService(options: {
         paidAt: record.paidAt,
         amount: record.amount,
         currency: "PHP",
+        checkoutAttemptNumber: refreshedAttempt?.attemptNumber ?? null,
+        gatewayLastCheckedAt: refreshedAttempt?.lastCheckedAt ?? null,
       };
     },
   };

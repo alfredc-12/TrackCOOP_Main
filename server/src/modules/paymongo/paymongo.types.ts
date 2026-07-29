@@ -3,6 +3,7 @@ import type { ValidationStatus } from "../payment-references/payment-reference.t
 
 export type PaymongoMode = "test" | "live";
 export type PaymongoGatewayEnvironment = "Test" | "Live" | "Manual";
+export type PaymongoOnlineGatewayEnvironment = Exclude<PaymongoGatewayEnvironment, "Manual">;
 export type PaymongoPaymentChannel =
   | "PayMongo"
   | "Manual GCash"
@@ -17,6 +18,7 @@ export type PaymongoConfig = {
   secretKey?: string;
   webhookSecret?: string;
   webhookToleranceSeconds: number;
+  checkoutReuseMinutes?: number;
   paymentMethodTypes: string[];
   passOnFees: boolean;
   successUrl: string;
@@ -60,6 +62,36 @@ export type PaymongoCheckoutSession = {
   livemode: boolean | null;
   paymentIntentId: string | null;
   paymentId: string | null;
+};
+
+export type PaymongoCheckoutAttemptRecord = {
+  id: string;
+  paymentReferenceId: string;
+  attemptNumber: number;
+  idempotencyKey: string;
+  checkoutId: string;
+  checkoutUrl: string | null;
+  gatewayStatus: string | null;
+  gatewayEnvironment: PaymongoOnlineGatewayEnvironment;
+  amount: number;
+  currency: "PHP";
+  lastCheckedAt: Date | null;
+  reusableUntil: Date;
+  supersededAt: Date | null;
+  completedAt: Date | null;
+};
+
+export type PaymongoReusableCheckoutAttemptRecord = Omit<
+  PaymongoCheckoutAttemptRecord,
+  "checkoutUrl"
+> & {
+  checkoutUrl: string;
+};
+
+export type PaymongoCheckoutAttemptResult = {
+  record: PaymongoPaymentReferenceRecord;
+  attempt: PaymongoReusableCheckoutAttemptRecord;
+  reused: boolean;
 };
 
 export type PaymongoPaymentReferenceRecord = {
@@ -124,6 +156,8 @@ export type PaymongoCheckoutResult = {
   amount: number;
   currency: "PHP";
   mode: PaymongoMode;
+  attemptNumber: number;
+  reused: boolean;
 };
 
 export type PaymongoPublicCheckoutResult = {
@@ -135,6 +169,8 @@ export type PaymongoPublicCheckoutResult = {
   currency: "PHP";
   mode: PaymongoMode;
   status: "Waiting" | "Confirmed";
+  attemptNumber: number;
+  reused: boolean;
 };
 
 export type PaymongoPaymentStatus = {
@@ -150,6 +186,60 @@ export type PaymongoPaymentStatus = {
   paidAt: Date | null;
   amount: number;
   currency: "PHP";
+  checkoutAttemptNumber: number | null;
+  gatewayLastCheckedAt: Date | null;
+};
+
+
+export type PaymongoMemberShareCapitalProfile = {
+  id: string;
+  userId: string;
+  memberCode: string;
+  fullName: string;
+  email: string | null;
+  contactNumber: string | null;
+  membershipType: "Associate" | "True Member";
+  approvalStatus: string;
+  officialMemberStatus: string;
+};
+
+export type PaymongoMemberShareCapitalCheckoutInput = {
+  requestedAmount: number;
+  clientRequestId: string;
+};
+
+export type PaymongoMemberShareCapitalHistoryItem = {
+  paymentReferenceId: string;
+  referenceNumber: string;
+  amount: number;
+  validationStatus: ValidationStatus;
+  gatewayStatus: string | null;
+  submittedAt: Date;
+  paidAt: Date | null;
+  receiptNumber: string | null;
+};
+
+export type PaymongoMemberShareCapitalSummary = {
+  memberId: string;
+  memberCode: string;
+  membershipType: "Associate" | "True Member";
+  officialMemberStatus: string;
+  validatedCapital: number;
+  activePendingCapital: number;
+  remainingToTrueMember: number;
+  maximumShareCapital: number;
+  availableCapacity: number;
+  mode: PaymongoMode;
+  eligible: boolean;
+  activeCheckout: {
+    paymentReferenceId: string;
+    checkoutId: string | null;
+    checkoutUrl: string;
+    attemptNumber: number | null;
+    gatewayStatus: string | null;
+    amount: number;
+  } | null;
+  history: PaymongoMemberShareCapitalHistoryItem[];
 };
 
 export type PaymongoCheckoutActor = AuthContext;
