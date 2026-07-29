@@ -15,7 +15,7 @@ const webhookParser = source("server/src/modules/paymongo/paymongo.webhook.ts");
 const webhookService = source("server/src/modules/paymongo/paymongo.webhook.service.ts");
 const paymentRoutes = source("server/src/modules/payment-references/payment-reference.routes.ts");
 const memberRoutes = source("server/src/modules/paymongo/paymongo.routes.ts");
-const completionSql = source("server/database/TrackCOOP_PAYMONGO_Core_Completion.sql");
+const mainSchemaSql = source("server/database/TrackCOOP_MAIN_Database.sql");
 
 const publicPaymentUi = source(
   "src/features/membership-applications/components/ApplicationStatusPayments.tsx",
@@ -74,13 +74,13 @@ test("authenticated Member checkout routes resolve only the current Member", () 
   assert.doesNotMatch(memberRoutes, /members\/:memberId\/share-capital/);
 });
 
-test("completion schema contains final PayMongo lifecycle tables without secrets", () => {
-  assert.match(completionSql, /CREATE TABLE(?: IF NOT EXISTS)? payment_gateway_checkout_attempts/);
-  assert.match(completionSql, /CREATE TABLE(?: IF NOT EXISTS)? payment_receipts/);
-  assert.match(completionSql, /signature_verified_at/);
-  assert.match(completionSql, /client_request_id/);
-  assert.doesNotMatch(completionSql, /sk_(?:test|live)_[A-Za-z0-9]{12,}/);
-  assert.doesNotMatch(completionSql, /whsec_[A-Za-z0-9]{12,}/);
+test("main schema contains final PayMongo lifecycle tables without secrets", () => {
+  assert.match(mainSchemaSql, /CREATE TABLE(?: IF NOT EXISTS)? payment_gateway_checkout_attempts/);
+  assert.match(mainSchemaSql, /CREATE TABLE(?: IF NOT EXISTS)? payment_receipts/);
+  assert.match(mainSchemaSql, /signature_verified_at/);
+  assert.match(mainSchemaSql, /client_request_id/);
+  assert.doesNotMatch(mainSchemaSql, /sk_(?:test|live)_[A-Za-z0-9]{12,}/);
+  assert.doesNotMatch(mainSchemaSql, /whsec_[A-Za-z0-9]{12,}/);
 });
 
 const browserFiles = [

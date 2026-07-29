@@ -20,11 +20,10 @@ files:
 The application does not import these files automatically. Run them manually
 against the configured MySQL database.
 
-Older one-off SQL files and historical migration scripts live in
-`server/database/migrations/`. Keep those files for existing databases that need
-manual upgrade history, but do not treat them as the fresh-install source of
-truth.
+Older one-off SQL files, historical migration scripts, and superseded overlays
+live in `server/database/migrations/`. Keep those files for existing databases
+that need manual upgrade history, but do not treat them as the fresh-install
+source of truth.
 
 Existing databases that were created before the PayMongo test integration should
-apply `migrations/20260726_add_paymongo_test_gateway.sql` manually after a
-backup.
+apply only the outstanding PayMongo migration files manually after a backup.
