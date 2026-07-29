@@ -37,6 +37,10 @@ function makePool(options: { failFinanceInsert?: boolean } = {}) {
         throw new Error("finance insert failed");
       }
 
+      if (sql.includes("COALESCE(SUM(amount), 0) AS total")) {
+        return [[{ total: "200.00" }], []];
+      }
+
       if (sql.includes("FROM payment_references")) {
         return [[{
           id: "900",
@@ -56,7 +60,14 @@ function makePool(options: { failFinanceInsert?: boolean } = {}) {
         }], []];
       }
       if (sql.includes("FROM users u") && sql.includes("JOIN roles")) {
-        return [[{ id: "2" }], []];
+        return [[{
+          id: "900",
+          displayName: "PayMongo System Service",
+          username: "paymongo-system",
+          accountStatus: "Active",
+          role: "bookkeeper",
+          roleIsActive: 1,
+        }], []];
       }
       if (sql.includes("FROM membership_applications")) {
         return [[{
@@ -97,7 +108,13 @@ function makePool(options: { failFinanceInsert?: boolean } = {}) {
 
 test("settlePaymentReference posts membership fee side effects in one transaction", async () => {
   const { pool, executeCalls, counters } = makePool();
-  const repository = createPaymentSettlementRepository(pool);
+  const repository = createPaymentSettlementRepository(pool, {
+    systemActorUserId: "900",
+    receiptService: {
+      async getStatus() { return null; },
+      async process() { return null; },
+    },
+  });
 
   const result = await repository.settlePaymentReference({
     paymentReferenceId: "900",
@@ -125,6 +142,8 @@ test("settlePaymentReference posts membership fee side effects in one transactio
     paymentReferenceId: "900",
     alreadySettled: false,
     validationStatus: "Validated",
+    receiptStatus: null,
+    receiptErrorCode: null,
   });
   assert.equal(counters.begin, 1);
   assert.equal(counters.commit, 1);
@@ -142,7 +161,13 @@ test("settlePaymentReference posts membership fee side effects in one transactio
 
 test("settlePaymentReference rolls back all business changes when posting fails", async () => {
   const { pool, counters } = makePool({ failFinanceInsert: true });
-  const repository = createPaymentSettlementRepository(pool);
+  const repository = createPaymentSettlementRepository(pool, {
+    systemActorUserId: "900",
+    receiptService: {
+      async getStatus() { return null; },
+      async process() { return null; },
+    },
+  });
 
   await assert.rejects(
     () => repository.settlePaymentReference({

@@ -147,6 +147,15 @@ function createUserService(): UserService {
     },
     async deleteUser() {},
     async resetPassword() {},
+    async exportUsersCsv() {
+      return "User ID,Username\n";
+    },
+    async bulkAction() {
+      return { count: 0 };
+    },
+    async getAuditLogs() {
+      return [];
+    },
   };
 }
 

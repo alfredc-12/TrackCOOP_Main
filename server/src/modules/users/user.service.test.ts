@@ -116,6 +116,12 @@ function createRepository(overrides: Partial<UserRepository> = {}): UserReposito
     },
     async hardDeleteUser() {},
     async resetPassword() {},
+    async bulkAction() {
+      return { count: 0 };
+    },
+    async getAuditLogs() {
+      return [];
+    },
     ...overrides,
   };
 }

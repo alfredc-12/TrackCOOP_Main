@@ -4,6 +4,7 @@ import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import { createPaymongoService } from "./paymongo.service";
 import type {
+  PaymongoCheckoutAttemptRecord,
   PaymongoCheckoutRequest,
   PaymongoCheckoutSession,
   PaymongoConfig,
@@ -86,7 +87,7 @@ function makeService(record: PaymongoPaymentReferenceRecord | null, options: {
   onCheckout?: (input: PaymongoCheckoutRequest, idempotencyKey: string) => Promise<PaymongoCheckoutSession>;
 } = {}) {
   const checkoutCalls: Array<{ input: PaymongoCheckoutRequest; idempotencyKey: string }> = [];
-  const updates: unknown[] = [];
+  const attempts: PaymongoCheckoutAttemptRecord[] = [];
   return {
     service: createPaymongoService({
       config: { ...config, ...options.configOverride },
@@ -94,6 +95,9 @@ function makeService(record: PaymongoPaymentReferenceRecord | null, options: {
         async createCheckoutSession(input, idempotencyKey) {
           checkoutCalls.push({ input, idempotencyKey });
           return options.onCheckout?.(input, idempotencyKey) ?? createSession();
+        },
+        async retrieveCheckoutSession() {
+          return createSession();
         },
       },
       repository: {
@@ -117,18 +121,72 @@ function makeService(record: PaymongoPaymentReferenceRecord | null, options: {
         async prepareMembershipPaymentReference() {
           return paymentReference;
         },
-        async recordCheckoutSession(input) {
-          updates.push(input);
+        async recordCheckoutSession() {
+          return undefined;
+        },
+      },
+      attemptRepository: {
+        async createOrReuseCheckoutAttempt(input) {
+          if (!record) {
+            throw new AppError(
+              "Payment reference was not found",
+              404,
+              "PAYMENT_REFERENCE_NOT_FOUND",
+            );
+          }
+          await input.validateRecord(record, null);
+          const reusable = attempts.find(
+            (attempt) =>
+              attempt.paymentReferenceId === input.paymentReferenceId
+              && attempt.gatewayEnvironment === input.environment
+              && !attempt.completedAt
+              && !attempt.supersededAt,
+          );
+          if (reusable?.checkoutUrl) {
+            return { record, attempt: { ...reusable, checkoutUrl: reusable.checkoutUrl }, reused: true };
+          }
+          const attemptNumber = attempts.length + 1;
+          const idempotencyKey =
+            record.idempotencyKey ?? `trackcoop-paymongo-payment-reference-${record.id}-attempt-${attemptNumber}`;
+          const session = await input.createSession(record, idempotencyKey);
+          const attempt: PaymongoCheckoutAttemptRecord & { checkoutUrl: string } = {
+            id: String(attemptNumber),
+            paymentReferenceId: record.id,
+            attemptNumber,
+            idempotencyKey,
+            checkoutId: session.id,
+            checkoutUrl: session.checkoutUrl,
+            gatewayStatus: session.status,
+            gatewayEnvironment: input.environment,
+            amount: record.amount,
+            currency: "PHP",
+            lastCheckedAt: null,
+            reusableUntil: new Date(Date.now() + input.reuseMinutes * 60_000),
+            supersededAt: null,
+            completedAt: null,
+          };
+          attempts.push(attempt);
+          return { record, attempt, reused: false };
+        },
+        async findLatestCheckoutAttempt() {
+          return attempts.at(-1) ?? null;
+        },
+        async refreshCheckoutAttempt(input) {
+          const attempt = attempts.find((item) => item.checkoutId === input.checkoutId);
+          if (attempt) {
+            attempt.gatewayStatus = input.session.status;
+            attempt.lastCheckedAt = new Date();
+          }
         },
       },
     }),
     checkoutCalls,
-    updates,
+    attempts,
   };
 }
 
 test("createPaymentReferenceCheckout uses trusted database fields for metadata and amount", async () => {
-  const { service, checkoutCalls, updates } = makeService(paymentReference);
+  const { service, checkoutCalls, attempts } = makeService(paymentReference);
   const result = await service.createPaymentReferenceCheckout("100", memberAuth);
 
   assert.equal(result.checkoutUrl, "https://checkout.paymongo.com/cs_test_100");
@@ -141,7 +199,7 @@ test("createPaymentReferenceCheckout uses trusted database fields for metadata a
   assert.equal(checkoutCalls[0].input.metadata.related_entity_type, "membership_application");
   assert.equal(checkoutCalls[0].input.metadata.related_entity_id, "30");
   assert.equal(checkoutCalls[0].input.metadata.environment, "Test");
-  assert.equal(updates.length, 1);
+  assert.equal(attempts.length, 1);
 });
 
 test("createPaymentReferenceCheckout allows bookkeeper assistance", async () => {
@@ -170,11 +228,11 @@ test("createPaymentReferenceCheckout reuses stable idempotency key for duplicate
   });
 
   await service.createPaymentReferenceCheckout("100", memberAuth);
-  await service.createPaymentReferenceCheckout("100", memberAuth);
+  const second = await service.createPaymentReferenceCheckout("100", memberAuth);
 
-  assert.equal(checkoutCalls.length, 2);
+  assert.equal(checkoutCalls.length, 1);
   assert.equal(checkoutCalls[0].idempotencyKey, "existing-idempotency-key");
-  assert.equal(checkoutCalls[1].idempotencyKey, "existing-idempotency-key");
+  assert.equal(second.reused, true);
 });
 
 test("createPaymentReferenceCheckout rejects already-paid and manual obligations", async () => {
@@ -208,6 +266,7 @@ test("getPaymentReferenceStatus enforces ownership and returns safe status", asy
     gatewayCheckoutId: "cs_test_100",
     gatewayStatus: "active",
   });
+  await service.createPaymentReferenceCheckout("100", memberAuth);
 
   const status = await service.getPaymentReferenceStatus("100", memberAuth);
 

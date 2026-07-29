@@ -67,6 +67,8 @@ DROP TABLE IF EXISTS `reports`;
 
 DROP TABLE IF EXISTS `document_access_logs`;
 
+DROP TABLE IF EXISTS `payment_receipts`;
+
 DROP TABLE IF EXISTS `documents`;
 
 DROP TABLE IF EXISTS `rental_pos_records`;
@@ -100,6 +102,8 @@ DROP TABLE IF EXISTS `share_capital_payments`;
 DROP TABLE IF EXISTS `membership_application_requirements`;
 
 DROP TABLE IF EXISTS `payment_validation_history`;
+
+DROP TABLE IF EXISTS `payment_gateway_checkout_attempts`;
 
 DROP TABLE IF EXISTS `payment_gateway_events`;
 
@@ -495,6 +499,7 @@ CREATE TABLE payment_references (
     paid_at DATETIME NULL,
     webhook_received_at DATETIME NULL,
     idempotency_key VARCHAR(190) NULL,
+    client_request_id CHAR(36) NULL,
     validation_source ENUM(
         'Manual Bookkeeper',
         'PayMongo Webhook',
@@ -506,6 +511,7 @@ CREATE TABLE payment_references (
     CONSTRAINT uq_payment_gateway_checkout UNIQUE (gateway_checkout_id),
     CONSTRAINT uq_payment_gateway_payment UNIQUE (gateway_payment_id),
     CONSTRAINT uq_payment_idempotency UNIQUE (idempotency_key),
+    CONSTRAINT uq_payment_client_request_id UNIQUE (client_request_id),
     CONSTRAINT fk_payment_reference_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_payment_reference_submitter FOREIGN KEY (submitted_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_payment_reference_validator FOREIGN KEY (validated_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
@@ -529,25 +535,95 @@ CREATE TABLE payment_gateway_events (
     payment_reference_id BIGINT UNSIGNED NULL,
     gateway_name VARCHAR(80) NOT NULL DEFAULT 'PayMongo',
     event_type VARCHAR(120) NOT NULL,
+    gateway_event_object_id VARCHAR(190) NULL,
     event_fingerprint CHAR(64) NOT NULL,
     gateway_checkout_id VARCHAR(190) NULL,
     gateway_payment_id VARCHAR(190) NULL,
     gateway_payment_intent_id VARCHAR(190) NULL,
+    gateway_reference_number VARCHAR(190) NULL,
+    gateway_amount DECIMAL(12, 2) NULL,
+    gateway_currency CHAR(3) NULL,
+    gateway_payment_status VARCHAR(80) NULL,
+    gateway_payment_method VARCHAR(80) NULL,
+    gateway_fee_amount DECIMAL(12, 2) NULL,
+    gateway_net_amount DECIMAL(12, 2) NULL,
+    gateway_paid_at DATETIME NULL,
     livemode TINYINT(1) NOT NULL DEFAULT 0,
     payload_sha256 CHAR(64) NOT NULL,
+    signature_verified_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     processing_status ENUM(
         'Received',
+        'Processing',
         'Processed',
         'Ignored',
         'Failed'
     ) NOT NULL DEFAULT 'Received',
     error_code VARCHAR(120) NULL,
     error_message TEXT NULL,
+    safe_error_message VARCHAR(1000) NULL,
+    recovery_note VARCHAR(1000) NULL,
+    last_retried_by BIGINT UNSIGNED NULL,
     received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     processed_at DATETIME NULL,
+    retry_count INT UNSIGNED NOT NULL DEFAULT 0,
+    processing_started_at DATETIME NULL,
+    last_attempt_at DATETIME NULL,
     CONSTRAINT uq_payment_gateway_event_fingerprint UNIQUE (event_fingerprint),
-    CONSTRAINT fk_payment_gateway_event_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references (payment_reference_id) ON UPDATE CASCADE ON DELETE SET NULL
+    CONSTRAINT uq_gateway_event_object UNIQUE (gateway_name, gateway_event_object_id),
+    CONSTRAINT fk_payment_gateway_event_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references (payment_reference_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_gateway_event_last_retried_by FOREIGN KEY (last_retried_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE = InnoDB;
+
+CREATE INDEX `idx_gateway_event_retry_eligibility` ON `payment_gateway_events` (
+    processing_status,
+    signature_verified_at,
+    payment_reference_id
+);
+
+CREATE INDEX `idx_payment_gateway_events_status_retry` ON `payment_gateway_events` (
+    processing_status,
+    retry_count,
+    last_attempt_at
+);
+
+CREATE INDEX `idx_payment_gateway_events_reference_number` ON `payment_gateway_events` (gateway_reference_number);
+
+CREATE TABLE payment_gateway_checkout_attempts (
+    payment_gateway_checkout_attempt_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    payment_reference_id BIGINT UNSIGNED NOT NULL,
+    gateway_name VARCHAR(80) NOT NULL DEFAULT 'PayMongo',
+    attempt_number INT UNSIGNED NOT NULL,
+    idempotency_key VARCHAR(190) NOT NULL,
+    gateway_checkout_id VARCHAR(190) NULL,
+    checkout_url VARCHAR(1000) NULL,
+    gateway_status VARCHAR(80) NULL,
+    gateway_environment ENUM('Test', 'Live') NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'PHP',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_checked_at DATETIME NULL,
+    reusable_until DATETIME NOT NULL,
+    superseded_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    CONSTRAINT uq_checkout_attempt_idempotency UNIQUE (idempotency_key),
+    CONSTRAINT uq_checkout_attempt_gateway_id UNIQUE (gateway_name, gateway_checkout_id),
+    CONSTRAINT uq_checkout_attempt_sequence UNIQUE (
+        payment_reference_id,
+        gateway_name,
+        attempt_number
+    ),
+    CONSTRAINT fk_checkout_attempt_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references (payment_reference_id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_checkout_attempt_active` ON `payment_gateway_checkout_attempts` (
+    payment_reference_id,
+    gateway_name,
+    gateway_environment,
+    reusable_until,
+    superseded_at,
+    completed_at
+);
 
 CREATE TABLE payment_validation_history (
     payment_validation_history_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -638,7 +714,8 @@ CREATE TABLE share_capital_payments (
     CONSTRAINT fk_share_payment_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_share_payment_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references (payment_reference_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_share_payment_verifier FOREIGN KEY (verified_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_share_payment_reversal FOREIGN KEY (reversal_of_payment_id) REFERENCES share_capital_payments (share_payment_id) ON UPDATE CASCADE ON DELETE SET NULL
+    CONSTRAINT fk_share_payment_reversal FOREIGN KEY (reversal_of_payment_id) REFERENCES share_capital_payments (share_payment_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT uq_share_capital_payment_reference UNIQUE (payment_reference_id)
 ) ENGINE = InnoDB;
 
 CREATE INDEX `idx_share_payment_member_status` ON `share_capital_payments` (
@@ -1183,6 +1260,51 @@ CREATE INDEX `idx_documents_access_type` ON `documents` (
 CREATE INDEX `idx_documents_member` ON `documents` (member_id, uploaded_at);
 
 CREATE INDEX `idx_documents_title` ON `documents` (title);
+
+CREATE TABLE payment_receipts (
+    payment_receipt_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    payment_reference_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NULL,
+    document_id BIGINT UNSIGNED NULL,
+    receipt_number VARCHAR(80) NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_channel VARCHAR(40) NOT NULL,
+    provider VARCHAR(100) NOT NULL,
+    validation_source VARCHAR(40) NOT NULL DEFAULT 'Manual Bookkeeper',
+    subject_reference VARCHAR(120) NULL,
+    payment_date DATE NULL,
+    validated_at DATETIME NULL,
+    processing_status ENUM(
+        'Pending',
+        'Processing',
+        'Generated',
+        'Failed'
+    ) NOT NULL DEFAULT 'Pending',
+    attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_attempt_at DATETIME NULL,
+    generated_at DATETIME NULL,
+    last_error_code VARCHAR(120) NULL,
+    last_error_message VARCHAR(1000) NULL,
+    reversed_at DATETIME NULL,
+    reversal_note VARCHAR(1000) NULL,
+    issued_by BIGINT UNSIGNED NOT NULL,
+    issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_payment_receipt_reference UNIQUE (payment_reference_id),
+    CONSTRAINT uq_payment_receipt_number UNIQUE (receipt_number),
+    CONSTRAINT uq_payment_receipt_document UNIQUE (document_id),
+    CONSTRAINT fk_payment_receipt_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references (payment_reference_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_payment_receipt_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_payment_receipt_document FOREIGN KEY (document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_payment_receipt_issuer FOREIGN KEY (issued_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_payment_receipt_member` ON `payment_receipts` (member_id, issued_at);
+
+CREATE INDEX `idx_payment_receipt_processing` ON `payment_receipts` (
+    processing_status,
+    last_attempt_at
+);
 
 CREATE TABLE document_access_logs (
     document_access_log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

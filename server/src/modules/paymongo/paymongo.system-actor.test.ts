@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PoolConnection } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import { createAuthService } from "../auth/auth.service";
 import type { AuthRepository } from "../auth/auth.repository";
@@ -9,7 +8,7 @@ import {
   resolvePaymongoSettlementActor,
 } from "./paymongo.system-actor";
 
-class ActorConnection implements PoolConnection {
+class ActorConnection {
   queries: string[] = [];
   constructor(private readonly rows: Record<string, unknown>) {}
   async beginTransaction() {}
@@ -35,7 +34,7 @@ const bookkeeperRow = {
 
 test("webhook attribution uses only the configured service account without staff fallback", async () => {
   const connection = new ActorConnection({ "900": systemRow });
-  const actor = await resolvePaymongoSettlementActor(connection, {
+  const actor = await resolvePaymongoSettlementActor(connection as unknown as PoolConnection, {
     validationSource: "PayMongo Webhook", actorUserId: null,
     configuredSystemActorUserId: "900",
   });
@@ -47,13 +46,13 @@ test("webhook attribution uses only the configured service account without staff
 
 test("missing and invalid configured system actors fail safely", async () => {
   await assert.rejects(
-    () => resolvePaymongoSettlementActor(new ActorConnection({}), {
+    () => resolvePaymongoSettlementActor(new ActorConnection({}) as unknown as PoolConnection, {
       validationSource: "PayMongo Webhook", actorUserId: null,
     }),
     (error) => error instanceof AppError && error.code === "PAYMONGO_SYSTEM_ACTOR_REQUIRED",
   );
   await assert.rejects(
-    () => resolvePaymongoSettlementActor(new ActorConnection({ "900": { ...systemRow, displayName: "Human Bookkeeper" } }), {
+    () => resolvePaymongoSettlementActor(new ActorConnection({ "900": { ...systemRow, displayName: "Human Bookkeeper" } }) as unknown as PoolConnection, {
       validationSource: "PayMongo Webhook", actorUserId: null,
       configuredSystemActorUserId: "900",
     }),
@@ -62,7 +61,7 @@ test("missing and invalid configured system actors fail safely", async () => {
 });
 
 test("manual settlement keeps authenticated Bookkeeper attribution", async () => {
-  const actor = await resolvePaymongoSettlementActor(new ActorConnection({ "42": bookkeeperRow }), {
+  const actor = await resolvePaymongoSettlementActor(new ActorConnection({ "42": bookkeeperRow }) as unknown as PoolConnection, {
     validationSource: "Manual Bookkeeper", actorUserId: "42",
     configuredSystemActorUserId: "900",
   });
@@ -117,3 +116,4 @@ test("configured service account cannot use normal portal login", async () => {
       && error.code === "PAYMONGO_SYSTEM_ACCOUNT_LOGIN_DISABLED",
   );
 });
+import type { PoolConnection } from "mysql2/promise";

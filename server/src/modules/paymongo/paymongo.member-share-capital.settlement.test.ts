@@ -3,8 +3,9 @@ import test from "node:test";
 import type { Pool, PoolConnection } from "mysql2/promise";
 import { createPaymentSettlementRepository } from "./paymongo.settlement";
 import { postMemberShareCapitalSettlement } from "./paymongo.settlement.member-share-capital";
+import type { PaymentReferenceForSettlement } from "./paymongo.settlement.types";
 
-class SettlementConnection implements PoolConnection {
+class SettlementConnection {
   validationStatus = "Pending";
   memberPostingCalls = 0;
   commits = 0;
@@ -90,7 +91,7 @@ test("duplicate webhook settlement posts the Member contribution exactly once", 
   assert.equal(first.receiptStatus, "Generated");
 });
 
-class PostingConnection implements PoolConnection {
+class PostingConnection {
   memberType = "Associate";
   async beginTransaction() {}
   async commit() {}
@@ -123,7 +124,7 @@ test("member settlement posts finance and capital without automatic promotion", 
       relatedEntityId: "member-10", amount: 1500, validationStatus: "Validated",
       paymentChannel: "PayMongo", gatewayEnvironment: "Test", gatewayCheckoutId: "cs",
       gatewayPaymentId: "pay", gatewayPaymentIntentId: null,
-    },
+    } as unknown as PaymentReferenceForSettlement,
     actorUserId: "bookkeeper-1",
     gatewayDetails: { amount: 1500, currency: "PHP" },
   });

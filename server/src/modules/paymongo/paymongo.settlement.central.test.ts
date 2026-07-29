@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Pool, PoolConnection } from "mysql2/promise";
+import type { Pool } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import { createPaymentSettlementRepository } from "./paymongo.settlement";
 
-class CentralConnection implements PoolConnection {
+class CentralConnection {
   status = "Pending";
   commits = 0;
   rollbacks = 0;

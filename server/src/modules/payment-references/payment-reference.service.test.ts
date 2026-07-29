@@ -165,6 +165,8 @@ test("validatePaymentReference delegates to the shared settlement service", asyn
           paymentReferenceId: input.paymentReferenceId,
           alreadySettled: false,
           validationStatus: "Validated",
+          receiptStatus: null,
+          receiptErrorCode: null,
         };
       },
     },
@@ -173,6 +175,7 @@ test("validatePaymentReference delegates to the shared settlement service", asyn
   const updated = await service.validatePaymentReference(payment.id, {}, auth);
 
   assert.equal(settlementCalled, true);
+  assert.ok(updated);
   assert.equal(updated.validationStatus, "Validated");
 });
 
@@ -180,6 +183,29 @@ test("reversePaymentReference delegates a confirmed reversal", async () => {
   let reversalCalled = false;
   const service = createPaymentReferenceService(
     createRepository({
+      async detail() {
+        return {
+          ...payment,
+          validationStatus: reversalCalled ? "Reversed" : "Pending",
+          memberCode: null,
+          memberName: null,
+          submittedByName: null,
+          validatedByName: null,
+          validationHistory: [],
+          gatewayEvents: [],
+          posting: {
+            financialRecordId: null,
+            financialRecordNumber: null,
+            financialRecordStatus: null,
+            shareCapitalPaymentId: null,
+            shareCapitalStatus: null,
+            membershipRequirementId: null,
+            membershipRequirementStatus: null,
+            membershipApplicationStatus: null,
+            warnings: [],
+          },
+        };
+      },
       async reverse(id, input, actionAuth) {
         reversalCalled = true;
         assert.equal(id, payment.id);
@@ -209,6 +235,17 @@ test("reversePaymentReference delegates a confirmed reversal", async () => {
         };
       },
     }),
+    undefined,
+    undefined,
+    {
+      async reverse(input) {
+        reversalCalled = true;
+        assert.equal(input.paymentReferenceId, payment.id);
+        assert.equal(input.reason, "Duplicate payment posting");
+        assert.equal(input.confirmation, payment.referenceNumber);
+        assert.equal(input.auth.user.role, "bookkeeper");
+      },
+    },
   );
 
   const reversed = await service.reversePaymentReference(
@@ -221,5 +258,6 @@ test("reversePaymentReference delegates a confirmed reversal", async () => {
   );
 
   assert.equal(reversalCalled, true);
+  assert.ok(reversed);
   assert.equal(reversed.validationStatus, "Reversed");
 });

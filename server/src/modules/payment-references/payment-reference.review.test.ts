@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Pool, PoolConnection } from "mysql2/promise";
+import type { Pool } from "mysql2/promise";
 import { createPaymentReferenceReviewService } from "./payment-reference.review";
 import { createPaymentReferenceReversalService } from "./payment-reference.reversal";
 
 const auth: any = { user: { id: "bookkeeper-1", displayName: "Bookkeeper", role: "bookkeeper" } };
 
-class ReviewConnection implements PoolConnection {
+class ReviewConnection {
   status = "Pending";
   history: Array<[string, string]> = [];
   adjustments = 0;

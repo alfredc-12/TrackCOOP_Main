@@ -99,14 +99,39 @@ function makeService(options: {
         ? { id: "900", amount: 200, referenceNumber: "MEM-APP-2026-000300-FEE" }
         : options.reference;
       return reference
-        ? { ...reference, amount: reference.amount }
+        ? {
+            ...reference,
+            amount: reference.amount,
+            paymentPurpose: "Associate Membership Fee",
+            relatedEntityType: "membership_application",
+            relatedEntityId: "300",
+            gatewayEnvironment: "Test",
+            gatewayCheckoutId: "cs_test_123",
+            gatewayPaymentId: null,
+          }
         : null;
     },
     async insertGatewayEvent(input) {
       insertedEvents.push(input);
-      return { id: "70", duplicate: options.duplicate ?? false };
+      return {
+        id: "70",
+        duplicate: options.duplicate ?? false,
+        processingStatus: "Received",
+        retryCount: 0,
+      };
+    },
+    async markGatewayEventProcessing() {
+      return true;
     },
     async markGatewayEventIgnored() {},
+    async findCheckoutAttempt() {
+      return {
+        id: "1000",
+        gatewayEnvironment: "Test",
+        amount: 200,
+      };
+    },
+    async markCheckoutAttemptPaid() {},
   };
   const service = createPaymongoWebhookService({
     config,
@@ -119,6 +144,8 @@ function makeService(options: {
           paymentReferenceId: input.paymentReferenceId,
           alreadySettled: false,
           validationStatus: "Validated",
+          receiptStatus: null,
+          receiptErrorCode: null,
         };
       },
       async markGatewayEventProcessed() {},
@@ -317,6 +344,8 @@ test("manual Bookkeeper validation uses the shared settlement service", async ()
           paymentReferenceId: input.paymentReferenceId,
           alreadySettled: false,
           validationStatus: "Validated",
+          receiptStatus: null,
+          receiptErrorCode: null,
         };
       },
     },

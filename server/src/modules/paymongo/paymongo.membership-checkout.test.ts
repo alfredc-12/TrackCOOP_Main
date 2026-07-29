@@ -6,6 +6,7 @@ import { AppError } from "../../utils/app-error";
 import { hashApplicationTrackingToken } from "../membership-applications/public-tracking-token";
 import { createPaymongoService } from "./paymongo.service";
 import type {
+  PaymongoCheckoutAttemptRecord,
   PaymongoCheckoutRequest,
   PaymongoCheckoutSession,
   PaymongoConfig,
@@ -84,13 +85,17 @@ function makeMembershipService(options: {
 } = {}) {
   const checkoutCalls: Array<{ input: PaymongoCheckoutRequest; idempotencyKey: string }> = [];
   const preparedInputs: unknown[] = [];
-  const updates: unknown[] = [];
+  const attempts: PaymongoCheckoutAttemptRecord[] = [];
+  let preparedRecord: PaymongoPaymentReferenceRecord | null = null;
 
   const service = createPaymongoService({
     config,
     client: {
       async createCheckoutSession(input, idempotencyKey) {
         checkoutCalls.push({ input, idempotencyKey });
+        return createSession();
+      },
+      async retrieveCheckoutSession() {
         return createSession();
       },
     },
@@ -111,14 +116,9 @@ function makeMembershipService(options: {
           maximumShareCapital: 15000,
         };
       },
-      async getValidatedMembershipPaymentTotal(input) {
-        return input.paymentPurpose === "Share Capital"
-          ? options.validatedCapital ?? 0
-          : options.validatedFee ?? 0;
-      },
       async prepareMembershipPaymentReference(input) {
         preparedInputs.push(input);
-        return {
+        preparedRecord = {
           ...paymentReference,
           ...options.preparedReference,
           amount: input.amount,
@@ -128,18 +128,104 @@ function makeMembershipService(options: {
               ? `${application.applicationCode}-CAP`
               : `${application.applicationCode}-FEE`,
         };
+        return preparedRecord;
       },
-      async recordCheckoutSession(input) {
-        updates.push(input);
+      async getValidatedMembershipPaymentTotal() {
+        return 0;
+      },
+      async recordCheckoutSession() {
+        return undefined;
+      },
+    },
+    membershipInstallmentRepository: {
+      async prepareMembershipPaymentReference(input) {
+        preparedInputs.push(input);
+        preparedRecord = {
+          ...paymentReference,
+          ...options.preparedReference,
+          amount: input.requestedAmount,
+          paymentPurpose: input.purpose,
+          referenceNumber:
+            input.purpose === "Share Capital"
+              ? `${application.applicationCode}-CAP`
+              : `${application.applicationCode}-FEE`,
+        };
+        return preparedRecord;
+      },
+      async assertCheckoutCapacity(input) {
+        if (input.purpose === "Associate Membership Fee") {
+          if ((options.validatedFee ?? 0) >= 200) {
+            throw new AppError(
+              "The associate membership fee has already been paid",
+              409,
+              "MEMBERSHIP_FEE_ALREADY_VALIDATED",
+            );
+          }
+          return;
+        }
+        if ((options.validatedCapital ?? 0) + input.amount > 15000) {
+          throw new AppError(
+            "Share capital payment exceeds the maximum allowed amount",
+            409,
+            "SHARE_CAPITAL_MAXIMUM_EXCEEDED",
+          );
+        }
+      },
+      async publicPaymentSummary() {
+        throw new Error("not used in this test");
+      },
+    },
+    attemptRepository: {
+      async createOrReuseCheckoutAttempt(input) {
+        const record = preparedRecord ?? options.preparedReference ?? paymentReference;
+        await input.validateRecord(record, null);
+        const reusable = attempts.find(
+          (attempt) =>
+            attempt.paymentReferenceId === input.paymentReferenceId
+            && attempt.gatewayEnvironment === input.environment
+            && !attempt.completedAt
+            && !attempt.supersededAt,
+        );
+        if (reusable?.checkoutUrl) {
+          return { record, attempt: { ...reusable, checkoutUrl: reusable.checkoutUrl }, reused: true };
+        }
+        const attemptNumber = attempts.length + 1;
+        const idempotencyKey =
+          record.idempotencyKey ?? `trackcoop-paymongo-payment-reference-${record.id}-attempt-${attemptNumber}`;
+        const session = await input.createSession(record, idempotencyKey);
+        const attempt: PaymongoCheckoutAttemptRecord & { checkoutUrl: string } = {
+          id: String(attemptNumber),
+          paymentReferenceId: record.id,
+          attemptNumber,
+          idempotencyKey,
+          checkoutId: session.id,
+          checkoutUrl: session.checkoutUrl,
+          gatewayStatus: session.status,
+          gatewayEnvironment: input.environment,
+          amount: record.amount,
+          currency: "PHP",
+          lastCheckedAt: null,
+          reusableUntil: new Date(Date.now() + input.reuseMinutes * 60_000),
+          supersededAt: null,
+          completedAt: null,
+        };
+        attempts.push(attempt);
+        return { record, attempt, reused: false };
+      },
+      async findLatestCheckoutAttempt() {
+        return attempts.at(-1) ?? null;
+      },
+      async refreshCheckoutAttempt() {
+        return undefined;
       },
     },
   });
 
-  return { service, checkoutCalls, preparedInputs, updates };
+  return { service, checkoutCalls, preparedInputs, attempts };
 }
 
 test("createMembershipApplicationCheckout creates a fee checkout with the correct tracking token", async () => {
-  const { service, checkoutCalls, updates } = makeMembershipService();
+  const { service, checkoutCalls, attempts } = makeMembershipService();
 
   const result = await service.createMembershipApplicationCheckout(
     application.applicationCode,
@@ -154,7 +240,7 @@ test("createMembershipApplicationCheckout creates a fee checkout with the correc
   assert.equal(checkoutCalls[0].input.metadata.trackcoop_reference_number, `${application.applicationCode}-FEE`);
   assert.equal(checkoutCalls[0].input.metadata.payment_purpose, "Associate Membership Fee");
   assert.equal(checkoutCalls[0].input.metadata.trackcoop_payment_reference_id, "900");
-  assert.equal(updates.length, 1);
+  assert.equal(attempts.length, 1);
 });
 
 test("createMembershipApplicationCheckout rejects the wrong tracking token", async () => {
@@ -245,13 +331,13 @@ test("createMembershipApplicationCheckout reuses idempotency for duplicate click
   await service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
     paymentPurpose: "Associate Membership Fee",
   });
-  await service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
+  const second = await service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
     paymentPurpose: "Associate Membership Fee",
   });
 
-  assert.equal(checkoutCalls.length, 2);
+  assert.equal(checkoutCalls.length, 1);
   assert.equal(checkoutCalls[0].idempotencyKey, "existing-membership-checkout-key");
-  assert.equal(checkoutCalls[1].idempotencyKey, "existing-membership-checkout-key");
+  assert.equal(second.reused, true);
 });
 
 test("payment return pages are informational and do not mutate status", () => {

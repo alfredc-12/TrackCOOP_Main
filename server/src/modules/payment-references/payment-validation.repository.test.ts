@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Pool, PoolConnection } from "mysql2/promise";
+import type { Pool } from "mysql2/promise";
 import { createPaymentValidationRepository } from "./payment-validation.repository";
 
-class ValidationPool implements PoolConnection {
+class ValidationPool {
   queries: Array<{ sql: string; values: unknown[] }> = [];
   async beginTransaction() {}
   async commit() {}

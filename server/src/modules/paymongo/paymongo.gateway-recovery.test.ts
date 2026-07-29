@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Pool, PoolConnection } from "mysql2/promise";
+import type { Pool } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import type { PaymentSettlementRepository } from "./paymongo.settlement";
@@ -10,7 +10,7 @@ const bookkeeper = { user: { id: "bookkeeper-1", displayName: "Bookkeeper", role
 const chairman = { user: { id: "chairman-1", displayName: "Chairman", role: "chairman" } } as AuthContext;
 const member = { user: { id: "member-1", displayName: "Member", role: "member" } } as AuthContext;
 
-class RecoveryConnection implements PoolConnection {
+class RecoveryConnection {
   status: "Failed" | "Processed" | "Received" | "Processing" | "Ignored" = "Failed";
   retryCount = 0;
   signatureVerifiedAt: Date | null = new Date("2026-07-27T00:00:00Z");

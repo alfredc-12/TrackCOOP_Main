@@ -191,6 +191,8 @@ function makeService(options: {
           paymentReferenceId: input.paymentReferenceId,
           alreadySettled: false,
           validationStatus: "Validated",
+          receiptStatus: null,
+          receiptErrorCode: null,
         };
       },
       async markGatewayEventProcessed() {},
@@ -548,6 +550,8 @@ test("manual Bookkeeper validation uses the shared settlement service", async ()
           paymentReferenceId: input.paymentReferenceId,
           alreadySettled: false,
           validationStatus: "Validated",
+          receiptStatus: null,
+          receiptErrorCode: null,
         };
       },
     },
