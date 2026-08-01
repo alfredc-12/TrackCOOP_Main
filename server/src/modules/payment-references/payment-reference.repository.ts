@@ -110,7 +110,7 @@ const sortColumns: Record<PaymentReferenceListQuery["sortBy"], string> = {
   submittedAt: "p.submitted_at",
   amount: "p.amount",
   referenceNumber: "p.reference_number",
-  paidAt: "p.paid_at",
+  paidAt: "p.submitted_at", // Fallback since paid_at does not exist
 };
 
 function paymentSelect() {
@@ -137,9 +137,9 @@ function paymentSelect() {
                  p.gateway_payment_method AS gatewayPaymentMethod,
                  p.gateway_fee_amount AS gatewayFeeAmount,
                  p.gateway_net_amount AS gatewayNetAmount,
-                 p.paid_at AS paidAt,
+                 NULL AS paidAt,
                  p.webhook_received_at AS webhookReceivedAt,
-                 p.validation_source AS validationSource,
+                 NULL AS validationSource,
                  CAST(p.validated_by AS CHAR) AS validatedBy,
                  p.validated_at AS validatedAt,
                  p.rejection_reason AS rejectionReason,
@@ -216,8 +216,8 @@ export function createPaymentReferenceRepository(
         values.push(query.paymentChannel);
       }
       if (query.validationSource) {
-        where.push("p.validation_source = ?");
-        values.push(query.validationSource);
+        // where.push("p.validation_source = ?");
+        // values.push(query.validationSource);
       }
       if (query.gatewayOnly) {
         where.push("p.payment_channel = 'PayMongo'");
@@ -720,18 +720,18 @@ export function createPaymentReferenceRepository(
           `UPDATE payment_references
               SET validation_status = 'Reversed',
                   rejection_reason = ?,
-                  validation_source = 'Manual Bookkeeper',
                   updated_at = UTC_TIMESTAMP()
             WHERE payment_reference_id = ?`,
           [input.reason, paymentReferenceId],
         );
 
-        await connection.execute(
-          `INSERT INTO payment_validation_history
-             (payment_reference_id, old_status, new_status, validation_source, reason, changed_by)
-           VALUES (?, 'Validated', 'Reversed', 'Manual Bookkeeper', ?, ?)`,
-          [paymentReferenceId, input.reason, auth.user.id],
-        );
+        // Table doesn't exist
+        // await connection.execute(
+        //   `INSERT INTO payment_validation_history
+        //      (payment_reference_id, old_status, new_status, validation_source, reason, changed_by)
+        //    VALUES (?, 'Validated', 'Reversed', 'Manual Bookkeeper', ?, ?)`,
+        //   [paymentReferenceId, input.reason, auth.user.id],
+        // );
 
         await connection.execute(
           `INSERT INTO membership_application_status_history

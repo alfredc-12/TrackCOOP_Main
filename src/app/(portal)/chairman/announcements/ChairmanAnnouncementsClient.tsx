@@ -251,12 +251,22 @@ export function ChairmanAnnouncementsClient() {
 
               <label className="grid gap-2 text-sm font-medium text-[#36433c]">
                 Featured Image (optional)
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm text-[#8a958e] file:mr-4 file:rounded-full file:border-0 file:bg-[#4d8f5b]/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#4d8f5b] hover:file:bg-[#4d8f5b]/20"
-                />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && file.size > 5 * 1024 * 1024) {
+                          setSuccessMessage("The image must be smaller than 5MB.");
+                          setSuccessModalOpen(true);
+                          e.target.value = "";
+                          setImageFile(null);
+                          return;
+                        }
+                        setImageFile(file || null);
+                      }}
+                      className="block w-full text-sm text-[#5D6D63] file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#EEF2EC] file:text-[#173626] hover:file:bg-[#e4e9e1] cursor-pointer"
+                    />
               </label>
 
               <label className="grid gap-2 text-sm font-medium text-[#36433c]">

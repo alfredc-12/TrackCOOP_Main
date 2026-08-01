@@ -3,6 +3,10 @@
 import Link from "next/link";
 import {
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock3,
   Database,
   Download,
@@ -52,6 +56,7 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "./RecordsUi";
+import { ReportHistoryPage } from "./ReportHistoryPage";
 
 type ReportsLandingData = {
   catalog: ReportDefinition[];
@@ -92,6 +97,8 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     role === "chairman" ? "ADMIN_ONLY" : "BOOKKEEPER_ONLY",
   );
   const [saving, setSaving] = useState(false);
+  const [recentModalOpen, setRecentModalOpen] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const generatorRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
@@ -117,6 +124,13 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     void load();
   }, [load]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, category]);
+
   const visibleReports = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (data?.catalog ?? []).filter(
@@ -129,16 +143,18 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     );
   }, [category, data?.catalog, search]);
 
+  const ITEMS_PER_PAGE = 5;
+  const totalPages = Math.ceil(visibleReports.length / ITEMS_PER_PAGE);
+  const paginatedReports = visibleReports.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   function chooseReport(definition: ReportDefinition) {
     setSelected(definition);
     setFilters({});
     setResult(null);
-    window.setTimeout(() => {
-      generatorRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
+    setIsGeneratorOpen(true);
   }
 
   async function generate() {
@@ -154,6 +170,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       if (!response.ok) throw new Error(await apiError(response));
       const report = (await response.json()) as ReportResult;
       setResult(report);
+      setIsGeneratorOpen(false);
       toast.success(
         `${report.reportName} generated from current database records.`,
       );
@@ -236,12 +253,20 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         description="Generate and review cooperative financial, membership, rental, operational, and records reports."
         actions={
           <>
-            <Link
-              href={`${basePath}/reports/history`}
+            <button
+              type="button"
+              onClick={() => setRecentModalOpen(true)}
+              className={secondaryButtonClass}
+            >
+              <Clock3 className="size-4" /> Recently Generated
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoryModalOpen(true)}
               className={secondaryButtonClass}
             >
               <FileClock className="size-4" /> View Generated Reports
-            </Link>
+            </button>
             <Link
               href="/api/reports/history/export"
               className={secondaryButtonClass}
@@ -333,43 +358,43 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
             </div>
           </div>
           {visibleReports.length ? (
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-              {visibleReports.map((definition) => (
-                <article
+            <div className="flex flex-col gap-3 pt-2">
+              {paginatedReports.map((definition) => (
+                <div
                   key={definition.key}
-                  className="flex min-w-0 flex-col rounded-lg border border-[#CAD8CB] bg-white p-5"
+                  className="flex flex-col gap-4 rounded-xl border border-[#CAD8CB] bg-white p-4 transition-all hover:border-[#123D2A] hover:shadow-sm sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold uppercase tracking-wide text-[#D8A011]">
-                        {REPORT_CATEGORY_LABELS[definition.category]}
-                      </p>
-                      <h2 className="mt-2 break-words text-lg font-black text-[#123D2A]">
-                        {definition.name}
-                      </h2>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#D8A011]">
+                      {REPORT_CATEGORY_LABELS[definition.category]}
+                    </p>
+                    <h2 className="mt-1 truncate text-base font-black text-[#123D2A]">
+                      {definition.name}
+                    </h2>
+                    <p className="mt-1 text-sm text-[#5D6D63] line-clamp-2">
+                      {definition.description}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6C7A70]">
+                      <span className="flex items-center gap-1">
+                        <Database className="size-3.5" /> {definition.dataSource}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock3 className="size-3.5" /> Last generated:{" "}
+                        {formatDate(
+                          data.recent.find(
+                            (item) => item.reportKey === definition.key,
+                          )?.generatedAt ?? null,
+                          true,
+                        )}
+                      </span>
                     </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                     {definition.configurationRequired ? (
                       <StatusBadge tone="warning">
                         Configuration Required
                       </StatusBadge>
                     ) : null}
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-[#5D6D63]">
-                    {definition.description}
-                  </p>
-                  <p className="mt-3 text-xs text-[#6C7A70]">
-                    <strong>Data source:</strong> {definition.dataSource}
-                  </p>
-                  <p className="mt-1 text-xs text-[#6C7A70]">
-                    <strong>Last generated:</strong>{" "}
-                    {formatDate(
-                      data.recent.find(
-                        (item) => item.reportKey === definition.key,
-                      )?.generatedAt ?? null,
-                      true,
-                    )}
-                  </p>
-                  <div className="mt-auto pt-5">
                     <button
                       type="button"
                       disabled={definition.configurationRequired}
@@ -386,12 +411,51 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                         <BarChart3 className="size-4" />
                       )}
                       {definition.configurationRequired
-                        ? "Client Configuration Required"
+                        ? "Config Req."
                         : "Generate"}
                     </button>
                   </div>
-                </article>
+                </div>
               ))}
+              {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#5D6D63]">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(1)}
+                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <ChevronsLeft className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <span className="mx-2 font-bold text-[#123D2A]">
+                    Page {currentPage} of {totalPages} · {visibleReports.length} reports
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <ChevronsRight className="size-4" />
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <EmptyState
@@ -404,35 +468,19 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       ) : null}
 
       {selected && data ? (
-        <section
-          ref={generatorRef}
-          className="min-w-0 scroll-mt-24 rounded-lg border border-[#CAD8CB] bg-white p-5"
+        <FormDialog
+          open={isGeneratorOpen}
+          onOpenChange={(open) => {
+            setIsGeneratorOpen(open);
+            if (!open && !result) {
+              setSelected(null);
+            }
+          }}
+          title={selected.name}
+          description={selected.description || "Report Generator"}
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[#D8A011]">
-                Report Generator
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-[#123D2A]">
-                {selected.name}
-              </h2>
-              <p className="mt-2 text-sm text-[#5D6D63]">
-                {selected.description}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelected(null);
-                setResult(null);
-              }}
-              className={secondaryButtonClass}
-            >
-              Cancel
-            </button>
-          </div>
           {selected.filters.length ? (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {selected.filters.map((key) => (
                 <ReportFilterField
                   key={key}
@@ -446,12 +494,22 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               ))}
             </div>
           ) : (
-            <p className="mt-5 rounded-md bg-[#EEF2EC] p-3 text-sm text-[#365F4A]">
+            <p className="rounded-md bg-[#EEF2EC] p-3 text-sm text-[#365F4A]">
               This report uses all eligible current records and has no optional
               filters.
             </p>
           )}
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setFilters({});
+                setResult(null);
+              }}
+              className={secondaryButtonClass}
+            >
+              <RefreshCw className="size-4" /> Reset
+            </button>
             <button
               type="button"
               disabled={generating}
@@ -466,49 +524,43 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                 </>
               )}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFilters({});
-                setResult(null);
-              }}
-              className={secondaryButtonClass}
-            >
-              <RefreshCw className="size-4" /> Reset
-            </button>
           </div>
-        </section>
+        </FormDialog>
       ) : null}
 
       {result ? (
-        <ReportPreview
-          key={`${result.reportReference}-${result.generatedAt}`}
-          result={result}
-          onPrint={() => void printReport()}
-          onSave={() => setSaveOpen(true)}
-          exportQuery={exportQuery}
-        />
+        <div className="mt-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between rounded-lg border border-[#CAD8CB] bg-white p-4">
+            <div>
+              <h3 className="font-bold text-[#123D2A]">{result.reportName}</h3>
+              <p className="text-sm text-[#5D6D63]">Generated report results</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsGeneratorOpen(true)}
+              className={secondaryButtonClass}
+            >
+              <Settings2 className="size-4" /> Modify Filters
+            </button>
+          </div>
+          <ReportPreview
+            key={`${result.reportReference}-${result.generatedAt}`}
+            result={result}
+            onPrint={() => void printReport()}
+            onSave={() => setSaveOpen(true)}
+            exportQuery={exportQuery}
+          />
+        </div>
       ) : null}
 
       {data?.recent.length ? (
-        <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-[#123D2A]">
-                Recently Generated
-              </h2>
-              <p className="mt-1 text-sm text-[#5D6D63]">
-                Report generation metadata stored in the TrackCOOP database.
-              </p>
-            </div>
-            <Link
-              href={`${basePath}/reports/history`}
-              className={secondaryButtonClass}
-            >
-              View All
-            </Link>
-          </div>
-          <div className="mt-4 grid gap-2">
+        <FormDialog
+          open={recentModalOpen}
+          onOpenChange={setRecentModalOpen}
+          title="Recently Generated"
+          description="Report generation metadata stored in the TrackCOOP database."
+        >
+          <div className="grid gap-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.recent.map((item) => (
               <div
                 key={item.id}
@@ -539,8 +591,20 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               </div>
             ))}
           </div>
-        </section>
+        </FormDialog>
       ) : null}
+
+      <FormDialog
+        open={historyModalOpen}
+        onOpenChange={setHistoryModalOpen}
+        title=""
+        description=""
+        contentClassName="!w-[min(76rem,calc(100vw-2rem))]"
+      >
+        <div className="max-h-[80vh] overflow-y-auto">
+          <ReportHistoryPage role={role} isModal />
+        </div>
+      </FormDialog>
 
       <FormDialog
         open={saveOpen}

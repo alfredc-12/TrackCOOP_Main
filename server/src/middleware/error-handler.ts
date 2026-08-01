@@ -11,10 +11,13 @@ export const errorHandler: ErrorRequestHandler = (
 ) => {
   void _next;
 
-  const appError =
-    error instanceof AppError
-      ? error
-      : new AppError("An unexpected error occurred", 500, "INTERNAL_ERROR");
+  let appError = error instanceof AppError ? error : null;
+  if (!appError && error && typeof error === "object" && "name" in error && error.name === "MulterError") {
+    appError = new AppError((error as Error).message || "File upload error", 400, "FILE_UPLOAD_ERROR");
+  }
+  if (!appError) {
+    appError = new AppError("An unexpected error occurred", 500, "INTERNAL_ERROR");
+  }
 
   const logMeta = {
     requestId: request.requestId,
@@ -25,7 +28,14 @@ export const errorHandler: ErrorRequestHandler = (
   };
 
   if (appError.statusCode >= 500) {
-    logger.error("request failed", logMeta);
+    logger.error(`[${request.requestId}] Internal server error`, {
+      ...logMeta,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    const fs = require('fs');
+    const path = require('path');
+    const msg = error instanceof Error ? error.stack || error.message : String(error);
+    fs.appendFileSync(path.join(process.cwd(), '..', 'error.log'), new Date().toISOString() + '\n' + msg + '\n\n');
   } else {
     logger.warn("request rejected", logMeta);
   }

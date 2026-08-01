@@ -21,13 +21,13 @@ export function StatCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-      <div className="flex items-center justify-between gap-4">
+    <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="break-words text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">{label}</p>
-          <p className="mt-3 text-3xl font-black text-[#123D2A]">{value}</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7A70] line-clamp-2">{label}</p>
+          <p className="mt-1 text-2xl font-black text-[#123D2A] truncate">{value}</p>
         </div>
-        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#E7F2E4] text-[#1F6B43]">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43]">
           <Icon className="size-5" aria-hidden="true" />
         </span>
       </div>

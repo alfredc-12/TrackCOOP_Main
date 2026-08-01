@@ -11,6 +11,7 @@ type PosSaleStatusRow = RowDataPacket & {
     member_id: number | null;
     total_amount: number | string;
     customer_name: string | null;
+    customer_contact: string | null;
     sale_date: string;
 };
 
@@ -43,7 +44,7 @@ export async function PUT(
         try {
             const [sales] = await connection.query<PosSaleStatusRow[]>(
                 `SELECT sale_number, sale_status, payment_reference_id, member_id,
-                        total_amount, customer_name, sale_date
+                        total_amount, customer_name, customer_contact, sale_date
                    FROM pos_sales WHERE pos_sale_id = ?`,
                 [orderId]
             );
@@ -93,17 +94,50 @@ export async function PUT(
                 [orderId]
             );
 
-            // If it's a GCash payment (has payment_reference_id), we should also update the payment_references to Validated
-            await connection.query(
-                `UPDATE payment_references pr 
-                 JOIN pos_sales s ON s.payment_reference_id = pr.payment_reference_id
-                 SET pr.validation_status = 'Validated', 
-                     pr.validated_by = ?, 
-                     pr.validated_at = NOW(),
-                     pr.payer_contact = COALESCE(pr.payer_contact, s.customer_contact)
-                 WHERE s.pos_sale_id = ?`,
-                [auth.user.numericId, orderId]
-            );
+            // Resolve the payment_reference_id to use for this sale
+            let paymentRefId: number | null = sales[0].payment_reference_id;
+
+            if (paymentRefId) {
+                // If it already has a payment_reference (e.g. GCash), mark it as Validated
+                await connection.query(
+                    `UPDATE payment_references
+                     SET validation_status = 'Validated',
+                         validated_by = ?,
+                         validated_at = NOW()
+                     WHERE payment_reference_id = ?`,
+                    [auth.user.numericId, paymentRefId]
+                );
+            } else {
+                // Cash sale – create a payment_reference so it shows in the Payments page
+                const refNumber = `POS-CASH-${sales[0].sale_number}`;
+                const [insertResult] = await connection.query<ResultSetHeader>(
+                    `INSERT INTO payment_references
+                     (member_id, payer_name, payer_contact, provider, reference_number,
+                      payment_purpose, related_entity_type, related_entity_id,
+                      amount, validation_status, payment_channel,
+                      validated_by, validated_at, submitted_at, updated_at)
+                     VALUES (?, ?, ?, 'Cash', ?,
+                             'POS/Product', 'POS_SALE', ?,
+                             ?, 'Validated', 'Cash',
+                             ?, NOW(), NOW(), NOW())`,
+                    [
+                        sales[0].member_id || null,
+                        sales[0].customer_name || 'Walk-in',
+                        sales[0].customer_contact || null,
+                        refNumber,
+                        orderId,
+                        sales[0].total_amount || 0,
+                        auth.user.numericId,
+                    ]
+                );
+                paymentRefId = insertResult.insertId;
+
+                // Link the new payment_reference back to the sale
+                await connection.query(
+                    `UPDATE pos_sales SET payment_reference_id = ? WHERE pos_sale_id = ?`,
+                    [paymentRefId, orderId]
+                );
+            }
 
             // Generate Financial Record for the sale
             const [categories] = await connection.query<FinancialCategoryRow[]>(
@@ -119,7 +153,7 @@ export async function PUT(
                     VALUES (?, ?, ?, ?, ?, ?, 'Income', 'POS', ?, ?, CURDATE(), 'Active', ?)`,
                     [
                         recordNumber,
-                        sales[0].payment_reference_id || null,
+                        paymentRefId || null,
                         sales[0].member_id || null,
                         categoryId,
                         auth.user.numericId,
@@ -132,31 +166,38 @@ export async function PUT(
             }
 
             const receiptNumber = `POS-RCP-${new Date().getUTCFullYear()}-${orderId.padStart(6, "0")}`;
-            const generatedReceipt = await createGeneratedPdfDocument(connection, {
-                uploadedBy: auth.user.numericId,
-                uploaderRole: auth.user.role,
-                memberId: sales[0].member_id,
-                title: `POS Receipt ${receiptNumber}`,
-                description: "System-generated receipt for a confirmed TrackCOOP POS sale.",
-                category: "RECEIPT",
-                documentType: "Receipt",
-                accessLevel: sales[0].member_id ? "Member-only" : "Bookkeeper-only",
-                relatedModule: "POS_SALE",
-                relatedRecordId: orderId,
-                relatedRecordReference: sales[0].sale_number,
-                relationshipType: "SYSTEM_RECEIPT",
-                fileBaseName: receiptNumber,
-                heading: "Point-of-Sale Receipt",
-                lines: [
-                    { label: "Receipt number", value: receiptNumber },
-                    { label: "Sale number", value: sales[0].sale_number },
-                    { label: "Customer", value: sales[0].customer_name ?? "Walk-in" },
-                    { label: "Sale date", value: sales[0].sale_date },
-                    { label: "Amount paid", value: `PHP ${sales[0].total_amount}` },
-                    { label: "Payment status", value: "Paid" },
-                ],
-            });
-            if (sales[0].member_id) {
+            let generatedReceipt = null;
+            try {
+                generatedReceipt = await createGeneratedPdfDocument(connection, {
+                    uploadedBy: auth.user.numericId,
+                    uploaderRole: auth.user.role,
+                    memberId: sales[0].member_id,
+                    title: `POS Receipt ${receiptNumber}`,
+                    description: "System-generated receipt for a confirmed TrackCOOP POS sale.",
+                    category: "RECEIPT",
+                    documentType: "Receipt",
+                    accessLevel: sales[0].member_id ? "Member-only" : "Bookkeeper-only",
+                    relatedModule: "POS_SALE",
+                    relatedRecordId: orderId,
+                    relatedRecordReference: sales[0].sale_number,
+                    relationshipType: "SYSTEM_RECEIPT",
+                    fileBaseName: receiptNumber,
+                    heading: "Point-of-Sale Receipt",
+                    lines: [
+                        { label: "Receipt number", value: receiptNumber },
+                        { label: "Sale number", value: sales[0].sale_number },
+                        { label: "Customer", value: sales[0].customer_name ?? "Walk-in" },
+                        { label: "Sale date", value: sales[0].sale_date },
+                        { label: "Amount paid", value: `PHP ${sales[0].total_amount}` },
+                        { label: "Payment status", value: "Paid" },
+                    ],
+                });
+            } catch (pdfErr) {
+                console.error("PDF generation failed in API route:", pdfErr);
+                // Proceed without PDF receipt for now rather than failing the whole order confirmation.
+            }
+
+            if (generatedReceipt && sales[0].member_id) {
                 await connection.query(
                     `INSERT INTO notifications
                        (user_id, notification_type, title, message, related_entity_type, related_entity_id)
@@ -171,7 +212,7 @@ export async function PUT(
             await connection.commit();
             return NextResponse.json({
                 success: true,
-                receiptDocumentReference: generatedReceipt.documentReference,
+                receiptDocumentId: generatedReceipt?.documentId ?? null,
             });
         } catch (err) {
             await connection.rollback();
@@ -181,6 +222,9 @@ export async function PUT(
         }
     } catch (error: unknown) {
         console.error("Failed to confirm order:", error);
-        return NextResponse.json({ error: "Failed to confirm order" }, { status: 500 });
+        return NextResponse.json({ 
+            error: "Failed to confirm order", 
+            details: error instanceof Error ? error.message : String(error)
+        }, { status: 500 });
     }
 }
