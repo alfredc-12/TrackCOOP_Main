@@ -69,6 +69,8 @@ DROP TABLE IF EXISTS `document_access_logs`;
 
 DROP TABLE IF EXISTS `payment_receipts`;
 
+DROP TABLE IF EXISTS `document_versions`;
+
 DROP TABLE IF EXISTS `documents`;
 
 DROP TABLE IF EXISTS `rental_pos_records`;
@@ -99,6 +101,8 @@ DROP TABLE IF EXISTS `financial_categories`;
 
 DROP TABLE IF EXISTS `share_capital_payments`;
 
+DROP TABLE IF EXISTS `membership_application_payments`;
+
 DROP TABLE IF EXISTS `membership_application_requirements`;
 
 DROP TABLE IF EXISTS `payment_validation_history`;
@@ -112,6 +116,10 @@ DROP TABLE IF EXISTS `payment_references`;
 DROP TABLE IF EXISTS `membership_application_status_history`;
 
 DROP TABLE IF EXISTS `membership_application_documents`;
+
+DROP TABLE IF EXISTS `membership_application_notes`;
+
+DROP TABLE IF EXISTS `membership_account_activations`;
 
 DROP TABLE IF EXISTS `membership_application_beneficiaries`;
 
@@ -443,6 +451,44 @@ CREATE TABLE membership_application_status_history (
     CONSTRAINT fk_membership_application_history_user FOREIGN KEY (changed_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE = InnoDB;
 
+CREATE TABLE membership_application_notes (
+    membership_application_note_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    membership_application_id BIGINT UNSIGNED NOT NULL,
+    note_type ENUM(
+        'PUBLIC_RESPONSE',
+        'INTERNAL_NOTE',
+        'ADDITIONAL_INFORMATION',
+        'PAYMENT_NOTE'
+    ) NOT NULL,
+    note_text TEXT NOT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_membership_note_application FOREIGN KEY (membership_application_id) REFERENCES membership_applications (membership_application_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_membership_note_user FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_membership_note_application` ON `membership_application_notes` (
+    membership_application_id,
+    created_at
+);
+
+CREATE TABLE membership_account_activations (
+    membership_account_activation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    membership_application_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_membership_activation_application UNIQUE (membership_application_id),
+    CONSTRAINT uq_membership_activation_user UNIQUE (user_id),
+    CONSTRAINT uq_membership_activation_token UNIQUE (token_hash),
+    CONSTRAINT fk_membership_activation_application FOREIGN KEY (membership_application_id) REFERENCES membership_applications (membership_application_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_membership_activation_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_membership_activation_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
 -- ============================================================================
 -- 3. PAYMENT REFERENCES AND VALIDATION
 -- ============================================================================
@@ -529,6 +575,27 @@ CREATE INDEX `idx_payment_reference_related` ON `payment_references` (
     related_entity_type,
     related_entity_id
 );
+
+CREATE TABLE membership_application_payments (
+    membership_application_payment_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    membership_application_id BIGINT UNSIGNED NOT NULL,
+    payment_reference_id BIGINT UNSIGNED NOT NULL,
+    payment_status VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+    receipt_number VARCHAR(60) NULL,
+    validated_by BIGINT UNSIGNED NULL,
+    validated_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_membership_payment_reference UNIQUE (payment_reference_id),
+    CONSTRAINT uq_membership_payment_receipt UNIQUE (receipt_number),
+    CONSTRAINT fk_membership_payment_application FOREIGN KEY (membership_application_id) REFERENCES membership_applications (membership_application_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_membership_payment_reference FOREIGN KEY (payment_reference_id) REFERENCES payment_references (payment_reference_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_membership_payment_validator FOREIGN KEY (validated_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_membership_payment_application` ON `membership_application_payments` (membership_application_id);
+
+CREATE INDEX `idx_membership_payment_status` ON `membership_application_payments` (payment_status);
 
 CREATE TABLE payment_gateway_events (
     payment_gateway_event_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1211,9 +1278,11 @@ CREATE INDEX `idx_rental_pos_member` ON `rental_pos_records` (member_id, transac
 
 CREATE TABLE documents (
     document_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    uploaded_by BIGINT UNSIGNED NOT NULL,
+    document_reference VARCHAR(60) NULL,
+    uploaded_by BIGINT UNSIGNED NULL,
     member_id BIGINT UNSIGNED NULL,
     title VARCHAR(255) NOT NULL,
+    category VARCHAR(80) NULL,
     document_type ENUM(
         'Receipt',
         'Certificate',
@@ -1243,9 +1312,22 @@ CREATE TABLE documents (
     file_size_bytes BIGINT UNSIGNED NULL,
     checksum_sha256 CHAR(64) NULL,
     replacement_of_document_id BIGINT UNSIGNED NULL,
+    related_module VARCHAR(80) NULL,
+    related_record_id BIGINT UNSIGNED NULL,
+    related_record_reference VARCHAR(120) NULL,
+    relationship_type VARCHAR(80) NULL,
+    document_date DATE NULL,
+    expiration_date DATE NULL,
+    current_version INT UNSIGNED NOT NULL DEFAULT 1,
+    tags TEXT NULL,
+    internal_note TEXT NULL,
     description TEXT NULL,
+    archived_by BIGINT UNSIGNED NULL,
+    archived_at DATETIME NULL,
+    archive_reason TEXT NULL,
     uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_documents_reference UNIQUE (document_reference),
     CONSTRAINT fk_documents_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_documents_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_documents_replacement FOREIGN KEY (replacement_of_document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE SET NULL
@@ -1260,6 +1342,27 @@ CREATE INDEX `idx_documents_access_type` ON `documents` (
 CREATE INDEX `idx_documents_member` ON `documents` (member_id, uploaded_at);
 
 CREATE INDEX `idx_documents_title` ON `documents` (title);
+
+CREATE TABLE document_versions (
+    document_version_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    document_id BIGINT UNSIGNED NOT NULL,
+    version_number INT UNSIGNED NOT NULL,
+    original_file_name VARCHAR(255) NOT NULL,
+    stored_file_name VARCHAR(255) NOT NULL,
+    storage_path VARCHAR(500) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL,
+    file_extension VARCHAR(20) NOT NULL,
+    file_size_bytes BIGINT UNSIGNED NULL,
+    checksum_sha256 CHAR(64) NULL,
+    change_note TEXT NULL,
+    uploaded_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_document_versions_number UNIQUE (document_id, version_number),
+    CONSTRAINT fk_document_versions_document FOREIGN KEY (document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_document_versions_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_document_versions_created` ON `document_versions` (document_id, created_at);
 
 CREATE TABLE payment_receipts (
     payment_receipt_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1309,28 +1412,40 @@ CREATE INDEX `idx_payment_receipt_processing` ON `payment_receipts` (
 CREATE TABLE document_access_logs (
     document_access_log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     document_id BIGINT UNSIGNED NOT NULL,
+    document_version_id BIGINT UNSIGNED NULL,
     user_id BIGINT UNSIGNED NULL,
+    user_role VARCHAR(40) NULL,
     access_action ENUM(
         'View',
+        'Preview',
         'Download',
         'Print',
+        'Upload',
         'Replace',
-        'Permission Change'
+        'Permission Change',
+        'Archive',
+        'Restore'
     ) NOT NULL,
     ip_address VARCHAR(45) NULL,
     user_agent VARCHAR(500) NULL,
     accessed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_document_access_document FOREIGN KEY (document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_document_access_version FOREIGN KEY (document_version_id) REFERENCES document_versions (document_version_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_document_access_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE = InnoDB;
 
 CREATE INDEX `idx_document_access_document` ON `document_access_logs` (document_id, accessed_at);
+
+CREATE INDEX `idx_document_access_version` ON `document_access_logs` (document_version_id, accessed_at);
 
 CREATE INDEX `idx_document_access_user` ON `document_access_logs` (user_id, accessed_at);
 
 CREATE TABLE reports (
     report_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     report_number VARCHAR(60) NOT NULL,
+    report_key VARCHAR(80) NULL,
+    report_title VARCHAR(255) NULL,
+    report_category VARCHAR(80) NULL,
     generated_by BIGINT UNSIGNED NOT NULL,
     document_id BIGINT UNSIGNED NULL,
     report_type ENUM(
@@ -1354,6 +1469,8 @@ CREATE TABLE reports (
     report_period_end DATE NULL,
     report_period_label VARCHAR(120) NULL,
     filters_json JSON NULL,
+    summary_json LONGTEXT NULL,
+    output_format VARCHAR(20) NULL,
     generation_status ENUM(
         'Queued',
         'Generated',
@@ -1362,6 +1479,8 @@ CREATE TABLE reports (
     ) NOT NULL DEFAULT 'Generated',
     file_path VARCHAR(500) NULL,
     generated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    archived_at DATETIME NULL,
+    archive_reason TEXT NULL,
     CONSTRAINT uq_reports_number UNIQUE (report_number),
     CONSTRAINT fk_reports_generator FOREIGN KEY (generated_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_reports_document FOREIGN KEY (document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE SET NULL

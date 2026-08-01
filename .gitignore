@@ -50,4 +50,7 @@ graphify-out/
 .codex/skills/graphify/
 .graphify_*
 *.graphify-
+*.graphify-cache
 .codex/hooks.json
+docs/graphify.md
+.gitattributes
