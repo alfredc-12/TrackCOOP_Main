@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer } from "lucide-react";
+import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { toast } from "sonner";
 
 type StockHistory = {
@@ -47,6 +47,7 @@ export type InventoryItem = {
     sold: number;
     status: string;
     img: string;
+    reorder_level?: number;
     history?: StockHistory[];
 };
 
@@ -54,6 +55,8 @@ type EditableInventoryItem = Omit<InventoryItem, "price" | "cost_price" | "stock
     price: number | string;
     cost_price: number | string;
     stock: number | string;
+    margin?: number | string;
+    reorder_level?: number | string;
 };
 
 type StockActivityLog = {
@@ -76,6 +79,9 @@ type PosOrder = {
     sale_date: string;
     sale_status: string;
     payment_status?: string;
+    member_id?: number | null;
+    subtotal_amount: number | string;
+    discount_amount: number | string;
     total_amount: number | string;
     customer_name?: string | null;
     customer_email?: string | null;
@@ -162,9 +168,8 @@ function CategoryCombobox({ label, value, onChange, categories, placeholder = "S
                                 setIsAddingCustom(false);
                                 setIsOpen(false);
                             }}
-                            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#1e293b] transition hover:bg-[#F8F1E5] ${
-                                selectedExistingCategory === category ? "bg-[#F8F1E5] font-semibold" : ""
-                            }`}
+                            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-[#1e293b] transition hover:bg-[#F8F1E5] ${selectedExistingCategory === category ? "bg-[#F8F1E5] font-semibold" : ""
+                                }`}
                         >
                             <span className="font-medium">{category}</span>
                         </button>
@@ -188,6 +193,7 @@ export default function ChairmanPosInventoryClient() {
     const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
     const [orders, setOrders] = useState<PosOrder[]>([]);
     const [orderSearchQuery, setOrderSearchQuery] = useState("");
+    const [ordersCurrentPage, setOrdersCurrentPage] = useState(1);
 
     const fetchInventory = useCallback(async () => {
         try {
@@ -272,27 +278,55 @@ export default function ChairmanPosInventoryClient() {
 
     const confirmPayment = async (orderId: number) => {
         setOrderToConfirmId(orderId);
+        setConfirmDiscountAmount("");
+        setConfirmDiscountError("");
     };
 
     const processConfirmPayment = async () => {
         if (orderToConfirmId === null) return;
         if (isConfirming) return;  // prevent double submission
+        
+        if (Number(confirmDiscountAmount) > 100) {
+            setConfirmDiscountError("Discount cannot exceed 100%");
+            return;
+        }
+
         setIsConfirming(true);
         try {
+            const confirmedOrder = orders.find(o => o.id === orderToConfirmId);
+            const subtotal = Number(confirmedOrder?.subtotal_amount || confirmedOrder?.total_amount || 0);
+            const memberDiscountAmount = Number(confirmedOrder?.discount_amount || 0);
+            
+            const additionalDiscountPercent = confirmDiscountAmount ? Number(confirmDiscountAmount) : 0;
+            const additionalDiscountAmount = subtotal * (additionalDiscountPercent / 100);
+            
+            const totalDiscountAmount = memberDiscountAmount + additionalDiscountAmount;
+
             const res = await fetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
-                method: "PUT"
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ discount_amount: totalDiscountAmount })
             });
             if (res.ok) {
                 toast.success("Payment confirmed!");
-                const confirmedOrder = orders.find(o => o.id === orderToConfirmId);
                 if (confirmedOrder) {
-                    setReceiptOrder({ ...confirmedOrder, sale_status: 'Paid', payment_status: 'Paid' });
+                    const newTotal = Math.max(0, subtotal - totalDiscountAmount);
+                    
+                    setReceiptOrder({ 
+                        ...confirmedOrder, 
+                        sale_status: 'Paid', 
+                        payment_status: 'Paid',
+                        discount_amount: totalDiscountAmount,
+                        total_amount: newTotal,
+                        subtotal_amount: subtotal
+                    });
                 }
                 setOrderToConfirmId(null);
                 fetchOrdersQuietly();
                 fetchInventory(); // Immediately update the inventory table since stock is deducted
             } else {
-                toast.error("Failed to confirm payment.");
+                const errData = await res.json().catch(() => null);
+                toast.error(errData?.error || "Failed to confirm payment.");
             }
         } catch {
             toast.error("An error occurred.");
@@ -303,23 +337,53 @@ export default function ChairmanPosInventoryClient() {
 
     const rejectPayment = (orderId: number) => {
         setOrderToRejectId(orderId);
+        setRejectReason("");
     };
 
     const processRejectPayment = async () => {
         if (orderToRejectId === null) return;
         try {
             const res = await fetch(`/api/pos/orders/${orderToRejectId}/reject`, {
-                method: "PUT"
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: rejectReason })
             });
             if (res.ok) {
                 toast.success("Order rejected successfully!");
                 setOrderToRejectId(null);
+                setRejectReason("");
                 fetchOrdersQuietly();
             } else {
                 toast.error("Failed to reject order.");
             }
         } catch {
             toast.error("An error occurred.");
+        }
+    };
+
+    const processRevokePayment = async () => {
+        if (orderToRevokeId === null) return;
+        setIsRevoking(true);
+        try {
+            const res = await fetch(`/api/pos/orders/${orderToRevokeId}/revoke`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: revokeReason })
+            });
+            if (res.ok) {
+                toast.success("Payment revoked successfully!");
+                setOrderToRevokeId(null);
+                setRevokeReason("");
+                fetchOrdersQuietly();
+                fetchInventory(); // Inventory stock is updated
+            } else {
+                const errData = await res.json().catch(() => null);
+                toast.error(errData?.error || "Failed to revoke payment.");
+            }
+        } catch {
+            toast.error("An error occurred.");
+        } finally {
+            setIsRevoking(false);
         }
     };
 
@@ -335,13 +399,24 @@ export default function ChairmanPosInventoryClient() {
     const [newItemStock, setNewItemStock] = useState("");
     const [newItemPrice, setNewItemPrice] = useState("");
     const [newItemCostPrice, setNewItemCostPrice] = useState("");
+    const [newItemMargin, setNewItemMargin] = useState("");
+    const [newItemReorderLevel, setNewItemReorderLevel] = useState("10");
     const [newItemDescription, setNewItemDescription] = useState("");
     const [newItemStatus, setNewItemStatus] = useState("Available");
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [orderToConfirmId, setOrderToConfirmId] = useState<number | null>(null);
-    const [isConfirming, setIsConfirming] = useState(false);
     const [orderToRejectId, setOrderToRejectId] = useState<number | null>(null);
+    const [orderToRevokeId, setOrderToRevokeId] = useState<number | null>(null);
+    const [rejectReason, setRejectReason] = useState("");
+    const [revokeReason, setRevokeReason] = useState("");
+    const [isConfirming, setIsConfirming] = useState(false);
+    const [isRevoking, setIsRevoking] = useState(false);
+    const [confirmDiscountAmount, setConfirmDiscountAmount] = useState<string>("");
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
+    const [newItemErrors, setNewItemErrors] = useState<Record<string, string>>({});
+    const [editItemErrors, setEditItemErrors] = useState<Record<string, string>>({});
+    const [stockInputError, setStockInputError] = useState<string>("");
+    const [confirmDiscountError, setConfirmDiscountError] = useState<string>("");
 
 
     useEffect(() => {
@@ -377,10 +452,22 @@ export default function ChairmanPosInventoryClient() {
     };
 
     const handleAddItemClick = () => {
-        if (!newItemName || !newItemCategory.trim() || !newItemUnit || !newItemStock || !newItemPrice || !newItemCostPrice) {
-            toast.error("Please fill in all required fields.");
+        const errors: Record<string, string> = {};
+        
+        if (!newItemName) errors.name = "Item name is required.";
+        if (!newItemCategory.trim()) errors.category = "Category is required.";
+        if (!newItemUnit) errors.unit = "Unit is required.";
+        if (!newItemStock) errors.stock = "Initial stock is required.";
+        if (!newItemCostPrice) errors.cost_price = "Cost price is required.";
+        if (!newItemPrice) errors.price = "Final selling price is required.";
+
+        if (Object.keys(errors).length > 0) {
+            setNewItemErrors(errors);
+            toast.error("Please fix the highlighted fields.");
             return;
         }
+        
+        setNewItemErrors({});
         setPendingAction("add");
     };
 
@@ -395,6 +482,7 @@ export default function ChairmanPosInventoryClient() {
             cost_price: Number(newItemCostPrice),
             description: newItemDescription,
             stock: stockNum,
+            reorder_level: Number(newItemReorderLevel),
             status: newItemStatus,
             img: imagePreview || "",
         };
@@ -413,10 +501,12 @@ export default function ChairmanPosInventoryClient() {
                 setNewItemUnit("piece");
                 setNewItemPrice("");
                 setNewItemCostPrice("");
+                setNewItemReorderLevel("10");
                 setNewItemDescription("");
                 setNewItemCategory("");
                 setNewItemStatus("Available");
                 setImagePreview(null);
+                setNewItemErrors({});
                 toast.success("Item added successfully!");
             } else {
                 toast.error("Failed to add item.");
@@ -437,27 +527,40 @@ export default function ChairmanPosInventoryClient() {
 
     const saveEditItemClick = () => {
         if (!editingItem) return;
-        if (!editingItem.name || !editingItem.category.trim() || !editingItem.unit || editingItem.stock === "" || !editingItem.price || !editingItem.cost_price) {
-            toast.error("Please fill in all required fields.");
+        
+        const errors: Record<string, string> = {};
+        if (!editingItem.name) errors.name = "Item name is required.";
+        if (!editingItem.category.trim()) errors.category = "Category is required.";
+        if (!editingItem.unit) errors.unit = "Unit is required.";
+        if (editingItem.stock === "") errors.stock = "Current stock is required.";
+        if (!editingItem.cost_price) errors.cost_price = "Cost price is required.";
+        if (!editingItem.price) errors.price = "Final selling price is required.";
+
+        if (Object.keys(errors).length > 0) {
+            setEditItemErrors(errors);
+            toast.error("Please fix the highlighted fields.");
             return;
         }
+
+        setEditItemErrors({});
         setPendingAction("edit");
     };
 
     const handleStockClick = () => {
         if (!stockToAdd) {
-            toast.error("Please enter quantity.");
+            setStockInputError("Please enter quantity.");
             return;
         }
 
         if (stockActionType === "deduct" && addingStockItem) {
             const availableToTake = addingStockItem.stock - (addingStockItem.pending_qty || 0);
             if (Number(stockToAdd) > availableToTake) {
-                setStockErrorMsg(`Cannot take ${formatQuantityUnit(stockToAdd, addingStockItem.unit)}.\n\nOnly ${formatQuantityUnit(availableToTake, addingStockItem.unit)} are currently available because some are reserved for pending orders.`);
+                setStockInputError(`Cannot take ${stockToAdd}. Only ${availableToTake} available.`);
                 return;
             }
         }
 
+        setStockInputError("");
         setPendingAction("stock");
     };
 
@@ -497,6 +600,7 @@ export default function ChairmanPosInventoryClient() {
             if (res.ok) {
                 fetchInventory();
                 setEditingItem(null);
+                setEditItemErrors({});
                 toast.success("Changes saved successfully!");
             } else {
                 toast.error("Failed to save changes.");
@@ -531,7 +635,7 @@ export default function ChairmanPosInventoryClient() {
     };
 
     const totalValue = inventory.reduce((sum, item) => sum + (item.price * item.stock), 0);
-    
+
     const totalCashSales = orders
         .filter(o => o.sale_status === 'Paid' && !o.payment_reference_id)
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
@@ -571,6 +675,11 @@ export default function ChairmanPosInventoryClient() {
             }
         });
 
+    const lowStockCount = inventory.filter(item => {
+        const availableStock = item.stock - (item.pending_qty || 0);
+        return item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
+    }).length;
+
     if (!isMounted) {
         return null; // Prevent hydration mismatches from browser extensions (e.g., password managers adding fdprocessedid)
     }
@@ -579,7 +688,7 @@ export default function ChairmanPosInventoryClient() {
         <div className="flex-1 overflow-y-auto bg-white sm:p-8 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[calc(100vh-6rem)]">
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-8">
                 <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
                     <div className="p-3 mr-4 text-[#123D2A] bg-[#F8F1E5] rounded-xl">
                         <Wheat className="w-6 h-6" />
@@ -587,6 +696,16 @@ export default function ChairmanPosInventoryClient() {
                     <div>
                         <p className="mb-1 text-sm font-medium text-gray-500">Total Products</p>
                         <p className="text-2xl font-bold text-gray-900">{inventory.length}</p>
+                    </div>
+                </div>
+
+                <div className={`flex items-center p-5 bg-white border rounded-2xl shadow-sm transition hover:shadow-md ${lowStockCount > 0 ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
+                    <div className={`p-3 mr-4 rounded-xl ${lowStockCount > 0 ? 'text-red-600 bg-red-100 animate-pulse' : 'text-gray-400 bg-gray-50'}`}>
+                        <AlertCircle className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="mb-1 text-sm font-medium text-gray-500">Low Stock Alerts</p>
+                        <p className={`text-2xl font-bold ${lowStockCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{lowStockCount}</p>
                     </div>
                 </div>
 
@@ -630,26 +749,26 @@ export default function ChairmanPosInventoryClient() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={fetchOrders}
-                        className="relative flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition"
+                        className="relative flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 hover:border-gray-300 active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
-                        <ShoppingBag className="size-4" /> Orders & Payments
+                        <ShoppingBag className="size-4 text-gray-500 group-hover:text-[#123D2A] transition-colors" /> Orders & Payments
                         {orders.filter(o => o.sale_status === 'Pending Payment').length > 0 && (
-                            <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
                                 {orders.filter(o => o.sale_status === 'Pending Payment').length}
                             </span>
                         )}
                     </button>
                     <button
                         onClick={fetchGlobalHistory}
-                        className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition"
+                        className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 hover:border-gray-300 active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
-                        <Activity className="size-4" /> Activity Log
+                        <Activity className="size-4 text-gray-500 group-hover:text-blue-600 transition-colors" /> Activity Log
                     </button>
                     <button
                         onClick={() => setIsAddModalOpen(true)}
-                        className="flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90 transition"
+                        className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#123D2A] to-[#1a5c3f] px-5 py-2 text-sm font-bold text-white shadow-[0_4px_12px_rgba(18,61,42,0.3)] hover:shadow-[0_6px_16px_rgba(18,61,42,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
-                        <Plus className="size-4" /> Add Item
+                        <Plus className="size-4 transition-transform group-hover:rotate-90 duration-300" /> Add Item
                     </button>
                 </div>
             </div>
@@ -705,64 +824,78 @@ export default function ChairmanPosInventoryClient() {
             {/* Grid */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-12">
                 {filteredAndSortedInventory.length > 0 ? (
-                    filteredAndSortedInventory.map(item => (
-                        <div key={item.id} className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-gray-100 transition hover:shadow-lg">
-                            <div className="relative h-48 bg-[#f4f7f9] p-4 flex items-center justify-center rounded-t-2xl overflow-hidden">
-                                <span className={`absolute left-4 top-4 rounded-md px-2.5 py-1 text-xs font-semibold text-white z-10 ${item.status === 'Available' ? 'bg-[#22c55e]' : 'bg-[#ef4444]'
-                                    }`}>
-                                    {item.status}
-                                </span>
-                                <button
-                                    onClick={() => setHistoryItem(item)}
-                                    className="absolute right-4 top-4 z-10 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm text-gray-600 hover:text-blue-600 hover:bg-white transition"
-                                    title="View History"
-                                >
-                                    <History className="size-4" />
-                                </button>
-                                {item.img ? (
-                                    <img src={item.img} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition duration-300 hover:scale-105" />
-                                ) : (
-                                    <ImageIcon className="size-16 text-gray-300 z-0" />
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-                            </div>
-                            <div className="flex flex-col p-5">
-                                <h3 className="font-bold text-[#1e293b] mb-6 truncate leading-tight text-base">{item.name}</h3>
+                    filteredAndSortedInventory.map(item => {
+                        const availableStock = item.stock - (item.pending_qty || 0);
+                        const isLowStock = item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
+                        return (
+                            <div key={item.id} className={`flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] border transition hover:shadow-lg ${isLowStock ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-100'}`}>
+                                <div className="relative h-48 bg-[#f4f7f9] p-4 flex items-center justify-center rounded-t-2xl overflow-hidden">
+                                    <div className="absolute left-4 top-4 flex gap-2 z-10">
+                                        <span className={`rounded-md px-2.5 py-1 text-xs font-semibold text-white ${item.status === 'Available' ? 'bg-[#22c55e]' : 'bg-[#ef4444]'
+                                            }`}>
+                                            {item.status}
+                                        </span>
+                                        {isLowStock && (
+                                            <span className="flex items-center gap-1 rounded-md bg-red-100 text-red-700 px-2.5 py-1 text-xs font-bold border border-red-200 shadow-sm animate-pulse">
+                                                <AlertCircle className="w-3 h-3" /> Low Stock
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => setHistoryItem(item)}
+                                        className="absolute right-4 top-4 z-10 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm text-gray-600 hover:text-blue-600 hover:bg-white transition"
+                                        title="View History"
+                                    >
+                                        <History className="size-4" />
+                                    </button>
+                                    {item.img ? (
+                                        <img src={item.img} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition duration-300 hover:scale-105" />
+                                    ) : (
+                                        <ImageIcon className="size-16 text-gray-300 z-0" />
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+                                </div>
+                                <div className="flex flex-col p-5">
+                                    <h3 className="font-bold text-[#1e293b] mb-6 truncate leading-tight text-base">{item.name}</h3>
 
-                                <div className="flex justify-between items-center text-sm mb-3">
-                                    <span className="text-[#94a3b8]">Quantity</span>
-                                    <div className="flex flex-col items-end">
-                                        <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
-                                        {item.pending_qty ? (
-                                            <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
-                                        ) : null}
+                                    <div className="flex justify-between items-center text-sm mb-3">
+                                        <span className="text-[#94a3b8]">Quantity</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
+                                            {item.pending_qty ? (
+                                                <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm mb-5">
+                                        <span className="text-[#94a3b8]">Price</span>
+                                        <span className="font-bold text-[#1e293b]">₱ {item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                const margin = item.cost_price && item.price ? (((item.price - item.cost_price) / item.cost_price) * 100).toFixed(1) : "";
+                                                setEditingItem({ ...item, margin });
+                                            }}
+                                            className="flex-1 rounded-xl bg-[#f8fafc] py-2 text-xs font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] border border-gray-100">
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => { setStockActionType("add"); setAddingStockItem(item); }}
+                                            className="flex-1 rounded-xl bg-[#123D2A] py-2 text-xs font-semibold text-white transition hover:bg-[#123D2A]/90 shadow-sm">
+                                            + Stock
+                                        </button>
+                                        <button
+                                            onClick={() => { setStockActionType("deduct"); setAddingStockItem(item); }}
+                                            className="flex-1 rounded-xl bg-orange-100 text-orange-700 py-2 text-xs font-semibold transition hover:bg-orange-200 shadow-sm">
+                                            - Take
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center text-sm mb-5">
-                                    <span className="text-[#94a3b8]">Price</span>
-                                    <span className="font-bold text-[#1e293b]">₱ {item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </div>
-
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setEditingItem(item)}
-                                        className="flex-1 rounded-xl bg-[#f8fafc] py-2 text-xs font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] border border-gray-100">
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => { setStockActionType("add"); setAddingStockItem(item); }}
-                                        className="flex-1 rounded-xl bg-[#123D2A] py-2 text-xs font-semibold text-white transition hover:bg-[#123D2A]/90 shadow-sm">
-                                        + Stock
-                                    </button>
-                                    <button
-                                        onClick={() => { setStockActionType("deduct"); setAddingStockItem(item); }}
-                                        className="flex-1 rounded-xl bg-orange-100 text-orange-700 py-2 text-xs font-semibold transition hover:bg-orange-200 shadow-sm">
-                                        - Take
-                                    </button>
-                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 ) : (
                     <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
                         <Wheat className="size-12 text-gray-300 mb-4" />
@@ -775,7 +908,8 @@ export default function ChairmanPosInventoryClient() {
             {/* Add Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
+                    <div className="w-full max-w-3xl rounded-3xl bg-white p-2 sm:p-4 shadow-xl animate-in zoom-in-95 duration-200 overflow-hidden">
+                        <div className="max-h-[85vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
                         <div className="mb-6 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-[#1e293b]">Add New Item</h2>
                             <button
@@ -807,30 +941,44 @@ export default function ChairmanPosInventoryClient() {
                                 <input
                                     type="text"
                                     value={newItemName}
-                                    onChange={(e) => setNewItemName(e.target.value)}
+                                    onChange={(e) => {
+                                        setNewItemName(e.target.value);
+                                        if (newItemErrors.name) setNewItemErrors({ ...newItemErrors, name: "" });
+                                    }}
                                     placeholder="e.g. Rice Seeds"
-                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                    className={`w-full rounded-xl border ${newItemErrors.name ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
                                 />
+                                {newItemErrors.name && <p className="mt-1 text-xs text-red-500">{newItemErrors.name}</p>}
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <CategoryCombobox
-                                    label="Category"
-                                    value={newItemCategory}
-                                    onChange={setNewItemCategory}
-                                    categories={categoryOptions}
-                                />
+                                <div>
+                                    <CategoryCombobox
+                                        label="Category"
+                                        value={newItemCategory}
+                                        onChange={(val) => {
+                                            setNewItemCategory(val);
+                                            if (newItemErrors.category) setNewItemErrors({ ...newItemErrors, category: "" });
+                                        }}
+                                        categories={categoryOptions}
+                                    />
+                                    {newItemErrors.category && <p className="mt-1 text-xs text-red-500">{newItemErrors.category}</p>}
+                                </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Unit</label>
                                     <select
                                         value={newItemUnit}
-                                        onChange={(e) => setNewItemUnit(e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                        onChange={(e) => {
+                                            setNewItemUnit(e.target.value);
+                                            if (newItemErrors.unit) setNewItemErrors({ ...newItemErrors, unit: "" });
+                                        }}
+                                        className={`w-full rounded-xl border ${newItemErrors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
                                     >
                                         {STOCK_UNIT_OPTIONS.map((unit) => (
                                             <option key={unit} value={unit}>{unit}</option>
                                         ))}
                                     </select>
+                                    {newItemErrors.unit && <p className="mt-1 text-xs text-red-500">{newItemErrors.unit}</p>}
                                 </div>
                             </div>
 
@@ -839,36 +987,118 @@ export default function ChairmanPosInventoryClient() {
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Initial Stock ({newItemUnit})</label>
                                     <input
                                         type="number"
+                                        min="0"
+                                        step="1"
+                                        onKeyDown={(e) => {
+                                            if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                                        }}
                                         value={newItemStock}
-                                        onChange={(e) => setNewItemStock(e.target.value)}
+                                        onChange={(e) => {
+                                            setNewItemStock(e.target.value.replace(/[^0-9]/g, ''));
+                                            if (newItemErrors.stock) setNewItemErrors({ ...newItemErrors, stock: "" });
+                                        }}
                                         placeholder="e.g. 10"
+                                        className={`w-full rounded-xl border ${newItemErrors.stock ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
+                                    />
+                                    {newItemErrors.stock && <p className="mt-1 text-xs text-red-500">{newItemErrors.stock}</p>}
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Low Stock Threshold</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        onKeyDown={(e) => {
+                                            if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                                        }}
+                                        value={newItemReorderLevel}
+                                        onChange={(e) => setNewItemReorderLevel(e.target.value.replace(/[^0-9]/g, ''))}
+                                        placeholder="e.g. 5"
                                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                                     />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Selling Price (₱)</label>
-                                    <input
-                                        type="number"
-                                        value={newItemPrice}
-                                        onChange={(e) => setNewItemPrice(e.target.value)}
-                                        placeholder="e.g. 1500"
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                                    />
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 space-y-4">
+                                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                    <Banknote className="w-4 h-4 text-[#0F9D58]" /> Pricing Details
+                                </h3>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Cost Price</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₱</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                onKeyDown={(e) => {
+                                                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                                                }}
+                                                value={newItemCostPrice}
+                                                onChange={(e) => {
+                                                    let cost = e.target.value.replace(/[^0-9.]/g, '');
+                                                    if ((cost.match(/\./g) || []).length > 1) cost = cost.substring(0, cost.lastIndexOf('.'));
+                                                    setNewItemCostPrice(cost);
+                                                    if (newItemErrors.cost_price) setNewItemErrors({ ...newItemErrors, cost_price: "" });
+                                                    if (cost && newItemMargin) {
+                                                        const selling = Number(cost) * (1 + Number(newItemMargin) / 100);
+                                                        setNewItemPrice(selling.toFixed(2));
+                                                        if (newItemErrors.price) setNewItemErrors(prev => ({ ...prev, price: "" }));
+                                                    }
+                                                }}
+                                                placeholder="0.00"
+                                                className={`w-full rounded-xl border ${newItemErrors.cost_price ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]/20'} bg-white pl-8 pr-4 py-3 text-sm text-[#1e293b] font-medium outline-none transition focus:ring-2`}
+                                            />
+                                        </div>
+                                        {newItemErrors.cost_price && <p className="mt-1 text-xs text-red-500">{newItemErrors.cost_price}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Target Margin</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                onKeyDown={(e) => {
+                                                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                                                }}
+                                                value={newItemMargin}
+                                                onChange={(e) => {
+                                                    let margin = e.target.value.replace(/[^0-9.]/g, '');
+                                                    if ((margin.match(/\./g) || []).length > 1) margin = margin.substring(0, margin.lastIndexOf('.'));
+                                                    setNewItemMargin(margin);
+                                                    if (newItemCostPrice && margin) {
+                                                        const selling = Number(newItemCostPrice) * (1 + Number(margin) / 100);
+                                                        setNewItemPrice(selling.toFixed(2));
+                                                    }
+                                                }}
+                                                placeholder="20"
+                                                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#1e293b] font-medium outline-none transition focus:border-[#0F9D58] focus:ring-2 focus:ring-[#0F9D58]/20"
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Cost Price (₱)</label>
-                                    <input
-                                        type="number"
-                                        value={newItemCostPrice}
-                                        onChange={(e) => setNewItemCostPrice(e.target.value)}
-                                        placeholder="e.g. 1200"
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                                    />
+
+                                <div className="pt-2">
+                                    <label className="mb-1.5 block text-xs font-bold text-gray-700 uppercase tracking-wide">Final Selling Price</label>
+                                    <div className="relative">
+                                        <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${newItemErrors.price ? 'text-red-500' : 'text-[#0F9D58]'}`}>₱</span>
+                                        <input
+                                            type="number"
+                                            readOnly
+                                            value={newItemPrice}
+                                            placeholder="0.00"
+                                            className={`w-full rounded-xl border-2 ${newItemErrors.price ? 'border-red-500/50 bg-red-50 text-red-600' : 'border-[#0F9D58]/30 bg-[#0F9D58]/10 text-[#0F9D58]'} pl-8 pr-4 py-3 text-lg font-bold outline-none cursor-not-allowed`}
+                                        />
+                                    </div>
+                                    {newItemErrors.price && <p className="mt-1 text-xs text-red-500">{newItemErrors.price}</p>}
                                 </div>
                             </div>
+
+
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
@@ -901,6 +1131,7 @@ export default function ChairmanPosInventoryClient() {
                                 Add to Inventory
                             </button>
                         </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -908,7 +1139,8 @@ export default function ChairmanPosInventoryClient() {
             {/* Edit Modal */}
             {editingItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
-                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
+                    <div className="w-full max-w-3xl rounded-3xl bg-white p-2 sm:p-4 shadow-xl animate-in zoom-in-95 duration-200 overflow-hidden">
+                        <div className="max-h-[85vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
                         <div className="mb-6 flex items-center justify-between">
                             <h2 className="text-xl font-bold text-[#1e293b]">Edit Item Details</h2>
                             <button
@@ -957,29 +1189,43 @@ export default function ChairmanPosInventoryClient() {
                                 <input
                                     type="text"
                                     value={editingItem.name}
-                                    onChange={(e) => handleEditChange('name', e.target.value)}
-                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                    onChange={(e) => {
+                                        handleEditChange('name', e.target.value);
+                                        if (editItemErrors.name) setEditItemErrors({ ...editItemErrors, name: "" });
+                                    }}
+                                    className={`w-full rounded-xl border ${editItemErrors.name ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
                                 />
+                                {editItemErrors.name && <p className="mt-1 text-xs text-red-500">{editItemErrors.name}</p>}
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <CategoryCombobox
-                                    label="Category"
-                                    value={editingItem.category}
-                                    onChange={(value) => handleEditChange("category", value)}
-                                    categories={categoryOptions}
-                                />
+                                <div>
+                                    <CategoryCombobox
+                                        label="Category"
+                                        value={editingItem.category}
+                                        onChange={(value) => {
+                                            handleEditChange("category", value);
+                                            if (editItemErrors.category) setEditItemErrors({ ...editItemErrors, category: "" });
+                                        }}
+                                        categories={categoryOptions}
+                                    />
+                                    {editItemErrors.category && <p className="mt-1 text-xs text-red-500">{editItemErrors.category}</p>}
+                                </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Unit</label>
                                     <select
                                         value={editingItem.unit || "piece"}
-                                        onChange={(e) => handleEditChange("unit", e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                        onChange={(e) => {
+                                            handleEditChange("unit", e.target.value);
+                                            if (editItemErrors.unit) setEditItemErrors({ ...editItemErrors, unit: "" });
+                                        }}
+                                        className={`w-full rounded-xl border ${editItemErrors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
                                     >
                                         {STOCK_UNIT_OPTIONS.map((unit) => (
                                             <option key={unit} value={unit}>{unit}</option>
                                         ))}
                                     </select>
+                                    {editItemErrors.unit && <p className="mt-1 text-xs text-red-500">{editItemErrors.unit}</p>}
                                 </div>
                             </div>
 
@@ -993,28 +1239,100 @@ export default function ChairmanPosInventoryClient() {
                                         className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-[#64748b] outline-none"
                                     />
                                 </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Low Stock Threshold</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        onKeyDown={(e) => {
+                                            if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                                        }}
+                                        value={editingItem.reorder_level || ""}
+                                        onChange={(e) => handleEditChange('reorder_level', e.target.value.replace(/[^0-9]/g, ''))}
+                                        placeholder="e.g. 5"
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                    />
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Selling Price (₱)</label>
-                                    <input
-                                        type="number"
-                                        value={editingItem.price}
-                                        onChange={(e) => handleEditChange('price', e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                                    />
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 space-y-4">
+                                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                    <Banknote className="w-4 h-4 text-[#0F9D58]" /> Pricing Details
+                                </h3>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Cost Price</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₱</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                onKeyDown={(e) => {
+                                                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                                                }}
+                                                value={editingItem.cost_price}
+                                                onChange={(e) => {
+                                                    let cost = e.target.value.replace(/[^0-9.]/g, '');
+                                                    if ((cost.match(/\./g) || []).length > 1) cost = cost.substring(0, cost.lastIndexOf('.'));
+                                                    if (editItemErrors.cost_price) setEditItemErrors({ ...editItemErrors, cost_price: "" });
+                                                    if (cost && editingItem.margin) {
+                                                        const selling = Number(cost) * (1 + Number(editingItem.margin) / 100);
+                                                        handleEditChange('price', selling.toFixed(2));
+                                                        if (editItemErrors.price) setEditItemErrors(prev => ({ ...prev, price: "" }));
+                                                    }
+                                                    handleEditChange('cost_price', cost);
+                                                }}
+                                                className={`w-full rounded-xl border ${editItemErrors.cost_price ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]/20'} bg-white pl-8 pr-4 py-3 text-sm text-[#1e293b] font-medium outline-none transition focus:ring-2`}
+                                            />
+                                        </div>
+                                        {editItemErrors.cost_price && <p className="mt-1 text-xs text-red-500">{editItemErrors.cost_price}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Target Margin</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                onKeyDown={(e) => {
+                                                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                                                }}
+                                                value={editingItem.margin || ""}
+                                                onChange={(e) => {
+                                                    let margin = e.target.value.replace(/[^0-9.]/g, '');
+                                                    if ((margin.match(/\./g) || []).length > 1) margin = margin.substring(0, margin.lastIndexOf('.'));
+                                                    if (editingItem.cost_price && margin) {
+                                                        const selling = Number(editingItem.cost_price) * (1 + Number(margin) / 100);
+                                                        handleEditChange('price', selling.toFixed(2));
+                                                    }
+                                                    handleEditChange('margin', margin);
+                                                }}
+                                                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#1e293b] font-medium outline-none transition focus:border-[#0F9D58] focus:ring-2 focus:ring-[#0F9D58]/20"
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="mb-1 block text-sm font-medium text-[#64748b]">Cost Price (₱)</label>
-                                    <input
-                                        type="number"
-                                        value={editingItem.cost_price}
-                                        onChange={(e) => handleEditChange('cost_price', e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                                    />
+
+                                <div className="pt-2">
+                                    <label className="mb-1.5 block text-xs font-bold text-gray-700 uppercase tracking-wide">Final Selling Price</label>
+                                    <div className="relative">
+                                        <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${editItemErrors.price ? 'text-red-500' : 'text-[#0F9D58]'}`}>₱</span>
+                                        <input
+                                            type="number"
+                                            readOnly
+                                            value={editingItem.price}
+                                            className={`w-full rounded-xl border-2 ${editItemErrors.price ? 'border-red-500/50 bg-red-50 text-red-600' : 'border-[#0F9D58]/30 bg-[#0F9D58]/10 text-[#0F9D58]'} pl-8 pr-4 py-3 text-lg font-bold outline-none cursor-not-allowed`}
+                                        />
+                                    </div>
+                                    {editItemErrors.price && <p className="mt-1 text-xs text-red-500">{editItemErrors.price}</p>}
                                 </div>
                             </div>
+
+
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
@@ -1054,6 +1372,7 @@ export default function ChairmanPosInventoryClient() {
                                 </button>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1070,6 +1389,7 @@ export default function ChairmanPosInventoryClient() {
                                 onClick={() => {
                                     setAddingStockItem(null);
                                     setStockToAdd("");
+                                    setStockInputError("");
                                 }}
                                 className="rounded-full p-2 text-[#64748b] transition hover:bg-gray-100 hover:text-[#1e293b]"
                             >
@@ -1090,19 +1410,30 @@ export default function ChairmanPosInventoryClient() {
                                 </label>
                                 <input
                                     type="number"
+                                    min="0"
+                                    step="any"
+                                    onKeyDown={(e) => {
+                                        if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                                    }}
                                     value={stockToAdd}
-                                    onChange={(e) => setStockToAdd(e.target.value)}
+                                    onChange={(e) => {
+                                        let val = e.target.value.replace(/[^0-9.]/g, '');
+                                        if ((val.match(/\./g) || []).length > 1) val = val.substring(0, val.lastIndexOf('.'));
+                                        setStockToAdd(val);
+                                        if (stockInputError) setStockInputError("");
+                                    }}
                                     placeholder="e.g. 50"
-                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                    className={`w-full rounded-xl border ${stockInputError ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
                                 />
+                                {stockInputError && <p className="mt-1 text-xs text-red-500">{stockInputError}</p>}
                             </div>
                         </div>
 
                         <button
                             onClick={handleStockClick}
                             className={`w-full rounded-xl py-3 text-sm font-bold text-white shadow-sm transition ${stockActionType === "add"
-                                    ? "bg-[#123D2A] hover:bg-[#123D2A]/90"
-                                    : "bg-orange-600 hover:bg-orange-700"
+                                ? "bg-[#123D2A] hover:bg-[#123D2A]/90"
+                                : "bg-orange-600 hover:bg-orange-700"
                                 }`}
                         >
                             Confirm {stockActionType === "add" ? "Add" : "Deduct"}
@@ -1304,8 +1635,8 @@ export default function ChairmanPosInventoryClient() {
                                     }
                                 }}
                                 className={`flex-1 rounded-xl border border-transparent py-3 text-sm font-bold text-white shadow-sm transition ${(pendingAction === 'stock' && stockActionType === 'deduct')
-                                        ? "bg-orange-600 hover:bg-orange-700"
-                                        : "bg-[#123D2A] hover:bg-[#123D2A]/90"
+                                    ? "bg-orange-600 hover:bg-orange-700"
+                                    : "bg-[#123D2A] hover:bg-[#123D2A]/90"
                                     }`}
                             >
                                 Confirm
@@ -1314,7 +1645,7 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                 </div>
             )}
-            
+
             {/* Orders & Payments Modal */}
             {isOrdersModalOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-6">
@@ -1341,15 +1672,26 @@ export default function ChairmanPosInventoryClient() {
                                 <input
                                     type="text"
                                     value={orderSearchQuery}
-                                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                                    onChange={(e) => {
+                                        setOrderSearchQuery(e.target.value);
+                                        setOrdersCurrentPage(1);
+                                    }}
                                     placeholder="Search by Order Number or Customer Name..."
                                     className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58] shadow-sm"
                                 />
                             </div>
 
-                            {orders.filter(order => order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase())).length > 0 ? (
-                                <div className="grid gap-4">
-                                    {orders.filter(order => order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase())).map((order) => (
+                            {(() => {
+                                const filteredOrders = orders.filter(order => order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase()));
+                                const ordersPerPage = 5;
+                                const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+                                const startIndex = (ordersCurrentPage - 1) * ordersPerPage;
+                                const paginatedOrders = filteredOrders.slice(startIndex, startIndex + ordersPerPage);
+
+                                return filteredOrders.length > 0 ? (
+                                    <>
+                                        <div className="grid gap-4">
+                                            {paginatedOrders.map((order) => (
                                         <div key={order.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-gray-100 pb-4">
                                                 <div>
@@ -1360,19 +1702,19 @@ export default function ChairmanPosInventoryClient() {
                                                 </div>
                                                 <div className="flex flex-col items-end gap-2">
                                                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${order.sale_status === 'Pending Payment' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
-                                                            order.sale_status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-700'
+                                                        order.sale_status === 'Paid' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-700'
                                                         }`}>
                                                         {order.sale_status}
                                                     </span>
                                                     {order.sale_status === 'Pending Payment' && (
                                                         <div className="flex gap-2">
-                                                            <button 
+                                                            <button
                                                                 onClick={() => rejectPayment(order.id)}
                                                                 className="text-xs font-bold text-red-600 px-3 py-1.5 rounded-lg transition border border-red-200 hover:bg-red-50 shadow-sm"
                                                             >
                                                                 Reject
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => confirmPayment(order.id)}
                                                                 className="text-xs font-bold text-white px-3 py-1.5 rounded-lg transition shadow-sm bg-[#123D2A] hover:bg-[#123D2A]/90"
                                                             >
@@ -1381,13 +1723,21 @@ export default function ChairmanPosInventoryClient() {
                                                         </div>
                                                     )}
                                                     {order.sale_status === 'Paid' && (
-                                                        <button 
-                                                            onClick={() => setReceiptOrder(order)}
-                                                            className="text-xs font-bold text-[#123D2A] px-3 py-1.5 rounded-lg transition border border-[#123D2A]/20 hover:bg-[#123D2A]/10 shadow-sm flex items-center gap-1.5"
-                                                        >
-                                                            <Printer className="size-3.5" />
-                                                            View Receipt
-                                                        </button>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => setOrderToRevokeId(order.id)}
+                                                                className="text-xs font-bold text-red-600 px-3 py-1.5 rounded-lg transition border border-red-200 hover:bg-red-50 shadow-sm"
+                                                            >
+                                                                Revoke Payment
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setReceiptOrder(order)}
+                                                                className="text-xs font-bold text-[#123D2A] px-3 py-1.5 rounded-lg transition border border-[#123D2A]/20 hover:bg-[#123D2A]/10 shadow-sm flex items-center gap-1.5"
+                                                            >
+                                                                <Printer className="size-3.5" />
+                                                                View Receipt
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -1400,8 +1750,8 @@ export default function ChairmanPosInventoryClient() {
                                                     </div>
                                                 ))}
                                             </div>
-                                            
-                                            {order.payment_reference_id && (
+
+                                            {order.payment_reference_id && order.provider !== 'Cash' && (
                                                 <div className="mb-4 bg-blue-50 rounded-xl p-4 border border-blue-100 flex justify-between items-center">
                                                     <div>
                                                         <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">Online Payment Details</p>
@@ -1418,15 +1768,56 @@ export default function ChairmanPosInventoryClient() {
                                         </div>
                                     ))}
                                 </div>
-                            ) : (
-                                <div className="py-20 text-center flex flex-col items-center">
-                                    <div className="bg-gray-100 p-4 rounded-full mb-4">
-                                        <ShoppingBag className="size-12 text-gray-300" />
+                                {totalPages > 1 && (
+                                    <div className="mt-6 flex items-center justify-center gap-2 border-t border-gray-100 pt-4">
+                                        <button
+                                            onClick={() => setOrdersCurrentPage(1)}
+                                            disabled={ordersCurrentPage === 1}
+                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                                            title="First Page"
+                                        >
+                                            <ChevronsLeft className="size-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setOrdersCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={ordersCurrentPage === 1}
+                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                                            title="Previous Page"
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                        </button>
+                                        <span className="text-sm font-medium text-gray-700 px-2">
+                                            Page {ordersCurrentPage} of {totalPages} &bull; {filteredOrders.length} orders
+                                        </span>
+                                        <button
+                                            onClick={() => setOrdersCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={ordersCurrentPage === totalPages}
+                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                                            title="Next Page"
+                                        >
+                                            <ChevronRight className="size-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setOrdersCurrentPage(totalPages)}
+                                            disabled={ordersCurrentPage === totalPages}
+                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                                            title="Last Page"
+                                        >
+                                            <ChevronsRight className="size-4" />
+                                        </button>
                                     </div>
-                                    <p className="text-lg font-semibold text-gray-600">No orders found.</p>
-                                    <p className="text-sm text-gray-500 mt-1">Pending and completed orders will appear here.</p>
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-gray-200 border-dashed">
+                                <div className="rounded-full bg-gray-50 p-4 mb-4">
+                                    <ShoppingBag className="size-8 text-gray-400" />
                                 </div>
-                            )}
+                                <p className="text-gray-500 font-medium">No orders found.</p>
+                                <p className="text-sm text-gray-400 mt-1">Try adjusting your search query.</p>
+                            </div>
+                        );
+                    })()}
                         </div>
                     </div>
                 </div>
@@ -1434,15 +1825,43 @@ export default function ChairmanPosInventoryClient() {
 
             {/* Confirm Payment Modal */}
             {orderToConfirmId !== null && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
                         <h2 className="mb-2 text-xl font-bold text-gray-900">Verify Payment</h2>
-                        <p className="mb-6 text-sm text-gray-500">
+                        <p className="mb-4 text-sm text-gray-500">
                             Are you sure you want to verify this payment? This will finalize the order and deduct the items from stock.
                         </p>
+                        
+                        <div className="mb-6 text-left">
+                            <label className="mb-1 block text-sm font-medium text-gray-700">Add Discount % (Optional)</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="any"
+                                    onKeyDown={(e) => {
+                                        if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                                    }}
+                                    placeholder="0.00"
+                                    value={confirmDiscountAmount}
+                                    onChange={(e) => {
+                                        let val = e.target.value.replace(/[^0-9.]/g, '');
+                                        if ((val.match(/\./g) || []).length > 1) val = val.substring(0, val.lastIndexOf('.'));
+                                        if (Number(val) > 100) val = "100";
+                                        setConfirmDiscountAmount(val);
+                                        if (confirmDiscountError) setConfirmDiscountError("");
+                                    }}
+                                    className={`w-full rounded-xl border ${confirmDiscountError ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#123D2A]'} bg-gray-50 p-3 pl-8 text-sm outline-none transition focus:bg-white focus:ring-1`}
+                                />
+                            </div>
+                            {confirmDiscountError && <p className="mt-1 text-xs text-red-500">{confirmDiscountError}</p>}
+                        </div>
+
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setOrderToConfirmId(null)}
+                                onClick={() => { setOrderToConfirmId(null); setConfirmDiscountAmount(""); }}
                                 className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                             >
                                 Cancel
@@ -1461,15 +1880,24 @@ export default function ChairmanPosInventoryClient() {
 
             {/* Reject Payment Modal */}
             {orderToRejectId !== null && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
                         <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                             <AlertCircle className="size-6" />
                         </div>
                         <h2 className="mb-2 text-xl font-bold text-gray-900">Reject Order</h2>
-                        <p className="mb-6 text-sm text-gray-500">
+                        <p className="mb-4 text-sm text-gray-500">
                             Are you sure you want to reject this order? This action cannot be undone.
                         </p>
+                        <div className="text-left mb-6">
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Rejection (Optional)</label>
+                            <textarea
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm outline-none transition focus:border-red-500 focus:bg-white focus:ring-1 focus:ring-red-200 resize-none h-24"
+                                placeholder="Enter reason..."
+                            />
+                        </div>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setOrderToRejectId(null)}
@@ -1490,7 +1918,7 @@ export default function ChairmanPosInventoryClient() {
 
             {/* Receipt Modal */}
             {receiptOrder && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
                             <h2 className="text-lg font-bold text-gray-900">Receipt</h2>
@@ -1498,7 +1926,7 @@ export default function ChairmanPosInventoryClient() {
                                 <X className="size-5" />
                             </button>
                         </div>
-                        
+
                         <div className="flex-1 overflow-y-auto p-6" id="printable-receipt">
                             <div className="text-center mb-6">
                                 <h1 className="text-xl font-black text-gray-900 mb-1 tracking-tight">TRACKCOOP</h1>
@@ -1508,7 +1936,7 @@ export default function ChairmanPosInventoryClient() {
                                     <p>{new Date(receiptOrder.sale_date).toLocaleString()}</p>
                                 </div>
                             </div>
-                            
+
                             <div className="border-t border-b border-dashed border-gray-300 py-4 mb-4">
                                 <div className="text-xs text-gray-500 mb-2 font-semibold">CUSTOMER</div>
                                 <p className="text-sm font-bold text-gray-900">{receiptOrder.customer_name || 'Walk-in'}</p>
@@ -1531,8 +1959,43 @@ export default function ChairmanPosInventoryClient() {
                                 </div>
                             </div>
 
-                            <div className="border-t border-dashed border-gray-300 pt-4 mb-4">
-                                <div className="flex justify-between items-center text-sm font-bold text-gray-900">
+                            <div className="border-t border-dashed border-gray-300 pt-4 mb-4 space-y-1">
+                                <div className="flex justify-between items-center text-sm text-gray-600">
+                                    <span>Subtotal</span>
+                                    <span>₱{Number(receiptOrder.subtotal_amount || receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                {(() => {
+                                    const subtotal = Number(receiptOrder.subtotal_amount || receiptOrder.total_amount);
+                                    const totalDiscount = Number(receiptOrder.discount_amount);
+                                    
+                                    if (totalDiscount <= 0) return null;
+
+                                    const isMember = !!receiptOrder.member_id;
+                                    const expectedMemberDiscount = isMember ? subtotal * 0.05 : 0;
+                                    
+                                    // Due to float precision, we compare with a tiny threshold
+                                    const hasMemberDiscount = isMember && totalDiscount >= expectedMemberDiscount - 0.01;
+                                    const actualMemberDiscount = hasMemberDiscount ? expectedMemberDiscount : 0;
+                                    const additionalDiscount = Math.max(0, totalDiscount - actualMemberDiscount);
+                                    
+                                    return (
+                                        <>
+                                            {actualMemberDiscount > 0 && (
+                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                                    <span>Member Discount (5%)</span>
+                                                    <span>- ₱{actualMemberDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            )}
+                                            {additionalDiscount > 0.01 && (
+                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                                    <span>Additional Discount ({Math.round((additionalDiscount / subtotal) * 100)}%)</span>
+                                                    <span>- ₱{additionalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                                <div className="flex justify-between items-center text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
                                     <span>TOTAL</span>
                                     <span>₱{Number(receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
@@ -1541,7 +2004,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="text-center">
                                 <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Payment Method</p>
                                 <p className="text-sm font-bold text-gray-900">
-                                    {receiptOrder.payment_reference_id ? `GCash (${receiptOrder.reference_number})` : 'Cash'}
+                                    {receiptOrder.payment_reference_id && receiptOrder.provider !== 'Cash' ? `${receiptOrder.provider || 'GCash'} (${receiptOrder.reference_number})` : 'Cash'}
                                 </p>
                             </div>
                         </div>
@@ -1596,6 +2059,55 @@ export default function ChairmanPosInventoryClient() {
                             >
                                 <Printer className="size-4" />
                                 Print Receipt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Revoke Payment Modal */}
+            {orderToRevokeId !== null && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h3 className="text-xl font-black text-gray-900">Revoke Payment</h3>
+                            <button
+                                onClick={() => setOrderToRevokeId(null)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors bg-white hover:bg-gray-100 p-2 rounded-xl"
+                            >
+                                <X className="size-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-gray-600">
+                                Are you sure you want to revoke this payment?
+                            </p>
+                            <p className="mt-2 text-sm text-red-600 font-semibold bg-red-50 p-3 rounded-xl border border-red-100">
+                                This will reset the order back to Pending, restore stock into inventory, and void associated financial records.
+                            </p>
+                            <div className="mt-4 text-left">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Revocation (Optional)</label>
+                                <textarea
+                                    value={revokeReason}
+                                    onChange={(e) => setRevokeReason(e.target.value)}
+                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm outline-none transition focus:border-red-500 focus:bg-white focus:ring-1 focus:ring-red-200 resize-none h-24"
+                                    placeholder="Enter reason..."
+                                />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => setOrderToRevokeId(null)}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => void processRevokePayment()}
+                                disabled={isRevoking}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-all shadow-md shadow-red-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isRevoking ? <Loader2 className="size-4 animate-spin" /> : null}
+                                Revoke Payment
                             </button>
                         </div>
                     </div>

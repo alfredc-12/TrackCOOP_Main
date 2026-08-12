@@ -15,6 +15,7 @@ type InventoryProductInput = {
   stock?: number | string;
   status?: string;
   img?: string;
+  reorder_level?: number | string;
 };
 
 export async function GET() {
@@ -35,10 +36,11 @@ export async function POST(req: Request) {
     if (auth.response) return auth.response;
 
     const body = await req.json() as InventoryProductInput;
-    const { name, category, price, cost_price, description, unit, stock, status, img } = body;
+    const { name, category, price, cost_price, description, unit, stock, status, img, reorder_level } = body;
     const sellingPrice = Number(price);
     const costPrice = Number(cost_price ?? 0);
     const openingStock = Number(stock ?? 0);
+    const reorderLevel = Number(reorder_level ?? 0);
     const productUnit = unit?.trim() || "piece";
 
     if (!name || !productUnit || !Number.isFinite(sellingPrice) || sellingPrice < 0 || !Number.isFinite(openingStock) || openingStock < 0) {
@@ -57,9 +59,9 @@ export async function POST(req: Request) {
 
     try {
       const [productResult] = await connection.query<ResultSetHeader>(
-        `INSERT INTO products (sku, product_name, category, unit, selling_price, cost_price, description, product_status, image_path, created_by) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [sku, name, category ?? null, productUnit, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, auth.user.numericId]
+        `INSERT INTO products (sku, product_name, category, unit, selling_price, cost_price, description, product_status, image_path, created_by, reorder_level) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sku, name, category ?? null, productUnit, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, auth.user.numericId, reorderLevel]
       );
 
       const productId = productResult.insertId;

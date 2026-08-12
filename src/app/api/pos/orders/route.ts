@@ -4,7 +4,14 @@ import { RowDataPacket } from "mysql2";
 import { requireApiUser } from "@/lib/next-api-auth";
 
 type PosOrderRow = RowDataPacket & {
-  items?: string | unknown[];
+  id: number;
+};
+
+type PosSaleItemRow = RowDataPacket & {
+  pos_sale_id: number;
+  name: string;
+  quantity: number;
+  price: number;
 };
 
 export async function GET() {
@@ -21,24 +28,16 @@ export async function GET() {
              s.sale_date, 
              s.sale_status, 
              s.payment_status,
+             s.member_id,
+             s.subtotal_amount,
+             s.discount_amount,
              s.total_amount,
              s.customer_name,
              s.customer_contact,
              s.payment_reference_id,
              COALESCE(u.email, pr.payer_email) as customer_email,
              pr.reference_number,
-             pr.provider,
-             (
-                 SELECT CONCAT('[', GROUP_CONCAT(
-                     JSON_OBJECT(
-                         'name', i.product_name_snapshot,
-                         'quantity', i.quantity,
-                         'price', i.unit_price
-                     )
-                 ), ']')
-                 FROM pos_sale_items i
-                 WHERE i.pos_sale_id = s.pos_sale_id
-             ) as items
+             pr.provider
          FROM pos_sales s
          LEFT JOIN payment_references pr ON s.payment_reference_id = pr.payment_reference_id
          LEFT JOIN member_profiles mp ON s.member_id = mp.member_id
@@ -46,10 +45,31 @@ export async function GET() {
          ORDER BY s.sale_date DESC`
       );
 
-      const formattedOrders = rows.map(row => ({
+      let formattedOrders = rows.map(row => ({
           ...row,
-          items: typeof row.items === 'string' ? JSON.parse(row.items) : (row.items || [])
+          items: [] as any[]
       }));
+
+      if (rows.length > 0) {
+          const saleIds = rows.map(r => r.id);
+          const [itemRows] = await connection.query<PosSaleItemRow[]>(
+              `SELECT pos_sale_id, product_name_snapshot as name, quantity, unit_price as price
+               FROM pos_sale_items
+               WHERE pos_sale_id IN (?)`,
+              [saleIds]
+          );
+
+          const itemsBySaleId = itemRows.reduce((acc, item) => {
+              if (!acc[item.pos_sale_id]) acc[item.pos_sale_id] = [];
+              acc[item.pos_sale_id].push({ name: item.name, quantity: item.quantity, price: item.price });
+              return acc;
+          }, {} as Record<number, any[]>);
+
+          formattedOrders = formattedOrders.map(order => ({
+              ...order,
+              items: itemsBySaleId[order.id] || []
+          }));
+      }
 
       return NextResponse.json(formattedOrders);
     } finally {

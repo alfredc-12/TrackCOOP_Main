@@ -17,6 +17,8 @@ export async function PUT(
         if (auth.response) return auth.response;
 
         const { id: orderId } = await params;
+        const body = await req.json().catch(() => ({}));
+        const reason = body.reason?.trim();
 
         const connection = await db.getConnection();
         await connection.beginTransaction();
@@ -37,12 +39,16 @@ export async function PUT(
                 return NextResponse.json({ error: "Only pending orders can be rejected" }, { status: 400 });
             }
 
-            // Update status to Cancelled
+            // Update status to Cancelled and append reason to notes
+            const notesAddition = reason ? `\n[Rejected Reason]: ${reason}` : `\n[Rejected Reason]: Order rejected by user.`;
+            
             await connection.query<ResultSetHeader>(
                 `UPDATE pos_sales 
-                 SET sale_status = 'Cancelled', payment_status = 'Refunded' 
+                 SET sale_status = 'Cancelled', 
+                     payment_status = 'Refunded',
+                     notes = CONCAT(COALESCE(notes, ''), ?)
                  WHERE pos_sale_id = ?`,
-                [orderId]
+                [notesAddition, orderId]
             );
 
             // If it's a GCash payment (has payment_reference_id), we should update the payment_references to Rejected
@@ -51,9 +57,10 @@ export async function PUT(
                     `UPDATE payment_references 
                      SET validation_status = 'Rejected', 
                          validated_by = ?, 
-                         validated_at = NOW()
+                         validated_at = NOW(),
+                         rejection_reason = ?
                      WHERE payment_reference_id = ?`,
-                    [auth.user.numericId, sales[0].payment_reference_id]
+                    [auth.user.numericId, reason || null, sales[0].payment_reference_id]
                 );
             }
 

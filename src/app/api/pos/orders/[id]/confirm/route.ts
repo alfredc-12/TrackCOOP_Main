@@ -9,6 +9,7 @@ type PosSaleStatusRow = RowDataPacket & {
     sale_status: string;
     payment_reference_id: number | null;
     member_id: number | null;
+    subtotal_amount: number | string;
     total_amount: number | string;
     customer_name: string | null;
     customer_contact: string | null;
@@ -39,12 +40,16 @@ export async function PUT(
 
         const { id: orderId } = await params;
 
+        const bodyText = await req.text();
+        const body = bodyText ? JSON.parse(bodyText) : {};
+        const discountAmount = Number(body.discount_amount || 0);
+
         const connection = await db.getConnection();
         await connection.beginTransaction();
         try {
             const [sales] = await connection.query<PosSaleStatusRow[]>(
                 `SELECT sale_number, sale_status, payment_reference_id, member_id,
-                        total_amount, customer_name, customer_contact, sale_date
+                        subtotal_amount, total_amount, customer_name, customer_contact, sale_date
                    FROM pos_sales WHERE pos_sale_id = ?`,
                 [orderId]
             );
@@ -86,12 +91,17 @@ export async function PUT(
                 );
             }
 
+            // Calculate new total based on discount
+            const subtotalAmount = Number(sales[0].subtotal_amount);
+            const newTotalAmount = Math.max(0, subtotalAmount - discountAmount);
+
             // Update status
             await connection.query<ResultSetHeader>(
                 `UPDATE pos_sales 
-                 SET sale_status = 'Paid', payment_status = 'Paid' 
+                 SET sale_status = 'Paid', payment_status = 'Paid',
+                     discount_amount = ?, total_amount = ? 
                  WHERE pos_sale_id = ?`,
-                [orderId]
+                [discountAmount, newTotalAmount, orderId]
             );
 
             // Resolve the payment_reference_id to use for this sale
@@ -109,16 +119,17 @@ export async function PUT(
                 );
             } else {
                 // Cash sale – create a payment_reference so it shows in the Payments page
-                const refNumber = `POS-CASH-${sales[0].sale_number}`;
+                // Append Date.now() to ensure uniqueness if the order is confirmed again after a revocation
+                const refNumber = `POS-CASH-${sales[0].sale_number}-${Date.now()}`;
                 const [insertResult] = await connection.query<ResultSetHeader>(
                     `INSERT INTO payment_references
                      (member_id, payer_name, payer_contact, provider, reference_number,
                       payment_purpose, related_entity_type, related_entity_id,
-                      amount, validation_status, payment_channel,
+                      amount, validation_status,
                       validated_by, validated_at, submitted_at, updated_at)
                      VALUES (?, ?, ?, 'Cash', ?,
                              'POS/Product', 'POS_SALE', ?,
-                             ?, 'Validated', 'Cash',
+                             ?, 'Validated',
                              ?, NOW(), NOW(), NOW())`,
                     [
                         sales[0].member_id || null,
@@ -126,7 +137,7 @@ export async function PUT(
                         sales[0].customer_contact || null,
                         refNumber,
                         orderId,
-                        sales[0].total_amount || 0,
+                        newTotalAmount,
                         auth.user.numericId,
                     ]
                 );
@@ -159,7 +170,7 @@ export async function PUT(
                         auth.user.numericId,
                         auth.user.numericId,
                         orderId,
-                        sales[0].total_amount || 0,
+                        newTotalAmount,
                         `POS Sale #${sales[0].sale_number}`
                     ]
                 );
@@ -188,7 +199,9 @@ export async function PUT(
                         { label: "Sale number", value: sales[0].sale_number },
                         { label: "Customer", value: sales[0].customer_name ?? "Walk-in" },
                         { label: "Sale date", value: sales[0].sale_date },
-                        { label: "Amount paid", value: `PHP ${sales[0].total_amount}` },
+                        { label: "Subtotal", value: `PHP ${subtotalAmount.toFixed(2)}` },
+                        ...(discountAmount > 0 ? [{ label: "Discount", value: `PHP -${discountAmount.toFixed(2)}` }] : []),
+                        { label: "Amount paid", value: `PHP ${newTotalAmount.toFixed(2)}` },
                         { label: "Payment status", value: "Paid" },
                     ],
                 });

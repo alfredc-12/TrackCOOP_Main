@@ -14,6 +14,7 @@ type InventoryProductRow = RowDataPacket & {
   sold: number | string | null;
   status: string;
   img: string | null;
+  reorder_level: number | string | null;
 };
 
 type InventoryMovementRow = RowDataPacket & {
@@ -36,6 +37,7 @@ export type InventoryProduct = {
   sold: number;
   status: string;
   img: string;
+  reorder_level: number;
   history?: {
     type: "add" | "deduct";
     amount: number;
@@ -76,7 +78,8 @@ export async function listInventoryProducts({
       ) as pending_qty,
       0 as sold,
       p.product_status as status,
-      p.image_path as img
+      p.image_path as img,
+      p.reorder_level
     FROM products p
     LEFT JOIN v_product_inventory_balance v ON p.product_id = v.product_id
     WHERE p.product_status <> 'Archived'
@@ -129,6 +132,7 @@ export async function listInventoryProducts({
       sold: Number(item.sold ?? 0),
       status: mapProductStatus(item.status),
       img: item.img ?? "",
+      reorder_level: Number(item.reorder_level ?? 0),
       ...(includeHistory ? { history: movementsByProduct.get(id) ?? [] } : {}),
     };
   });

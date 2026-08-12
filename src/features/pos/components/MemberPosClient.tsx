@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, QrCode, Printer } from "lucide-react";
+import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, QrCode, Printer, AlertCircle } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 type InventoryItem = {
     id: number;
@@ -44,12 +45,16 @@ type PosOrder = {
     sale_number: string;
     sale_date: string;
     sale_status: string;
+    subtotal_amount: number | string;
+    discount_amount: number | string;
     total_amount: number | string;
     customer_name?: string | null;
     customer_email?: string | null;
     customer_contact?: string | null;
     payment_reference_id?: number | string | null;
     reference_number?: string | null;
+    provider?: string | null;
+    notes?: string | null;
     items?: PosOrderItem[];
 };
 
@@ -115,6 +120,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [paymentContact, setPaymentContact] = useState("");
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
+    const [checkoutErrors, setCheckoutErrors] = useState<Record<string, string>>({});
 
     // Filter and Sort State
     const [searchQuery, setSearchQuery] = useState("");
@@ -236,6 +242,11 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
 
     const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalCartPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    const isMember = !isPublicView;
+    const autoDiscountRate = isMember ? 0.05 : 0;
+    const autoDiscountAmount = totalCartPrice * autoDiscountRate;
+    const finalCartPrice = totalCartPrice - autoDiscountAmount;
 
     const openCart = useCallback(() => {
         setIsCartOpen(true);
@@ -249,7 +260,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             const availableToSell = product.stock - (product.pending_qty || 0);
 
             if (currentQty + qty > availableToSell) {
-                alert(`Cannot add more. Only ${formatQuantityUnit(availableToSell, product.unit)} are currently available to buy (some are pending).`);
+                toast.error(`Cannot add more. Only ${formatQuantityUnit(availableToSell, product.unit)} are available to buy.`);
                 return prevCart;
             }
 
@@ -276,7 +287,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             if (item.id === id) {
                 const newQuantity = item.quantity + delta;
                 if (newQuantity > item.maxStock) {
-                    alert(`Maximum stock reached for ${item.name}: ${formatQuantityUnit(item.maxStock, item.unit)}.`);
+                    toast.error(`Maximum stock reached for ${item.name}: ${formatQuantityUnit(item.maxStock, item.unit)}.`);
                     return item;
                 }
                 if (newQuantity > 0) {
@@ -293,23 +304,23 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
 
     const handleCheckout = async () => {
         if (cart.length === 0) return;
-        if (!paymentName.trim()) {
-            alert("Please enter your Name.");
-            return;
-        }
-        if (!paymentEmail.trim()) {
-            alert("Please enter your Email account.");
-            return;
-        }
-        if (!paymentContact.trim()) {
-            alert("Please enter your Contact Number.");
-            return;
-        }
+        
+        const errors: Record<string, string> = {};
+        
+        if (!paymentName.trim()) errors.paymentName = "Please enter your Name.";
+        if (!paymentEmail.trim()) errors.paymentEmail = "Please enter your Email account.";
+        if (!paymentContact.trim()) errors.paymentContact = "Please enter your Contact Number.";
         if (paymentMethod === "Online" && !paymentReference.trim()) {
-            alert("Please enter the GCash reference number.");
+            errors.paymentReference = "Please enter the GCash reference number.";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setCheckoutErrors(errors);
+            toast.error("Please fill in all required fields correctly.");
             return;
         }
 
+        setCheckoutErrors({});
         setIsConfirmCheckoutModalOpen(true);
     };
 
@@ -345,11 +356,11 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 fetchInventory(); // Refresh stock
             } else {
                 const data = await res.json();
-                alert(data.error || "Checkout failed");
+                toast.error(data.error || "Checkout failed");
             }
         } catch (error) {
             console.error("Checkout error:", error);
-            alert("An error occurred during checkout.");
+            toast.error("An error occurred during checkout.");
         } finally {
             setIsCheckingOut(false);
         }
@@ -558,6 +569,11 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 bg-white custom-scrollbar">
+                            {isMember && (
+                                <div className="mb-4 bg-green-50 border border-green-200 text-green-800 rounded-xl p-3 text-sm flex items-center justify-center gap-2 animate-in fade-in duration-300">
+                                    <span className="font-bold">⭐ Member Perks:</span> You get an automatic 5% discount on all purchases!
+                                </div>
+                            )}
                             {checkoutStep === "payment" ? (
                                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                                     <p className="font-semibold text-gray-700 mb-4">How would you like to pay?</p>
@@ -589,12 +605,21 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                             <div className="w-full text-left">
                                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Reference Number <span className="text-red-500">*</span></label>
                                                 <input 
-                                                    type="text" 
+                                                    type="text"
+                                                    onKeyDown={(e) => {
+                                                        if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}
                                                     value={paymentReference}
-                                                    onChange={(e) => setPaymentReference(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setPaymentReference(e.target.value.replace(/[^0-9]/g, ''));
+                                                        if (checkoutErrors.paymentReference) setCheckoutErrors({ ...checkoutErrors, paymentReference: "" });
+                                                    }}
                                                     placeholder="e.g. 1029384756"
-                                                    className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                                    className={`w-full rounded-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentReference ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
                                                 />
+                                                {checkoutErrors.paymentReference && <p className="mt-1 text-xs text-red-500">{checkoutErrors.paymentReference}</p>}
                                             </div>
                                         </div>
                                     )}
@@ -606,30 +631,47 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                             <input 
                                                 type="text" 
                                                 value={paymentName}
-                                                onChange={(e) => setPaymentName(e.target.value)}
+                                                onChange={(e) => {
+                                                    setPaymentName(e.target.value);
+                                                    if (checkoutErrors.paymentName) setCheckoutErrors({ ...checkoutErrors, paymentName: "" });
+                                                }}
                                                 placeholder="e.g. Juan Dela Cruz"
-                                                className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                                className={`w-full rounded-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentName ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
                                             />
+                                            {checkoutErrors.paymentName && <p className="mt-1 text-xs text-red-500">{checkoutErrors.paymentName}</p>}
                                         </div>
                                         <div className="w-full text-left mt-4">
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address <span className="text-red-500">*</span></label>
                                             <input 
                                                 type="email" 
                                                 value={paymentEmail}
-                                                onChange={(e) => setPaymentEmail(e.target.value)}
+                                                onChange={(e) => {
+                                                    setPaymentEmail(e.target.value);
+                                                    if (checkoutErrors.paymentEmail) setCheckoutErrors({ ...checkoutErrors, paymentEmail: "" });
+                                                }}
                                                 placeholder="e.g. juandelacruz@gmail.com"
-                                                className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                                className={`w-full rounded-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentEmail ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
                                             />
+                                            {checkoutErrors.paymentEmail && <p className="mt-1 text-xs text-red-500">{checkoutErrors.paymentEmail}</p>}
                                         </div>
                                         <div className="w-full text-left mt-4">
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number <span className="text-red-500">*</span></label>
                                             <input 
-                                                type="tel" 
+                                                type="tel"
+                                                onKeyDown={(e) => {
+                                                    if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
                                                 value={paymentContact}
-                                                onChange={(e) => setPaymentContact(e.target.value)}
+                                                onChange={(e) => {
+                                                    setPaymentContact(e.target.value.replace(/[^0-9]/g, ''));
+                                                    if (checkoutErrors.paymentContact) setCheckoutErrors({ ...checkoutErrors, paymentContact: "" });
+                                                }}
                                                 placeholder="e.g. 09123456789"
-                                                className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                                className={`w-full rounded-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentContact ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
                                             />
+                                            {checkoutErrors.paymentContact && <p className="mt-1 text-xs text-red-500">{checkoutErrors.paymentContact}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -689,13 +731,19 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
 
                         {cart.length > 0 && (
                             <div className="p-6 bg-gray-50 border-t border-gray-200">
-                                <div className="flex items-center justify-between mb-4">
-                                    <span className="text-gray-500 text-sm font-medium">Subtotal</span>
-                                    <span className="font-bold text-[#1e293b]">₱ {totalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-sm font-semibold text-gray-500">Subtotal</span>
+                                    <span className="text-sm font-semibold text-gray-700">₱ {totalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
-                                <div className="flex items-center justify-between mb-6 pt-4 border-t border-gray-200">
+                                {isMember && (
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm font-bold text-red-500">Member Discount (5%)</span>
+                                        <span className="text-sm font-bold text-red-500">- ₱ {autoDiscountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center border-t border-gray-100 pt-3 mb-6">
                                     <span className="text-base font-bold text-[#1e293b]">Total</span>
-                                    <span className="text-2xl font-bold text-[#123D2A]">₱ {totalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    <span className="text-2xl font-bold text-[#123D2A]">₱ {finalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex gap-3">
                                     {checkoutStep === "payment" && (
@@ -821,7 +869,8 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                                 </div>
                                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                                     order.sale_status === 'Pending Payment' ? 'bg-orange-100 text-orange-700' :
-                                                    order.sale_status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                                                    order.sale_status === 'Paid' ? 'bg-green-100 text-green-700' :
+                                                    order.sale_status === 'Cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
                                                 }`}>
                                                     {order.sale_status}
                                                 </span>
@@ -838,6 +887,17 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                                 <span className="font-bold text-gray-700">Total</span>
                                                 <span className="font-bold text-[#123D2A] text-lg">₱{Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                             </div>
+                                            {order.notes && order.sale_status !== 'Paid' && (
+                                                <div className="mt-4 rounded-xl bg-red-50 p-4 border border-red-100">
+                                                    <div className="flex items-start gap-3">
+                                                        <AlertCircle className="size-5 text-red-600 mt-0.5 shrink-0" />
+                                                        <div className="flex-1">
+                                                            <h4 className="text-sm font-bold text-red-900 mb-1">Status Update</h4>
+                                                            <p className="text-xs text-red-700 whitespace-pre-wrap">{order.notes}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                             {order.sale_status === 'Paid' && (
                                                 <div className="mt-4 flex justify-end">
                                                     <button 
@@ -901,8 +961,47 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                 </div>
                             </div>
 
-                            <div className="border-t border-dashed border-gray-300 pt-4 mb-4">
-                                <div className="flex justify-between items-center text-sm font-bold text-gray-900">
+                            <div className="border-t border-dashed border-gray-300 pt-4 mb-4 space-y-1">
+                                <div className="flex justify-between items-center text-sm text-gray-600">
+                                    <span>Subtotal</span>
+                                    <span>₱{Number(receiptOrder.subtotal_amount || receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                {(() => {
+                                    const subtotal = Number(receiptOrder.subtotal_amount || receiptOrder.total_amount);
+                                    const totalDiscount = Number(receiptOrder.discount_amount);
+                                    
+                                    if (totalDiscount <= 0) return null;
+
+                                    // In Member UI, if there is a discount, it's safe to assume they are a member 
+                                    // if the view is not public, or we can just check if member_id exists. 
+                                    // Wait, receiptOrder in Member UI doesn't have member_id explicitly typed, let's just use the same logic
+                                    // but we know for a fact that if it's not public view, they are a member.
+                                    const isMember = !isPublicView;
+                                    const expectedMemberDiscount = isMember ? subtotal * 0.05 : 0;
+                                    
+                                    // Due to float precision, we compare with a tiny threshold
+                                    const hasMemberDiscount = isMember && totalDiscount >= expectedMemberDiscount - 0.01;
+                                    const actualMemberDiscount = hasMemberDiscount ? expectedMemberDiscount : 0;
+                                    const additionalDiscount = Math.max(0, totalDiscount - actualMemberDiscount);
+                                    
+                                    return (
+                                        <>
+                                            {actualMemberDiscount > 0 && (
+                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                                    <span>Member Discount (5%)</span>
+                                                    <span>- ₱{actualMemberDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            )}
+                                            {additionalDiscount > 0.01 && (
+                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                                    <span>Additional Discount ({Math.round((additionalDiscount / subtotal) * 100)}%)</span>
+                                                    <span>- ₱{additionalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                                <div className="flex justify-between items-center text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
                                     <span>TOTAL</span>
                                     <span>₱{Number(receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
@@ -911,7 +1010,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             <div className="text-center">
                                 <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Payment Method</p>
                                 <p className="text-sm font-bold text-gray-900">
-                                    {receiptOrder.payment_reference_id ? `GCash (${receiptOrder.reference_number})` : 'Cash'}
+                                    {receiptOrder.payment_reference_id && receiptOrder.provider !== 'Cash' ? `${receiptOrder.provider || 'GCash'} (${receiptOrder.reference_number})` : 'Cash'}
                                 </p>
                             </div>
                         </div>

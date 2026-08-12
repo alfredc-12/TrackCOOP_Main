@@ -13,6 +13,7 @@ type InventoryProductUpdateInput = {
   unit?: string;
   status?: string;
   img?: string;
+  reorder_level?: number | string;
 };
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,9 +23,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const productId = (await params).id;
     const body = await req.json() as InventoryProductUpdateInput;
-    const { name, category, price, cost_price, description, unit, status, img } = body;
+    const { name, category, price, cost_price, description, unit, status, img, reorder_level } = body;
     const sellingPrice = Number(price);
     const costPrice = Number(cost_price ?? 0);
+    const reorderLevel = Number(reorder_level ?? 0);
     const productUnit = unit?.trim() || "piece";
 
     if (!name || !productUnit || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
@@ -36,9 +38,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     await db.query(
       `UPDATE products 
-       SET product_name = ?, category = ?, unit = ?, selling_price = ?, cost_price = ?, description = ?, product_status = ?, image_path = ? 
+       SET product_name = ?, category = ?, unit = ?, selling_price = ?, cost_price = ?, description = ?, product_status = ?, reorder_level = ?, image_path = ? 
        WHERE product_id = ?`,
-      [name, category ?? null, productUnit, sellingPrice, costPrice, description ?? null, dbStatus, imagePath || null, productId]
+      [name, category ?? null, productUnit, sellingPrice, costPrice, description ?? null, dbStatus, reorderLevel, imagePath || null, productId]
     );
 
     return NextResponse.json({ success: true });

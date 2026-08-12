@@ -158,21 +158,24 @@ export async function POST(req: Request) {
         }
       }
 
+      const discountAmount = memberId ? subtotal * 0.05 : 0;
+      const totalAmount = Math.max(0, subtotal - discountAmount);
+
       if (normalizedPaymentMethod === "Online") {
         const [refResult] = await connection.query<ResultSetHeader>(
           `INSERT INTO payment_references 
            (member_id, submitted_by, payer_name, payer_email, payer_contact, provider, reference_number, payment_purpose, amount, validation_status) 
            VALUES (?, ?, ?, ?, ?, 'GCash', ?, 'POS/Product', ?, 'Pending')`,
-          [memberId, submittedBy, paymentName, paymentEmail, paymentContact, paymentReference, subtotal]
+          [memberId, submittedBy, paymentName, paymentEmail, paymentContact, paymentReference, totalAmount]
         );
         paymentRefId = refResult.insertId;
       }
 
       const [saleResult] = await connection.query<ResultSetHeader>(
         `INSERT INTO pos_sales 
-         (sale_number, member_id, customer_name, customer_contact, sale_type, sale_status, payment_status, payment_reference_id, subtotal_amount, total_amount, recorded_by) 
-         VALUES (?, ?, ?, ?, ?, 'Pending Payment', 'Unpaid', ?, ?, ?, ?)`,
-        [saleNumber, memberId, paymentName, paymentContact, saleType, paymentRefId, subtotal, subtotal, recordedBy]
+         (sale_number, member_id, customer_name, customer_contact, sale_type, sale_status, payment_status, payment_reference_id, subtotal_amount, discount_amount, total_amount, recorded_by) 
+         VALUES (?, ?, ?, ?, ?, 'Pending Payment', 'Unpaid', ?, ?, ?, ?, ?)`,
+        [saleNumber, memberId, paymentName, paymentContact, saleType, paymentRefId, subtotal, discountAmount, totalAmount, recordedBy]
       );
       
       const saleId = saleResult.insertId;
@@ -202,7 +205,7 @@ export async function POST(req: Request) {
 
       await connection.commit();
 
-      return NextResponse.json({ success: true, saleId, totalAmount: subtotal });
+      return NextResponse.json({ success: true, saleId, totalAmount, discountAmount });
     } catch (err) {
       await connection.rollback();
       throw err;
