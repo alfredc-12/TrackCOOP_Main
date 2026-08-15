@@ -1280,7 +1280,6 @@ CREATE TABLE documents (
     document_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     document_reference VARCHAR(60) NULL,
     uploaded_by BIGINT UNSIGNED NULL,
-    member_id BIGINT UNSIGNED NULL,
     title VARCHAR(255) NOT NULL,
     category VARCHAR(80) NULL,
     document_type ENUM(
@@ -1310,27 +1309,12 @@ CREATE TABLE documents (
     original_file_name VARCHAR(255) NULL,
     mime_type VARCHAR(120) NULL,
     file_size_bytes BIGINT UNSIGNED NULL,
-    checksum_sha256 CHAR(64) NULL,
-    replacement_of_document_id BIGINT UNSIGNED NULL,
-    related_module VARCHAR(80) NULL,
-    related_record_id BIGINT UNSIGNED NULL,
-    related_record_reference VARCHAR(120) NULL,
-    relationship_type VARCHAR(80) NULL,
-    document_date DATE NULL,
     expiration_date DATE NULL,
-    current_version INT UNSIGNED NOT NULL DEFAULT 1,
-    tags TEXT NULL,
-    internal_note TEXT NULL,
     description TEXT NULL,
-    archived_by BIGINT UNSIGNED NULL,
-    archived_at DATETIME NULL,
-    archive_reason TEXT NULL,
     uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_documents_reference UNIQUE (document_reference),
-    CONSTRAINT fk_documents_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_documents_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_documents_replacement FOREIGN KEY (replacement_of_document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE SET NULL
+    CONSTRAINT fk_documents_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 
 CREATE INDEX `idx_documents_access_type` ON `documents` (
@@ -1339,30 +1323,7 @@ CREATE INDEX `idx_documents_access_type` ON `documents` (
     document_status
 );
 
-CREATE INDEX `idx_documents_member` ON `documents` (member_id, uploaded_at);
-
 CREATE INDEX `idx_documents_title` ON `documents` (title);
-
-CREATE TABLE document_versions (
-    document_version_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    document_id BIGINT UNSIGNED NOT NULL,
-    version_number INT UNSIGNED NOT NULL,
-    original_file_name VARCHAR(255) NOT NULL,
-    stored_file_name VARCHAR(255) NOT NULL,
-    storage_path VARCHAR(500) NOT NULL,
-    mime_type VARCHAR(120) NOT NULL,
-    file_extension VARCHAR(20) NOT NULL,
-    file_size_bytes BIGINT UNSIGNED NULL,
-    checksum_sha256 CHAR(64) NULL,
-    change_note TEXT NULL,
-    uploaded_by BIGINT UNSIGNED NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_document_versions_number UNIQUE (document_id, version_number),
-    CONSTRAINT fk_document_versions_document FOREIGN KEY (document_id) REFERENCES documents (document_id) ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_document_versions_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE = InnoDB;
-
-CREATE INDEX `idx_document_versions_created` ON `document_versions` (document_id, created_at);
 
 CREATE TABLE payment_receipts (
     payment_receipt_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

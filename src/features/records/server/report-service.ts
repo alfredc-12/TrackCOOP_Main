@@ -349,7 +349,6 @@ function documentRegisterSpec(filters: ReportFilters): QuerySpec {
       ? (accessMap[filters.documentAccessLevel] ?? filters.documentAccessLevel)
       : undefined,
   );
-  addEquals(conditions, values, "d.related_module", filters.relatedModule);
   return {
     sql: `SELECT d.document_reference AS documentReference,
                  d.title,
@@ -357,9 +356,6 @@ function documentRegisterSpec(filters: ReportFilters): QuerySpec {
                  d.document_type AS documentType,
                  d.access_level AS accessLevel,
                  d.document_status AS status,
-                 d.related_module AS relatedModule,
-                 d.current_version AS version,
-                 d.expiration_date AS expirationDate,
                  d.uploaded_at AS uploadedAt
             FROM documents d
            WHERE ${conditions.join(" AND ")}
@@ -372,9 +368,6 @@ function documentRegisterSpec(filters: ReportFilters): QuerySpec {
       { key: "documentType", label: "Type" },
       { key: "accessLevel", label: "Access" },
       { key: "status", label: "Status" },
-      { key: "relatedModule", label: "Related Module" },
-      { key: "version", label: "Version", format: "number" },
-      { key: "expirationDate", label: "Expires", format: "date" },
       { key: "uploadedAt", label: "Uploaded", format: "datetime" },
     ],
   };
@@ -1085,23 +1078,19 @@ function reportQuery(
     case "document-register":
       return documentRegisterSpec(filters);
     case "documents-by-category":
-    case "documents-by-access":
-    case "documents-by-module": {
+    case "documents-by-access": {
       const group =
         definition.key === "documents-by-category"
           ? "COALESCE(d.category, 'OTHER')"
-          : definition.key === "documents-by-access"
-            ? "d.access_level"
-            : "COALESCE(d.related_module, 'UNLINKED')";
+          : "d.access_level";
       const conditions = ["1 = 1"];
       const values: Array<string | number> = [];
       addEquals(conditions, values, "d.category", filters.documentCategory);
-      addEquals(conditions, values, "d.related_module", filters.relatedModule);
       return {
         sql: `SELECT ${group} AS item,
                      COUNT(*) AS documents,
                      SUM(d.document_status = 'Archived') AS archived,
-                     SUM(d.expiration_date < CURRENT_DATE() AND d.document_status <> 'Archived') AS expired
+                     0 AS expired
                 FROM documents d
                WHERE ${conditions.join(" AND ")}
                GROUP BY ${group}
@@ -1121,9 +1110,9 @@ function reportQuery(
       const spec = documentRegisterSpec(filters);
       const condition =
         definition.key === "expiring-documents"
-          ? "d.document_status <> 'Archived' AND d.expiration_date BETWEEN COALESCE(?, CURRENT_DATE()) AND COALESCE(?, DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY))"
+          ? "d.document_status <> 'Archived'"
           : definition.key === "expired-documents"
-            ? "d.document_status <> 'Archived' AND d.expiration_date < CURRENT_DATE()"
+            ? "1 = 0"
             : "d.document_status = 'Archived'";
       spec.sql = spec.sql.replace(
         "WHERE 1 = 1",
@@ -1178,13 +1167,12 @@ function reportQuery(
         sql: `SELECT d.document_reference AS documentReference,
                      d.title,
                      COALESCE(u.display_name, 'Public visitor') AS accessedBy,
-                     dal.user_role AS role,
-                     dv.version_number AS version,
+                     r.role_name AS role,
                      dal.accessed_at AS accessedAt
                 FROM document_access_logs dal
                 JOIN documents d ON d.document_id = dal.document_id
                 LEFT JOIN users u ON u.user_id = dal.user_id
-                LEFT JOIN document_versions dv ON dv.document_version_id = dal.document_version_id
+                LEFT JOIN roles r ON r.role_id = u.role_id
                WHERE ${conditions.join(" AND ")}
                ORDER BY dal.accessed_at DESC`,
         values,
@@ -1193,38 +1181,7 @@ function reportQuery(
           { key: "title", label: "Document" },
           { key: "accessedBy", label: "User" },
           { key: "role", label: "Role" },
-          { key: "version", label: "Version", format: "number" },
           { key: "accessedAt", label: "Downloaded", format: "datetime" },
-        ],
-      };
-    }
-    case "document-version-history": {
-      const conditions = ["1 = 1"];
-      const values: Array<string | number> = [];
-      addDateRange(conditions, values, "dv.created_at", filters);
-      addEquals(conditions, values, "dv.uploaded_by", filters.userId);
-      return {
-        sql: `SELECT d.document_reference AS documentReference,
-                     d.title,
-                     dv.version_number AS version,
-                     dv.original_file_name AS fileName,
-                     dv.change_note AS changeNote,
-                     u.display_name AS uploadedBy,
-                     dv.created_at AS uploadedAt
-                FROM document_versions dv
-                JOIN documents d ON d.document_id = dv.document_id
-                JOIN users u ON u.user_id = dv.uploaded_by
-               WHERE ${conditions.join(" AND ")}
-               ORDER BY dv.created_at DESC`,
-        values,
-        columns: [
-          { key: "documentReference", label: "Reference" },
-          { key: "title", label: "Document" },
-          { key: "version", label: "Version", format: "number" },
-          { key: "fileName", label: "File" },
-          { key: "changeNote", label: "Change Note" },
-          { key: "uploadedBy", label: "Uploaded By" },
-          { key: "uploadedAt", label: "Uploaded", format: "datetime" },
         ],
       };
     }
@@ -1510,7 +1467,7 @@ async function categorySummary(
     >(
       `SELECT COUNT(*) AS documents,
               SUM(document_status = 'Archived') AS archived,
-              SUM(document_status <> 'Archived' AND expiration_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)) AS expiring
+              0 AS expiring
          FROM documents`,
     );
     return [
@@ -2042,11 +1999,8 @@ export async function saveGeneratedReportToDocuments(
       `INSERT INTO documents (
         document_reference, uploaded_by, title, category, document_type,
         access_level, document_status, file_path, original_file_name, mime_type,
-        file_size_bytes, checksum_sha256, description, related_module,
-        related_record_id, related_record_reference, relationship_type, document_date,
-        current_version
-      ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?, 'application/pdf', ?, ?, ?,
-                'REPORT', ?, ?, 'GENERATED_FROM', CURRENT_DATE(), 1)`,
+        file_size_bytes, checksum_sha256, description
+      ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?, 'application/pdf', ?, ?, ?)`,
       [
         `DOC-TMP-${randomUUID()}`,
         user.numericId,
@@ -2061,31 +2015,12 @@ export async function saveGeneratedReportToDocuments(
         pdf.length,
         checksum,
         `System-generated ${definition.name}. ${generated.periodLabel}.`,
-        reportId,
-        storedReport.reference,
       ],
     );
     const documentReference = `DOC-${new Date().getFullYear()}-${String(documentResult.insertId).padStart(6, "0")}`;
     await connection.query(
       "UPDATE documents SET document_reference = ? WHERE document_id = ?",
       [documentReference, documentResult.insertId],
-    );
-    const [versionResult] = await connection.query<ResultSetHeader>(
-      `INSERT INTO document_versions (
-        document_id, version_number, original_file_name, stored_file_name,
-        storage_path, mime_type, file_extension, file_size_bytes, checksum_sha256,
-        change_note, uploaded_by
-      ) VALUES (?, 1, ?, ?, ?, 'application/pdf', 'pdf', ?, ?,
-                'Initial system-generated report version.', ?)`,
-      [
-        documentResult.insertId,
-        safeName,
-        stored.storedFileName,
-        stored.storagePath,
-        pdf.length,
-        checksum,
-        user.numericId,
-      ],
     );
     await connection.query(
       `UPDATE reports
@@ -2101,13 +2036,11 @@ export async function saveGeneratedReportToDocuments(
     );
     await connection.query(
       `INSERT INTO document_access_logs
-         (document_id, document_version_id, user_id, user_role, access_action, ip_address, user_agent)
-       VALUES (?, ?, ?, ?, 'Upload', ?, ?)`,
+         (document_id, user_id, access_action, ip_address, user_agent)
+       VALUES (?, ?, 'View', ?, ?)`,
       [
         documentResult.insertId,
-        versionResult.insertId,
         user.numericId,
-        user.role,
         metadata?.ipAddress ?? null,
         metadata?.userAgent?.slice(0, 500) ?? null,
       ],

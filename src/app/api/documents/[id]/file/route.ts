@@ -20,14 +20,8 @@ export async function GET(
         : actionParam === "print"
           ? "Print"
           : "Preview";
-    const versionValue = request.nextUrl.searchParams.get("version");
-    const version =
-      versionValue && /^\d+$/.test(versionValue)
-        ? Number(versionValue)
-        : undefined;
     const file = await getDocumentFile(
       id,
-      version,
       user,
       action,
       requestMetadata(request),

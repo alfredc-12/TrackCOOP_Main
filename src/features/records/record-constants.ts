@@ -491,15 +491,7 @@ export const REPORT_CATALOG: ReportDefinition[] = [
     ["documentAccessLevel"],
     [...chairmanOnly],
   ),
-  report(
-    "documents-by-module",
-    "Documents by Related Module",
-    "DOCUMENTS",
-    "Documents grouped by source business module.",
-    "Documents",
-    ["relatedModule"],
-    [...chairmanOnly],
-  ),
+
   report(
     "expiring-documents",
     "Expiring Documents",
@@ -545,15 +537,7 @@ export const REPORT_CATALOG: ReportDefinition[] = [
     [...standardDates, "userId"],
     [...chairmanOnly],
   ),
-  report(
-    "document-version-history",
-    "Document Version History",
-    "DOCUMENTS",
-    "Preserved document version records.",
-    "Document versions",
-    [...standardDates, "userId"],
-    [...chairmanOnly],
-  ),
+
 
   report(
     "user-activity",

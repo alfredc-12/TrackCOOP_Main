@@ -25,34 +25,11 @@ export type DocumentRecord = {
   mimeType: string;
   fileExtension: string;
   fileSizeBytes: number;
-  relatedModule: string | null;
-  relatedRecordId: string | null;
-  relatedRecordReference: string | null;
-  relationshipType: string | null;
-  memberId: string | null;
-  documentDate: string | null;
   expirationDate: string | null;
-  tags: string | null;
-  currentVersion: number;
   uploadedBy: string;
   uploadedById: string | null;
   uploadedAt: string;
   updatedAt: string;
-  archivedAt: string | null;
-  archiveReason: string | null;
-};
-
-export type DocumentVersion = {
-  id: string;
-  versionNumber: number;
-  originalFileName: string;
-  mimeType: string;
-  fileExtension: string;
-  fileSizeBytes: number;
-  checksum: string;
-  changeNote: string | null;
-  uploadedBy: string;
-  uploadedAt: string;
 };
 
 export type DocumentActivity = {
@@ -60,7 +37,6 @@ export type DocumentActivity = {
   user: string;
   role: string | null;
   action: string;
-  versionNumber: number | null;
   occurredAt: string;
 };
 
@@ -73,8 +49,6 @@ export type AuditActivity = {
 };
 
 export type DocumentDetail = DocumentRecord & {
-  internalNote: string | null;
-  versions: DocumentVersion[];
   accessHistory: DocumentActivity[];
   auditHistory: AuditActivity[];
 };

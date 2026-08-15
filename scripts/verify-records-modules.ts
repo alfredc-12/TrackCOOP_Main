@@ -7,7 +7,6 @@ import {
   listDocuments,
   setDocumentArchived,
   uploadDocument,
-  uploadDocumentVersion,
 } from "../src/features/records/server/document-service";
 import { RecordsError } from "../src/features/records/server/records-error";
 import {
@@ -68,11 +67,6 @@ async function verify() {
       category: "AUDIT",
       documentType: "Other",
       accessLevel: "ADMIN_ONLY",
-      relatedModule: "AUDIT_RECORD",
-      relatedRecordReference: `VERIFY-${stamp}`,
-      relationshipType: "IMPLEMENTATION_VERIFICATION",
-      tags: "records,module,verification",
-      internalNote: "Created by the controlled records verification script.",
       file: file(
         `records-verification-${stamp}.pdf`,
         `Initial verification ${stamp}`,
@@ -81,7 +75,7 @@ async function verify() {
     chairman,
     { ipAddress: "127.0.0.1", userAgent: "TrackCOOP records verification" },
   );
-  await getDocumentFile(uploaded.id, undefined, chairman, "Download", {
+  await getDocumentFile(uploaded.id, chairman, "Download", {
     ipAddress: "127.0.0.1",
     userAgent: "TrackCOOP records verification",
   });
@@ -89,7 +83,7 @@ async function verify() {
   const denied: string[] = [];
   for (const actor of [bookkeeper, member]) {
     try {
-      await getDocumentFile(uploaded.id, undefined, actor, "Preview");
+      await getDocumentFile(uploaded.id, actor, "Preview");
     } catch (error) {
       if (error instanceof RecordsError && error.status === 404) {
         denied.push(actor.role);
@@ -98,16 +92,7 @@ async function verify() {
       }
     }
   }
-  const version = await uploadDocumentVersion(
-    uploaded.id,
-    file(
-      `records-verification-${stamp}-v2.pdf`,
-      `Second verification version ${stamp}`,
-    ),
-    "Verified that a new version preserves version one.",
-    chairman,
-    { ipAddress: "127.0.0.1", userAgent: "TrackCOOP records verification" },
-  );
+
   await setDocumentArchived(
     uploaded.id,
     true,
@@ -125,11 +110,9 @@ async function verify() {
     },
     chairman,
   );
-  const generatedReceipt = receiptDocuments.documents.find(
-    (document) => document.relationshipType === "SYSTEM_RECEIPT",
-  );
+  const generatedReceipt = receiptDocuments.documents[0];
   const generatedReceiptFile = generatedReceipt
-    ? await getDocumentFile(generatedReceipt.id, undefined, chairman, "Preview")
+    ? await getDocumentFile(generatedReceipt.id, chairman, "Preview")
     : null;
 
   const financial = await generateReport("financial-summary", {}, chairman, {
@@ -154,8 +137,6 @@ async function verify() {
         uploadedDocument: {
           id: uploaded.id,
           reference: uploaded.reference,
-          versions: restored.versions.length,
-          currentVersion: version.version,
           archivedStatus: archived.status,
           restoredStatus: restored.status,
           recordedDownloads: restored.accessHistory.filter(
@@ -173,13 +154,10 @@ async function verify() {
         savedReportDocument: {
           id: saved.documentId,
           reference: savedDocument.reference,
-          relatedModule: savedDocument.relatedModule,
-          relatedReference: savedDocument.relatedRecordReference,
         },
         generatedReceiptDocument: generatedReceipt
           ? {
               reference: generatedReceipt.reference,
-              relatedModule: generatedReceipt.relatedModule,
               accessLevel: generatedReceipt.accessLevel,
               fileBytes: generatedReceiptFile?.contents.length ?? 0,
             }

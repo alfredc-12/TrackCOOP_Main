@@ -6,6 +6,9 @@ import { LoaderCircle } from "lucide-react";
 export const fieldClass =
   "min-h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
 
+export const errorFieldClass =
+  "min-h-11 w-full rounded-md border border-[#FF4D4F] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#FF4D4F] focus:ring-4 focus:ring-[#FF4D4F]/20";
+
 export const secondaryButtonClass =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#294B39] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -30,23 +33,27 @@ export function Field({
   hint,
   children,
   wide,
+  error,
 }: {
   label: string;
   required?: boolean;
   hint?: string;
   children: ReactNode;
   wide?: boolean;
+  error?: string;
 }) {
   return (
     <label
-      className={`grid gap-2 text-sm font-semibold text-[#294B39] ${wide ? "sm:col-span-2" : ""}`}
+      className={`flex flex-col gap-1.5 text-sm font-semibold text-[#294B39] ${wide ? "sm:col-span-2" : ""}`}
     >
       <span>
         {label}
         {required ? <span className="text-[#9A392A]"> *</span> : null}
       </span>
       {children}
-      {hint ? (
+      {error ? (
+        <span className="text-xs text-[#FF4D4F]">{error}</span>
+      ) : hint ? (
         <span className="text-xs font-normal text-[#6C7A70]">{hint}</span>
       ) : null}
     </label>

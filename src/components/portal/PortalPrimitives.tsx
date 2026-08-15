@@ -171,6 +171,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   onConfirm,
   trigger,
+  children,
 }: {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -180,6 +181,7 @@ export function ConfirmDialog({
   cancelLabel?: string;
   onConfirm: () => void;
   trigger?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -197,6 +199,7 @@ export function ConfirmDialog({
               <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
                 {description}
               </Dialog.Description>
+              {children ? <div className="mt-4 text-left">{children}</div> : null}
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <Dialog.Close className="rounded-md border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-bold text-[#294B39] transition hover:bg-[#EEF2EC]">
                   {cancelLabel}
