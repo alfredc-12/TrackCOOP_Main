@@ -116,7 +116,6 @@ export type MembershipSettings = {
 
 export type PublicSubmissionResult = {
   applicationCode: string;
-  trackingToken: string;
   duplicateWarning: boolean;
   warnings: string[];
   submittedAt: Date;
@@ -150,6 +149,7 @@ export type PublicApplicationStatus = {
 
 export type PublicApplicationRecord = PublicApplicationStatus & {
   id: string;
+  dateOfBirth: string | null;
   publicTrackingTokenHash: string;
 };
 

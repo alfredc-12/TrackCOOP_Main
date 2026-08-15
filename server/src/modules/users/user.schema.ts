@@ -3,12 +3,18 @@ import { roleSlugs } from "../auth/auth.types";
 
 export const accountStatuses = ["Pending", "Active", "Suspended", "Inactive"] as const;
 
+const booleanQuery = z.preprocess(
+  (value) => value === true || value === "true" || value === "1" || value === 1,
+  z.boolean(),
+);
+
 export const listUsersQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   search: z.string().trim().min(1).max(190).optional(),
   role: z.enum(roleSlugs).optional(),
   status: z.enum(accountStatuses).optional(),
+  includeHidden: booleanQuery.default(false),
   sortBy: z
     .enum(["displayName", "email", "role", "accountStatus", "createdAt"])
     .default("createdAt"),

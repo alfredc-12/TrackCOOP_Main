@@ -82,7 +82,11 @@ export type PaymongoWebhookHandleResult = {
   paymentReferenceId?: string;
 };
 
-const supportedPaymongoPurposes = new Set(["Associate Membership Fee", "Share Capital"]);
+const supportedPaymongoPurposes = new Set([
+  "Associate Membership Fee",
+  "Share Capital",
+  "POS/Product",
+]);
 
 function centsToAmount(centavos: number) {
   return Math.round(centavos) / 100;

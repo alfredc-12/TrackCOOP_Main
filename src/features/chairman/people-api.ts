@@ -48,6 +48,7 @@ export type UserListQuery = {
   search?: string;
   role?: RoleSlug | "all";
   status?: AccountStatus | "all";
+  includeHidden?: boolean;
   sortBy?: "displayName" | "email" | "role" | "accountStatus" | "createdAt";
   sortDirection?: "asc" | "desc";
 };
@@ -409,6 +410,7 @@ export async function listUsersPaginated(query: UserListQuery = {}): Promise<Use
   if (query.search?.trim()) params.set("search", query.search.trim());
   if (query.role && query.role !== "all") params.set("role", query.role);
   if (query.status && query.status !== "all") params.set("status", query.status);
+  if (query.includeHidden) params.set("includeHidden", "true");
 
   const result = await apiRequestWithMeta<UserSummary[]>(`/api/users?${params}`);
   return {
@@ -419,8 +421,11 @@ export async function listUsersPaginated(query: UserListQuery = {}): Promise<Use
   };
 }
 
-export function getUserSummary() {
-  return apiRequest<UserSummaryCounts>("/api/users/summary");
+export function getUserSummary(options: { includeHidden?: boolean } = {}) {
+  const params = new URLSearchParams();
+  if (options.includeHidden) params.set("includeHidden", "true");
+  const queryString = params.toString();
+  return apiRequest<UserSummaryCounts>(`/api/users/summary${queryString ? `?${queryString}` : ""}`);
 }
 
 export function getUserDetail(userId: string) {
@@ -524,6 +529,7 @@ export function exportUsersCsv(query: UserListQuery = {}): string {
   if (query.search?.trim()) params.set("search", query.search.trim());
   if (query.role && query.role !== "all") params.set("role", query.role);
   if (query.status && query.status !== "all") params.set("status", query.status);
+  if (query.includeHidden) params.set("includeHidden", "true");
 
   return `${env.apiUrl}/api/users/export?${params}`;
 }

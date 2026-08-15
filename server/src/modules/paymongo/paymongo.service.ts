@@ -1,7 +1,7 @@
 import { AppError } from "../../utils/app-error";
 import {
-  requireApplicationTrackingToken,
-  verifyApplicationTrackingToken,
+  requireApplicationBirthDateCredential,
+  verifyApplicationBirthDate,
 } from "../membership-applications/public-tracking-token";
 import type { AuthContext } from "../auth/auth.types";
 import {
@@ -40,6 +40,7 @@ const manualChannels = new Set(["Manual GCash", "Cash", "Bank Transfer"]);
 const supportedPaymongoPurposes = new Set([
   "Associate Membership Fee",
   "Share Capital",
+  "POS/Product",
 ]);
 const defaultCheckoutReuseMinutes = 30;
 
@@ -77,16 +78,16 @@ function requireMembershipApplication(record: PaymongoMembershipApplicationRecor
   return record;
 }
 
-function assertValidTrackingToken(
+function assertValidBirthDateCredential(
   application: PaymongoMembershipApplicationRecord,
-  rawTrackingToken: string | undefined,
+  rawDateOfBirth: string | undefined,
 ) {
-  const trackingToken = requireApplicationTrackingToken(rawTrackingToken);
-  if (!verifyApplicationTrackingToken(application.publicTrackingTokenHash, trackingToken)) {
+  const dateOfBirth = requireApplicationBirthDateCredential(rawDateOfBirth);
+  if (!verifyApplicationBirthDate(application.dateOfBirth, dateOfBirth)) {
     throw new AppError(
-      "Application tracking token is invalid",
+      "Applicant date of birth does not match this application",
       403,
-      "APPLICATION_TRACKING_TOKEN_INVALID",
+      "APPLICATION_BIRTH_DATE_INVALID",
     );
   }
 }
@@ -220,6 +221,9 @@ function checkoutDescription(record: PaymongoPaymentReferenceRecord) {
 }
 
 function checkoutLineName(record: PaymongoPaymentReferenceRecord) {
+  if (record.paymentPurpose === "POS/Product") {
+    return "Cooperative Store Order";
+  }
   return record.paymentPurpose || "TrackCOOP payment";
 }
 
@@ -275,12 +279,15 @@ function buildCheckoutRequest(
 export interface PaymongoService {
   createMembershipApplicationCheckout(
     applicationCode: string,
-    rawTrackingToken: string | undefined,
+    rawDateOfBirth: string | undefined,
     input: PaymongoMembershipCheckoutInput,
   ): Promise<PaymongoPublicCheckoutResult>;
   createPaymentReferenceCheckout(
     paymentReferenceId: string,
     auth: AuthContext,
+  ): Promise<PaymongoCheckoutResult>;
+  createPointOfSaleCheckout(
+    paymentReferenceId: string,
   ): Promise<PaymongoCheckoutResult>;
   getPaymentReferenceStatus(
     paymentReferenceId: string,
@@ -343,12 +350,60 @@ export function createPaymongoService(options: {
       };
     },
 
-    async createMembershipApplicationCheckout(applicationCode, rawTrackingToken, input) {
+    async createPointOfSaleCheckout(paymentReferenceId) {
+      validatePaymongoConfig(config);
+      const initialRecord = requirePaymentReference(
+        await repository.findPaymentReference(paymentReferenceId),
+      );
+
+      const environment = gatewayEnvironment(config.mode);
+      const result = await attemptRepository.createOrReuseCheckoutAttempt({
+        paymentReferenceId: initialRecord.id,
+        environment,
+        reuseMinutes: checkoutReuseMinutes(config),
+        validateRecord(record) {
+          if (
+            record.paymentPurpose !== "POS/Product"
+            || record.relatedEntityType !== "pos_sales"
+            || !record.relatedEntityId
+          ) {
+            throw new AppError(
+              "Point-of-sale PayMongo checkout requires a linked cooperative store sale",
+              422,
+              "POS_PAYMONGO_REFERENCE_INVALID",
+            );
+          }
+          assertEligibleForCheckout(record, environment);
+        },
+        createSession(record, idempotencyKey) {
+          return client.createCheckoutSession(
+            buildCheckoutRequest(record, config),
+            idempotencyKey,
+          );
+        },
+      });
+
+      return {
+        paymentReferenceId: result.record.id,
+        referenceNumber: result.record.referenceNumber,
+        checkoutId: result.attempt.checkoutId,
+        checkoutUrl: result.attempt.checkoutUrl,
+        gatewayStatus: result.attempt.gatewayStatus,
+        validationStatus: result.record.validationStatus,
+        amount: result.record.amount,
+        currency: "PHP",
+        mode: config.mode,
+        attemptNumber: result.attempt.attemptNumber,
+        reused: result.reused,
+      };
+    },
+
+    async createMembershipApplicationCheckout(applicationCode, rawDateOfBirth, input) {
       validatePaymongoConfig(config);
       const application = requireMembershipApplication(
         await repository.findMembershipApplicationByCode(applicationCode),
       );
-      assertValidTrackingToken(application, rawTrackingToken);
+      assertValidBirthDateCredential(application, rawDateOfBirth);
       assertApplicationCanStartCheckout(application);
 
       const settings = await repository.getMembershipPaymentSettings();

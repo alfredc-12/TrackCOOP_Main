@@ -123,6 +123,7 @@ export type PaymongoMembershipApplicationRecord = {
   id: string;
   applicationCode: string;
   publicTrackingTokenHash: string;
+  dateOfBirth: string | null;
   requestedMembershipType: "Associate" | "True Member";
   fullName: string;
   email: string | null;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, QrCode, Printer, AlertCircle } from "lucide-react";
+import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { toast } from "sonner";
 
@@ -113,8 +113,6 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [historySearchQuery, setHistorySearchQuery] = useState("");
     const [checkoutStep, setCheckoutStep] = useState<"cart" | "payment">("cart");
-    const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
-    const [paymentReference, setPaymentReference] = useState("");
     const [paymentName, setPaymentName] = useState("");
     const [paymentEmail, setPaymentEmail] = useState("");
     const [paymentContact, setPaymentContact] = useState("");
@@ -310,9 +308,6 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
         if (!paymentName.trim()) errors.paymentName = "Please enter your Name.";
         if (!paymentEmail.trim()) errors.paymentEmail = "Please enter your Email account.";
         if (!paymentContact.trim()) errors.paymentContact = "Please enter your Contact Number.";
-        if (paymentMethod === "Online" && !paymentReference.trim()) {
-            errors.paymentReference = "Please enter the GCash reference number.";
-        }
 
         if (Object.keys(errors).length > 0) {
             setCheckoutErrors(errors);
@@ -325,22 +320,29 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     };
 
     const processCheckout = async () => {
-
+        setIsCheckingOut(true);
         try {
             const res = await fetch("/api/pos/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items: cart, paymentMethod, paymentReference, paymentName, paymentEmail, paymentContact }),
+                body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact }),
             });
+            const data = await res.json().catch(() => null);
 
             if (res.ok) {
+                if (data?.checkoutUrl) {
+                    setCart([]);
+                    setIsConfirmCheckoutModalOpen(false);
+                    setIsCartOpen(false);
+                    window.location.href = data.checkoutUrl;
+                    return;
+                }
+
                 setIsConfirmCheckoutModalOpen(false);
                 setIsCartOpen(false);
                 setCheckoutSuccess(true);
                 setCart([]);
                 setCheckoutStep("cart");
-                setPaymentMethod("Cash");
-                setPaymentReference("");
                 if (!isPublicView) {
                     getAuthenticatedUser().then(user => {
                         if (user) {
@@ -355,8 +357,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 setPaymentContact("");
                 fetchInventory(); // Refresh stock
             } else {
-                const data = await res.json();
-                toast.error(data.error || "Checkout failed");
+                toast.error(data?.error || "Checkout failed");
             }
         } catch (error) {
             console.error("Checkout error:", error);
@@ -576,53 +577,19 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             )}
                             {checkoutStep === "payment" ? (
                                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                                    <p className="font-semibold text-gray-700 mb-4">How would you like to pay?</p>
-                                    <div className="flex gap-4 mb-6">
-                                        <button 
-                                            onClick={() => setPaymentMethod("Cash")}
-                                            className={`flex-1 p-4 rounded-2xl border-2 transition ${paymentMethod === 'Cash' ? 'border-[#123D2A] bg-[#123D2A]/5 text-[#123D2A]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-                                        >
-                                            <span className="block font-bold text-lg mb-1">💵 Cash</span>
-                                            <span className="text-xs">Pay at the cooperative office</span>
-                                        </button>
-                                        <button 
-                                            onClick={() => setPaymentMethod("Online")}
-                                            className={`flex-1 p-4 rounded-2xl border-2 transition ${paymentMethod === 'Online' ? 'border-[#123D2A] bg-[#123D2A]/5 text-[#123D2A]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-                                        >
-                                            <span className="block font-bold text-lg mb-1">📱 GCash</span>
-                                            <span className="text-xs">Scan QR and enter reference</span>
-                                        </button>
-                                    </div>
-
-                                    {paymentMethod === "Online" && (
-                                        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200 mb-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-                                            <div className="bg-white p-4 rounded-2xl shadow-sm mb-4 inline-block">
-                                                <QrCode className="size-32 text-gray-800" />
+                                    <div className="mb-6 rounded-2xl border border-[#123D2A]/15 bg-[#123D2A]/5 p-5 shadow-sm">
+                                        <div className="flex items-start gap-4">
+                                            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#123D2A] text-white">
+                                                <CreditCard className="size-6" />
                                             </div>
-                                            <p className="font-bold text-[#1e293b]">Scan to Pay via GCash</p>
-                                            <p className="text-sm text-gray-500 mb-6">TrackCOOP Official Account: 0912-345-6789</p>
-                                            
-                                            <div className="w-full text-left">
-                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Reference Number <span className="text-red-500">*</span></label>
-                                                <input 
-                                                    type="text"
-                                                    onKeyDown={(e) => {
-                                                        if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
-                                                            e.preventDefault();
-                                                        }
-                                                    }}
-                                                    value={paymentReference}
-                                                    onChange={(e) => {
-                                                        setPaymentReference(e.target.value.replace(/[^0-9]/g, ''));
-                                                        if (checkoutErrors.paymentReference) setCheckoutErrors({ ...checkoutErrors, paymentReference: "" });
-                                                    }}
-                                                    placeholder="e.g. 1029384756"
-                                                    className={`w-full rounded-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentReference ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
-                                                />
-                                                {checkoutErrors.paymentReference && <p className="mt-1 text-xs text-red-500">{checkoutErrors.paymentReference}</p>}
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-[#123D2A]">Pay securely with PayMongo</p>
+                                                <p className="mt-1 text-sm leading-6 text-gray-600">
+                                                    After confirming, TrackCOOP will reserve your items and open PayMongo checkout. Stock is deducted after PayMongo confirms the payment.
+                                                </p>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
 
                                     <div className="bg-white rounded-2xl p-6 border border-gray-200 mb-6 flex flex-col animate-in zoom-in-95 duration-200">
                                         <h3 className="font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">Customer Details</h3>
@@ -762,10 +729,22 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                                 handleCheckout();
                                             }
                                         }}
-                                        disabled={isCheckingOut || (checkoutStep === "payment" && paymentMethod === "Online" && !paymentReference.trim())}
+                                        disabled={isCheckingOut}
                                         className="flex-1 rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                                     >
-                                        {isCheckingOut ? "Processing..." : checkoutStep === "cart" ? "Proceed to Checkout" : "Confirm Order"}
+                                        {isCheckingOut ? (
+                                            <>
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                                Opening PayMongo...
+                                            </>
+                                        ) : checkoutStep === "cart" ? (
+                                            "Proceed to Checkout"
+                                        ) : (
+                                            <>
+                                                Continue to PayMongo
+                                                <ExternalLink className="size-4" />
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -783,7 +762,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                         </div>
                         <h2 className="mb-2 text-2xl font-bold text-gray-900">Order Placed!</h2>
                         <p className="mb-6 text-sm text-gray-500">
-                            Your order has been successfully placed. It is now pending payment confirmation by the Chairman.
+                            Your order has been created. Complete the PayMongo checkout so TrackCOOP can confirm the payment and release the receipt.
                         </p>
                         <button
                             onClick={() => setCheckoutSuccess(false)}
@@ -799,9 +778,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             {isConfirmCheckoutModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
-                        <h2 className="mb-2 text-xl font-bold text-gray-900">Confirm Checkout</h2>
+                        <h2 className="mb-2 text-xl font-bold text-gray-900">Open PayMongo Checkout</h2>
                         <p className="mb-6 text-sm text-gray-500">
-                            Are you sure you want to proceed with this checkout?
+                            Your order will be reserved and you will be redirected to PayMongo to complete payment.
                         </p>
                         <div className="flex gap-3">
                             <button
@@ -819,7 +798,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                 {isCheckingOut ? (
                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                                 ) : null}
-                                {isCheckingOut ? "Processing..." : "Confirm"}
+                                {isCheckingOut ? "Opening..." : "Continue"}
                             </button>
                         </div>
                     </div>

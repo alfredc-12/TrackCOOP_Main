@@ -19,7 +19,7 @@ export default function MembershipApplicationStatusPage() {
                 Application Status
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-9 text-[#365F4A]">
-                Use your application code and private tracking secret to follow
+                Use your application code and applicant date of birth to follow
                 the review status and eligible PayMongo Test Mode payments.
               </p>
             </div>

@@ -33,6 +33,21 @@ function isPastDate(value: string) {
 }
 
 function isValidDateTime(value: string) {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (
+      parsed.getFullYear() === Number(year) &&
+      parsed.getMonth() === Number(month) - 1 &&
+      parsed.getDate() === Number(day) &&
+      parsed <= today
+    );
+  }
+
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) && parsed <= new Date(Date.now() + 5 * 60 * 1000);
 }
@@ -90,7 +105,7 @@ export const publicMembershipApplicationSchema = z
     contactNumber: requiredText(40),
     civilStatus: z.enum(civilStatuses).optional().nullable(),
     placeOfBirth: optionalText(255),
-    dateOfBirth: optionalText(10).refine((value) => value === null || isPastDate(value), {
+    dateOfBirth: requiredText(10).refine(isPastDate, {
       message: "Date of birth must be a valid past date",
     }),
     currentAddress: requiredText(500),

@@ -13,14 +13,14 @@ import {
 } from "../paymongo/paymongo.repository";
 import type { PaymongoConfig } from "../paymongo/paymongo.types";
 import {
-  requireApplicationTrackingToken,
-  verifyApplicationTrackingToken,
+  requireApplicationBirthDateCredential,
+  verifyApplicationBirthDate,
 } from "./public-tracking-token";
 
 export interface PublicMembershipPaymentService {
   getSummary(
     applicationCode: string,
-    rawTrackingToken: string | undefined,
+    rawDateOfBirth: string | undefined,
   ): Promise<PublicMembershipPaymentSummary>;
 }
 
@@ -35,7 +35,7 @@ export function createPublicMembershipPaymentService(options: {
     ?? createPaymongoMembershipInstallmentRepository();
 
   return {
-    async getSummary(applicationCode, rawTrackingToken) {
+    async getSummary(applicationCode, rawDateOfBirth) {
       const application = await paymongoRepository.findMembershipApplicationByCode(
         applicationCode,
       );
@@ -47,15 +47,12 @@ export function createPublicMembershipPaymentService(options: {
         );
       }
 
-      const trackingToken = requireApplicationTrackingToken(rawTrackingToken);
-      if (!verifyApplicationTrackingToken(
-        application.publicTrackingTokenHash,
-        trackingToken,
-      )) {
+      const dateOfBirth = requireApplicationBirthDateCredential(rawDateOfBirth);
+      if (!verifyApplicationBirthDate(application.dateOfBirth, dateOfBirth)) {
         throw new AppError(
-          "Application tracking token is invalid",
+          "Applicant date of birth does not match this application",
           403,
-          "APPLICATION_TRACKING_TOKEN_INVALID",
+          "APPLICATION_BIRTH_DATE_INVALID",
         );
       }
 

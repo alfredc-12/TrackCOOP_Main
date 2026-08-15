@@ -1,20 +1,38 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import type { FieldErrors, UseFormRegister } from "react-hook-form";
+import { DatePicker } from "@/components/ui/DatePicker";
+import type {
+  FieldErrors,
+  UseFormRegister,
+  UseFormSetValue,
+  UseFormWatch,
+} from "react-hook-form";
 import type { MembershipApplicationFormValues } from "./MembershipApplicationForm";
 
 type BeneficiaryFieldsProps = {
   count: number;
   register: UseFormRegister<MembershipApplicationFormValues>;
+  watch: UseFormWatch<MembershipApplicationFormValues>;
+  setValue: UseFormSetValue<MembershipApplicationFormValues>;
   errors: FieldErrors<MembershipApplicationFormValues>;
   onAdd: () => void;
   onRemove: (index: number) => void;
 };
 
+function todayDateKey() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function BeneficiaryFields({
   count,
   register,
+  watch,
+  setValue,
   errors,
   onAdd,
   onRemove,
@@ -74,19 +92,24 @@ export function BeneficiaryFields({
                 </span>
               ) : null}
             </label>
-            <label className="grid gap-2 text-sm font-semibold text-[#365F4A]">
-              Birth date
-              <input
-                type="date"
-                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-                {...register(`beneficiaries.${index}.birthDate`)}
+            <div>
+              <input type="hidden" {...register(`beneficiaries.${index}.birthDate`)} />
+              <DatePicker
+                label="Birth date"
+                value={watch(`beneficiaries.${index}.birthDate`) ?? ""}
+                onChange={(value) =>
+                  setValue(`beneficiaries.${index}.birthDate`, value, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  })
+                }
+                min="1900-01-01"
+                max={todayDateKey()}
+                placeholder="Select birth date"
+                error={errors.beneficiaries?.[index]?.birthDate?.message}
               />
-              {errors.beneficiaries?.[index]?.birthDate ? (
-                <span className="text-xs text-red-700">
-                  {errors.beneficiaries[index]?.birthDate?.message}
-                </span>
-              ) : null}
-            </label>
+            </div>
           </div>
         </div>
       ))}

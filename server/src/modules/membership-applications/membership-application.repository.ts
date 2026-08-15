@@ -51,6 +51,7 @@ type PublicApplicationRow = RowDataPacket & {
   id: string;
   applicationCode: string;
   publicTrackingTokenHash: string;
+  dateOfBirth: string | null;
   requestedMembershipType: RequestedMembershipType;
   fullName: string;
   submittedAt: Date;
@@ -390,6 +391,7 @@ async function selectPublicApplication(
     `SELECT CAST(a.membership_application_id AS CHAR) AS id,
             a.application_code AS applicationCode,
             a.public_tracking_token_hash AS publicTrackingTokenHash,
+            CAST(a.date_of_birth AS CHAR) AS dateOfBirth,
             a.requested_membership_type AS requestedMembershipType,
             ${applicantFullNameSql} AS fullName,
             a.submitted_at AS submittedAt,
@@ -573,7 +575,7 @@ export interface MembershipApplicationRepository {
     settings: MembershipSettings;
     duplicateWarning: boolean;
     warnings: string[];
-  }): Promise<Omit<PublicSubmissionResult, "trackingToken">>;
+  }): Promise<PublicSubmissionResult>;
   findPublicApplicationByCode(applicationCode: string): Promise<PublicApplicationRecord | null>;
   storePublicDocument(input: {
     applicationId: string;

@@ -5,6 +5,7 @@ import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { postMembershipSettlement } from "./paymongo.settlement.membership";
 import { postMemberShareCapitalSettlement } from "./paymongo.settlement.member-share-capital";
+import { postPointOfSaleSettlement } from "./paymongo.settlement.pos";
 import { recordSettlementCommunication } from "./paymongo.settlement.communication";
 import { resolveSettlementContext } from "./paymongo.settlement.context";
 import {
@@ -97,6 +98,7 @@ export interface PaymentSettlementRepository {
 type Dependencies = {
   postMembershipSettlement?: typeof postMembershipSettlement;
   postMemberShareCapitalSettlement?: typeof postMemberShareCapitalSettlement;
+  postPointOfSaleSettlement?: typeof postPointOfSaleSettlement;
   recordSettlementCommunication?: typeof recordSettlementCommunication;
   queuePaymentReceipt?: typeof queuePaymentReceipt;
   receiptService?: PaymentReceiptService;
@@ -163,9 +165,9 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
         if (!eligibleStatuses.has(payment.validationStatus)) {
           throw new AppError("Payment reference is not eligible for settlement", 409, "PAYMENT_NOT_ELIGIBLE");
         }
-        if (!["Associate Membership Fee", "Share Capital"].includes(payment.paymentPurpose)) {
+        if (!["Associate Membership Fee", "Share Capital", "POS/Product"].includes(payment.paymentPurpose)) {
           throw new AppError(
-            "The payment purpose is not supported by the membership settlement workflow",
+            "The payment purpose is not supported by the settlement workflow",
             409,
             "PAYMENT_SETTLEMENT_PURPOSE_UNSUPPORTED",
           );
@@ -207,7 +209,12 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
             actorUserId, input.gatewayEventId ?? null],
         );
 
-        const posted = payment.paymentPurpose === "Share Capital" && payment.relatedEntityType === "member_profile"
+        const posted = payment.paymentPurpose === "POS/Product"
+          ? await (dependencies.postPointOfSaleSettlement ?? postPointOfSaleSettlement)({
+              connection, payment: { ...payment, validationStatus: "Validated" }, actorUserId,
+              gatewayDetails: input.gatewayDetails,
+            })
+          : payment.paymentPurpose === "Share Capital" && payment.relatedEntityType === "member_profile"
           ? await (dependencies.postMemberShareCapitalSettlement ?? postMemberShareCapitalSettlement)({
               connection, payment: { ...payment, validationStatus: "Validated" }, actorUserId,
               gatewayDetails: input.gatewayDetails,

@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { AppError } from "../../utils/app-error";
-import { hashApplicationTrackingToken } from "../membership-applications/public-tracking-token";
 import { createPaymongoService } from "./paymongo.service";
 import type {
   PaymongoCheckoutAttemptRecord,
@@ -28,12 +27,13 @@ const config: PaymongoConfig = {
   timeoutMs: 1_000,
 };
 
-const trackingToken = "public-tracking-secret";
+const dateOfBirth = "1990-01-15";
 
 const application: PaymongoMembershipApplicationRecord = {
   id: "300",
   applicationCode: "MEM-APP-2026-000300",
-  publicTrackingTokenHash: hashApplicationTrackingToken(trackingToken),
+  publicTrackingTokenHash: "legacy-hash",
+  dateOfBirth,
   requestedMembershipType: "Associate",
   fullName: "Public Applicant",
   email: "applicant@example.test",
@@ -224,12 +224,12 @@ function makeMembershipService(options: {
   return { service, checkoutCalls, preparedInputs, attempts };
 }
 
-test("createMembershipApplicationCheckout creates a fee checkout with the correct tracking token", async () => {
+test("createMembershipApplicationCheckout creates a fee checkout with the correct date of birth", async () => {
   const { service, checkoutCalls, attempts } = makeMembershipService();
 
   const result = await service.createMembershipApplicationCheckout(
     application.applicationCode,
-    trackingToken,
+    dateOfBirth,
     { paymentPurpose: "Associate Membership Fee" },
   );
 
@@ -243,15 +243,15 @@ test("createMembershipApplicationCheckout creates a fee checkout with the correc
   assert.equal(attempts.length, 1);
 });
 
-test("createMembershipApplicationCheckout rejects the wrong tracking token", async () => {
+test("createMembershipApplicationCheckout rejects the wrong date of birth", async () => {
   const { service } = makeMembershipService();
 
   await assert.rejects(
     () =>
-      service.createMembershipApplicationCheckout(application.applicationCode, "wrong-token", {
+      service.createMembershipApplicationCheckout(application.applicationCode, "1991-01-15", {
         paymentPurpose: "Associate Membership Fee",
       }),
-    (error) => error instanceof AppError && error.code === "APPLICATION_TRACKING_TOKEN_INVALID",
+    (error) => error instanceof AppError && error.code === "APPLICATION_BIRTH_DATE_INVALID",
   );
 });
 
@@ -260,7 +260,7 @@ test("createMembershipApplicationCheckout rejects unknown applications", async (
 
   await assert.rejects(
     () =>
-      service.createMembershipApplicationCheckout("MEM-APP-MISSING", trackingToken, {
+      service.createMembershipApplicationCheckout("MEM-APP-MISSING", dateOfBirth, {
         paymentPurpose: "Associate Membership Fee",
       }),
     (error) => error instanceof AppError && error.code === "MEMBERSHIP_APPLICATION_NOT_FOUND",
@@ -272,7 +272,7 @@ test("createMembershipApplicationCheckout rejects an already-paid membership fee
 
   await assert.rejects(
     () =>
-      service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
+      service.createMembershipApplicationCheckout(application.applicationCode, dateOfBirth, {
         paymentPurpose: "Associate Membership Fee",
       }),
     (error) => error instanceof AppError && error.code === "MEMBERSHIP_FEE_ALREADY_VALIDATED",
@@ -289,7 +289,7 @@ test("createMembershipApplicationCheckout supports True Member share capital", a
 
   const result = await service.createMembershipApplicationCheckout(
     application.applicationCode,
-    trackingToken,
+    dateOfBirth,
     { paymentPurpose: "Share Capital", requestedAmount: 1500 },
   );
 
@@ -309,7 +309,7 @@ test("createMembershipApplicationCheckout prevents exceeding maximum share capit
 
   await assert.rejects(
     () =>
-      service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
+      service.createMembershipApplicationCheckout(application.applicationCode, dateOfBirth, {
         paymentPurpose: "Share Capital",
         requestedAmount: 1500,
       }),
@@ -328,10 +328,10 @@ test("createMembershipApplicationCheckout reuses idempotency for duplicate click
     },
   });
 
-  await service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
+  await service.createMembershipApplicationCheckout(application.applicationCode, dateOfBirth, {
     paymentPurpose: "Associate Membership Fee",
   });
-  const second = await service.createMembershipApplicationCheckout(application.applicationCode, trackingToken, {
+  const second = await service.createMembershipApplicationCheckout(application.applicationCode, dateOfBirth, {
     paymentPurpose: "Associate Membership Fee",
   });
 

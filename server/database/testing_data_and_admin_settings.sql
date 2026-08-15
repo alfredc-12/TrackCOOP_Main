@@ -5,6 +5,7 @@
 -- People seeded:
 --   1 Chairman account
 --   1 Bookkeeper account
+--   1 PayMongo system service account for webhook settlement audit attribution
 --   10 membership application people total
 --     - 3 approved applications converted to member profiles
 --     - 7 applications still in process
@@ -18,6 +19,9 @@
 --   maria.member@trackcoop.local    / MemberTest123!
 --   benito.member@trackcoop.local   / MemberTest123!
 --   elena.member@trackcoop.local    / MemberTest123!
+-- PayMongo system account:
+--   PAYMONGO_SYSTEM_ACTOR_USER_ID=15
+--   This service account is not intended for interactive sign-in.
 
 SET NAMES utf8mb4;
 SET time_zone = '+08:00';
@@ -199,6 +203,49 @@ SET @bookkeeper_id := (SELECT user_id FROM users WHERE email = 'bookkeeper.test@
 SET @maria_user_id := (SELECT user_id FROM users WHERE email = 'maria.member@trackcoop.local' LIMIT 1);
 SET @benito_user_id := (SELECT user_id FROM users WHERE email = 'benito.member@trackcoop.local' LIMIT 1);
 SET @elena_user_id := (SELECT user_id FROM users WHERE email = 'elena.member@trackcoop.local' LIMIT 1);
+
+SET @paymongo_system_actor_user_id := 1000;
+
+INSERT INTO users (
+  user_id,
+  role_id,
+  username,
+  email,
+  password_hash,
+  display_name,
+  account_status,
+  email_verified_at,
+  created_by
+)
+VALUES (
+  @paymongo_system_actor_user_id,
+  @bookkeeper_role_id,
+  'paymongo-system',
+  'paymongo-system@trackcoop.local',
+  '$2b$10$BVGDdaaAVAVpG3YuvrsG7OaHUuAjSgN/guFL4Ww07bYz20Cc2l5bO',
+  'PayMongo System Service',
+  'Active',
+  NOW(),
+  @chairman_id
+)
+ON DUPLICATE KEY UPDATE
+  role_id = VALUES(role_id),
+  username = VALUES(username),
+  email = VALUES(email),
+  password_hash = VALUES(password_hash),
+  display_name = VALUES(display_name),
+  account_status = VALUES(account_status),
+  email_verified_at = COALESCE(email_verified_at, VALUES(email_verified_at)),
+  created_by = COALESCE(created_by, VALUES(created_by));
+
+SET @paymongo_system_actor_id := (
+  SELECT user_id
+  FROM users
+  WHERE username = 'paymongo-system'
+    AND display_name = 'PayMongo System Service'
+    AND account_status = 'Active'
+  LIMIT 1
+);
 
 -- ---------------------------------------------------------------------------
 -- Approved members

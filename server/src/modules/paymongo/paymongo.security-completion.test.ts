@@ -96,8 +96,8 @@ test("browser payment modules contain no server PayMongo secrets", () => {
   }
 });
 
-test("public payment UI keeps tracking-token checkout safe and test-mode explicit", () => {
-  assert.match(publicPaymentUi, /application code and private tracking secret/i);
+test("public payment UI keeps birth-date checkout safe and test-mode explicit", () => {
+  assert.match(publicPaymentUi, /application code and the date of birth/i);
   assert.match(publicPaymentUi, /PayMongo Test Mode — No real money will be charged/);
   assert.match(publicPaymentUi, /Remaining to PHP 3,000/);
   assert.match(publicPaymentUi, /Remaining to PHP 15,000 max/);

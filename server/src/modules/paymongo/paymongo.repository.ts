@@ -46,6 +46,7 @@ type MembershipApplicationCheckoutRow = RowDataPacket & {
   id: string;
   applicationCode: string;
   publicTrackingTokenHash: string;
+  dateOfBirth: string | null;
   requestedMembershipType: PaymongoMembershipApplicationRecord["requestedMembershipType"];
   fullName: string;
   email: string | null;
@@ -163,6 +164,7 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
         `SELECT CAST(a.membership_application_id AS CHAR) AS id,
                 a.application_code AS applicationCode,
                 a.public_tracking_token_hash AS publicTrackingTokenHash,
+                CAST(a.date_of_birth AS CHAR) AS dateOfBirth,
                 a.requested_membership_type AS requestedMembershipType,
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) AS fullName,
                 a.email,

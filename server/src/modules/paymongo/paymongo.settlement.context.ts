@@ -17,6 +17,13 @@ type ApplicationRow = RowDataPacket & {
   memberUserId: string | null;
   fullName: string;
 };
+type PosSaleRow = RowDataPacket & {
+  id: string;
+  saleNumber: string;
+  memberId: string | null;
+  memberUserId: string | null;
+  customerName: string | null;
+};
 
 export async function resolveSettlementContext(
   connection: PoolConnection,
@@ -67,8 +74,31 @@ export async function resolveSettlementContext(
       subjectName: application.fullName,
     };
   }
+  if (payment.relatedEntityType === "pos_sales" && payment.relatedEntityId) {
+    const [rows] = await connection.execute<PosSaleRow[]>(
+      `SELECT CAST(ps.pos_sale_id AS CHAR) AS id,
+              ps.sale_number AS saleNumber,
+              CAST(ps.member_id AS CHAR) AS memberId,
+              CAST(mp.user_id AS CHAR) AS memberUserId,
+              ps.customer_name AS customerName
+         FROM pos_sales ps
+         LEFT JOIN member_profiles mp ON mp.member_id = ps.member_id
+        WHERE ps.pos_sale_id = ? LIMIT 1 FOR UPDATE`,
+      [payment.relatedEntityId],
+    );
+    const sale = rows[0];
+    if (!sale) throw new AppError("POS sale was not found", 404, "POS_SALE_NOT_FOUND");
+    return {
+      memberId: sale.memberId,
+      memberUserId: sale.memberUserId,
+      applicationId: null,
+      applicationStatus: null,
+      subjectReference: sale.saleNumber,
+      subjectName: sale.customerName ?? "Cooperative store order",
+    };
+  }
   throw new AppError(
-    "Payment reference must be linked to a membership application or member profile",
+    "Payment reference must be linked to a membership application, member profile, or POS sale",
     422,
     "PAYMENT_SETTLEMENT_ENTITY_INVALID",
   );

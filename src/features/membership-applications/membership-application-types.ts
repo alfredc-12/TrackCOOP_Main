@@ -94,7 +94,6 @@ export type PublicMembershipApplicationInput = {
 
 export type PublicSubmissionResult = {
   applicationCode: string;
-  trackingToken: string;
   duplicateWarning: boolean;
   warnings: string[];
   submittedAt: string;
@@ -128,7 +127,7 @@ export type PublicApplicationStatus = {
 
 export type PublicPaymongoCheckoutInput = {
   applicationCode: string;
-  trackingToken: string;
+  dateOfBirth: string;
   paymentPurpose: "Associate Membership Fee" | "Share Capital";
   requestedAmount?: number;
 };

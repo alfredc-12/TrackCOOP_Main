@@ -31,3 +31,31 @@ export function verifyApplicationTrackingToken(expectedHash: string, rawToken: s
 
   return crypto.timingSafeEqual(expected, actual);
 }
+
+export function requireApplicationBirthDateCredential(rawDateOfBirth: string | undefined) {
+  const value = rawDateOfBirth?.trim();
+  if (!value) {
+    throw new AppError(
+      "Applicant date of birth is required",
+      401,
+      "APPLICATION_BIRTH_DATE_REQUIRED",
+    );
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new AppError(
+      "Applicant date of birth must use YYYY-MM-DD format",
+      400,
+      "APPLICATION_BIRTH_DATE_INVALID",
+    );
+  }
+
+  return value;
+}
+
+export function verifyApplicationBirthDate(
+  expectedDateOfBirth: string | null | undefined,
+  rawDateOfBirth: string,
+) {
+  return expectedDateOfBirth === rawDateOfBirth;
+}
