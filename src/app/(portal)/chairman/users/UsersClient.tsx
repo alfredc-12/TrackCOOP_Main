@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -131,6 +133,13 @@ function roleLabel(role: RoleSlug) {
   return "Member";
 }
 
+function isHiddenSystemUser(user: UserSummary) {
+  return (
+    user.username === "paymongo-system" ||
+    user.email === "paymongo-system@trackcoop.local"
+  );
+}
+
 function actionStatus(kind: ActionKind): AccountStatus | null {
   if (kind === "activate" || kind === "reactivate") return "Active";
   if (kind === "suspend") return "Suspended";
@@ -152,6 +161,7 @@ export function UsersClient() {
     search: "",
     role: "all",
     status: "all",
+    includeHidden: false,
     sortBy: "createdAt",
     sortDirection: "desc",
   });
@@ -181,7 +191,7 @@ export function UsersClient() {
     try {
       const [listResult, counts, authUser] = await Promise.all([
         listUsersPaginated(query),
-        getUserSummary(),
+        getUserSummary({ includeHidden: query.includeHidden }),
         getAuthenticatedUser(),
       ]);
       setUsers(listResult.users);
@@ -352,6 +362,19 @@ export function UsersClient() {
             <option value="desc">Descending</option>
             <option value="asc">Ascending</option>
           </select>
+          <button
+            type="button"
+            onClick={() => updateQuery({ includeHidden: !query.includeHidden })}
+            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+            aria-pressed={Boolean(query.includeHidden)}
+          >
+            {query.includeHidden ? (
+              <EyeOff className="size-4" aria-hidden="true" />
+            ) : (
+              <Eye className="size-4" aria-hidden="true" />
+            )}
+            {query.includeHidden ? "Hide hidden" : "Show hidden"}
+          </button>
         </div>
       </section>
 
@@ -638,7 +661,16 @@ function UserTable({
                     aria-label={`Select ${user.displayName}`}
                   />
                 </td>
-                <td className="px-5 py-4 font-bold text-[#123D2A]">{user.displayName}</td>
+                <td className="px-5 py-4 font-bold text-[#123D2A]">
+                  <div className="flex items-center gap-2">
+                    <span>{user.displayName}</span>
+                    {isHiddenSystemUser(user) ? (
+                      <span className="rounded-full bg-[#FFF3C9] px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#775200]">
+                        Hidden
+                      </span>
+                    ) : null}
+                  </div>
+                </td>
                 <td className="px-5 py-4">{user.email}</td>
                 <td className="px-5 py-4">{user.username ?? "None"}</td>
                 <td className="px-5 py-4">{roleLabel(user.role)}</td>
@@ -674,7 +706,14 @@ function UserCards({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: s
         <article key={user.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="break-words font-bold text-[#123D2A]">{user.displayName}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="break-words font-bold text-[#123D2A]">{user.displayName}</p>
+                {isHiddenSystemUser(user) ? (
+                  <span className="rounded-full bg-[#FFF3C9] px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#775200]">
+                    Hidden
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-1 break-all text-sm text-[#5D6D63]">{user.email}</p>
             </div>
             <StatusBadge tone={statusTone(user.accountStatus)}>{user.accountStatus}</StatusBadge>

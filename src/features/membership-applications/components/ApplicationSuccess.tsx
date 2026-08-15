@@ -36,15 +36,14 @@ export function ApplicationSuccess({
             Your membership application was received.
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[#365F4A]">
-            Keep this application code and tracking secret. The tracking secret is shown
-            only once and is required to check the public status page.
+            Keep this application code. To check the public status page later,
+            use this code together with the date of birth entered in the application.
           </p>
         </div>
       </div>
 
-      <div className="mt-7 grid gap-4 md:grid-cols-2">
+      <div className="mt-7 grid gap-4">
         <CopyPanel label="Application code" value={result.applicationCode} />
-        <CopyPanel label="Tracking secret" value={result.trackingToken} />
       </div>
 
       {result.duplicateWarning ? (

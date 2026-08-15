@@ -37,8 +37,8 @@ function parse<T>(schema: ZodType<T>, value: unknown): T {
   return result.data;
 }
 
-function trackingToken(request: Request) {
-  return request.get("X-Application-Tracking-Token");
+function dateOfBirthCredential(request: Request) {
+  return request.get("X-Application-Date-Of-Birth");
 }
 
 export function createPaymongoController(service: PaymongoService) {
@@ -46,7 +46,7 @@ export function createPaymongoController(service: PaymongoService) {
     createMembershipApplicationCheckout: asyncHandler(async (request, response) => {
       const result = await service.createMembershipApplicationCheckout(
         requireParam(request.params.applicationCode, "applicationCode"),
-        trackingToken(request),
+        dateOfBirthCredential(request),
         parse(paymongoMembershipCheckoutBodySchema, request.body),
       );
 

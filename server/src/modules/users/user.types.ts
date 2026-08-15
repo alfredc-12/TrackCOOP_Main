@@ -33,6 +33,7 @@ export type UserListQuery = {
   search?: string;
   role?: RoleSlug;
   status?: AccountStatus;
+  includeHidden?: boolean;
   sortBy: "displayName" | "email" | "role" | "accountStatus" | "createdAt";
   sortDirection: "asc" | "desc";
 };

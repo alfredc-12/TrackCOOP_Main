@@ -1,8 +1,28 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ArrowLeft, ArrowRight, FileUp, Loader2, Send } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FileUp,
+  Loader2,
+  PenLine,
+  RotateCcw,
+  Send,
+  UploadCloud,
+  X,
+} from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import {
   useFieldArray,
   useForm,
@@ -16,6 +36,7 @@ import {
 } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { ApiClientError } from "@/lib/api-client";
 import {
   submitMembershipApplication,
@@ -38,10 +59,19 @@ const draftKey = "trackcoop.membershipApplicationDraft.v1";
 const maxUploadBytes = 5 * 1024 * 1024;
 const allowedUploadTypes = ["application/pdf", "image/jpeg", "image/png"];
 const allowedUploadExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
+type SignatureMode = "draw" | "upload";
 
 const requiredText = (label: string) => z.string().trim().min(1, `${label} is required.`);
 const optionalText = z.string().trim().optional().or(z.literal(""));
 const trueLiteral = (message: string) => z.boolean().refine((value) => value, message);
+
+function todayDateKey() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 const beneficiarySchema = z
   .object({
@@ -97,7 +127,7 @@ const applicationSchema = z
     contactNumber: requiredText("Contact number"),
     civilStatus: z.enum(civilStatuses),
     placeOfBirth: optionalText,
-    dateOfBirth: z.string().optional().or(z.literal("")),
+    dateOfBirth: requiredText("Date of birth"),
     currentAddress: requiredText("Current address"),
     barangay: optionalText,
     municipality: requiredText("Municipality"),
@@ -115,7 +145,6 @@ const applicationSchema = z
     bylawsAgreementAccepted: trueLiteral("Bylaws agreement is required."),
     patronageRefundAcknowledged: trueLiteral("Patronage-refund acknowledgement is required."),
     privacyConsentAccepted: trueLiteral("Privacy consent is required."),
-    signatureName: requiredText("Typed signature"),
     signedPlace: requiredText("Signed place"),
     signedAt: requiredText("Signed date"),
     finalConfirmation: trueLiteral("Final confirmation is required."),
@@ -140,14 +169,6 @@ const applicationSchema = z
           message: "Date of birth must be a valid past date.",
         });
       }
-    }
-
-    if (!signatureMatchesName(value.signatureName, applicantFullName(value))) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["signatureName"],
-        message: "Typed signature must reasonably match the applicant name.",
-      });
     }
   });
 
@@ -181,7 +202,6 @@ const defaultValues: MembershipApplicationFormValues = {
   bylawsAgreementAccepted: false,
   patronageRefundAcknowledged: false,
   privacyConsentAccepted: false,
-  signatureName: "",
   signedPlace: "Nasugbu, Batangas",
   signedAt: new Date().toISOString().slice(0, 10),
   finalConfirmation: false,
@@ -220,7 +240,7 @@ const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
     "patronageRefundAcknowledged",
     "privacyConsentAccepted",
   ],
-  ["signatureName", "signedPlace", "signedAt", "finalConfirmation"],
+  ["signedPlace", "signedAt", "finalConfirmation"],
 ];
 
 export function MembershipApplicationForm() {
@@ -230,7 +250,11 @@ export function MembershipApplicationForm() {
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [isRetryingUploads, setIsRetryingUploads] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<PublicSubmissionResult | null>(null);
+  const [submissionDateOfBirth, setSubmissionDateOfBirth] = useState("");
   const [uploads, setUploads] = useState<DocumentUploadDraft[]>([]);
+  const [signatureMode, setSignatureMode] = useState<SignatureMode>("draw");
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
 
   const restoredDefaults = useMemo(() => {
     if (typeof window === "undefined") return defaultValues;
@@ -287,17 +311,25 @@ export function MembershipApplicationForm() {
 
     setSubmitError(null);
     setUploadError(null);
+    setSignatureError(null);
+
+    if (!signatureFile) {
+      setSignatureError("Draw your signature or upload a signature file.");
+      return;
+    }
+
     setIsSubmittingApplication(true);
 
     try {
       const result = await submitMembershipApplication(toPayload(values));
       setSubmissionResult(result);
+      setSubmissionDateOfBirth(values.dateOfBirth);
       window.localStorage.removeItem(draftKey);
-      await uploadSelectedDocuments(result);
+      await uploadSelectedDocuments(result, values.dateOfBirth);
     } catch (err) {
       setSubmitError(
         err instanceof ApiClientError
-          ? err.message
+          ? formatApiClientError(err)
           : "Unable to submit the application. Please review the form and try again.",
       );
     } finally {
@@ -305,8 +337,11 @@ export function MembershipApplicationForm() {
     }
   };
 
-  const uploadSelectedDocuments = async (result: PublicSubmissionResult) => {
-    const selectedUploads = uploads.filter(
+  const uploadSelectedDocuments = async (result: PublicSubmissionResult, dateOfBirth: string) => {
+    const signatureUpload: DocumentUploadDraft[] = signatureFile
+      ? [{ documentType: "Signed Application", file: signatureFile, clientError: null }]
+      : [];
+    const selectedUploads = [...signatureUpload, ...uploads].filter(
       (upload): upload is DocumentUploadDraft & { file: File } =>
         Boolean(upload.file) && !upload.clientError,
     );
@@ -316,7 +351,7 @@ export function MembershipApplicationForm() {
       for (const upload of selectedUploads) {
         await uploadMembershipApplicationDocument({
           applicationCode: result.applicationCode,
-          trackingToken: result.trackingToken,
+          dateOfBirth,
           documentType: upload.documentType,
           file: upload.file,
         });
@@ -331,7 +366,7 @@ export function MembershipApplicationForm() {
 
     setIsRetryingUploads(true);
     setUploadError(null);
-    await uploadSelectedDocuments(submissionResult);
+    await uploadSelectedDocuments(submissionResult, submissionDateOfBirth);
     setIsRetryingUploads(false);
   };
 
@@ -346,7 +381,7 @@ export function MembershipApplicationForm() {
   const addUpload = () => {
     setUploads((current) => [
       ...current,
-      { documentType: "Signed Application", file: null, clientError: null },
+      { documentType: "Valid ID", file: null, clientError: null },
     ]);
   };
 
@@ -356,7 +391,7 @@ export function MembershipApplicationForm() {
         result={submissionResult}
         uploadError={uploadError}
         isRetryingUploads={isRetryingUploads}
-        onRetryUploads={uploads.length ? retryUploads : undefined}
+        onRetryUploads={uploads.length || signatureFile ? retryUploads : undefined}
       />
     );
   }
@@ -377,6 +412,8 @@ export function MembershipApplicationForm() {
           <BeneficiaryFields
             count={fields.length}
             register={register}
+            watch={watch}
+            setValue={setValue}
             errors={errors}
             onAdd={() => append({ fullName: "", relationship: "", age: "", birthDate: "" })}
             onRemove={remove}
@@ -391,7 +428,20 @@ export function MembershipApplicationForm() {
           <ReviewStep
             register={register}
             watch={watch}
+            setValue={setValue}
             errors={errors}
+            signatureMode={signatureMode}
+            signatureFile={signatureFile}
+            signatureError={signatureError}
+            onSignatureModeChange={(mode) => {
+              setSignatureMode(mode);
+              setSignatureError(null);
+              setSignatureFile(null);
+            }}
+            onSignatureChange={(file, error) => {
+              setSignatureFile(file);
+              setSignatureError(error);
+            }}
             uploads={uploads}
             addUpload={addUpload}
             updateUpload={updateUpload}
@@ -495,7 +545,24 @@ function PersonalInfoStep({
         </SelectField>
         <TextField label="Occupation" error={errors.occupation?.message} inputProps={register("occupation")} />
         <TextField label="Place of birth" error={errors.placeOfBirth?.message} inputProps={register("placeOfBirth")} />
-        <TextField label="Date of birth" type="date" error={errors.dateOfBirth?.message} inputProps={register("dateOfBirth")} />
+        <div>
+          <input type="hidden" {...register("dateOfBirth")} />
+          <DatePicker
+            label="Date of birth"
+            value={watch("dateOfBirth")}
+            onChange={(value) =>
+              setValue("dateOfBirth", value, {
+                shouldDirty: true,
+                shouldTouch: true,
+                shouldValidate: true,
+              })
+            }
+            min="1900-01-01"
+            max={todayDateKey()}
+            placeholder="Select birth date"
+            error={errors.dateOfBirth?.message}
+          />
+        </div>
         <TextField label="Current address" className="md:col-span-2" error={errors.currentAddress?.message} inputProps={register("currentAddress")} />
         <TextField label="Barangay" error={errors.barangay?.message} inputProps={register("barangay")} />
         <TextField label="Municipality" error={errors.municipality?.message} inputProps={register("municipality")} />
@@ -513,7 +580,13 @@ function PersonalInfoStep({
 function ReviewStep({
   register,
   watch,
+  setValue,
   errors,
+  signatureMode,
+  signatureFile,
+  signatureError,
+  onSignatureModeChange,
+  onSignatureChange,
   uploads,
   addUpload,
   updateUpload,
@@ -521,7 +594,13 @@ function ReviewStep({
 }: {
   register: UseFormRegister<MembershipApplicationFormValues>;
   watch: UseFormWatch<MembershipApplicationFormValues>;
+  setValue: UseFormSetValue<MembershipApplicationFormValues>;
   errors: FieldErrors<MembershipApplicationFormValues>;
+  signatureMode: SignatureMode;
+  signatureFile: File | null;
+  signatureError: string | null;
+  onSignatureModeChange: (mode: SignatureMode) => void;
+  onSignatureChange: (file: File | null, error: string | null) => void;
   uploads: DocumentUploadDraft[];
   addUpload: () => void;
   updateUpload: (index: number, patch: Partial<DocumentUploadDraft>) => void;
@@ -533,11 +612,34 @@ function ReviewStep({
 
       <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5 shadow-sm">
         <h3 className="text-lg font-bold text-[#123D2A]">Signature</h3>
-        <div className="mt-4 grid gap-5 md:grid-cols-3">
-          <TextField label="Typed signature name" error={errors.signatureName?.message} inputProps={register("signatureName")} />
+        <div className="mt-4 grid gap-5 md:grid-cols-2">
           <TextField label="Signed place" error={errors.signedPlace?.message} inputProps={register("signedPlace")} />
-          <TextField label="Signed date" type="date" error={errors.signedAt?.message} inputProps={register("signedAt")} />
+          <div>
+            <input type="hidden" {...register("signedAt")} />
+            <DatePicker
+              label="Signed date"
+              value={watch("signedAt")}
+              onChange={(value) =>
+                setValue("signedAt", value, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                  shouldValidate: true,
+                })
+              }
+              min="1900-01-01"
+              max={todayDateKey()}
+              placeholder="Select signed date"
+              error={errors.signedAt?.message}
+            />
+          </div>
         </div>
+        <SignatureInput
+          mode={signatureMode}
+          file={signatureFile}
+          error={signatureError}
+          onModeChange={onSignatureModeChange}
+          onChange={onSignatureChange}
+        />
         <label className="mt-5 flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
           <input
             type="checkbox"
@@ -585,6 +687,268 @@ function ReviewStep({
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function SignatureInput({
+  mode,
+  file,
+  error,
+  onModeChange,
+  onChange,
+}: {
+  mode: SignatureMode;
+  file: File | null;
+  error: string | null;
+  onModeChange: (mode: SignatureMode) => void;
+  onChange: (file: File | null, error: string | null) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+  const hasDrawnRef = useRef(false);
+  const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isSignaturePadOpen) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    clearCanvas(canvas);
+    hasDrawnRef.current = false;
+  }, [isSignaturePadOpen]);
+
+  function pointFromEvent(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }
+
+  function beginDraw(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    isDrawingRef.current = true;
+    const point = pointFromEvent(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  }
+
+  function draw(event: PointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingRef.current) return;
+
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const point = pointFromEvent(event);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 4;
+    context.strokeStyle = "#123D2A";
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    hasDrawnRef.current = true;
+  }
+
+  function finishDraw(event: PointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingRef.current) return;
+
+    isDrawingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    onChange(file, null);
+  }
+
+  function resetDrawnSignature() {
+    const canvas = canvasRef.current;
+    if (canvas) clearCanvas(canvas);
+    hasDrawnRef.current = false;
+    onChange(null, null);
+  }
+
+  function applyDrawnSignature() {
+    const canvas = canvasRef.current;
+    if (!canvas || !hasDrawnRef.current) {
+      onChange(null, "Draw your signature before using it.");
+      return;
+    }
+
+    void canvasToSignatureFile(canvas).then((signature) => {
+      onChange(signature, signature ? null : "Draw your signature before using it.");
+      if (signature) setIsSignaturePadOpen(false);
+    });
+  }
+
+  return (
+    <div className="mt-5 rounded-[1.25rem] border border-[#DDE8D8] bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">
+            Applicant Signature
+          </p>
+          <p className="mt-1 text-sm text-[#365F4A]">
+            Draw your signature or upload a saved signature file.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 rounded-full bg-[#F8F1E5] p-1">
+          <button
+            type="button"
+            onClick={() => onModeChange("draw")}
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-black transition ${
+              mode === "draw"
+                ? "bg-[#123D2A] text-white shadow-sm"
+                : "text-[#123D2A] hover:bg-[#EAF3E8]"
+            }`}
+          >
+            <PenLine className="size-4" />
+            Draw
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("upload")}
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-black transition ${
+              mode === "upload"
+                ? "bg-[#123D2A] text-white shadow-sm"
+                : "text-[#123D2A] hover:bg-[#EAF3E8]"
+            }`}
+          >
+            <UploadCloud className="size-4" />
+            Upload
+          </button>
+        </div>
+      </div>
+
+      {mode === "draw" ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-[#B9D1B6] bg-[#FFFAF2] p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
+                <PenLine className="size-5" />
+              </span>
+              <div>
+                <p className="text-base font-black text-[#123D2A]">
+                  {file && mode === "draw" ? "Drawn signature ready" : "No drawn signature yet"}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#365F4A]">
+                  Open the signature pad for a larger writing space.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(file, null);
+                setIsSignaturePadOpen(true);
+              }}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#123D2A] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#1F6B43]"
+            >
+              <PenLine className="size-4" />
+              {file && mode === "draw" ? "Replace signature" : "Open signature pad"}
+            </button>
+          </div>
+
+          <Dialog.Root open={isSignaturePadOpen} onOpenChange={setIsSignaturePadOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-[80] bg-[#061B11]/55 backdrop-blur-sm" />
+              <Dialog.Content className="fixed inset-0 z-[90] overflow-y-auto p-3 focus:outline-none sm:p-6">
+                <div className="flex min-h-full items-center justify-center">
+                  <div className="relative w-full max-w-5xl rounded-[2rem] border border-[#DDE8D8] bg-white p-5 shadow-[0_28px_90px_rgba(6,27,17,0.28)] sm:p-7">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <Dialog.Title className="text-2xl font-black tracking-normal text-[#123D2A]">
+                          Draw Signature
+                        </Dialog.Title>
+                        <Dialog.Description className="mt-1 text-sm font-semibold text-[#365F4A]">
+                          Use your mouse, trackpad, or finger in the signature area.
+                        </Dialog.Description>
+                      </div>
+                      <Dialog.Close className="absolute right-4 top-4 grid size-10 place-items-center rounded-full border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#EAF3E8] sm:static">
+                        <X className="size-5" />
+                        <span className="sr-only">Close signature pad</span>
+                      </Dialog.Close>
+                    </div>
+
+                    <canvas
+                      ref={canvasRef}
+                      width={1200}
+                      height={420}
+                      onPointerDown={beginDraw}
+                      onPointerMove={draw}
+                      onPointerUp={finishDraw}
+                      onPointerCancel={() => {
+                        isDrawingRef.current = false;
+                      }}
+                      className="mt-6 h-[min(48vh,26rem)] min-h-72 w-full touch-none rounded-[1.5rem] border border-dashed border-[#9FBEA2] bg-white shadow-inner"
+                      aria-label="Draw applicant signature"
+                    />
+
+                    <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <button
+                        type="button"
+                        onClick={resetDrawnSignature}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#DDE8D8] bg-white px-5 text-sm font-black text-[#123D2A] transition hover:bg-[#EAF3E8]"
+                      >
+                        <RotateCcw className="size-4" />
+                        Clear signature
+                      </button>
+                      <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => setIsSignaturePadOpen(false)}
+                          className="inline-flex h-11 items-center justify-center rounded-full border border-[#DDE8D8] bg-white px-5 text-sm font-black text-[#123D2A] transition hover:bg-[#EAF3E8]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={applyDrawnSignature}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#123D2A] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#1F6B43]"
+                        >
+                          <Check className="size-4" />
+                          Use signature
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </div>
+      ) : (
+        <label className="mt-4 block rounded-2xl border border-dashed border-[#B9D1B6] bg-[#FFFAF2] p-4 text-sm font-semibold text-[#365F4A]">
+          Upload signature
+          <input
+            type="file"
+            accept={allowedUploadExtensions.join(",")}
+            onChange={(event) => {
+              const selectedFile = event.target.files?.[0] ?? null;
+              const uploadError = validateUpload(selectedFile);
+              onChange(uploadError ? null : selectedFile, uploadError);
+            }}
+            className="mt-3 block w-full text-sm text-[#123D2A] file:mr-4 file:h-10 file:rounded-full file:border-0 file:bg-[#123D2A] file:px-4 file:font-bold file:text-white"
+          />
+          <span className="mt-2 block text-xs text-[#5D6D63]">
+            Accepted files: PDF, JPG, or PNG up to 5 MB.
+          </span>
+        </label>
+      )}
+
+      {file ? (
+        <div className="mt-3 rounded-2xl border border-[#DDE8D8] bg-[#EAF3E8] px-4 py-3 text-sm font-bold text-[#123D2A]">
+          {file.name} is ready to submit.
+        </div>
+      ) : null}
+
+      {error ? <span className="mt-2 block text-sm font-semibold text-red-700">{error}</span> : null}
     </div>
   );
 }
@@ -731,11 +1095,45 @@ function toPayload(values: MembershipApplicationFormValues): PublicMembershipApp
     bylawsAgreementAccepted: true,
     patronageRefundAcknowledged: true,
     privacyConsentAccepted: true,
-    applicantSignatureName: values.signatureName.trim(),
+    applicantSignatureName: applicantFullName(values),
     signedPlace: values.signedPlace.trim(),
-    signedAt: values.signedAt,
+    signedAt: signedDateToTimestamp(values.signedAt),
     website: values.website,
   };
+}
+
+function formatApiClientError(error: ApiClientError) {
+  const fieldErrors = error.errors
+    .filter((issue) => issue.message)
+    .map((issue) =>
+      issue.field
+        ? `${humanizeFieldName(issue.field)}: ${issue.message}`
+        : issue.message,
+    );
+
+  if (!fieldErrors.length) return error.message;
+  return `${error.message}: ${fieldErrors.join(" ")}`;
+}
+
+function humanizeFieldName(field: string) {
+  return field
+    .replace(/\.(\d+)\./g, " $1 ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\./g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function signedDateToTimestamp(value: string) {
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!dateOnlyMatch) return value;
+
+  const [, year, month, day] = dateOnlyMatch;
+  const now = new Date();
+  const signedAt = new Date(now);
+  signedAt.setFullYear(Number(year), Number(month) - 1, Number(day));
+  return signedAt.toISOString();
 }
 
 function applicantFullName(values: Pick<MembershipApplicationFormValues, "firstName" | "middleName" | "lastName" | "suffix">) {
@@ -745,29 +1143,31 @@ function applicantFullName(values: Pick<MembershipApplicationFormValues, "firstN
     .join(" ");
 }
 
-function signatureMatchesName(signatureName: string, fullName: string) {
-  const normalizedSignature = normalizeName(signatureName);
-  const normalizedName = normalizeName(fullName);
-  if (!normalizedSignature || !normalizedName) return false;
-  if (normalizedSignature === normalizedName) return true;
-
-  const signatureParts = normalizedSignature.split(" ");
-  const nameParts = new Set(normalizedName.split(" "));
-  return signatureParts.length >= 2 && signatureParts.every((part) => nameParts.has(part));
-}
-
-function normalizeName(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean)
-    .join(" ");
-}
-
 function validateUpload(file: File | null) {
   if (!file) return null;
   if (!allowedUploadTypes.includes(file.type)) return "Use a PDF, JPG, or PNG file.";
   if (file.size > maxUploadBytes) return "File must be 5 MB or smaller.";
   return null;
+}
+
+function clearCanvas(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext("2d");
+  if (!context) return;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#FFFFFF";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function canvasToSignatureFile(canvas: HTMLCanvasElement) {
+  return new Promise<File | null>((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        resolve(null);
+        return;
+      }
+
+      resolve(new File([blob], `signature-${Date.now()}.png`, { type: "image/png" }));
+    }, "image/png");
+  });
 }

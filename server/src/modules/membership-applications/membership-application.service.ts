@@ -37,13 +37,9 @@ import type { AuthContext } from "../auth/auth.types";
 import {
   generateApplicationTrackingToken,
   hashApplicationTrackingToken,
-  requireApplicationTrackingToken,
-  verifyApplicationTrackingToken,
+  requireApplicationBirthDateCredential,
+  verifyApplicationBirthDate,
 } from "./public-tracking-token";
-
-type PublicSubmissionWithSecret = PublicSubmissionResult & {
-  trackingToken: string;
-};
 
 const duplicateWarningMessage =
   "A recent application with matching applicant details already exists. The new application was still submitted for Chairman review.";
@@ -265,11 +261,11 @@ export interface MembershipApplicationService {
   submitPublicApplication(
     input: PublicMembershipApplicationInput,
     context: PublicSubmissionContext,
-  ): Promise<PublicSubmissionWithSecret>;
-  getPublicStatus(applicationCode: string, rawTrackingToken: string | undefined): Promise<PublicApplicationStatus>;
+  ): Promise<PublicSubmissionResult>;
+  getPublicStatus(applicationCode: string, rawDateOfBirth: string | undefined): Promise<PublicApplicationStatus>;
   uploadPublicDocument(
     applicationCode: string,
-    rawTrackingToken: string | undefined,
+    rawDateOfBirth: string | undefined,
     document: PublicDocumentUploadInput,
   ): Promise<StoredMembershipApplicationDocument>;
   summary(auth: AuthContext): Promise<ChairmanApplicationSummary>;
@@ -323,7 +319,7 @@ export interface MembershipApplicationService {
 export function createMembershipApplicationService(
   repository: MembershipApplicationRepository = createMembershipApplicationRepository(),
 ): MembershipApplicationService {
-  async function findVerifiedApplication(applicationCode: string, rawTrackingToken: string | undefined) {
+  async function findVerifiedApplication(applicationCode: string, rawDateOfBirth: string | undefined) {
     const application = await repository.findPublicApplicationByCode(applicationCode);
     if (!application) {
       throw new AppError(
@@ -333,12 +329,12 @@ export function createMembershipApplicationService(
       );
     }
 
-    const trackingToken = requireApplicationTrackingToken(rawTrackingToken);
-    if (!verifyApplicationTrackingToken(application.publicTrackingTokenHash, trackingToken)) {
+    const dateOfBirth = requireApplicationBirthDateCredential(rawDateOfBirth);
+    if (!verifyApplicationBirthDate(application.dateOfBirth, dateOfBirth)) {
       throw new AppError(
-        "Application tracking token is invalid",
+        "Applicant date of birth does not match this application",
         403,
-        "APPLICATION_TRACKING_TOKEN_INVALID",
+        "APPLICATION_BIRTH_DATE_INVALID",
       );
     }
 
@@ -367,14 +363,11 @@ export function createMembershipApplicationService(
         warnings,
       });
 
-      return {
-        ...result,
-        trackingToken,
-      };
+      return result;
     },
 
-    async getPublicStatus(applicationCode, rawTrackingToken) {
-      const application = await findVerifiedApplication(applicationCode, rawTrackingToken);
+    async getPublicStatus(applicationCode, rawDateOfBirth) {
+      const application = await findVerifiedApplication(applicationCode, rawDateOfBirth);
 
       return {
         applicationCode: application.applicationCode,
@@ -388,8 +381,8 @@ export function createMembershipApplicationService(
       };
     },
 
-    async uploadPublicDocument(applicationCode, rawTrackingToken, document) {
-      const application = await findVerifiedApplication(applicationCode, rawTrackingToken);
+    async uploadPublicDocument(applicationCode, rawDateOfBirth, document) {
+      const application = await findVerifiedApplication(applicationCode, rawDateOfBirth);
       const originalFileName = sanitizeOriginalFileName(document.originalFileName);
       const normalizedDocument: PublicDocumentUploadInput = {
         ...document,

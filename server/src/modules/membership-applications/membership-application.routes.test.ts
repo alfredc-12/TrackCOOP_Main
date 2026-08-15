@@ -153,6 +153,7 @@ class FakeMembershipApplicationRepository {
       id: "1",
       applicationCode: this.created.code,
       publicTrackingTokenHash: this.created.hash,
+      dateOfBirth: this.created.input.dateOfBirth ?? null,
       requestedMembershipType: this.created.input.requestedMembershipType,
       fullName: applicationFullName(this.created.input),
       submittedAt: this.created.submittedAt,
@@ -464,7 +465,7 @@ after(async () => {
   await rm(protectedUploadRoot, { recursive: true, force: true });
 });
 
-test("POST /api/membership-applications/public submits an application and returns the tracking secret once", async () => {
+test("POST /api/membership-applications/public submits an application without exposing a public credential", async () => {
   const { app, repository } = createTestApp();
 
   const response = await request(app)
@@ -473,11 +474,10 @@ test("POST /api/membership-applications/public submits an application and return
 
   assert.equal(response.status, 201);
   assert.equal(response.body.data.applicationCode, "MEM-APP-2026-000001");
-  assert.equal(typeof response.body.data.trackingToken, "string");
+  assert.equal(response.body.data.trackingToken, undefined);
   assert.equal(response.body.data.duplicateWarning, false);
   assert.equal(response.body.data.nextStep, "Chairman review");
   assert.equal(repository.created?.hash.length, 64);
-  assert.notEqual(repository.created?.hash, response.body.data.trackingToken);
 });
 
 test("POST /api/membership-applications/public rejects missing required commitments", async () => {
@@ -527,16 +527,15 @@ test("POST /api/membership-applications/public includes duplicate warnings witho
   assert.equal(repository.created?.code, "MEM-APP-2026-000001");
 });
 
-test("GET /api/membership-applications/public/:applicationCode/status returns only safe public status with the correct token", async () => {
+test("GET /api/membership-applications/public/:applicationCode/status returns only safe public status with the correct date of birth", async () => {
   const { app } = createTestApp();
-  const submission = await request(app)
+  await request(app)
     .post("/api/membership-applications/public")
     .send(validApplicationPayload());
-  const token = submission.body.data.trackingToken as string;
 
   const response = await request(app)
     .get("/api/membership-applications/public/MEM-APP-2026-000001/status")
-    .set("X-Application-Tracking-Token", token);
+    .set("X-Application-Date-Of-Birth", "1990-01-15");
 
   assert.equal(response.status, 200);
   assert.equal(response.body.data.applicationCode, "MEM-APP-2026-000001");
@@ -547,7 +546,7 @@ test("GET /api/membership-applications/public/:applicationCode/status returns on
   assert.equal(response.body.data.missingOrRejectedRequirements.length, 2);
 });
 
-test("GET /api/membership-applications/public/:applicationCode/status rejects the wrong tracking token", async () => {
+test("GET /api/membership-applications/public/:applicationCode/status rejects the wrong date of birth", async () => {
   const { app } = createTestApp();
   await request(app)
     .post("/api/membership-applications/public")
@@ -555,22 +554,21 @@ test("GET /api/membership-applications/public/:applicationCode/status rejects th
 
   const response = await request(app)
     .get("/api/membership-applications/public/MEM-APP-2026-000001/status")
-    .set("X-Application-Tracking-Token", "wrong-token");
+    .set("X-Application-Date-Of-Birth", "1991-01-15");
 
   assert.equal(response.status, 403);
-  assert.equal(response.body.errors[0].code, "APPLICATION_TRACKING_TOKEN_INVALID");
+  assert.equal(response.body.errors[0].code, "APPLICATION_BIRTH_DATE_INVALID");
 });
 
 test("POST /api/membership-applications/public/:applicationCode/documents stores a protected document without exposing its path", async () => {
   const { app, repository } = createTestApp();
-  const submission = await request(app)
+  await request(app)
     .post("/api/membership-applications/public")
     .send(validApplicationPayload());
-  const token = submission.body.data.trackingToken as string;
 
   const response = await request(app)
     .post("/api/membership-applications/public/MEM-APP-2026-000001/documents")
-    .set("X-Application-Tracking-Token", token)
+    .set("X-Application-Date-Of-Birth", "1990-01-15")
     .field("documentType", "Valid ID")
     .attach("document", Buffer.from("%PDF-1.4\n%test\n"), {
       filename: "valid-id.pdf",
@@ -589,14 +587,13 @@ test("POST /api/membership-applications/public/:applicationCode/documents stores
 
 test("POST /api/membership-applications/public/:applicationCode/documents rejects unsupported file types", async () => {
   const { app } = createTestApp();
-  const submission = await request(app)
+  await request(app)
     .post("/api/membership-applications/public")
     .send(validApplicationPayload());
-  const token = submission.body.data.trackingToken as string;
 
   const response = await request(app)
     .post("/api/membership-applications/public/MEM-APP-2026-000001/documents")
-    .set("X-Application-Tracking-Token", token)
+    .set("X-Application-Date-Of-Birth", "1990-01-15")
     .field("documentType", "Valid ID")
     .attach("document", Buffer.from("hello"), {
       filename: "valid-id.txt",
@@ -611,14 +608,13 @@ test("POST /api/membership-applications/public/:applicationCode/documents remove
   const repository = new FakeMembershipApplicationRepository();
   repository.failDocumentStore = true;
   const { app } = createTestApp(repository);
-  const submission = await request(app)
+  await request(app)
     .post("/api/membership-applications/public")
     .send(validApplicationPayload());
-  const token = submission.body.data.trackingToken as string;
 
   const response = await request(app)
     .post("/api/membership-applications/public/MEM-APP-2026-000001/documents")
-    .set("X-Application-Tracking-Token", token)
+    .set("X-Application-Date-Of-Birth", "1990-01-15")
     .field("documentType", "Valid ID")
     .attach("document", Buffer.from("%PDF-1.4\n%test\n"), {
       filename: "valid-id.pdf",

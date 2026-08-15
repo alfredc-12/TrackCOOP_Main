@@ -9,16 +9,22 @@ import {
   Search,
   ShieldCheck,
   Wallet,
+  UploadCloud,
   type LucideIcon,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { type ChangeEvent, type FormEvent, type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { ApiClientError } from "@/lib/api-client";
 import {
   createMembershipApplicationPaymongoCheckout,
   getMembershipApplicationStatus,
+  uploadMembershipApplicationDocument,
 } from "../membership-application-api";
+import type {
+  MembershipDocumentType,
+} from "../membership-application-types";
 import type { PublicMembershipPaymentStatus } from "../public-payment-types";
 
 function peso(value: number) {
@@ -44,12 +50,20 @@ function suggestedCapitalAmount(status: PublicMembershipPaymentStatus) {
   return Math.min(preferred, maximumGap);
 }
 
+function todayDateKey() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function ApplicationStatusPayments() {
   const searchParams = useSearchParams();
   const [applicationCode, setApplicationCode] = useState(
     searchParams.get("code") ?? "",
   );
-  const [trackingToken, setTrackingToken] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [status, setStatus] = useState<PublicMembershipPaymentStatus | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -58,13 +72,19 @@ export function ApplicationStatusPayments() {
     "Associate Membership Fee" | "Share Capital" | null
   >(null);
   const [shareCapitalAmount, setShareCapitalAmount] = useState("1500");
+  const [followUpDocumentType, setFollowUpDocumentType] =
+    useState<MembershipDocumentType>("Other");
+  const [followUpFiles, setFollowUpFiles] = useState<File[]>([]);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
+  const [followUpSuccess, setFollowUpSuccess] = useState<string | null>(null);
+  const [isUploadingFollowUp, setIsUploadingFollowUp] = useState(false);
 
   async function lookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = applicationCode.trim();
-    const token = trackingToken.trim();
-    if (!code || !token) {
-      setLookupError("Enter the application code and private tracking secret.");
+    const birthDate = dateOfBirth.trim();
+    if (!code || !birthDate) {
+      setLookupError("Enter the application code and applicant date of birth.");
       return;
     }
 
@@ -74,9 +94,12 @@ export function ApplicationStatusPayments() {
     try {
       const result = await getMembershipApplicationStatus({
         applicationCode: code,
-        trackingToken: token,
+        dateOfBirth: birthDate,
       }) as PublicMembershipPaymentStatus;
       setStatus(result);
+      setFollowUpError(null);
+      setFollowUpSuccess(null);
+      setFollowUpFiles([]);
       const suggested = suggestedCapitalAmount(result);
       if (suggested > 0) setShareCapitalAmount(String(suggested));
     } catch (error) {
@@ -88,6 +111,46 @@ export function ApplicationStatusPayments() {
       );
     } finally {
       setIsLookingUp(false);
+    }
+  }
+
+  async function submitFollowUpDocuments(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!status || isUploadingFollowUp) return;
+    if (!followUpFiles.length) {
+      setFollowUpError("Select at least one requested PDF, JPG, or PNG file.");
+      return;
+    }
+
+    setIsUploadingFollowUp(true);
+    setFollowUpError(null);
+    setFollowUpSuccess(null);
+    try {
+      for (const file of followUpFiles) {
+        await uploadMembershipApplicationDocument({
+          applicationCode: status.applicationCode,
+          dateOfBirth: dateOfBirth.trim(),
+          documentType: followUpDocumentType,
+          file,
+        });
+      }
+      const refreshed = await getMembershipApplicationStatus({
+        applicationCode: status.applicationCode,
+        dateOfBirth: dateOfBirth.trim(),
+      }) as PublicMembershipPaymentStatus;
+      setStatus(refreshed);
+      setFollowUpFiles([]);
+      setFollowUpSuccess(
+        "Requested document uploaded. The Chairman can now review the new file.",
+      );
+    } catch (error) {
+      setFollowUpError(
+        error instanceof ApiClientError
+          ? error.message
+          : "Unable to upload the requested document. Please try again.",
+      );
+    } finally {
+      setIsUploadingFollowUp(false);
     }
   }
 
@@ -113,7 +176,7 @@ export function ApplicationStatusPayments() {
     try {
       const checkout = await createMembershipApplicationPaymongoCheckout({
         applicationCode: status.applicationCode,
-        trackingToken: trackingToken.trim(),
+        dateOfBirth: dateOfBirth.trim(),
         paymentPurpose,
         requestedAmount: paymentPurpose === "Share Capital" ? amount : undefined,
       });
@@ -141,7 +204,7 @@ export function ApplicationStatusPayments() {
           Track your application
         </h2>
         <p className="mt-3 text-sm leading-7 text-[#365F4A]">
-          Enter the application code and private tracking secret shown after submission.
+          Enter the application code and the date of birth used in the application.
         </p>
 
         <label className="mt-7 block text-sm font-bold text-[#365F4A]">
@@ -153,16 +216,15 @@ export function ApplicationStatusPayments() {
             autoComplete="off"
           />
         </label>
-        <label className="mt-5 block text-sm font-bold text-[#365F4A]">
-          Tracking secret
-          <input
-            type="password"
-            value={trackingToken}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setTrackingToken(event.target.value)}
-            className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-            autoComplete="off"
-          />
-        </label>
+        <DatePicker
+          label="Applicant date of birth"
+          value={dateOfBirth}
+          onChange={setDateOfBirth}
+          min="1900-01-01"
+          max={todayDateKey()}
+          placeholder="Select birth date"
+          className="mt-5"
+        />
 
         {lookupError ? <ErrorNotice message={lookupError} /> : null}
 
@@ -324,6 +386,91 @@ export function ApplicationStatusPayments() {
                 {status.latestApplicantMessage ?? "No message posted yet."}
               </p>
             </div>
+
+            {status.applicationStatus === "Needs Information" ? (
+              <form
+                onSubmit={submitFollowUpDocuments}
+                className="rounded-2xl border border-[#DDE8D8] bg-white p-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.14em] text-[#123D2A]">
+                      Submit requested information
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-[#365F4A]">
+                      Upload the document requested by the cooperative. Accepted files:
+                      PDF, JPG, or PNG up to 5 MB each.
+                    </p>
+                  </div>
+                  <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#EAF3E8] px-3 py-1 text-xs font-black text-[#1F6B43]">
+                    Needs Information
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-[0.7fr_1.3fr]">
+                  <label className="text-xs font-black uppercase tracking-[0.14em] text-[#365F4A]">
+                    Document type
+                    <select
+                      value={followUpDocumentType}
+                      onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                        setFollowUpDocumentType(event.target.value as MembershipDocumentType)
+                      }
+                      className="mt-2 h-11 w-full rounded-full border border-[#DDE8D8] bg-white px-4 text-sm font-bold normal-case tracking-normal text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+                    >
+                      {[
+                        "Signed Application",
+                        "Valid ID",
+                        "Proof of Residency",
+                        "Membership Fee Proof",
+                        "Share Capital Proof",
+                        "Other",
+                      ].map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="grid min-h-24 cursor-pointer place-items-center rounded-2xl border border-dashed border-[#9FB4A4] bg-[#F8F1E5] p-4 text-center text-sm font-bold text-[#123D2A] transition hover:border-[#1F6B43]">
+                    <UploadCloud className="mb-2 size-5 text-[#1F6B43]" />
+                    {followUpFiles.length
+                      ? followUpFiles.map((file) => file.name).join(", ")
+                      : "Choose requested files"}
+                    <input
+                      className="sr-only"
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setFollowUpFiles(Array.from(event.target.files ?? []))
+                      }
+                    />
+                  </label>
+                </div>
+
+                {followUpError ? <ErrorNotice message={followUpError} /> : null}
+                {followUpSuccess ? (
+                  <div className="mt-5 flex gap-3 rounded-2xl border border-[#BBD9C0] bg-[#EAF3E8] p-4 text-sm text-[#1F6B43]">
+                    <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                    <p>{followUpSuccess}</p>
+                  </div>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  disabled={isUploadingFollowUp || !followUpFiles.length}
+                  className="mt-4 h-11 rounded-full bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]"
+                >
+                  {isUploadingFollowUp ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <UploadCloud className="size-4" />
+                  )}
+                  {isUploadingFollowUp ? "Uploading..." : "Upload Requested Information"}
+                </Button>
+              </form>
+            ) : null}
 
             {status.missingOrRejectedRequirements.length > 0 ? (
               <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">

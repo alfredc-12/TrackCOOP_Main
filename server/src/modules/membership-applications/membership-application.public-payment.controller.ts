@@ -27,16 +27,16 @@ export function createPublicMembershipApplicationStatusHandler(
   return asyncHandler(async (request, response) => {
     const params = publicStatusParamsSchema.safeParse(request.params);
     if (!params.success) throw validationError(params.error);
-    const trackingToken = request.get("X-Application-Tracking-Token");
+    const dateOfBirth = request.get("X-Application-Date-Of-Birth");
 
     const [application, payments] = await Promise.all([
       applicationService.getPublicStatus(
         params.data.applicationCode,
-        trackingToken,
+        dateOfBirth,
       ),
       paymentService.getSummary(
         params.data.applicationCode,
-        trackingToken,
+        dateOfBirth,
       ),
     ]);
 

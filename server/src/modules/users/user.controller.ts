@@ -70,8 +70,9 @@ export function createUserController(service: UserService) {
       return sendSuccess(response, roles);
     }),
 
-    summary: asyncHandler(async (_request, response) => {
-      const summary = await service.getSummary();
+    summary: asyncHandler(async (request, response) => {
+      const query = parseBody(listUsersQuerySchema.pick({ includeHidden: true }), request.query);
+      const summary = await service.getSummary(query);
       return sendSuccess(response, summary);
     }),
 

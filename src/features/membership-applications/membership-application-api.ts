@@ -81,7 +81,7 @@ export function submitMembershipApplication(input: PublicMembershipApplicationIn
 
 export function uploadMembershipApplicationDocument(input: {
   applicationCode: string;
-  trackingToken: string;
+  dateOfBirth: string;
   documentType: MembershipDocumentType;
   file: File;
 }) {
@@ -94,7 +94,7 @@ export function uploadMembershipApplicationDocument(input: {
     {
       method: "POST",
       headers: {
-        "X-Application-Tracking-Token": input.trackingToken,
+        "X-Application-Date-Of-Birth": input.dateOfBirth,
       },
       body: formData,
     },
@@ -103,13 +103,13 @@ export function uploadMembershipApplicationDocument(input: {
 
 export function getMembershipApplicationStatus(input: {
   applicationCode: string;
-  trackingToken: string;
+  dateOfBirth: string;
 }) {
   return apiRequest<PublicApplicationStatus>(
     `/api/membership-applications/public/${encodeURIComponent(input.applicationCode)}/status`,
     {
       headers: {
-        "X-Application-Tracking-Token": input.trackingToken,
+        "X-Application-Date-Of-Birth": input.dateOfBirth,
       },
       cache: "no-store",
     },
@@ -132,7 +132,7 @@ export function createMembershipApplicationPaymongoCheckout(
     {
       method: "POST",
       headers: {
-        "X-Application-Tracking-Token": input.trackingToken,
+        "X-Application-Date-Of-Birth": input.dateOfBirth,
       },
       body: JSON.stringify(body),
     },

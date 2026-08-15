@@ -52,8 +52,8 @@ function parse<T>(schema: ZodType<T>, value: unknown): T {
   return result.data;
 }
 
-function trackingToken(request: Request) {
-  return request.get("X-Application-Tracking-Token");
+function dateOfBirthCredential(request: Request) {
+  return request.get("X-Application-Date-Of-Birth");
 }
 
 function publicContext(request: Request) {
@@ -105,7 +105,7 @@ export function createMembershipApplicationController(
 
       return sendSuccess(
         response,
-        await service.getPublicStatus(params.applicationCode, trackingToken(request)),
+        await service.getPublicStatus(params.applicationCode, dateOfBirthCredential(request)),
       );
     }),
 
@@ -125,7 +125,7 @@ export function createMembershipApplicationController(
         response,
         await service.uploadPublicDocument(
           params.applicationCode,
-          trackingToken(request),
+          dateOfBirthCredential(request),
           document,
         ),
         {

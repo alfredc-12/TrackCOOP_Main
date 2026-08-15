@@ -76,7 +76,7 @@ const sortColumns: Record<UserListQuery["sortBy"], string> = {
 
 export interface UserRepository {
   list(query: UserListQuery): Promise<UserListResult>;
-  summary(): Promise<UserSummaryCounts>;
+  summary(options?: { includeHidden?: boolean }): Promise<UserSummaryCounts>;
   findById(userId: string): Promise<UserDetail | null>;
   listRoles(): Promise<RoleSummary[]>;
   listLinkableMembers(query: { search?: string; pageSize: number }): Promise<LinkableMember[]>;
@@ -150,6 +150,10 @@ function userSelect() {
             FROM users u
             JOIN roles r ON r.role_id = u.role_id
             LEFT JOIN member_profiles m ON m.user_id = u.user_id`;
+}
+
+function hiddenAccountSql(alias = "u") {
+  return `(${alias}.username = 'paymongo-system' OR ${alias}.email = 'paymongo-system@trackcoop.local')`;
 }
 
 async function getRoleId(role: RoleSlug, pool: Pool) {
@@ -290,6 +294,10 @@ export function createUserRepository(pool?: Pool): UserRepository {
         values.push(query.status);
       }
 
+      if (!query.includeHidden) {
+        where.push(`NOT ${hiddenAccountSql("u")}`);
+      }
+
       const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const orderBy = sortColumns[query.sortBy];
@@ -318,13 +326,15 @@ export function createUserRepository(pool?: Pool): UserRepository {
       };
     },
 
-    async summary() {
+    async summary(options = {}) {
+      const whereSql = options.includeHidden ? "" : `WHERE NOT ${hiddenAccountSql("u")}`;
       const [rows] = await databasePool().execute<SummaryRow[]>(
         `SELECT COUNT(*) AS total,
                 SUM(CASE WHEN account_status = 'Active' THEN 1 ELSE 0 END) AS active,
                 SUM(CASE WHEN account_status = 'Pending' THEN 1 ELSE 0 END) AS pendingActivation,
                 SUM(CASE WHEN account_status IN ('Suspended', 'Inactive') THEN 1 ELSE 0 END) AS suspendedInactive
-           FROM users`,
+           FROM users u
+           ${whereSql}`,
       );
       const row = rows[0];
 

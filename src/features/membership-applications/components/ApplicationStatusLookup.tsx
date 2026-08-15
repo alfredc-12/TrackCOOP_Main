@@ -4,9 +4,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, CheckCircle2, CreditCard, Loader2, Search, Wallet } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useForm, type UseFormRegisterReturn } from "react-hook-form";
+import { useForm, useWatch, type UseFormRegisterReturn } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { ApiClientError } from "@/lib/api-client";
 import {
   createMembershipApplicationPaymongoCheckout,
@@ -19,7 +20,7 @@ import type {
 
 const statusSchema = z.object({
   applicationCode: z.string().trim().min(1, "Enter the application code."),
-  trackingToken: z.string().trim().min(1, "Enter the tracking secret."),
+  dateOfBirth: z.string().trim().min(1, "Enter the applicant date of birth."),
 });
 
 type StatusFormValues = z.infer<typeof statusSchema>;
@@ -37,15 +38,18 @@ export function ApplicationStatusLookup() {
 
   const {
     register,
+    control,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<StatusFormValues>({
     resolver: zodResolver(statusSchema),
     defaultValues: {
       applicationCode: searchParams.get("code") ?? "",
-      trackingToken: "",
+      dateOfBirth: "",
     },
   });
+  const dateOfBirth = useWatch({ control, name: "dateOfBirth" });
 
   const onSubmit = async (values: StatusFormValues) => {
     setError(null);
@@ -58,7 +62,7 @@ export function ApplicationStatusLookup() {
       setStatus(response);
       setVerifiedLookup({
         applicationCode: values.applicationCode.trim(),
-        trackingToken: values.trackingToken.trim(),
+        dateOfBirth: values.dateOfBirth.trim(),
       });
     } catch (err) {
       setError(
@@ -79,7 +83,7 @@ export function ApplicationStatusLookup() {
           Application Status
         </h1>
         <p className="mt-3 text-sm leading-7 text-[#365F4A]">
-          Enter the application code and tracking secret from your submission receipt.
+          Enter the application code and the date of birth used in the application.
         </p>
 
         <div className="mt-7 grid gap-5">
@@ -88,11 +92,23 @@ export function ApplicationStatusLookup() {
             error={errors.applicationCode?.message}
             inputProps={register("applicationCode")}
           />
-          <Field
-            label="Tracking secret"
-            error={errors.trackingToken?.message}
-            inputProps={register("trackingToken")}
-          />
+          <div>
+            <input type="hidden" {...register("dateOfBirth")} />
+            <DatePicker
+              label="Applicant date of birth"
+              value={dateOfBirth}
+              onChange={(value) =>
+                setValue("dateOfBirth", value, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                  shouldValidate: true,
+                })
+              }
+              min="1900-01-01"
+              placeholder="Select birth date"
+              error={errors.dateOfBirth?.message}
+            />
+          </div>
         </div>
 
         {error ? (
@@ -144,7 +160,7 @@ export function ApplicationStatusLookup() {
                 try {
                   const result = await createMembershipApplicationPaymongoCheckout({
                     applicationCode: verifiedLookup.applicationCode,
-                    trackingToken: verifiedLookup.trackingToken,
+                    dateOfBirth: verifiedLookup.dateOfBirth,
                     paymentPurpose,
                     requestedAmount:
                       paymentPurpose === "Share Capital"
@@ -377,15 +393,18 @@ function Field({
   label,
   error,
   inputProps,
+  type = "text",
 }: {
   label: string;
   error?: string;
   inputProps: UseFormRegisterReturn;
+  type?: string;
 }) {
   return (
     <label className="block text-sm font-semibold text-[#365F4A]">
       {label}
       <input
+        type={type}
         className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
         aria-invalid={Boolean(error)}
         {...inputProps}

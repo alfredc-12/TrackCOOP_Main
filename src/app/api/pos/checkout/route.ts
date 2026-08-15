@@ -3,6 +3,12 @@ import { db } from "@/lib/db";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 import { getServerAuthUser } from "@/lib/auth-server";
 import { getMemberProfileIdForUser } from "@/lib/next-api-auth";
+import {
+  createPaymongoConfigFromEnv,
+  validatePaymongoConfig,
+} from "@/../server/src/modules/paymongo/paymongo.client";
+import { createPaymongoService } from "@/../server/src/modules/paymongo/paymongo.service";
+import { AppError } from "@/../server/src/utils/app-error";
 
 type CheckoutItem = {
   id: number;
@@ -11,8 +17,6 @@ type CheckoutItem = {
 
 type CheckoutPayload = {
   items?: CheckoutItem[];
-  paymentMethod?: "Cash" | "Online";
-  paymentReference?: string;
   paymentName?: string;
   paymentEmail?: string;
   paymentContact?: string;
@@ -62,16 +66,22 @@ export async function POST(req: Request) {
       saleType = "Member Sale";
     }
 
-    const { items, paymentMethod, paymentReference, paymentName, paymentEmail, paymentContact } = await req.json() as CheckoutPayload;
-    const normalizedPaymentMethod = paymentMethod ?? "Cash";
+    const { items, paymentName, paymentEmail, paymentContact } = await req.json() as CheckoutPayload;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     }
 
-    if (normalizedPaymentMethod === "Online" && !paymentReference?.trim()) {
-      return NextResponse.json({ error: "Online payment reference is required." }, { status: 400 });
+    const customerName = paymentName?.trim();
+    const customerEmail = paymentEmail?.trim();
+    const customerContact = paymentContact?.trim();
+
+    if (!customerName || !customerEmail || !customerContact) {
+      return NextResponse.json({ error: "Customer name, email, and contact number are required." }, { status: 400 });
     }
+    const paymongoConfig = createPaymongoConfigFromEnv();
+    validatePaymongoConfig(paymongoConfig);
+    const paymongoService = createPaymongoService({ config: paymongoConfig });
 
     const quantities = new Map<number, number>();
     for (const item of items) {
@@ -161,34 +171,40 @@ export async function POST(req: Request) {
       const discountAmount = memberId ? subtotal * 0.05 : 0;
       const totalAmount = Math.max(0, subtotal - discountAmount);
 
-      if (normalizedPaymentMethod === "Online") {
-        const [refResult] = await connection.query<ResultSetHeader>(
-          `INSERT INTO payment_references 
-           (member_id, submitted_by, payer_name, payer_email, payer_contact, provider, reference_number, payment_purpose, amount, validation_status) 
-           VALUES (?, ?, ?, ?, ?, 'GCash', ?, 'POS/Product', ?, 'Pending')`,
-          [memberId, submittedBy, paymentName, paymentEmail, paymentContact, paymentReference, totalAmount]
-        );
-        paymentRefId = refResult.insertId;
-      }
-
       const [saleResult] = await connection.query<ResultSetHeader>(
         `INSERT INTO pos_sales 
          (sale_number, member_id, customer_name, customer_contact, sale_type, sale_status, payment_status, payment_reference_id, subtotal_amount, discount_amount, total_amount, recorded_by) 
          VALUES (?, ?, ?, ?, ?, 'Pending Payment', 'Unpaid', ?, ?, ?, ?, ?)`,
-        [saleNumber, memberId, paymentName, paymentContact, saleType, paymentRefId, subtotal, discountAmount, totalAmount, recordedBy]
+        [saleNumber, memberId, customerName, customerContact, saleType, null, subtotal, discountAmount, totalAmount, recordedBy]
       );
       
       const saleId = saleResult.insertId;
 
-      if (paymentRefId) {
-        await connection.query(
-          `UPDATE payment_references
-              SET related_entity_type = 'pos_sales',
-                  related_entity_id = ?
-            WHERE payment_reference_id = ?`,
-          [saleId, paymentRefId],
-        );
-      }
+      const referenceNumber = `${saleNumber}-PAY`;
+      const [refResult] = await connection.query<ResultSetHeader>(
+        `INSERT INTO payment_references
+           (member_id, submitted_by, payer_name, payer_email, payer_contact,
+            provider, payment_channel, reference_number, payment_purpose,
+            related_entity_type, related_entity_id, amount, validation_status)
+         VALUES (?, ?, ?, ?, ?, 'PayMongo', 'PayMongo', ?, 'POS/Product',
+                 'pos_sales', ?, ?, 'Pending')`,
+        [
+          memberId,
+          submittedBy,
+          customerName,
+          customerEmail,
+          customerContact,
+          referenceNumber,
+          saleId,
+          totalAmount,
+        ],
+      );
+      paymentRefId = refResult.insertId;
+
+      await connection.query(
+        `UPDATE pos_sales SET payment_reference_id = ? WHERE pos_sale_id = ?`,
+        [paymentRefId, saleId],
+      );
 
       for (const product of products) {
         const quantity = quantities.get(Number(product.id)) ?? 0;
@@ -205,7 +221,19 @@ export async function POST(req: Request) {
 
       await connection.commit();
 
-      return NextResponse.json({ success: true, saleId, totalAmount, discountAmount });
+      const checkout = await paymongoService.createPointOfSaleCheckout(String(paymentRefId));
+
+      return NextResponse.json({
+        success: true,
+        saleId,
+        totalAmount,
+        discountAmount,
+        paymentReferenceId: paymentRefId,
+        checkoutUrl: checkout.checkoutUrl,
+        checkoutId: checkout.checkoutId,
+        gatewayStatus: checkout.gatewayStatus,
+        mode: checkout.mode,
+      });
     } catch (err) {
       await connection.rollback();
       throw err;
@@ -214,6 +242,7 @@ export async function POST(req: Request) {
     }
   } catch (error: unknown) {
     console.error("Checkout failed:", error);
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+    const status = error instanceof AppError ? error.statusCode : 500;
+    return NextResponse.json({ error: getErrorMessage(error) }, { status });
   }
 }
