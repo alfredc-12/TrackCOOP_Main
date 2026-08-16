@@ -22,7 +22,7 @@ export function Modal({ title, description, trigger, children, maxWidth = "max-w
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm" />
         <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto bg-transparent focus:outline-none">
-          <div className="relative flex min-h-full items-start justify-center p-4 py-12">
+          <div className="relative flex min-h-full items-center justify-center p-4 sm:p-6">
             <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
             <div className={`relative z-10 w-[calc(100vw-2rem)] ${maxWidth} rounded-lg border border-black/10 bg-white p-6 shadow-2xl`}>
               <div className="flex items-start justify-between gap-4">

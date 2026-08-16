@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import SiteFooter from "@/components/layout/SiteFooter";
 import RentalLandingPage from "@/app/rental/page";
 import { RentalProvider } from "@/app/rental/_context/RentalProvider";
@@ -47,12 +49,27 @@ import {
   AlertCircle,
   Info,
   X,
-  Link2
+  Link2,
+  Copy,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight
 } from "lucide-react";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
 import ActivityModal from "./components/ActivityModal";
+
+function getPreview(content: string) {
+  const tmp = typeof document !== "undefined" ? document.createElement("DIV") : null;
+  if (tmp) {
+    tmp.innerHTML = content;
+    content = tmp.textContent || tmp.innerText || "";
+  }
+  if (content.length <= 140) return content;
+  return `${content.slice(0, 140).trim()}...`;
+}
 
 export default function MemberDashboardPage() {
   const router = useRouter();
@@ -71,7 +88,11 @@ export default function MemberDashboardPage() {
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  
+  const [readMoreModalOpen, setReadMoreModalOpen] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+  const [restoreModalStack, setRestoreModalStack] = useState<{readMore: boolean, viewAll: boolean}>({readMore: false, viewAll: false});
 
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isFetchingDashboard, setIsFetchingDashboard] = useState(true);
@@ -93,15 +114,6 @@ export default function MemberDashboardPage() {
       .finally(() => setIsFetchingDashboard(false));
   }, []);
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const fetchAnnouncements = () => {
     setIsFetchingAnnouncements(true);
     // Fetch only published announcements
@@ -117,7 +129,39 @@ export default function MemberDashboardPage() {
     }
   }, [activeTab, announcements.length]);
 
-  const confirmAcknowledge = (id: string) => {
+  useEffect(() => {
+    if (readMoreModalOpen) {
+      document.body.style.overflow = "hidden";
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setReadMoreModalOpen(false);
+      };
+      window.addEventListener('keydown', handleEsc);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener('keydown', handleEsc);
+      };
+    } else {
+      document.body.style.overflow = "";
+    }
+  }, [readMoreModalOpen]);
+
+  const handleRestoreModals = () => {
+    if (restoreModalStack.viewAll) setAllAnnouncementsModalOpen(true);
+    if (restoreModalStack.readMore) {
+      setTimeout(() => setReadMoreModalOpen(true), 50);
+    }
+    setRestoreModalStack({readMore: false, viewAll: false});
+  };
+
+  const confirmAcknowledge = (id: string, source: "readMore" | "viewAll" | "none" = "none") => {
+    setRestoreModalStack({
+      readMore: readMoreModalOpen,
+      viewAll: allAnnouncementsModalOpen
+    });
+    
+    setReadMoreModalOpen(false);
+    setAllAnnouncementsModalOpen(false);
+    
     setAckId(id);
     setAckModalOpen(true);
   };
@@ -128,6 +172,9 @@ export default function MemberDashboardPage() {
     try {
       await apiRequest(`/api/announcements/${ackId}/acknowledge`, { method: "POST" });
       setAnnouncements(prev => prev.map(a => a.id === ackId ? { ...a, isAcknowledged: true } : a));
+      if (selectedAnnouncement && selectedAnnouncement.id === ackId) {
+        setSelectedAnnouncement({ ...selectedAnnouncement, isAcknowledged: true });
+      }
       setAckModalOpen(false);
       setAckId(null);
       setSuccessMessage("Announcement successfully acknowledged!");
@@ -232,7 +279,10 @@ export default function MemberDashboardPage() {
         title="All Announcements"
         description="Search and view all past and present announcements from the cooperative."
         open={allAnnouncementsModalOpen}
-        onOpenChange={setAllAnnouncementsModalOpen}
+        onOpenChange={(open) => {
+          if (!open && readMoreModalOpen) return;
+          setAllAnnouncementsModalOpen(open);
+        }}
         trigger={<span className="hidden"></span>}
         maxWidth="max-w-3xl"
       >
@@ -262,37 +312,45 @@ export default function MemberDashboardPage() {
               return (
                 <>
                   {paginatedAnnouncements.map((ann, i) => (
-                    <div key={ann.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row">
-                      <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
+                    <div 
+                      key={ann.id} 
+                      className="group relative overflow-hidden rounded-xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex cursor-pointer"
+                      onClick={() => {
+                        setSelectedAnnouncement(ann);
+                        setReadMoreModalOpen(true);
+                      }}
+                    >
+                      <div className="w-24 sm:w-32 bg-[#e8f3ec] relative overflow-hidden shrink-0">
                         {i === 0 && announcementSearch === "" && (
-                          <div className="absolute top-3 left-3 z-10 rounded-full bg-[#123D2A] px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md">
-                            Latest Update
+                          <div className="absolute top-2 left-2 z-10 rounded-full bg-[#123D2A] px-2 py-0.5 text-[8px] font-bold text-white shadow-md">
+                            Latest
                           </div>
                         )}
-                        {ann.featuredImagePath && (
+                        {ann.featuredImagePath ? (
                           <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] z-0">
+                            <Megaphone className="h-6 w-6 text-[#1F6B43]/20" />
+                          </div>
                         )}
-                        <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '80'} to-transparent z-10`}></div>
+                        <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '20'} to-transparent z-10`}></div>
                       </div>
-                      <div className="flex-1 p-5 md:p-6 flex flex-col justify-between min-w-0">
+                      <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
                         <div>
-                          <p className="text-xs font-bold text-[#2F7D57] mb-2">
-                            {new Date(ann.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                          </p>
-                          <h3 className="text-lg md:text-xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-[10px] font-bold text-[#2F7D57]">
+                              {new Date(ann.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                            </p>
+                          </div>
+                          <h3 className="text-base sm:text-lg font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all line-clamp-1">
                             {ann.title}
                           </h3>
-                          <p className={`mt-2 text-[#6B7280] leading-relaxed whitespace-pre-wrap break-all text-xs md:text-sm ${expandedIds.has(ann.id) ? "" : "line-clamp-1"}`}>
-                            {ann.message}
+                          <p className="mt-1 text-[#6B7280] leading-snug text-xs line-clamp-2">
+                            {getPreview(ann.message)}
                           </p>
-                          {ann.message && ann.message.length > 120 && (
-                            <button
-                              onClick={() => toggleExpand(ann.id)}
-                              className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
-                            >
-                              {expandedIds.has(ann.id) ? "Show Less" : "Read More"}
-                            </button>
-                          )}
+                          <p className="mt-2 text-left text-[11px] font-bold text-[#2F7D57] group-hover:underline">
+                            Read More
+                          </p>
                         </div>
 
                         <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
@@ -306,7 +364,13 @@ export default function MemberDashboardPage() {
                               <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Acknowledged
                             </span>
                           ) : (
-                            <button onClick={() => confirmAcknowledge(ann.id)} className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirmAcknowledge(ann.id, "viewAll");
+                              }} 
+                              className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]"
+                            >
                               Acknowledge
                             </button>
                           )}
@@ -321,24 +385,52 @@ export default function MemberDashboardPage() {
                     </div>
                   )}
 
-                  <div className="mt-6 relative flex items-center justify-center min-h-[40px]">
+                  <div className="mt-8 relative flex items-center justify-center min-h-[40px]">
                     {totalPages > 1 && (
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setAnnouncementPage(1)} disabled={currentPage === 1} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
-                          &lt;&lt;
-                        </button>
-                        <button onClick={() => setAnnouncementPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
-                          &lt;
-                        </button>
-                        <span className="text-sm font-semibold text-gray-600 px-4">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button onClick={() => setAnnouncementPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
-                          &gt;
-                        </button>
-                        <button onClick={() => setAnnouncementPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded-md border border-gray-200 disabled:opacity-50 hover:bg-gray-50 text-[#173626] font-bold">
-                          &gt;&gt;
-                        </button>
+                      <div className="flex items-center gap-3 bg-[#F8FDF9] py-2 px-3 rounded-xl border border-[#EAF3E8]">
+                        <div className="flex items-center gap-1.5">
+                          <button 
+                            onClick={() => setAnnouncementPage(1)} 
+                            disabled={currentPage === 1} 
+                            className="flex size-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-[#173626] disabled:opacity-50 disabled:hover:bg-white"
+                          >
+                            <ChevronsLeft className="size-4" />
+                          </button>
+                          <button 
+                            onClick={() => setAnnouncementPage(prev => Math.max(1, prev - 1))} 
+                            disabled={currentPage === 1} 
+                            className="flex size-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-[#173626] disabled:opacity-50 disabled:hover:bg-white"
+                          >
+                            <ChevronLeft className="size-4" />
+                          </button>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 px-3">
+                          <span className="text-[15px] font-bold text-[#03291d]">
+                            Page {currentPage} of {totalPages}
+                          </span>
+                          <span className="text-gray-300 font-bold">•</span>
+                          <span className="text-[15px] font-bold text-[#03291d]">
+                            {filteredAnnouncements.length} announcements
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button 
+                            onClick={() => setAnnouncementPage(prev => Math.min(totalPages, prev + 1))} 
+                            disabled={currentPage === totalPages} 
+                            className="flex size-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-[#173626] disabled:opacity-50 disabled:hover:bg-white"
+                          >
+                            <ChevronRight className="size-4" />
+                          </button>
+                          <button 
+                            onClick={() => setAnnouncementPage(totalPages)} 
+                            disabled={currentPage === totalPages} 
+                            className="flex size-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-[#173626] disabled:opacity-50 disabled:hover:bg-white"
+                          >
+                            <ChevronsRight className="size-4" />
+                          </button>
+                        </div>
                       </div>
                     )}
                     <div className="absolute right-0">
@@ -355,14 +447,20 @@ export default function MemberDashboardPage() {
       </Modal>
 
       <Modal
-        title={successMessage.includes("Failed") ? "Error" : "Success"}
+        title="Success!"
         description={successMessage}
         open={successModalOpen}
-        onOpenChange={setSuccessModalOpen}
+        onOpenChange={(open) => {
+          setSuccessModalOpen(open);
+          if (!open) handleRestoreModals();
+        }}
         trigger={<span className="hidden"></span>}
       >
         <div className="mt-6 flex justify-end">
-          <Button type="button" variant="primary" onClick={() => setSuccessModalOpen(false)}>
+          <Button type="button" variant="primary" onClick={() => {
+            setSuccessModalOpen(false);
+            handleRestoreModals();
+          }}>
             OK
           </Button>
         </div>
@@ -374,7 +472,10 @@ export default function MemberDashboardPage() {
         open={ackModalOpen}
         onOpenChange={(open) => {
           setAckModalOpen(open);
-          if (!open) setAckId(null);
+          if (!open) {
+            setAckId(null);
+            handleRestoreModals();
+          }
         }}
         trigger={<span className="hidden"></span>}
       >
@@ -385,6 +486,7 @@ export default function MemberDashboardPage() {
             onClick={() => {
               setAckModalOpen(false);
               setAckId(null);
+              handleRestoreModals();
             }}
             disabled={isAcknowledging}
           >
@@ -831,17 +933,28 @@ export default function MemberDashboardPage() {
                   ) : (
                     <div className="flex flex-col gap-4">
                       {announcements.slice(0, 3).map((ann, i) => (
-                        <div key={ann.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row">
+                        <div 
+                          key={ann.id} 
+                          className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row cursor-pointer"
+                          onClick={() => {
+                            setSelectedAnnouncement(ann);
+                            setReadMoreModalOpen(true);
+                          }}
+                        >
                           <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
                             {i === 0 && (
                               <div className="absolute top-4 left-4 z-10 rounded-full bg-[#123D2A] px-3 py-1 text-xs font-bold text-white shadow-md">
                                 Latest Update
                               </div>
                             )}
-                            {ann.featuredImagePath && (
+                            {ann.featuredImagePath ? (
                               <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] z-0">
+                                <Megaphone className="h-10 w-10 text-[#1F6B43]/20" />
+                              </div>
                             )}
-                            <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '80'} to-transparent z-10`}></div>
+                            <div className={`absolute inset-0 bg-gradient-to-tr from-[#123D2A]/${ann.featuredImagePath ? '60' : '20'} to-transparent z-10`}></div>
                           </div>
                           <div className="flex-1 p-5 md:p-6 flex flex-col justify-between min-w-0">
                             <div>
@@ -851,17 +964,12 @@ export default function MemberDashboardPage() {
                               <h3 className="text-lg md:text-xl font-bold text-[#173626] group-hover:text-[#2F7D57] transition-colors leading-tight break-all">
                                 {ann.title}
                               </h3>
-                              <p className={`mt-2 text-[#6B7280] leading-relaxed whitespace-pre-wrap break-all text-xs md:text-sm ${expandedIds.has(ann.id) ? "" : "line-clamp-1"}`}>
-                                {ann.message}
+                              <p className="mt-2 text-[#6B7280] leading-relaxed text-xs md:text-sm">
+                                {getPreview(ann.message)}
                               </p>
-                              {ann.message && ann.message.length > 120 && (
-                                <button
-                                  onClick={() => toggleExpand(ann.id)}
-                                  className="mt-1 text-left text-[11px] font-bold text-[#2F7D57] hover:underline"
-                                >
-                                  {expandedIds.has(ann.id) ? "Show Less" : "Read More"}
-                                </button>
-                              )}
+                              <p className="mt-2 text-left text-[11px] font-bold text-[#2F7D57] hover:underline">
+                                Read More
+                              </p>
                             </div>
 
                             <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
@@ -875,7 +983,13 @@ export default function MemberDashboardPage() {
                                   <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Acknowledged
                                 </span>
                               ) : (
-                                <button onClick={() => confirmAcknowledge(ann.id)} className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    confirmAcknowledge(ann.id, "viewAll");
+                                  }} 
+                                  className="rounded-full bg-[#173626] px-3 py-1 text-[11px] font-bold text-white transition hover:bg-[#122A1E]"
+                                >
                                   Acknowledge
                                 </button>
                               )}
@@ -993,6 +1107,118 @@ export default function MemberDashboardPage() {
         <SiteFooter />
       </div>
       <ActivityModal open={isActivityModalOpen} onOpenChange={setIsActivityModalOpen} />
+
+      {typeof document !== "undefined"
+        ? createPortal(
+            <AnimatePresence mode="wait">
+              {readMoreModalOpen && selectedAnnouncement ? (
+                <motion.div
+                  key="read-more-modal"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:p-6 pointer-events-auto"
+                  onClick={() => setReadMoreModalOpen(false)}
+                >
+                  <div className="w-full max-w-4xl max-h-full overflow-hidden rounded-[24px] bg-[#FFFAF2] shadow-2xl">
+                    <motion.article
+                      className="flex h-full max-h-[90vh] flex-col overflow-hidden bg-[#FFFAF2]"
+                      onClick={(e) => e.stopPropagation()}
+                      initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 20, scale: 0.96 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+                    >
+                      <div className="relative flex flex-1 flex-col overflow-hidden">
+                        <div className="absolute right-4 top-4 z-10 flex items-center gap-2 sm:right-6 sm:top-6">
+                          <button
+                            type="button"
+                            aria-label="Copy announcement text"
+                            onClick={(event: React.MouseEvent) => {
+                              event.stopPropagation();
+                              const tempDiv = document.createElement('div');
+                              tempDiv.innerHTML = selectedAnnouncement.message;
+                              const plainMessage = tempDiv.textContent || tempDiv.innerText || '';
+                              navigator.clipboard.writeText(plainMessage.trim());
+                              setIsCopied(true);
+                              setTimeout(() => setIsCopied(false), 2000);
+                            }}
+                            className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
+                          >
+                            {isCopied ? <CheckCircle2 className="size-5 text-green-400" /> : <Copy className="size-5" />}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Close modal"
+                            onClick={(event: React.MouseEvent) => {
+                              event.stopPropagation();
+                              setReadMoreModalOpen(false);
+                            }}
+                            className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
+                          >
+                            <X className="size-5" />
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <div className="relative h-64 sm:h-80 bg-[#123D2A] shrink-0">
+                            {selectedAnnouncement.featuredImagePath ? (
+                              <img
+                                src={`${env.apiUrl}${selectedAnnouncement.featuredImagePath}`}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] flex items-center justify-center">
+                                 <Megaphone className="size-20 text-[#1F6B43]/20" />
+                              </div>
+                            )}
+                            
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/90 via-[#03291d]/40 to-transparent pointer-events-none" />
+                            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex items-end justify-between gap-6 pointer-events-none">
+                              {selectedAnnouncement.title && (
+                                <h2 className="text-2xl font-black text-white sm:text-3xl leading-tight drop-shadow-md line-clamp-3">
+                                  {selectedAnnouncement.title}
+                                </h2>
+                              )}
+                              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#F2C94C] shrink-0 drop-shadow-md text-right">
+                                {new Date(selectedAnnouncement.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col p-6 sm:p-8 max-h-[50vh] overflow-y-auto">
+                            <div 
+                              className="whitespace-pre-line text-base leading-relaxed text-[#123D2A] quill-content"
+                              dangerouslySetInnerHTML={{ __html: selectedAnnouncement.message }}
+                            />
+                          </div>
+
+                          {!selectedAnnouncement.isAcknowledged && (
+                            <div className="flex justify-end border-t border-gray-100 bg-[#FFFAF2] p-4 sm:px-8 shrink-0">
+                              <button 
+                                onClick={() => {
+                                  confirmAcknowledge(selectedAnnouncement.id, "readMore");
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-[#173626] px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#122A1E] shadow-sm hover:shadow-md"
+                              >
+                                <ShieldCheck className="size-3.5" />
+                                Acknowledge
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.article>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>,
+            document.body,
+          )
+        : null}
+
     </div>
   );
 }
