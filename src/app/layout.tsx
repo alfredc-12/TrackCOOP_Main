@@ -18,6 +18,8 @@ export const metadata: Metadata = {
     "A cooperative profiling, payments, and operations dashboard for TrackCOOP.",
 };
 
+import { Toaster } from "sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,7 +30,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {children}
+        <Toaster richColors position="top-right" style={{ zIndex: 99999 }} />
+      </body>
     </html>
   );
 }

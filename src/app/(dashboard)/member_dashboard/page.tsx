@@ -23,6 +23,7 @@ import {
   Calendar,
   Megaphone,
   MessageSquare,
+  Inbox,
   MapPin,
   Phone,
   Mail,
@@ -57,6 +58,7 @@ import {
   ChevronsRight
 } from "lucide-react";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
+import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
 import ActivityModal from "./components/ActivityModal";
@@ -262,6 +264,9 @@ export default function MemberDashboardPage() {
             </button>
             <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Announcements">
               <Bell className="size-5" />
+            </button>
+            <button onClick={() => setActiveTab("Requests")} className={`transition ${activeTab === "Requests" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="My Requests">
+              <Inbox className="size-5" />
             </button>
             <button
               type="button"
@@ -663,6 +668,19 @@ export default function MemberDashboardPage() {
                 {/* QUICK ACTIONS */}
                 <section className="flex flex-col gap-4">
                   <h3 className="mb-2 text-lg font-bold text-[#173626]">Quick Actions</h3>
+
+                  <button onClick={() => setActiveTab("Requests")} className="group flex w-full items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F8F6EF] text-[#123D2A] transition group-hover:bg-[#123D2A] group-hover:text-white">
+                        <Inbox className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-[#173626]">My Requests</h4>
+                        <p className="text-xs text-[#6B7280]">Submit & track inquiries</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
+                  </button>
 
                   <button onClick={() => setActiveTab("Member & Share")} className="group flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
                     <div className="flex items-center gap-4">
@@ -1087,6 +1105,13 @@ export default function MemberDashboardPage() {
           {activeTab === "Store" && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <MemberPosClient />
+            </div>
+          )}
+
+          {/* ======================= REQUESTS TAB ======================= */}
+          {activeTab === "Requests" && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mt-6 rounded-3xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden p-6">
+              <MemberRequestsClient />
             </div>
           )}
 

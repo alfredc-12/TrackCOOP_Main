@@ -128,13 +128,16 @@ export default function SiteHeader({
           >
             Gallery
           </Link>
-          <Link
+          <HeaderDropdown
+            label="Contact"
             href="/contact"
-            className={navClass("contact")}
-            onClick={() => activateNav("contact")}
-          >
-            Contact
-          </Link>
+            active={currentNav === "contact"}
+            onActivate={() => activateNav("contact")}
+            items={[
+              { label: "Submit Inquiry", href: "/contact" },
+              { label: "Track Inquiry", href: "/track" },
+            ]}
+          />
         </nav>
 
         <div className="flex items-center gap-3">
@@ -144,16 +147,18 @@ export default function SiteHeader({
           >
             Helpdesk: (043) 000-0000
           </a>
-          <Link href="/membership/apply" className="hidden md:inline-flex">
-            <Button className="h-10 rounded-full border border-[#DDE8D8] bg-[#F8F1E5] px-5 text-[#123D2A] hover:bg-[#EAF3E8]">
-              Become a Member
-            </Button>
+          <Link 
+            href="/membership/apply" 
+            className="hidden md:inline-flex h-10 items-center justify-center rounded-full border border-[#DDE8D8] bg-[#F8F1E5] px-5 text-sm font-semibold text-[#123D2A] transition hover:bg-[#EAF3E8]"
+          >
+            Become a Member
           </Link>
-          <Link href="/login" className="hidden sm:inline-flex">
-            <Button className="h-10 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43]">
-              Portal
-              <ArrowRight className="size-4" />
-            </Button>
+          <Link 
+            href="/login" 
+            className="hidden sm:inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 text-sm font-semibold text-white transition hover:bg-[#1F6B43]"
+          >
+            Portal
+            <ArrowRight className="size-4" />
           </Link>
           <button
             type="button"
@@ -178,6 +183,7 @@ export default function SiteHeader({
               { label: "Announcements", href: "/announcements", id: "announcements" },
               { label: "Gallery", href: "/gallery", id: "gallery" },
               { label: "Contact", href: "/contact", id: "contact" },
+              { label: "Track Inquiry", href: "/track", id: "contact" },
             ].map((item) => (
               <Link
                 key={`${item.href}-${item.label}`}

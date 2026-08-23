@@ -1,22 +1,24 @@
 "use client";
 
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, LogOut, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { StaffRole } from "./navigation";
-import { portalNavigation, roleHomePaths } from "./navigation";
+import { logout } from "@/lib/auth-client";
+import { portalNavigation, roleHomePaths, type PortalRole } from "./navigation";
 
 type PortalSidebarProps = {
-  role: StaffRole;
+  role: PortalRole;
   isMobileOpen: boolean;
   onMobileClose: () => void;
 };
 
-function SidebarContent({ role, onNavigate }: { role: StaffRole; onNavigate?: () => void }) {
+function SidebarContent({ role, onNavigate }: { role: PortalRole; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const groups = portalNavigation[role];
   const initialOpen = useMemo(
     () =>

@@ -1357,6 +1357,201 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     old_values JSON NULL,
     new_values JSON NULL,
     ip_address VARCHAR(45) NULL,
+-- --------------------------------------------------------------------------
+-- TABLE: notifications
+-- Stores in-system notifications for authenticated users.
+-- Notifications may relate to payments, share capital, rentals, POS, documents, or requests.
+-- is_read and read_at support unread-notification counters.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    notification_type ENUM('Announcement', 'Payment', 'Share Capital', 'Rental', 'POS', 'Document', 'Request', 'System') NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    related_entity_type VARCHAR(80) NULL,
+    related_entity_id BIGINT UNSIGNED NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    read_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE CASCADE) ENGINE=InnoDB;
+
+-- ============================================================================
+-- 11. PUBLIC LANDING PAGE CONTENT
+-- ============================================================================
+
+-- --------------------------------------------------------------------------
+-- TABLE: site_content_blocks
+-- Stores editable sections used by the public landing pages.
+-- Supports hero content, headings, text, statistics, calls to action, and contact details.
+-- page_slug, section_key, and display_order determine page placement.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS site_content_blocks (
+    site_content_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    page_slug VARCHAR(120) NOT NULL,
+    section_key VARCHAR(120) NOT NULL,
+    content_type ENUM('Hero', 'Heading', 'Rich Text', 'Statistic', 'Call to Action', 'Contact Information', 'Other') NOT NULL,
+    title VARCHAR(255) NULL,
+    body LONGTEXT NULL,
+    value_text VARCHAR(255) NULL,
+    link_label VARCHAR(120) NULL,
+    link_url VARCHAR(500) NULL,
+    media_path VARCHAR(500) NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    content_status ENUM('Draft', 'Published', 'Archived') NOT NULL DEFAULT 'Draft',
+    updated_by BIGINT UNSIGNED NOT NULL,
+    published_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_site_content_section UNIQUE (page_slug, section_key, display_order),
+    CONSTRAINT fk_site_content_updated_by FOREIGN KEY (updated_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: services
+-- Stores services shown on the public website.
+-- May represent membership, rental, product/POS, program, document, or other services.
+-- Visibility, status, image, order, and call-to-action fields control presentation.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS services (
+    service_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    service_code VARCHAR(80) NOT NULL,
+    service_type ENUM('Membership', 'Rental', 'Product/POS', 'Program', 'Document', 'Other') NOT NULL,
+    title VARCHAR(190) NOT NULL,
+    short_description VARCHAR(500) NULL,
+    full_description LONGTEXT NULL,
+    requirements_text LONGTEXT NULL,
+    image_path VARCHAR(500) NULL,
+    cta_label VARCHAR(120) NULL,
+    cta_url VARCHAR(500) NULL,
+    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
+    service_status ENUM('Draft', 'Active', 'Inactive', 'Archived') NOT NULL DEFAULT 'Draft',
+    display_order INT NOT NULL DEFAULT 0,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_services_code UNIQUE (service_code),
+    CONSTRAINT fk_services_created_by FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: programs_projects
+-- Stores cooperative programs, projects, and activities.
+-- Includes schedule, location, description, image, visibility, and publication status.
+-- Supports upcoming, ongoing, completed, and archived activities.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS programs_projects (
+    program_project_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(120) NULL,
+    summary VARCHAR(700) NULL,
+    description LONGTEXT NULL,
+    start_date DATE NULL,
+    end_date DATE NULL,
+    location VARCHAR(255) NULL,
+    image_path VARCHAR(500) NULL,
+    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
+    status ENUM('Draft', 'Upcoming', 'Ongoing', 'Completed', 'Archived') NOT NULL DEFAULT 'Draft',
+    display_order INT NOT NULL DEFAULT 0,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_programs_projects_creator FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: partners_certifications
+-- Stores partners, certifications, accreditations, and recognitions.
+-- Includes logo, description, link, issue date, expiry date, and visibility.
+-- Used for public organizational and credibility information.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS partners_certifications (
+    partner_certification_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    record_type ENUM('Partner', 'Certification', 'Accreditation', 'Recognition') NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    logo_path VARCHAR(500) NULL,
+    external_url VARCHAR(500) NULL,
+    issued_date DATE NULL,
+    expiration_date DATE NULL,
+    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
+    status ENUM('Draft', 'Active', 'Expired', 'Archived') NOT NULL DEFAULT 'Draft',
+    display_order INT NOT NULL DEFAULT 0,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_partners_certifications_creator FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: gallery_items
+-- Stores public-gallery image information and captions.
+-- The database stores the file path while the actual image remains in file storage.
+-- Includes category, date, location, alternate text, visibility, and display order.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS gallery_items (
+    gallery_item_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    caption TEXT NULL,
+    category VARCHAR(120) NULL,
+    image_path VARCHAR(500) NOT NULL,
+    thumbnail_path VARCHAR(500) NULL,
+    activity_date DATE NULL,
+    location VARCHAR(255) NULL,
+    alt_text VARCHAR(255) NULL,
+    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
+    gallery_status ENUM('Draft', 'Published', 'Archived') NOT NULL DEFAULT 'Draft',
+    display_order INT NOT NULL DEFAULT 0,
+    uploaded_by BIGINT UNSIGNED NOT NULL,
+    published_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_gallery_items_uploader FOREIGN KEY (uploaded_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT) ENGINE=InnoDB;
+
+-- ============================================================================
+-- 12. SYSTEM CONFIGURATION AND AUDIT
+-- ============================================================================
+
+-- --------------------------------------------------------------------------
+-- TABLE: system_settings
+-- Stores configurable business rules and application settings.
+-- May hold membership fees, share-capital limits, rental rules, and POS settings.
+-- The application validates setting_value according to value_type.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS system_settings (
+    system_setting_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    setting_group VARCHAR(100) NOT NULL,
+    setting_key VARCHAR(160) NOT NULL,
+    setting_value LONGTEXT NULL,
+    value_type ENUM('String', 'Number', 'Boolean', 'Date', 'JSON') NOT NULL DEFAULT 'String',
+    description TEXT NULL,
+    is_public TINYINT(1) NOT NULL DEFAULT 0,
+    effective_date DATE NULL,
+    updated_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_system_settings_key UNIQUE (setting_key),
+    CONSTRAINT fk_system_settings_updated_by FOREIGN KEY (updated_by) REFERENCES users(user_id)
+        ON UPDATE CASCADE ON DELETE SET NULL) ENGINE=InnoDB;
+
+-- --------------------------------------------------------------------------
+-- TABLE: audit_logs
+-- Stores important account actions and record changes.
+-- May record the affected table, record ID, old values, new values, IP, and user agent.
+-- The application writes these records because this schema does not use triggers.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS audit_logs (
+    audit_log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NULL,
+    action VARCHAR(100) NOT NULL,
+    entity_table VARCHAR(100) NOT NULL,
+    record_id BIGINT UNSIGNED NULL,
+    description TEXT NULL,
+    old_values JSON NULL,
+    new_values JSON NULL,
+    ip_address VARCHAR(45) NULL,
     user_agent VARCHAR(500) NULL,
     action_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(user_id)

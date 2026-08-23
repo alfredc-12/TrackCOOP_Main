@@ -197,6 +197,8 @@ export type RequestRecord = {
   closedAt: Date | null;
   submittedAt: Date;
   updatedAt: Date;
+  isReadByAdmin: boolean;
+  isReadByMember: boolean;
 };
 
 export type RequestStatusHistoryRecord = {

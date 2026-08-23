@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import type { Role } from "@/config/roles";
 
-export type StaffRole = Exclude<Role, "member">;
+export type PortalRole = Role;
 
 export type PortalNavItem = {
   label: string;
@@ -45,7 +45,7 @@ export const roleHomePaths: Record<Role, string> = {
   member: "/portal/member/dashboard",
 };
 
-export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
+export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
   chairman: [
     {
       title: "Overview",
@@ -330,6 +330,30 @@ export const portalNavigation: Record<StaffRole, PortalNavGroup[]> = {
       ],
     },
   ],
+  member: [
+    {
+      title: "Overview",
+      items: [
+        {
+          label: "Dashboard",
+          href: "/portal/member/dashboard",
+          icon: LayoutDashboard,
+          summary: "Member dashboard and quick actions.",
+        },
+      ],
+    },
+    {
+      title: "Services",
+      items: [
+        {
+          label: "My Requests",
+          href: "/portal/member/requests",
+          icon: Inbox,
+          summary: "Submit and track inquiries and requests.",
+        },
+      ],
+    },
+  ],
 };
 
 export function findPortalNavItem(pathname: string): PortalNavItem | null {
@@ -346,8 +370,9 @@ export function findPortalNavItem(pathname: string): PortalNavItem | null {
   return null;
 }
 
-export function getPortalRoleFromPath(pathname: string): StaffRole | null {
+export function getPortalRoleFromPath(pathname: string): PortalRole | null {
   if (pathname.startsWith("/portal/chairman") || pathname.startsWith("/chairman")) return "chairman";
   if (pathname.startsWith("/portal/bookkeeper") || pathname.startsWith("/bookkeeper")) return "bookkeeper";
+  if (pathname.startsWith("/portal/member") || pathname.startsWith("/member")) return "member";
   return null;
 }

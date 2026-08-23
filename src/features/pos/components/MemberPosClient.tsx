@@ -305,9 +305,26 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
         
         const errors: Record<string, string> = {};
         
-        if (!paymentName.trim()) errors.paymentName = "Please enter your Name.";
-        if (!paymentEmail.trim()) errors.paymentEmail = "Please enter your Email account.";
-        if (!paymentContact.trim()) errors.paymentContact = "Please enter your Contact Number.";
+        const nameRegex = /^[a-zA-Z\s.,'-]+$/;
+        if (!paymentName.trim()) {
+            errors.paymentName = "Please enter your Name.";
+        } else if (!nameRegex.test(paymentName.trim())) {
+            errors.paymentName = "Name can only contain letters and basic punctuation.";
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!paymentEmail.trim()) {
+            errors.paymentEmail = "Please enter your Email account.";
+        } else if (!emailRegex.test(paymentEmail.trim())) {
+            errors.paymentEmail = "Please enter a valid email address.";
+        }
+
+        const contactRegex = /^(9)\d{9}$/;
+        if (!paymentContact.trim()) {
+            errors.paymentContact = "Please enter your Contact Number.";
+        } else if (!contactRegex.test(paymentContact.trim())) {
+            errors.paymentContact = "Please enter a valid 10-digit mobile number starting with 9.";
+        }
 
         if (Object.keys(errors).length > 0) {
             setCheckoutErrors(errors);
@@ -325,7 +342,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             const res = await fetch("/api/pos/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact }),
+                body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact: `+63${paymentContact}` }),
             });
             const data = await res.json().catch(() => null);
 
@@ -599,7 +616,8 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                                 type="text" 
                                                 value={paymentName}
                                                 onChange={(e) => {
-                                                    setPaymentName(e.target.value);
+                                                    const val = e.target.value.replace(/[^a-zA-Z\s.,'-]/g, '');
+                                                    setPaymentName(val);
                                                     if (checkoutErrors.paymentName) setCheckoutErrors({ ...checkoutErrors, paymentName: "" });
                                                 }}
                                                 placeholder="e.g. Juan Dela Cruz"
@@ -623,21 +641,33 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                         </div>
                                         <div className="w-full text-left mt-4">
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number <span className="text-red-500">*</span></label>
-                                            <input 
-                                                type="tel"
-                                                onKeyDown={(e) => {
-                                                    if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
-                                                        e.preventDefault();
-                                                    }
-                                                }}
-                                                value={paymentContact}
-                                                onChange={(e) => {
-                                                    setPaymentContact(e.target.value.replace(/[^0-9]/g, ''));
-                                                    if (checkoutErrors.paymentContact) setCheckoutErrors({ ...checkoutErrors, paymentContact: "" });
-                                                }}
-                                                placeholder="e.g. 09123456789"
-                                                className={`w-full rounded-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentContact ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
-                                            />
+                                            <div className="relative flex">
+                                                <span className={`inline-flex items-center px-4 rounded-l-xl border border-r-0 bg-gray-50 text-gray-500 font-medium ${checkoutErrors.paymentContact ? 'border-red-500' : 'border-gray-300'}`}>
+                                                    +63
+                                                </span>
+                                                <input 
+                                                    type="tel"
+                                                    maxLength={10}
+                                                    onKeyDown={(e) => {
+                                                        if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}
+                                                    value={paymentContact}
+                                                    onChange={(e) => {
+                                                        let val = e.target.value.replace(/[^0-9]/g, '');
+                                                        if (val.startsWith('0')) val = val.substring(1);
+                                                        setPaymentContact(val);
+                                                        if (val.length > 0 && val[0] !== '9') {
+                                                            setCheckoutErrors({ ...checkoutErrors, paymentContact: "Mobile number must start with 9." });
+                                                        } else if (checkoutErrors.paymentContact) {
+                                                            setCheckoutErrors({ ...checkoutErrors, paymentContact: "" });
+                                                        }
+                                                    }}
+                                                    placeholder="9123456789"
+                                                    className={`w-full rounded-r-xl p-3 focus:outline-none focus:ring-1 transition border ${checkoutErrors.paymentContact ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-300 focus:border-[#0F9D58] focus:ring-[#0F9D58]'}`}
+                                                />
+                                            </div>
                                             {checkoutErrors.paymentContact && <p className="mt-1 text-xs text-red-500">{checkoutErrors.paymentContact}</p>}
                                         </div>
                                     </div>

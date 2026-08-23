@@ -63,3 +63,45 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}) {
 
   return payload.data;
 }
+
+export async function apiPaginatedRequest<T>(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+
+  if (init.body && !(init.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${env.apiUrl}${path}`, {
+      ...init,
+      credentials: "include",
+      headers,
+    });
+  } catch {
+    throw new ApiClientError(
+      "TrackCOOP could not reach the server. Please try again.",
+      0,
+    );
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | ApiSuccess<T>
+    | ApiFailure
+    | null;
+
+  if (!response.ok || !payload?.success) {
+    const failure = payload && !payload.success ? payload : null;
+    throw new ApiClientError(
+      failure?.message ?? "The request could not be completed",
+      response.status,
+      failure?.errors,
+    );
+  }
+
+  return {
+    items: payload.data,
+    meta: payload.meta,
+  };
+}

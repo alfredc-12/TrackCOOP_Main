@@ -163,6 +163,10 @@ export const updateRequestStatusSchema = z.object({
   userVisibleMessage: z.string().trim().max(8000).nullable().optional(),
 });
 
+export const addRequestReplySchema = z.object({
+  message: z.string().trim().min(1, "Message is required").max(8000),
+});
+
 export const listNotificationsQuerySchema = paginationSchema.extend({
   notificationType: z.enum(notificationTypes).optional(),
   read: z.coerce.boolean().optional(),

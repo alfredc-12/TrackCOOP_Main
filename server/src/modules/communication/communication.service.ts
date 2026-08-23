@@ -66,8 +66,11 @@ export interface CommunicationService {
   listRequests(query: ListRequestsQuery, auth: AuthContext): ReturnType<CommunicationRepository["listRequests"]>;
   createPublicRequest(input: Omit<CreateRequestInput, "requestSource">): ReturnType<CommunicationRepository["createRequest"]>;
   createAuthenticatedRequest(input: Omit<CreateRequestInput, "requestSource">, auth: AuthContext): ReturnType<CommunicationRepository["createRequest"]>;
+  trackPublicRequest(referenceCode: string): ReturnType<CommunicationRepository["trackRequestByCode"]>;
   getRequest(id: string, auth: AuthContext): ReturnType<CommunicationRepository["getRequest"]>;
   updateRequestStatus(id: string, input: UpdateRequestStatusInput, auth: AuthContext): ReturnType<CommunicationRepository["updateRequestStatus"]>;
+  addRequestReply(id: string, input: { message: string }, auth: AuthContext): ReturnType<CommunicationRepository["addRequestReply"]>;
+  addPublicRequestReply(referenceCode: string, input: { message: string }): ReturnType<CommunicationRepository["addPublicRequestReply"]>;
   listNotifications(query: ListNotificationsQuery, auth: AuthContext): ReturnType<CommunicationRepository["listNotifications"]>;
   markNotificationRead(id: string, auth: AuthContext): ReturnType<CommunicationRepository["markNotificationRead"]>;
   markAllNotificationsRead(auth: AuthContext): ReturnType<CommunicationRepository["markAllNotificationsRead"]>;
@@ -132,11 +135,24 @@ export function createCommunicationService(
       const requestSource = auth.user.role === "member" ? "Member Portal" : "Admin Entry";
       return repository.createRequest({ ...input, requestSource }, auth);
     },
-    getRequest(id, auth) {
-      return repository.getRequest(id, auth);
+    trackPublicRequest(referenceCode) {
+      return repository.trackRequestByCode(referenceCode);
+    },
+    async getRequest(id, auth) {
+      const result = await repository.getRequest(id, auth);
+      if (result) {
+        repository.markRequestAsRead(id, auth.user.role === "member" ? "member" : "admin").catch(console.error);
+      }
+      return result;
     },
     updateRequestStatus(id, input, auth) {
       return repository.updateRequestStatus(id, input, auth);
+    },
+    addRequestReply(id, input, auth) {
+      return repository.addRequestReply(id, input.message, auth);
+    },
+    addPublicRequestReply(referenceCode, input) {
+      return repository.addPublicRequestReply(referenceCode, input.message);
     },
     listNotifications(query, auth) {
       return repository.listNotifications(query, auth);

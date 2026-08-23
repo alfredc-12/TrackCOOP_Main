@@ -6,12 +6,12 @@ import { Toaster, toast } from "sonner";
 import type { AuthUser } from "@/features/auth/types";
 import { getAuthenticatedUser, logout } from "@/lib/auth-client";
 import { LoadingAccess } from "./PortalPrimitives";
-import { roleHomePaths, type StaffRole } from "./navigation";
+import { roleHomePaths, type PortalRole } from "./navigation";
 import { PortalSidebar } from "./PortalSidebar";
 import { PortalTopbar } from "./PortalTopbar";
 
 type PortalShellProps = {
-  role: StaffRole;
+  role: PortalRole;
   children: ReactNode;
 };
 
@@ -75,7 +75,6 @@ export function PortalShell({ role, children }: PortalShellProps) {
           {children}
         </main>
       </div>
-      <Toaster richColors position="top-right" />
     </div>
   );
 }

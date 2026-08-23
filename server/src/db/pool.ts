@@ -37,6 +37,7 @@ function createPoolOptions(): PoolOptions {
     supportBigNumbers: true,
     bigNumberStrings: true,
     namedPlaceholders: false,
+    timezone: "Z",
   };
 }
 

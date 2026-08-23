@@ -87,3 +87,7 @@ a {
 [data-records-print-only] {
   display: none;
 }
+
+[data-sonner-toaster] {
+  z-index: 99999 !important;
+}

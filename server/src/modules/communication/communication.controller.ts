@@ -18,6 +18,7 @@ import {
   updateAnnouncementSchema,
   updateDocumentSchema,
   updateRequestStatusSchema,
+  addRequestReplySchema,
 } from "./communication.schema";
 import type { CommunicationService } from "./communication.service";
 
@@ -179,6 +180,11 @@ export function createCommunicationController(service: CommunicationService) {
         { statusCode: 201, message: "Request submitted" },
       );
     }),
+    trackPublicRequest: asyncHandler(async (request, response) => {
+      const result = await service.trackPublicRequest(requireParam(request.params.code, "code"));
+      if (!result) throw new AppError("Request was not found or invalid reference code", 404, "REQUEST_NOT_FOUND");
+      return sendSuccess(response, result);
+    }),
     createAuthenticatedRequest: asyncHandler(async (request, response) => {
       return sendSuccess(
         response,
@@ -203,6 +209,27 @@ export function createCommunicationController(service: CommunicationService) {
           requireAuth(request.auth),
         ),
         { message: "Request status updated" },
+      );
+    }),
+    addRequestReply: asyncHandler(async (request, response) => {
+      return sendSuccess(
+        response,
+        await service.addRequestReply(
+          requireParam(request.params.id, "id"),
+          parse(addRequestReplySchema, request.body),
+          requireAuth(request.auth),
+        ),
+        { message: "Reply added to request" },
+      );
+    }),
+    addPublicRequestReply: asyncHandler(async (request, response) => {
+      return sendSuccess(
+        response,
+        await service.addPublicRequestReply(
+          requireParam(request.params.code, "code"),
+          parse(addRequestReplySchema, request.body),
+        ),
+        { message: "Reply added to request" },
       );
     }),
 

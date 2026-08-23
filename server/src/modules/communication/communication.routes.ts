@@ -63,10 +63,13 @@ export function createCommunicationRouter(
   router.get("/announcements/:id/acknowledgments", ...chairmanOnly, controller.getAnnouncementAcknowledgments);
 
   router.get("/requests", ...authenticated, controller.listRequests);
+  router.get("/requests/track/:code", controller.trackPublicRequest);
+  router.post("/requests/track/:code/reply", controller.addPublicRequestReply);
   router.post("/requests/public", controller.createPublicRequest);
   router.post("/requests", ...authenticated, controller.createAuthenticatedRequest);
   router.get("/requests/:id", ...authenticated, controller.detailRequest);
   router.patch("/requests/:id/status", ...staff, controller.updateRequestStatus);
+  router.post("/requests/:id/reply", ...authenticated, controller.addRequestReply);
 
   router.get("/notifications", ...authenticated, controller.listNotifications);
   router.post("/notifications/read-all", ...authenticated, controller.markAllNotificationsRead);

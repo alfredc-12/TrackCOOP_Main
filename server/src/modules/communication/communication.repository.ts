@@ -233,6 +233,8 @@ type RequestRow = RowDataPacket & {
   closedAt: Date | null;
   submittedAt: Date;
   updatedAt: Date;
+  isReadByAdmin: boolean;
+  isReadByMember: boolean;
 };
 
 type RequestStatusHistoryRow = RowDataPacket & {
@@ -380,7 +382,10 @@ function requestSelect() {
                  ri.resolved_at AS resolvedAt,
                  ri.closed_at AS closedAt,
                  ri.submitted_at AS submittedAt,
-                 ri.updated_at AS updatedAt
+                 ri.updated_at AS updatedAt,
+                 ri.is_read_by_admin AS isReadByAdmin,
+                 ri.is_read_by_member AS isReadByMember,
+                 (SELECT COUNT(*) FROM request_status_history rsh WHERE rsh.request_id = ri.request_id AND rsh.user_visible_message IS NOT NULL) AS replyCount
             FROM requests_inquiries ri
        LEFT JOIN users assignee ON assignee.user_id = ri.assigned_to`;
 }
@@ -396,7 +401,7 @@ function requestHistorySelect() {
                  u.display_name AS changedByName,
                  h.changed_at AS changedAt
             FROM request_status_history h
-            JOIN users u ON u.user_id = h.changed_by`;
+            LEFT JOIN users u ON u.user_id = h.changed_by`;
 }
 
 function notificationSelect() {
@@ -433,7 +438,11 @@ function mapAnnouncement(row: any): AnnouncementRecord {
 }
 
 function mapRequest(row: RequestRow): RequestRecord {
-  return { ...row };
+  return { 
+    ...row,
+    isReadByAdmin: Boolean(row.isReadByAdmin),
+    isReadByMember: Boolean(row.isReadByMember)
+  };
 }
 
 function mapRequestHistory(row: RequestStatusHistoryRow): RequestStatusHistoryRecord {
@@ -551,9 +560,13 @@ export interface CommunicationRepository {
   createRequest(input: CreateRequestInput, auth?: AuthContext): Promise<RequestRecord>;
   getRequest(id: string, auth: AuthContext): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] } | null>;
   updateRequestStatus(id: string, input: UpdateRequestStatusInput, auth: AuthContext): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] }>;
+  addRequestReply(id: string, message: string, auth: AuthContext): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] }>;
+  addPublicRequestReply(referenceCode: string, message: string): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] }>;
   listNotifications(query: ListNotificationsQuery, auth: AuthContext): Promise<ListResult<NotificationRecord>>;
   markNotificationRead(id: string, auth: AuthContext): Promise<NotificationRecord>;
   markAllNotificationsRead(auth: AuthContext): Promise<{ updated: number }>;
+  markRequestAsRead(id: string, role: string): Promise<void>;
+  trackRequestByCode(referenceCode: string): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] } | null>;
 }
 
 export function createCommunicationRepository(pool?: Pool): CommunicationRepository {
@@ -1160,6 +1173,30 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       return { request, history: await listRequestHistory(id) };
     },
 
+    async trackRequestByCode(referenceCode: string) {
+      const [rows] = await databasePool().execute<RequestRow[]>(
+        `${requestSelect()} WHERE ri.reference_code = ? LIMIT 1`,
+        [referenceCode],
+      );
+      if (!rows[0]) return null;
+      const request = mapRequest(rows[0]);
+      
+      const [historyRows] = await databasePool().execute<RequestStatusHistoryRow[]>(
+        `${requestHistorySelect()} WHERE h.request_id = ? AND (h.user_visible_message IS NOT NULL OR h.old_status != h.new_status) ORDER BY h.changed_at DESC`,
+        [request.id],
+      );
+      
+      return { request, history: historyRows.map(mapRequestHistory) };
+    },
+
+    async markRequestAsRead(id, role) {
+      const column = role === "member" ? "is_read_by_member" : "is_read_by_admin";
+      await databasePool().execute(
+        `UPDATE requests_inquiries SET ${column} = TRUE WHERE request_id = ?`,
+        [id]
+      );
+    },
+
     async updateRequestStatus(id, input, auth) {
       return withTransaction(async (connection) => {
         const existing = await findRequest(id);
@@ -1171,7 +1208,9 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
                   admin_notes = ?,
                   public_response = ?,
                   resolved_at = CASE WHEN ? = 'Resolved' THEN NOW() ELSE resolved_at END,
-                  closed_at = CASE WHEN ? = 'Closed' THEN NOW() ELSE closed_at END
+                  closed_at = CASE WHEN ? = 'Closed' THEN NOW() ELSE closed_at END,
+                  is_read_by_member = FALSE,
+                  is_read_by_admin = TRUE
             WHERE request_id = ?`,
           [
             input.requestStatus,
@@ -1213,6 +1252,90 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         );
         if (!rows[0]) throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");
         return { request: mapRequest(rows[0]), history: historyRows.map(mapRequestHistory) };
+      }, databasePool());
+    },
+
+    async addRequestReply(id, message, auth) {
+      return withTransaction(async (connection) => {
+        const [rows] = await connection.execute<RequestRow[]>(
+          `${requestSelect()} WHERE ri.request_id = ? LIMIT 1`,
+          [id],
+        );
+        if (!rows[0]) throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");
+        const request = mapRequest(rows[0]);
+
+        // Verify member owns the request if they are not staff
+        if (auth.user.role === "member") {
+          const memberId = await getMemberIdForUser(databasePool(), auth.user.id);
+          if (request.submittedBy !== auth.user.id && request.memberId !== memberId) {
+            throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");
+          }
+        }
+
+        await connection.execute(
+          `INSERT INTO request_status_history
+             (request_id, old_status, new_status, internal_note, user_visible_message, changed_by)
+           VALUES (?, ?, ?, NULL, ?, ?)`,
+          [id, request.requestStatus, request.requestStatus, message, auth.user.id],
+        );
+
+        if (auth.user.role === "member") {
+          await connection.execute(`UPDATE requests_inquiries SET is_read_by_admin = FALSE, is_read_by_member = TRUE WHERE request_id = ?`, [id]);
+        } else {
+          await connection.execute(`UPDATE requests_inquiries SET is_read_by_member = FALSE, is_read_by_admin = TRUE WHERE request_id = ?`, [id]);
+        }
+
+        await connection.execute(`UPDATE requests_inquiries SET updated_at = NOW() WHERE request_id = ?`, [id]);
+
+        await connection.execute(
+          `INSERT INTO audit_logs
+             (user_id, action, entity_table, record_id, description, new_values)
+           VALUES (?, 'request.replied', 'requests_inquiries', ?, 'A reply was added to the request.', ?)`,
+          [auth.user.id, id, JSON.stringify({ message })],
+        );
+
+        const [finalRows] = await connection.execute<RequestRow[]>(
+          `${requestSelect()} WHERE ri.request_id = ? LIMIT 1`,
+          [id],
+        );
+        const [historyRows] = await connection.execute<RequestStatusHistoryRow[]>(
+          `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at DESC`,
+          [id],
+        );
+        if (!finalRows[0]) throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");
+        return { request: mapRequest(finalRows[0]), history: historyRows.map(mapRequestHistory) };
+      }, databasePool());
+    },
+
+    async addPublicRequestReply(referenceCode, message) {
+      return withTransaction(async (connection) => {
+        const [rows] = await connection.execute<RequestRow[]>(
+          `${requestSelect()} WHERE ri.reference_code = ? LIMIT 1`,
+          [referenceCode],
+        );
+        if (!rows[0]) throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");
+        const request = mapRequest(rows[0]);
+        const id = request.id;
+
+        await connection.execute(
+          `INSERT INTO request_status_history
+             (request_id, old_status, new_status, internal_note, user_visible_message, changed_by)
+           VALUES (?, ?, ?, NULL, ?, NULL)`,
+          [id, request.requestStatus, request.requestStatus, message],
+        );
+
+        await connection.execute(`UPDATE requests_inquiries SET is_read_by_admin = FALSE WHERE request_id = ?`, [id]);
+        await connection.execute(`UPDATE requests_inquiries SET updated_at = NOW() WHERE request_id = ?`, [id]);
+
+        const [finalRows] = await connection.execute<RequestRow[]>(
+          `${requestSelect()} WHERE ri.request_id = ? LIMIT 1`,
+          [id],
+        );
+        const [historyRows] = await connection.execute<RequestStatusHistoryRow[]>(
+          `${requestHistorySelect()} WHERE h.request_id = ? AND (h.user_visible_message IS NOT NULL OR h.old_status != h.new_status) ORDER BY h.changed_at DESC`,
+          [id],
+        );
+        return { request: mapRequest(finalRows[0]), history: historyRows.map(mapRequestHistory) };
       }, databasePool());
     },
 

@@ -15,19 +15,21 @@ export function StatCard({
   label,
   value,
   icon: Icon,
+  className,
 }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
+  className?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+    <div className={cn("min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]", className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7A70] line-clamp-2">{label}</p>
           <p className="mt-1 text-2xl font-black text-[#123D2A] truncate">{value}</p>
         </div>
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43]">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43] relative">
           <Icon className="size-5" aria-hidden="true" />
         </span>
       </div>
@@ -131,7 +133,7 @@ export function FormDialog({
       {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto bg-transparent focus:outline-none">
+        <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto custom-scrollbar bg-transparent focus:outline-none">
           <div className="relative flex min-h-full items-center justify-center p-2 sm:p-4 py-4 sm:py-6">
             <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
             <div
@@ -188,7 +190,7 @@ export function ConfirmDialog({
       {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto bg-transparent focus:outline-none">
+        <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto custom-scrollbar bg-transparent focus:outline-none">
           <div className="relative flex min-h-full items-center justify-center p-4 py-12">
             <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
             <div className="relative z-10 w-[min(26rem,calc(100vw-2rem))] rounded-lg border border-[#CAD8CB] bg-white p-6 text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
