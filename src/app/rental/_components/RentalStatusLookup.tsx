@@ -43,7 +43,7 @@ export function RentalStatusLookup() {
     setSearched(false);
     try {
       setResult(
-        await rentalRepository.lookupRentalInquiry(reference, contact),
+        await rentalRepository.lookupRentalInquiry(reference, ""),
       );
     } finally {
       setLoading(false);
@@ -52,27 +52,14 @@ export function RentalStatusLookup() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <div className="text-center">
-        <ShieldCheck className="mx-auto size-10 text-[#1f6b43]" />
-        <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.18em] text-[#497158]">
-          Privacy-safe lookup
-        </p>
-        <h1 className="mt-2 text-4xl font-extrabold text-[#123d2a]">
-          Check Inquiry Status
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-[#5d6d62]">
-          Enter the reference number and the same contact number used in the
-          inquiry.
-        </p>
-      </div>
+    <div className="w-full">
       <form
         onSubmit={lookup}
-        className="mt-8 rounded-3xl border border-[#d8e4d3] bg-white p-6 shadow-sm"
+        className="rounded-3xl border border-[#d8e4d3] bg-[#f8fbf5] p-6 shadow-sm"
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4">
           <label className="grid gap-2 text-sm font-bold text-[#365f4a]">
-            Inquiry reference number
+            Booking reference number
             <input
               required
               value={reference}
@@ -81,17 +68,6 @@ export function RentalStatusLookup() {
               }
               placeholder="RNT-2026-0042"
               className="h-11 rounded-xl border border-[#d5e1d0] px-3 font-normal uppercase outline-none focus:border-[#1f6b43]"
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-[#365f4a]">
-            Contact number
-            <input
-              required
-              value={contact}
-              onChange={(event) => setContact(event.target.value)}
-              placeholder="09181234567"
-              inputMode="tel"
-              className="h-11 rounded-xl border border-[#d5e1d0] px-3 font-normal outline-none focus:border-[#1f6b43]"
             />
           </label>
         </div>
@@ -110,7 +86,7 @@ export function RentalStatusLookup() {
             className="mt-6 rounded-3xl border border-[#cfe0ca] bg-[#f8fbf5] p-6"
           >
             <h2 className="text-xl font-bold text-[#123d2a]">
-              Inquiry status
+              Booking status
             </h2>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
               <StatusDetail term="Booking reference" value={result.inquiryId} />
@@ -157,10 +133,12 @@ export function RentalStatusLookup() {
         ) : (
           <div
             role="alert"
-            className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"
+            className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900 mt-6"
           >
-            <strong>No matching inquiry was found.</strong> Check the reference
-            and matching contact number, then try again.
+            No matching booking was found.{" "}
+            <span className="font-normal text-amber-800">
+              Check the reference number and try again.
+            </span>
           </div>
         )
       ) : null}

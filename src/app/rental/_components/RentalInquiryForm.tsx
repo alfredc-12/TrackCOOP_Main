@@ -11,7 +11,8 @@ import {
   FileUp,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { cloneElement, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { cloneElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   useForm,
   useWatch,
@@ -20,16 +21,25 @@ import {
 } from "react-hook-form";
 import { BARANGAYS } from "../_lib/rentalConstants";
 import {
-  inquirySchema,
+  BookingSchema,
   validateUpload,
-  type InquiryFormValues,
+  type BookingFormValues,
 } from "../_lib/rentalValidation";
+import { z } from "zod";
 import { useRental } from "../_context/RentalProvider";
 import { rentalApiRepository } from "../_lib/rentalApi";
 import type { PublicRentalBlockedDate } from "../_types/rental";
-import { RentalInquiryStepper } from "./RentalInquiryStepper";
+import { getAuthenticatedUser } from "@/lib/auth-client";
 
-const defaultValues: InquiryFormValues = {
+const ClientBookingSchema = BookingSchema.extend({
+  firstName: z.string().trim().min(2, "Enter your first name."),
+  lastName: z.string().trim().min(2, "Enter your last name."),
+});
+type ClientFormValues = z.infer<typeof ClientBookingSchema>;
+
+const defaultValues: ClientFormValues = {
+  firstName: "",
+  lastName: "",
   fullName: "",
   requesterType: "Public or Non-member",
   contactNumber: "",
@@ -37,31 +47,25 @@ const defaultValues: InquiryFormValues = {
   completeAddress: "",
   barangay: "",
   municipality: "Nasugbu",
-  preferredContactMethod: "SMS",
   serviceId: "",
-  intendedUse: "",
+  intendedUse: "Not specified",
   preferredDate: "",
   preferredEndDate: "",
-  alternativeDate: "",
-  alternativeEndDate: "",
-  preferredStartTime: "",
-  preferredEndTime: "",
-  estimatedDuration: "",
-  estimatedUsage: "",
-  unitOfMeasurement: "",
-  serviceLocation: "",
-  serviceBarangay: "",
-  requestDescription: "",
-  specialInstructions: "",
-  additionalNotes: "",
+  preferredStartTime: "08:00",
+  preferredEndTime: "17:00",
+  requestDescription: "No additional details provided.",
+  notes: "",
   attachmentName: "",
   membershipProofName: "",
   dataPrivacyConsent: false,
   accuracyConfirmation: false,
   contactConsent: false,
+  preferredPaymentMethod: "Cash",
 };
 
-const requesterFields: FieldPath<InquiryFormValues>[] = [
+const requesterFields: FieldPath<ClientFormValues>[] = [
+  "firstName",
+  "lastName",
   "fullName",
   "requesterType",
   "contactNumber",
@@ -69,32 +73,39 @@ const requesterFields: FieldPath<InquiryFormValues>[] = [
   "completeAddress",
   "barangay",
   "municipality",
-  "preferredContactMethod",
 ];
 
-const rentalFields: FieldPath<InquiryFormValues>[] = [
+const rentalFields: FieldPath<ClientFormValues>[] = [
   "serviceId",
   "intendedUse",
   "preferredDate",
   "preferredEndDate",
-  "alternativeDate",
-  "alternativeEndDate",
   "preferredStartTime",
   "preferredEndTime",
-  "estimatedDuration",
-  "estimatedUsage",
-  "unitOfMeasurement",
-  "serviceLocation",
-  "serviceBarangay",
   "requestDescription",
-  "specialInstructions",
-  "additionalNotes",
+  "notes",
+  "attachmentName",
 ];
 
-export function RentalInquiryForm({ member = false, hideBackButton = false }: { member?: boolean; hideBackButton?: boolean }) {
+export function RentalInquiryForm({
+  member = false,
+  hideBackButton = false,
+  initialServiceId,
+  onCancel,
+  onSuccess,
+}: {
+  member?: boolean;
+  hideBackButton?: boolean;
+  initialServiceId?: string;
+  onCancel?: () => void;
+  onSuccess?: () => void;
+}) {
   const router = useRouter();
-  const { services, saveInquiryDraft, getInquiryDraft } = useRental();
-  const [step, setStep] = useState<1 | 2>(1);
+  const { services, getInquiryDraft, submitInquiry } = useRental();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string>();
+  const requestIdRef = useRef<string | null>(null);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
   const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
@@ -108,9 +119,10 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
     trigger,
     control,
     getValues,
+    watch,
     formState: { errors },
-  } = useForm<InquiryFormValues>({
-    resolver: zodResolver(inquirySchema),
+  } = useForm<ClientFormValues>({
+    resolver: zodResolver(ClientBookingSchema),
     defaultValues: {
       ...defaultValues,
       requesterType: member ? "Member" : "Public or Non-member",
@@ -120,8 +132,6 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
   const selectedServiceId = useWatch({ control, name: "serviceId" });
   const preferredDate = useWatch({ control, name: "preferredDate" });
   const preferredEndDate = useWatch({ control, name: "preferredEndDate" });
-  const alternativeDate = useWatch({ control, name: "alternativeDate" });
-  const alternativeEndDate = useWatch({ control, name: "alternativeEndDate" });
   const selectedService = services.find(
     (service) => service.serviceId === selectedServiceId,
   );
@@ -148,11 +158,14 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
     preferredEndDate,
     blockedDateByKey,
   );
-  const alternativeBlockedDate = firstBlockedDateInRange(
-    alternativeDate,
-    alternativeEndDate,
-    blockedDateByKey,
-  );
+
+  const firstName = watch("firstName");
+  const lastName = watch("lastName");
+  useEffect(() => {
+    setValue("fullName", `${firstName || ""} ${lastName || ""}`.trim(), {
+      shouldValidate: true,
+    });
+  }, [firstName, lastName, setValue]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -165,19 +178,65 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
           ...saved,
           preferredEndDate: saved.preferredEndDate || saved.preferredDate,
           preferredEndTime: saved.preferredEndTime || "",
-          alternativeEndDate: saved.alternativeEndDate || "",
         });
       }
       else {
-        const selectedService = params.get("service");
+        const selectedService = params.get("service") || initialServiceId;
         if (selectedService) setValue("serviceId", selectedService);
       }
 
-      if (params.get("step") === "2") setStep(2);
+
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [getInquiryDraft, reset, setValue]);
+  }, [getInquiryDraft, reset, setValue, initialServiceId]);
+
+  useEffect(() => {
+    let active = true;
+    getAuthenticatedUser()
+      .then(async (user) => {
+        if (active && user) {
+          const names = user.displayName.split(" ");
+          const firstName = names[0];
+          const lastName = names.slice(1).join(" ") || "Member";
+          
+          const currentValues = getValues();
+          if (!currentValues.firstName) setValue("firstName", firstName, { shouldValidate: true });
+          if (!currentValues.lastName) setValue("lastName", lastName, { shouldValidate: true });
+          if (!currentValues.email) setValue("email", user.email, { shouldValidate: true });
+          
+          try {
+            const profileRes = await fetch("/api/members/me/profile");
+            if (profileRes.ok && active) {
+              const profile = await profileRes.json();
+              if (profile.contact_number && !currentValues.contactNumber) {
+                setValue("contactNumber", profile.contact_number, { shouldValidate: true });
+              }
+              if (profile.barangay && !currentValues.barangay) {
+                setValue("barangay", profile.barangay, { shouldValidate: true });
+              }
+              if (profile.municipality && !currentValues.municipality) {
+                setValue("municipality", profile.municipality, { shouldValidate: true });
+              }
+              if (!currentValues.completeAddress) {
+                const parts = [];
+                if (profile.barangay) parts.push(`Brgy. ${profile.barangay}`);
+                if (profile.municipality) parts.push(profile.municipality);
+                if (profile.province) parts.push(profile.province);
+                if (parts.length > 0) {
+                  setValue("completeAddress", parts.join(", "), { shouldValidate: true });
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      })
+      .catch(() => {}); // ignore error if unauthenticated
+
+    return () => {
+      active = false;
+    };
+  }, [member, setValue, getValues]);
 
   useEffect(() => {
     let active = true;
@@ -231,37 +290,10 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
     setError,
   ]);
 
-  useEffect(() => {
-    if (alternativeDate && alternativeBlockedDate) {
-      setError("alternativeEndDate", {
-        type: "manual",
-        message: `${alternativeBlockedDate.date} is unavailable. The alternative range cannot include approved rentals or maintenance.`,
-      });
-    } else if (errors.alternativeEndDate?.type === "manual") {
-      clearErrors("alternativeEndDate");
-    }
-  }, [
-    alternativeBlockedDate,
-    alternativeDate,
-    clearErrors,
-    errors.alternativeEndDate?.type,
-    setError,
-  ]);
-
-  const goToRentalDetails = async () => {
-    const valid = await trigger(requesterFields, { shouldFocus: true });
-    if (!valid) return;
-    setStep(2);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const submitForReview = (values: InquiryFormValues) => {
-    saveInquiryDraft(values);
-    router.push(member ? "/rental/member/requests/new?review=1" : "/rental/inquiry/review");
-  };
-
-  const goToReview = async () => {
-    if (fileErrors.length > 0) {
+  const submitBooking = async () => {
+    setSubmitError(undefined);
+    if (Object.keys(errors).length > 0) {
+      toast.error("Please fix the highlighted fields.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -272,28 +304,14 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
           ? "Please wait while availability dates load."
           : "Availability dates could not be verified. Refresh the page or choose the equipment again.",
       });
-      setStep(2);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    const requesterValid = await trigger(requesterFields, { shouldFocus: true });
-    if (!requesterValid) {
-      setStep(1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-
-    const rentalValid = await trigger(rentalFields, { shouldFocus: true });
     const values = getValues();
     const selectedPreferredBlock = firstBlockedDateInRange(
       values.preferredDate,
       values.preferredEndDate,
-      blockedDateByKey,
-    );
-    const selectedAlternativeBlock = firstBlockedDateInRange(
-      values.alternativeDate,
-      values.alternativeEndDate,
       blockedDateByKey,
     );
 
@@ -303,19 +321,32 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
         message: `${selectedPreferredBlock.date} is unavailable. Choose a range without crossed-out dates.`,
       });
     }
-    if (selectedAlternativeBlock) {
-      setError("alternativeEndDate", {
-        type: "manual",
-        message: `${selectedAlternativeBlock.date} is unavailable. Choose a range without crossed-out dates.`,
-      });
-    }
-    if (!rentalValid || selectedPreferredBlock || selectedAlternativeBlock) {
-      setStep(2);
+    if (selectedPreferredBlock) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    submitForReview(values);
+    if (!values.dataPrivacyConsent || !values.accuracyConfirmation || !values.contactConsent) {
+      setSubmitError("Please confirm all declarations at the bottom of the form before submitting.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      requestIdRef.current ??= crypto.randomUUID();
+      await submitInquiry({
+        ...values,
+        clientRequestId: requestIdRef.current,
+      }, member);
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push(member ? "/portal/member/rentals" : "/rental/inquiry/success");
+      }
+    } catch (reason) {
+      setSubmitError(reason instanceof Error ? reason.message : "The booking could not be submitted.");
+      setSubmitting(false);
+    }
   };
 
   const handleFile = (
@@ -334,60 +365,58 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
     setValue(field, issue ? "" : file?.name ?? "");
   };
 
-  const visibleFields = step === 1 ? requesterFields : rentalFields;
+  const handleNext = async (fields: FieldPath<ClientFormValues>[], step: number) => {
+    const valid = await trigger(fields, { shouldFocus: true });
+    if (valid) {
+      setCurrentStep(step);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      toast.error("Please fix the highlighted fields.");
+    }
+  };
+
+  const visibleFields = currentStep === 1 ? requesterFields : currentStep === 2 ? rentalFields : [];
   const errorMessages = flattenErrors(errors, visibleFields);
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (step === 1) void goToRentalDetails();
-        else void goToReview();
+        void submitBooking();
       }}
       noValidate
       className="mx-auto max-w-4xl"
     >
-      <RentalInquiryStepper currentStep={step} />
-
-      {(errorMessages.length > 0 || (step === 2 && fileErrors.length > 0)) && (
+      <input type="hidden" {...register("fullName")} />
+      <input type="hidden" {...register("requesterType")} />
+      
+      {submitError && (
         <div
           role="alert"
           className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900"
         >
           <div className="flex items-center gap-2 font-bold">
             <AlertCircle className="size-5" />
-            Please review this section
+            Submission Error
           </div>
-          <ul className="mt-2 list-disc space-y-1 pl-6 text-sm">
-            {[...errorMessages, ...(step === 2 ? fileErrors : [])].map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
+          <p className="mt-2 text-sm font-semibold">{submitError}</p>
         </div>
       )}
 
-      {step === 1 ? (
+      <div className="flex flex-col gap-8">
+        {currentStep === 1 && (
         <FormSection
-          step="Section 1"
+          step="Step 1 of 3"
           title="Requester Information"
-          description="Tell NFFAC who is making the rental inquiry and how we can contact you."
+          description="Tell NFFAC who is making the rental booking and how we can contact you."
         >
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Full name" required error={errors.fullName?.message}>
-              <input {...register("fullName")} autoComplete="name" />
-            </Field>
-            <Field label="Requester type" required error={errors.requesterType?.message}>
-              <select {...register("requesterType")}>
-                {member ? (
-                  <option>Member</option>
-                ) : (
-                  <>
-                    <option>Public or Non-member</option>
-                    <option>Member</option>
-                  </>
-                )}
-              </select>
-            </Field>
+              <Field label="First name" required error={errors.firstName?.message}>
+                <input {...register("firstName")} autoComplete="given-name" />
+              </Field>
+              <Field label="Last name" required error={errors.lastName?.message}>
+                <input {...register("lastName")} autoComplete="family-name" />
+              </Field>
             <Field
               label="Contact number"
               required
@@ -428,48 +457,37 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
             <Field label="Municipality" required error={errors.municipality?.message}>
               <input {...register("municipality")} />
             </Field>
-            <Field
-              label="Preferred contact method"
-              required
-              error={errors.preferredContactMethod?.message}
-              wide
-            >
-              <select {...register("preferredContactMethod")}>
-                <option>SMS</option>
-                <option>Phone</option>
-                <option>Email</option>
-              </select>
-            </Field>
           </div>
 
-          <FormActions center={hideBackButton}>
-            {!hideBackButton && (
+          <FormActions center={hideBackButton && !onCancel}>
+            {(!hideBackButton || onCancel) && (
               <button
                 type="button"
-                onClick={() => router.push("/rental")}
+                onClick={onCancel ? onCancel : () => router.push("/rental")}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold text-[#66756c] hover:bg-[#f1f4ef]"
               >
-                <ArrowLeft className="size-4" />
-                Back to Services
+                Cancel
               </button>
             )}
             <button
               type="button"
-              onClick={() => void goToRentalDetails()}
+              onClick={() => handleNext(requesterFields, 2)}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a]"
             >
-              Continue to Rental Details
+              Next
               <ArrowRight className="size-4" />
             </button>
           </FormActions>
         </FormSection>
-      ) : (
+        )}
+        
+        {currentStep === 2 && (
         <FormSection
-          step="Section 2"
+          step="Step 2 of 3"
           title="Rental Details"
-          description="Describe the equipment, preferred schedule, location, and intended use for cooperative review."
+          description="Select the equipment and check its availability schedule."
         >
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Equipment or service"
               required
@@ -485,17 +503,7 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
                 ))}
               </select>
             </Field>
-            <Field
-              label="Intended use"
-              required
-              error={errors.intendedUse?.message}
-              wide
-            >
-              <input
-                {...register("intendedUse")}
-                placeholder="e.g. Land preparation for rice planting"
-              />
-            </Field>
+            <input type="hidden" {...register("intendedUse")} />
             <div className="sm:col-span-2">
               <AvailabilityCalendar
                 serviceName={selectedService?.name}
@@ -511,161 +519,131 @@ export function RentalInquiryForm({ member = false, hideBackButton = false }: { 
                   }
                 }}
               />
+              {errors.preferredDate && (
+                <p className="mt-2 text-sm font-bold text-red-600">
+                  {errors.preferredDate.message}
+                </p>
+              )}
+              {selectedService && preferredDate && preferredEndDate && (
+                <div className="mt-4 rounded-xl border border-[#9bc9aa] bg-[#eaf4ec] p-4 text-[#123d2a]">
+                  <h4 className="font-bold">Estimated Rental Fee</h4>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-sm">
+                      {Math.round((new Date(preferredEndDate).getTime() - new Date(preferredDate).getTime()) / 86400000) + 1} day(s) 
+                      × ₱{member ? selectedService.memberRate?.toLocaleString() || selectedService.standardRate?.toLocaleString() : selectedService.nonMemberRate?.toLocaleString() || selectedService.standardRate?.toLocaleString()}
+                    </span>
+                    <strong className="text-lg">
+                      ₱{(((Math.round((new Date(preferredEndDate).getTime() - new Date(preferredDate).getTime()) / 86400000) + 1) * 
+                        (member ? selectedService.memberRate || selectedService.standardRate || 0 : selectedService.nonMemberRate || selectedService.standardRate || 0)) || 0).toLocaleString()}
+                    </strong>
+                  </div>
+                  <p className="mt-1 text-xs text-[#168046]">* Actual fee may vary based on exact schedule and usage upon confirmation.</p>
+                </div>
+              )}
             </div>
-            <Field label="Preferred start date" required error={errors.preferredDate?.message}>
-              <input type="date" min={todayKey()} {...register("preferredDate")} />
-            </Field>
-            <Field label="Preferred end date" required error={errors.preferredEndDate?.message}>
-              <input
-                type="date"
-                min={preferredDate || todayKey()}
-                {...register("preferredEndDate")}
-              />
-            </Field>
-            <Field label="Alternative start date" error={errors.alternativeDate?.message}>
-              <input type="date" min={todayKey()} {...register("alternativeDate")} />
-            </Field>
-            <Field label="Alternative end date" error={errors.alternativeEndDate?.message}>
-              <input
-                type="date"
-                min={alternativeDate || todayKey()}
-                {...register("alternativeEndDate")}
-              />
-            </Field>
-            {preferredBlockedDate || alternativeBlockedDate ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900 sm:col-span-2">
-                Choose another date. Crossed-out dates already have an approved rental schedule or
-                maintenance block.
-              </div>
-            ) : null}
-            <Field
-              label="Preferred start time"
-              required
-              error={errors.preferredStartTime?.message}
-            >
-              <input type="time" {...register("preferredStartTime")} />
-            </Field>
-            <Field
-              label="Preferred end time"
-              required
-              error={errors.preferredEndTime?.message}
-            >
-              <input type="time" {...register("preferredEndTime")} />
-            </Field>
-            <Field
-              label="Estimated duration"
-              required
-              error={errors.estimatedDuration?.message}
-            >
-              <input placeholder="e.g. 4 hours" {...register("estimatedDuration")} />
-            </Field>
-            <Field
-              label="Estimated land area or usage"
-              required
-              error={errors.estimatedUsage?.message}
-            >
-              <input placeholder="e.g. 1.5" {...register("estimatedUsage")} />
-            </Field>
-            <Field
-              label="Unit of measurement"
-              required
-              error={errors.unitOfMeasurement?.message}
-            >
-              <input
-                placeholder="e.g. hectares, hours, trip"
-                {...register("unitOfMeasurement")}
-              />
-            </Field>
-            <Field
-              label="Service location"
-              required
-              error={errors.serviceLocation?.message}
-              wide
-            >
-              <input {...register("serviceLocation")} />
-            </Field>
-            <Field
-              label="Service-location barangay"
-              required
-              error={errors.serviceBarangay?.message}
-              wide
-            >
-              <select {...register("serviceBarangay")}>
-                <option value="">Select barangay</option>
-                {BARANGAYS.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label="Request description"
-              required
-              error={errors.requestDescription?.message}
-              wide
-            >
-              <textarea
-                rows={4}
-                placeholder="Describe the work, site conditions, and expected outcome."
-                {...register("requestDescription")}
-              />
-            </Field>
-            <Field
-              label="Special instructions (optional)"
-              error={errors.specialInstructions?.message}
-              wide
-            >
-              <textarea rows={3} {...register("specialInstructions")} />
-            </Field>
+
+            <input type="hidden" {...register("preferredDate")} />
+            <input type="hidden" {...register("preferredEndDate")} />
+            <input type="hidden" {...register("preferredStartTime")} />
+            <input type="hidden" {...register("preferredEndTime")} />
+            <input type="hidden" {...register("requestDescription")} />
+            <input type="hidden" {...register("notes")} />
+            <input type="hidden" {...register("attachmentName")} />
           </div>
 
-          <div className="my-7 border-t border-[#e2e8e3]" />
 
-          <div>
-            <h3 className="text-base font-extrabold text-[#123d2a]">
-              Supporting information
-            </h3>
-            <p className="mt-1 text-sm text-[#6b786f]">
-              Optional JPG, PNG, or PDF files up to 5 MB each.
-            </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <UploadField
-                label="Inquiry attachment"
-                onChange={(file) => handleFile(file, "attachmentName")}
-              />
-              <UploadField
-                label="Proof of membership"
-                onChange={(file) => handleFile(file, "membershipProofName")}
-              />
-              <Field label="Additional notes" error={errors.additionalNotes?.message} wide>
-                <textarea rows={3} {...register("additionalNotes")} />
-              </Field>
-            </div>
-          </div>
-
-          <FormActions>
+          <FormActions center={hideBackButton}>
             <button
               type="button"
-              onClick={() => {
-                setStep(1);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#cbdac6] px-5 text-sm font-bold text-[#365f4a] hover:bg-[#f3f7f1]"
+              onClick={() => setCurrentStep(1)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold text-[#66756c] hover:bg-[#f1f4ef]"
             >
               <ArrowLeft className="size-4" />
               Back
             </button>
             <button
-              disabled={fileErrors.length > 0 || blockedDatesLoading}
               type="button"
-              onClick={() => void goToReview()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a] disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={async () => {
+                const blockedMap = new Map(effectiveBlockedDates.map(item => [item.date, item]));
+                const selectedBlock = firstBlockedDateInRange(getValues("preferredDate"), getValues("preferredEndDate"), blockedMap);
+                if (selectedBlock) {
+                  setError("preferredDate", { type: "manual", message: `${selectedBlock.date} is unavailable.` });
+                }
+                if (!selectedBlock) handleNext(rentalFields, 3);
+              }}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a]"
             >
-              Review &amp; Submit
+              Next
               <ArrowRight className="size-4" />
             </button>
           </FormActions>
         </FormSection>
-      )}
+        )}
+        
+        {currentStep === 3 && (
+        <FormSection
+          step="Step 3 of 3"
+          title="Review & Consent"
+          description="Acknowledge the policies and finalize your booking request."
+        >
+          <div className="grid gap-3">
+            <label className="flex items-start gap-3 rounded-xl border border-[#e1e8e2] bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec]">
+              <input type="checkbox" className="mt-0.5" {...register("dataPrivacyConsent")} />
+              <span>I consent to NFFAC collecting and processing my data in accordance with the Data Privacy Act for the purpose of this rental booking.</span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-[#e1e8e2] bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec]">
+              <input type="checkbox" className="mt-0.5" {...register("accuracyConfirmation")} />
+              <span>I confirm that the information provided is accurate, and I agree to use the equipment only for the stated agricultural purpose.</span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-[#e1e8e2] bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec]">
+              <input type="checkbox" className="mt-0.5" {...register("contactConsent")} />
+              <span>I agree to be contacted by NFFAC via SMS or email regarding my booking schedule, payment, and policy updates.</span>
+            </label>
+          </div>
+          
+          <div className="mt-6 border-t border-[#e3e9e5] pt-6">
+            <h3 className="mb-3 text-sm font-bold text-[#123d2a]">Preferred Payment Method</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${watch("preferredPaymentMethod") === "Cash" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
+                <input type="radio" value="Cash" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
+                <div>
+                  <span className="block text-sm font-bold text-[#123d2a]">Cash Payment</span>
+                  <span className="block text-xs text-[#6b786f]">Pay over the counter at the cooperative</span>
+                </div>
+              </label>
+              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${watch("preferredPaymentMethod") === "Online" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
+                <input type="radio" value="Online" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
+                <div>
+                  <span className="block text-sm font-bold text-[#123d2a]">Online (GCash)</span>
+                  <span className="block text-xs text-[#6b786f]">Pay via GCash transfer and upload receipt</span>
+                </div>
+              </label>
+            </div>
+            {errors.preferredPaymentMethod && (
+              <span className="mt-2 text-xs font-semibold text-red-700">{errors.preferredPaymentMethod.message}</span>
+            )}
+          </div>
+          
+          <FormActions center={hideBackButton}>
+            <button
+              type="button"
+              onClick={() => setCurrentStep(2)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold text-[#66756c] hover:bg-[#f1f4ef]"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </button>
+            <button
+              disabled={fileErrors.length > 0 || blockedDatesLoading || submitting}
+              type="submit"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? "Submitting..." : "Submit Booking"}
+            </button>
+          </FormActions>
+        </FormSection>
+        )}
+      </div>
     </form>
   );
 }
@@ -682,9 +660,9 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="overflow-hidden rounded-2xl border border-[#d9e1dc] bg-white shadow-[0_12px_36px_rgba(18,61,42,0.06)]">
+    <fieldset>
       <legend className="sr-only">{title}</legend>
-      <div className="border-b border-[#e3e9e5] px-5 py-5 sm:px-8 sm:py-6">
+      <div className="mb-4">
         <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#168046]">
           {step}
         </p>
@@ -693,14 +671,14 @@ function FormSection({
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6b786f]">{description}</p>
       </div>
-      <div className="px-5 py-6 sm:px-8 sm:py-7">{children}</div>
+      <div>{children}</div>
     </fieldset>
   );
 }
 
 function FormActions({ children, center }: { children: React.ReactNode; center?: boolean }) {
   return (
-    <div className={`mt-8 flex flex-col-reverse gap-3 border-t border-[#e3e9e5] pt-5 sm:flex-row sm:items-center ${center ? "sm:justify-center" : "sm:justify-between"}`}>
+    <div className={`mt-8 flex flex-col-reverse gap-3 border-t border-[#e3e9e5] pt-5 sm:flex-row sm:items-center ${center ? "sm:justify-center" : "sm:justify-end"}`}>
       {children}
     </div>
   );
@@ -829,7 +807,7 @@ function AvailabilityCalendar({
   ).length;
 
   return (
-    <section className="rounded-2xl border border-[#d7e2dc] bg-[#fbfdfb] p-4">
+    <section className="rounded-2xl border border-[#d7e2dc] bg-[#fbfdfb] p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2 font-extrabold text-[#123d2a]">
@@ -899,7 +877,7 @@ function AvailabilityCalendar({
               disabled={disabled}
               title={blocked ? blocked.reason : undefined}
               onClick={() => onSelect(key)}
-              className={`relative min-h-10 rounded-xl border px-1 font-bold transition ${
+              className={`relative min-h-9 rounded-xl border px-1 font-bold transition ${
                 blocked
                   ? "border-red-200 bg-red-50 text-red-800 line-through"
                   : selected
@@ -1005,8 +983,8 @@ function monthDays(cursor: Date) {
 }
 
 function flattenErrors(
-  errors: FieldErrors<InquiryFormValues>,
-  fields: FieldPath<InquiryFormValues>[],
+  errors: FieldErrors<ClientFormValues>,
+  fields: FieldPath<ClientFormValues>[],
 ) {
   return fields.flatMap((field) => {
     const error = errors[field];

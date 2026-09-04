@@ -1096,7 +1096,7 @@ export default function MemberDashboardPage() {
           {activeTab === "Rental" && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm mt-6">
               <RentalProvider>
-                <RentalLandingPage useModals={true} />
+                <RentalLandingPage />
               </RentalProvider>
             </div>
           )}

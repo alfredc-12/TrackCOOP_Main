@@ -14,10 +14,10 @@ export default function InquiryPage() {
           Back to Services
         </Link>
         <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-[#10231a] sm:text-4xl">
-          Submit Rental Inquiry
+          Book a Rental
         </h1>
         <p className="mt-2 max-w-2xl text-base leading-7 text-[#68776e]">
-          Complete the three steps below to send a rental inquiry to NFFAC.
+          Fill out the form below to submit a rental booking with NFFAC.
         </p>
       </div>
       <RentalInquiryForm />

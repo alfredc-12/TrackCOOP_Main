@@ -31,7 +31,7 @@ export const rentalNavigation = [
   { href: "/rental/notifications", label: "Notifications", icon: Bell, capability: "public" },
   { href: "/rental/audit", label: "Audit Trail", icon: FileClock, capability: "audit" },
   { href: "/rental/settings", label: "Settings", icon: Settings, capability: "settings" },
-  { href: "/rental/member", label: "Member Area", icon: UserRound, capability: "member" },
+  { href: "/portal/member/rentals", label: "Member Area", icon: UserRound, capability: "member" },
 ] satisfies Array<{ href: string; label: string; icon: typeof Wrench; capability: RentalCapability }>;
 
 export function isPublicRentalPath(pathname: string) {

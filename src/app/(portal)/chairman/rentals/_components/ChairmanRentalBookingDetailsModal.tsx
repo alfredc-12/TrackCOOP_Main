@@ -1,5 +1,6 @@
 "use client";
 
+
 import {
   AlertTriangle,
   ArrowLeft,
@@ -15,7 +16,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import {
@@ -42,6 +43,7 @@ import {
   LoadingSkeleton,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
+import { Modal } from "@/components/ui/Modal";
 
 type ReviewDraft = {
   decision: RentalStatus;
@@ -120,11 +122,18 @@ function defaultPublicResponse(
   return "";
 }
 
-export function ChairmanRentalBookingDetails({
+type TabType = "Details" | "Actions" | "History";
+
+export function ChairmanRentalBookingDetailsModal({
+  open,
+  onClose,
   bookingId,
 }: {
   bookingId: string;
+  open: boolean;
+  onClose: () => void;
 }) {
+  const [activeTab, setActiveTab] = React.useState<TabType>("Details");
   const [inquiry, setInquiry] = useState<RentalInquiry>();
   const [schedule, setSchedule] = useState<RentalSchedule>();
   const [services, setServices] = useState<RentalService[]>([]);
@@ -419,19 +428,33 @@ export function ChairmanRentalBookingDetails({
   }
 
   return (
-    <div className="grid gap-6">
-      <Link
-        href="/chairman/rentals/bookings"
-        className="inline-flex min-h-11 w-fit items-center gap-2 font-bold text-[#123D2A]"
-      >
-        <ArrowLeft className="size-4" /> Back to Rental Bookings
-      </Link>
-      <PageHeader
-        eyebrow="Rental booking"
-        title={inquiry.inquiryId}
-        description={`${inquiry.equipmentName} requested by ${inquiry.requester.fullName} on ${displayDate(inquiry.submittedAt)}.`}
-        actions={
-          <>
+    <Modal
+      trigger={null}
+      open={open}
+      onOpenChange={(val) => !val && onClose()}
+      maxWidth="max-w-6xl"
+      title={`Booking Details: ${inquiry.inquiryId}`}
+      description={`${inquiry.equipmentName} requested by ${inquiry.requester.fullName} on ${displayDate(inquiry.submittedAt)}.`}
+    >
+      <div className="grid gap-6 max-h-[80vh] overflow-y-auto pr-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#CAD8CB] pb-4">
+          <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
+            {(["Details", "Actions", "History"] as TabType[]).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors whitespace-nowrap ${
+                  activeTab === tab
+                    ? "bg-[#123D2A] text-white"
+                    : "bg-[#EEF2EC] text-[#5D6D63] hover:bg-[#CAD8CB] hover:text-[#123D2A]"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => void load()}
@@ -451,15 +474,13 @@ export function ChairmanRentalBookingDetails({
               <button
                 type="button"
                 onClick={openScheduleEditor}
-                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-[#123D2A] px-4 text-sm font-bold text-white"
               >
                 <CalendarPlus className="size-4" /> Edit Schedule
               </button>
             ) : null}
-          </>
-        }
-      />
-
+          </div>
+        </div>
       <section className="flex flex-wrap gap-2 rounded-lg border border-[#CAD8CB] bg-white p-4">
         <StatusBadge tone={tone(inquiry.status)}>{inquiry.status}</StatusBadge>
         <StatusBadge tone={tone(inquiry.scheduleStatus)}>
@@ -473,6 +494,7 @@ export function ChairmanRentalBookingDetails({
         </StatusBadge>
       </section>
 
+      {activeTab === "Actions" && (
       <section className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
         <div className="flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#E7F2E4] text-[#1F6B43]">
@@ -530,7 +552,10 @@ export function ChairmanRentalBookingDetails({
           </p>
         )}
       </section>
+      )}
 
+      {activeTab === "Details" && (
+        <>
       {inquiry.rescheduleRequest ? (
         <section
           className={`rounded-lg border p-5 ${
@@ -604,7 +629,6 @@ export function ChairmanRentalBookingDetails({
               ["Address", inquiry.requester.completeAddress],
               ["Barangay", inquiry.requester.barangay],
               ["Municipality", inquiry.requester.municipality],
-              ["Preferred contact", inquiry.requester.preferredContactMethod],
             ]}
           />
         </DetailCard>
@@ -647,6 +671,10 @@ export function ChairmanRentalBookingDetails({
                 "Special instructions",
                 inquiry.specialInstructions ?? "None provided",
               ],
+              [
+                "Preferred payment method",
+                (inquiry as any).preferredPaymentMethod ?? "Not specified",
+              ],
             ]}
           />
         </DetailCard>
@@ -670,6 +698,10 @@ export function ChairmanRentalBookingDetails({
         </DetailCard>
       </div>
 
+      </>
+      )}
+
+      {activeTab === "History" && (
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <DetailCard title="Status timeline" icon={History}>
           {history.length ? (
@@ -742,6 +774,7 @@ export function ChairmanRentalBookingDetails({
           </DetailCard>
         </div>
       </div>
+      )}
 
       <FormDialog
         open={reviewOpen}
@@ -1089,6 +1122,7 @@ export function ChairmanRentalBookingDetails({
         }
       />
     </div>
+    </Modal>
   );
 }
 

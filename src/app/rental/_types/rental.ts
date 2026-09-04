@@ -100,10 +100,9 @@ export interface RentalRequester {
   completeAddress: string;
   barangay: string;
   municipality: string;
-  preferredContactMethod: "Phone" | "SMS" | "Email";
 }
 
-export interface InquiryDraft {
+export interface BookingDraft {
   clientRequestId?: string;
   fullName: string;
   requesterType: RequesterType;
@@ -112,28 +111,20 @@ export interface InquiryDraft {
   completeAddress: string;
   barangay: string;
   municipality: string;
-  preferredContactMethod: "Phone" | "SMS" | "Email";
   serviceId: string;
   intendedUse: string;
   preferredDate: string;
   preferredEndDate: string;
-  alternativeDate: string;
-  alternativeEndDate: string;
   preferredStartTime: string;
   preferredEndTime: string;
-  estimatedDuration: string;
-  estimatedUsage: string;
-  unitOfMeasurement: string;
-  serviceLocation: string;
-  serviceBarangay: string;
   requestDescription: string;
-  specialInstructions: string;
-  additionalNotes: string;
+  notes: string;
   attachmentName?: string;
   membershipProofName?: string;
   dataPrivacyConsent: boolean;
   accuracyConfirmation: boolean;
   contactConsent: boolean;
+  preferredPaymentMethod?: "Cash" | "Online";
 }
 
 export interface PublicRentalInquiryStatus {
@@ -199,6 +190,7 @@ export interface RentalInquiry {
   scheduleStatus: string;
   assignedReviewer?: string;
   rescheduleRequest?: RentalRescheduleRequest;
+  preferredPaymentMethod?: "Cash" | "Online";
   publicNote: string;
   internalNote?: string;
   submittedAt: string;

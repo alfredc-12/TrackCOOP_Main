@@ -8,6 +8,10 @@ import {
   LoaderCircle,
   Search,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -97,16 +101,27 @@ export function FormField({
   label,
   children,
   hint,
+  required,
+  error,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
-      {label}
+      <span className="flex items-center gap-1">
+        {label}
+        {required ? <span className="text-[#9A392A]">*</span> : null}
+      </span>
       {children}
-      {hint ? <span className="text-xs font-normal text-[#6C7A70]">{hint}</span> : null}
+      {error ? (
+        <span className="text-xs text-[#FF4D4F]">{error}</span>
+      ) : hint ? (
+        <span className="text-xs font-normal text-[#6C7A70]">{hint}</span>
+      ) : null}
     </label>
   );
 }
@@ -302,5 +317,61 @@ export function LoadingAccess() {
         Verifying access...
       </div>
     </main>
+  );
+}
+
+export function PaginationControls({
+  currentPage,
+  totalPages,
+  totalItems,
+  itemName = "items",
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemName?: string;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <div className="mt-6 flex items-center justify-center gap-5">
+      <div className="flex items-center gap-2">
+        <button
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(1)}
+          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+        >
+          <ChevronsLeft className="size-4" />
+        </button>
+        <button
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+      </div>
+      
+      <p className="text-sm font-bold text-[#003840]">
+        Page {currentPage} of {totalPages || 1} <span className="mx-2 text-[#9CA3AF]">•</span> {totalItems} {itemName}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          disabled={currentPage >= totalPages || totalPages === 0}
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+        <button
+          disabled={currentPage >= totalPages || totalPages === 0}
+          onClick={() => onPageChange(totalPages)}
+          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+        >
+          <ChevronsRight className="size-4" />
+        </button>
+      </div>
+    </div>
   );
 }

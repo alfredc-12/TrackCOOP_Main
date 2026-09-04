@@ -351,6 +351,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           icon: Inbox,
           summary: "Submit and track inquiries and requests.",
         },
+        {
+          label: "Equipment Rentals",
+          href: "/portal/member/rentals",
+          icon: Tractor,
+          summary: "Check the status of your equipment rentals.",
+        },
       ],
     },
   ],

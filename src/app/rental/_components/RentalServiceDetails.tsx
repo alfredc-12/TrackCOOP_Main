@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRental } from "../_context/RentalProvider";
+import { BookRentalModal } from "./BookRentalModal";
 import { RentalPolicyNotice } from "./RentalPolicyNotice";
 import { RentalLoadingState } from "./RentalStates";
 
@@ -106,17 +107,19 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
             Final cost and rental conditions are subject to cooperative review.
           </p>
           {requestable ? (
-            <Link
-              href={`/rental/inquiry?service=${service.serviceId}`}
-              className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1f6b43] px-6 font-extrabold text-white hover:bg-[#174e33]"
-            >
-              Submit Inquiry
-              <CalendarCheck className="size-5" />
-            </Link>
+            <BookRentalModal
+              serviceId={service.serviceId}
+              trigger={
+                <button className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1f6b43] px-6 font-extrabold text-white hover:bg-[#174e33]">
+                  Book a Rental
+                  <CalendarCheck className="size-5" />
+                </button>
+              }
+            />
           ) : (
             <div className="mt-6 rounded-xl bg-amber-50 p-4 text-center text-sm font-bold text-amber-900">
               {service.publicAvailabilityMessage ??
-                "This asset is temporarily unavailable for new inquiries."}
+                "This asset is temporarily unavailable for new bookings."}
             </div>
           )}
         </section>

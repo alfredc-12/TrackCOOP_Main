@@ -10,6 +10,8 @@ import {
   RefreshCcw,
   Search,
   WalletCards,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -33,7 +35,9 @@ import {
   LoadingSkeleton,
   StatCard,
   StatusBadge,
+  PaginationControls,
 } from "@/components/portal/PortalPrimitives";
+import { ChairmanRentalBookingDetailsModal } from "./ChairmanRentalBookingDetailsModal";
 
 type BookingView =
   | "All"
@@ -126,6 +130,9 @@ export function ChairmanRentalBookingsClient() {
   const [preferredDate, setPreferredDate] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +212,14 @@ export function ChairmanRentalBookingsClient() {
       );
     });
   }, [asset, inquiries, payment, preferredDate, requesterType, search, view]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, view, asset, requesterType, payment, preferredDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   async function bulkUpdate(status: RentalStatus) {
     const records = inquiries.filter(
@@ -309,12 +324,12 @@ export function ChairmanRentalBookingsClient() {
               Calendar
             </Link>
             <Link
-              href="/rental/inquiry"
+              href="/rental"
               target="_blank"
               className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white"
             >
               <Plus className="size-4" />
-              New Inquiry
+              New Booking
             </Link>
           </>
         }
@@ -467,7 +482,7 @@ export function ChairmanRentalBookingsClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-                  {filtered.map((inquiry) => (
+                  {paginated.map((inquiry) => (
                     <BookingRow
                       key={inquiry.inquiryId}
                       inquiry={inquiry}
@@ -480,6 +495,7 @@ export function ChairmanRentalBookingsClient() {
                             : [...current, inquiry.inquiryId],
                         )
                       }
+                      onSelectBooking={() => setSelectedBookingId(inquiry.inquiryId)}
                     />
                   ))}
                 </tbody>
@@ -487,7 +503,7 @@ export function ChairmanRentalBookingsClient() {
             </DataTable>
           </div>
           <div className="grid gap-3 xl:hidden">
-            {filtered.map((inquiry) => (
+            {paginated.map((inquiry) => (
               <BookingMobileCard
                 key={inquiry.inquiryId}
                 inquiry={inquiry}
@@ -500,12 +516,30 @@ export function ChairmanRentalBookingsClient() {
                       : [...current, inquiry.inquiryId],
                   )
                 }
+                onSelectBooking={() => setSelectedBookingId(inquiry.inquiryId)}
               />
             ))}
+          </div>
+
+          <div className="border-t border-[#CAD8CB] bg-white px-4 py-4 sm:px-6">
+            <PaginationControls
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              itemName="bookings"
+              onPageChange={setPage}
+            />
           </div>
         </>
       )}
 
+      {selectedBookingId ? (
+        <ChairmanRentalBookingDetailsModal
+          open={!!selectedBookingId}
+          onClose={() => setSelectedBookingId(null)}
+          bookingId={selectedBookingId}
+        />
+      ) : null}
     </div>
   );
 }
@@ -515,11 +549,13 @@ function BookingRow({
   schedule,
   selected,
   onToggle,
+  onSelectBooking,
 }: {
   inquiry: RentalInquiry;
   schedule?: RentalSchedule;
   selected: boolean;
   onToggle: () => void;
+  onSelectBooking: () => void;
 }) {
   return (
     <tr className="align-top hover:bg-[#F7F8F3]">
@@ -571,6 +607,7 @@ function BookingRow({
         <BookingActions
           inquiry={inquiry}
           schedule={schedule}
+          onSelectBooking={onSelectBooking}
         />
       </td>
     </tr>
@@ -582,11 +619,13 @@ function BookingMobileCard({
   schedule,
   selected,
   onToggle,
+  onSelectBooking,
 }: {
   inquiry: RentalInquiry;
   schedule?: RentalSchedule;
   selected: boolean;
   onToggle: () => void;
+  onSelectBooking: () => void;
 }) {
   return (
     <article className="rounded-lg border border-[#CAD8CB] bg-white p-5">
@@ -627,6 +666,7 @@ function BookingMobileCard({
         <BookingActions
           inquiry={inquiry}
           schedule={schedule}
+          onSelectBooking={onSelectBooking}
         />
       </div>
     </article>
@@ -636,38 +676,21 @@ function BookingMobileCard({
 function BookingActions({
   inquiry,
   schedule,
+  onSelectBooking,
 }: {
   inquiry: RentalInquiry;
   schedule?: RentalSchedule;
+  onSelectBooking: () => void;
 }) {
-  const actions = getChairmanRentalActions(inquiry.status, schedule?.status);
-
   return (
-    <details className="relative">
-      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]">
-        Actions
-      </summary>
-      <div className="absolute right-0 z-20 mt-2 grid min-w-56 gap-1 rounded-lg border border-[#CAD8CB] bg-white p-2 shadow-xl">
-        <Link
-          href={`/chairman/rentals/bookings/${inquiry.inquiryId}`}
-          className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-[#EEF2EC]"
-        >
-          <Eye className="size-4" />
-          Open Details
-        </Link>
-        {actions.map((action) => (
-          <Link
-            key={action.id}
-            href={`/chairman/rentals/bookings/${inquiry.inquiryId}`}
-            className={`flex min-h-10 items-center rounded-md px-3 text-xs font-semibold hover:bg-[#EEF2EC] ${
-              action.tone === "danger" ? "text-[#A13B2A]" : ""
-            }`}
-          >
-            {action.label}
-          </Link>
-        ))}
-      </div>
-    </details>
+    <button
+      type="button"
+      onClick={onSelectBooking}
+      className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-[#CAD8CB] bg-white px-4 text-xs font-bold text-[#123D2A hover:bg-[#F7F8F3]"
+    >
+      <Eye className="mr-2 size-4" />
+      View Details
+    </button>
   );
 }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  inquirySchema,
+  BookingSchema,
   rentalRescheduleSchema,
   rentalScheduleSchema,
 } from "./rentalValidation";
@@ -14,23 +14,14 @@ const validInquiry = {
   completeAddress: "Barangay Wawa, Nasugbu, Batangas",
   barangay: "Wawa",
   municipality: "Nasugbu",
-  preferredContactMethod: "SMS" as const,
   serviceId: "RNT-TRACTOR-001",
   intendedUse: "Land preparation",
   preferredDate: "2099-08-01",
   preferredEndDate: "2099-08-03",
-  alternativeDate: "2099-08-05",
-  alternativeEndDate: "2099-08-06",
   preferredStartTime: "08:00",
   preferredEndTime: "17:00",
-  estimatedDuration: "2 hours",
-  estimatedUsage: "2",
-  unitOfMeasurement: "hectares",
-  serviceLocation: "Barangay Wawa, Nasugbu",
-  serviceBarangay: "Wawa",
   requestDescription: "Prepare agricultural land for planting.",
-  specialInstructions: "",
-  additionalNotes: "",
+  notes: "",
   attachmentName: "",
   membershipProofName: "",
   dataPrivacyConsent: true,
@@ -39,7 +30,7 @@ const validInquiry = {
 };
 
 test("requires all three inquiry declarations", () => {
-  const result = inquirySchema.safeParse({
+  const result = BookingSchema.safeParse({
     ...validInquiry,
     accuracyConfirmation: false,
   });
@@ -47,7 +38,7 @@ test("requires all three inquiry declarations", () => {
 });
 
 test("accepts a UUID idempotency key", () => {
-  const result = inquirySchema.safeParse({
+  const result = BookingSchema.safeParse({
     ...validInquiry,
     clientRequestId: "4f4ab6a7-1208-4b9a-aafe-cdfa474d6160",
   });
@@ -95,9 +86,9 @@ test("validates a structured member reschedule request", () => {
 });
 
 test("accepts a multi-day inquiry and rejects a reversed date range", () => {
-  assert.equal(inquirySchema.safeParse(validInquiry).success, true);
+  assert.equal(BookingSchema.safeParse(validInquiry).success, true);
   assert.equal(
-    inquirySchema.safeParse({
+    BookingSchema.safeParse({
       ...validInquiry,
       preferredEndDate: "2099-07-31",
     }).success,

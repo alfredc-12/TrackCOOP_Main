@@ -30,10 +30,300 @@ import {
   EmptyState,
   ErrorState,
   FormDialog,
+  FormField,
   LoadingSkeleton,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
+
+const fieldClass =
+  "min-h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
+const errorFieldClass =
+  "min-h-11 w-full rounded-md border border-[#FF4D4F] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#FF4D4F] focus:ring-4 focus:ring-[#FF4D4F]/20";
+
+function ChairmanAddAssetModal({
+  open,
+  onClose,
+  onAdded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [form, setForm] = useState({
+    serviceId: "",
+    name: "",
+    category: "Land Preparation",
+    shortDescription: "",
+    imageUrl: "",
+    unitOfUsage: "hour",
+    memberRate: "",
+    nonMemberRate: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (open) {
+      setErrors({});
+      setForm((prev) => ({
+        ...prev,
+        serviceId: prev.serviceId || `AST-${Math.floor(1000 + Math.random() * 9000)}`,
+      }));
+    } else {
+      setForm({
+        serviceId: "",
+        name: "",
+        category: "Land Preparation",
+        shortDescription: "",
+        imageUrl: "",
+        unitOfUsage: "hour",
+        memberRate: "",
+        nonMemberRate: "",
+      });
+    }
+  }, [open]);
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("image", file);
+
+    try {
+      const response = await fetch("/api/rental/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload image");
+      }
+
+      const data = await response.json();
+      setForm({ ...form, imageUrl: data.url });
+      toast.success("Image uploaded successfully.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not upload image. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    
+    const newErrors: Record<string, string> = {};
+    if (!form.name.trim()) newErrors.name = "Asset name is required.";
+    if (!form.category) newErrors.category = "Category is required.";
+    if (!form.shortDescription.trim()) newErrors.shortDescription = "Short description is required.";
+    if (!form.unitOfUsage.trim()) newErrors.unitOfUsage = "Unit of usage is required.";
+    if (!form.memberRate) newErrors.memberRate = "Member rate is required.";
+    if (!form.nonMemberRate) newErrors.nonMemberRate = "Non-member rate is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix the highlighted fields.");
+      return;
+    }
+
+    setErrors({});
+    setSaving(true);
+    try {
+      await rentalApiRepository.createRentalService({
+        ...form,
+        memberRate: form.memberRate ? Number(form.memberRate) : null,
+        nonMemberRate: form.nonMemberRate ? Number(form.nonMemberRate) : null,
+        standardRate: form.nonMemberRate ? Number(form.nonMemberRate) : null,
+        description: form.shortDescription,
+        imageUrls: form.imageUrl ? [form.imageUrl] : [],
+        availability: "Available",
+        operationalStatus: "Ready for Use",
+        visibility: "Hidden",
+        suitableActivity: "General farming",
+        capacity: "Standard",
+        serviceArea: "Nasugbu service barangays",
+        operatorRequirement: "Cooperative operator confirmation required",
+        operationalNotes: "",
+        safetyReminders: [],
+        upcomingBookings: 0,
+        availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        availableStartTime: "08:00",
+        availableEndTime: "17:00",
+        maximumBookingsPerDay: 1,
+        preparationMinutes: 30,
+        travelMinutes: 60,
+        bufferMinutes: 30,
+        featured: false,
+      });
+      toast.success("Asset added successfully.");
+      onAdded();
+      onClose();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Could not add asset.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
+      }}
+      title="Quick Add Asset"
+      description="Enter the basic details to register a new equipment. You can configure complex pricing and scheduling rules later."
+    >
+      <form onSubmit={submit} noValidate className="grid gap-4 py-4">
+        <FormField label="Asset Code (ID)" required>
+          <input
+            required
+            readOnly
+            type="text"
+            className="min-h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm text-[#17211C] outline-none"
+            value={form.serviceId}
+            onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+          />
+        </FormField>
+        <FormField label="Asset Name" required error={errors.name}>
+          <input
+            required
+            autoFocus
+            type="text"
+            className={errors.name ? errorFieldClass : fieldClass}
+            placeholder="e.g. Kubota Tractor L5018"
+            value={form.name}
+            onChange={(e) => {
+              setForm({ ...form, name: e.target.value });
+              if (errors.name) setErrors((prev) => ({ ...prev, name: "" }));
+            }}
+          />
+        </FormField>
+        <FormField label="Category" required error={errors.category}>
+          <select
+            required
+            className={errors.category ? errorFieldClass : fieldClass}
+            value={form.category}
+            onChange={(e) => {
+              setForm({ ...form, category: e.target.value });
+              if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
+            }}
+          >
+            <option value="Land Preparation">Land Preparation</option>
+            <option value="Harvesting">Harvesting</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Processing">Processing</option>
+            <option value="Other">Other</option>
+          </select>
+        </FormField>
+        <FormField label="Short Description" required error={errors.shortDescription}>
+          <textarea
+            required
+            rows={2}
+            className={errors.shortDescription ? errorFieldClass : fieldClass}
+            placeholder="A brief overview of this equipment..."
+            value={form.shortDescription}
+            onChange={(e) => {
+              setForm({ ...form, shortDescription: e.target.value });
+              if (errors.shortDescription) setErrors((prev) => ({ ...prev, shortDescription: "" }));
+            }}
+          />
+        </FormField>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <FormField label="Unit of Usage" required error={errors.unitOfUsage}>
+            <select
+              required
+              className={errors.unitOfUsage ? errorFieldClass : fieldClass}
+              value={form.unitOfUsage}
+              onChange={(e) => {
+                setForm({ ...form, unitOfUsage: e.target.value });
+                if (errors.unitOfUsage) setErrors((prev) => ({ ...prev, unitOfUsage: "" }));
+              }}
+            >
+              <option value="hour">hour</option>
+              <option value="day">day</option>
+              <option value="hectare">hectare</option>
+              <option value="trip">trip</option>
+              <option value="session">session</option>
+            </select>
+          </FormField>
+          <FormField label="Member Rate (₱)" required error={errors.memberRate}>
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.01"
+              className={errors.memberRate ? errorFieldClass : fieldClass}
+              placeholder="0.00"
+              value={form.memberRate}
+              onChange={(e) => {
+                setForm({ ...form, memberRate: e.target.value });
+                if (errors.memberRate) setErrors((prev) => ({ ...prev, memberRate: "" }));
+              }}
+            />
+          </FormField>
+          <FormField label="Non-Member (₱)" required error={errors.nonMemberRate}>
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.01"
+              className={errors.nonMemberRate ? errorFieldClass : fieldClass}
+              placeholder="0.00"
+              value={form.nonMemberRate}
+              onChange={(e) => {
+                setForm({ ...form, nonMemberRate: e.target.value });
+                if (errors.nonMemberRate) setErrors((prev) => ({ ...prev, nonMemberRate: "" }));
+              }}
+            />
+          </FormField>
+        </div>
+        <FormField label="Image (Optional)">
+          <div className="flex gap-2">
+            <input
+              type="url"
+              className={fieldClass}
+              placeholder="https://example.com/image.jpg"
+              value={form.imageUrl}
+              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+            />
+            <label className="flex cursor-pointer items-center justify-center rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-4 py-2 text-sm font-semibold text-[#123D2A] hover:bg-[#EEF2EC] transition-colors whitespace-nowrap">
+              {uploading ? "Uploading..." : "Upload from Device"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={uploading}
+              />
+            </label>
+          </div>
+        </FormField>
+        <div className="flex justify-end gap-3 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-4 py-2 text-sm font-semibold text-[#5D6D63] hover:bg-[#EEF2EC]"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-[#123D2A] px-4 py-2 text-sm font-bold text-white hover:bg-[#1F6B43] disabled:opacity-50"
+          >
+            {saving ? "Creating..." : "Create Asset"}
+          </button>
+        </div>
+      </form>
+    </FormDialog>
+  );
+}
 
 type PendingAction = {
   title: string;
@@ -118,6 +408,7 @@ export function ChairmanRentalAssetsClient() {
   const [sort, setSort] = useState("updated-desc");
   const [pending, setPending] = useState<PendingAction>();
   const [maintenanceAsset, setMaintenanceAsset] = useState<RentalService>();
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -281,13 +572,14 @@ export function ChairmanRentalAssetsClient() {
               <RefreshCcw className="size-4" />
               Refresh
             </button>
-            <Link
-              href="/chairman/rentals/assets/new"
+            <button
+              type="button"
+              onClick={() => setAddModalOpen(true)}
               className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"
             >
               <Plus className="size-4" />
               Add Asset
-            </Link>
+            </button>
           </>
         }
       />
@@ -432,6 +724,13 @@ export function ChairmanRentalAssetsClient() {
         onSaved={async () => {
           setMaintenanceAsset(undefined);
           await load();
+        }}
+      />
+      <ChairmanAddAssetModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onAdded={() => {
+          void load();
         }}
       />
     </div>

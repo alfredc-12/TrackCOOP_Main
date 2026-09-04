@@ -3,6 +3,33 @@ import { db } from "@/lib/db";
 import { requireApiUser } from "@/lib/next-api-auth";
 import { RowDataPacket } from "mysql2";
 
+export async function GET(req: Request) {
+  try {
+    const auth = await requireApiUser(["member"]);
+    if (auth.response) return auth.response;
+
+    const connection = await db.getConnection();
+    try {
+      const [members] = await connection.query<RowDataPacket[]>(
+        `SELECT contact_number, email, barangay, municipality, province FROM member_profiles WHERE user_id = ?`,
+        [auth.user.id]
+      );
+      
+      const member = members[0];
+      if (!member) {
+        return NextResponse.json({ error: "Member profile not found" }, { status: 404 });
+      }
+
+      return NextResponse.json(member);
+    } finally {
+      connection.release();
+    }
+  } catch (error: any) {
+    console.error("Failed to fetch profile:", error);
+    return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });
+  }
+}
+
 export async function PUT(req: Request) {
   try {
     const auth = await requireApiUser(["member"]);

@@ -209,12 +209,6 @@ export function ChairmanRentalCalendar() {
 
   return (
     <div className="grid gap-6">
-      <Link
-        href="/chairman/rentals/bookings"
-        className="inline-flex min-h-11 w-fit items-center gap-2 font-bold text-[#123D2A]"
-      >
-        <ArrowLeft className="size-4" /> Back to Rental Bookings
-      </Link>
       <PageHeader
         eyebrow="Operations"
         title="Rental Calendar"

@@ -9,7 +9,7 @@ import type {
 } from "mysql2/promise";
 import { checkRentalScheduleConflict } from "../_lib/rentalConflict";
 import {
-  inquirySchema,
+  BookingSchema,
   rentalRescheduleSchema,
   rentalScheduleSchema,
   rentalServiceSchema,
@@ -17,7 +17,7 @@ import {
 import { assertRentalStatusTransition } from "../_lib/rentalWorkflow";
 import type {
   EquipmentAvailability,
-  InquiryDraft,
+  BookingDraft,
   OperationalStatus,
   PaymentMethod,
   PaymentStatus,
@@ -611,7 +611,6 @@ function mapBooking(row: BookingRow): RentalInquiry {
       completeAddress: stringValue(meta, "completeAddress", barangay ? `${barangay}, ${municipality}, Batangas` : "Nasugbu, Batangas"),
       barangay,
       municipality,
-      preferredContactMethod: stringValue(meta, "preferredContactMethod", "SMS") as RentalInquiry["requester"]["preferredContactMethod"],
     },
     serviceId: row.asset_code,
     equipmentName: row.asset_name,
@@ -636,6 +635,7 @@ function mapBooking(row: BookingRow): RentalInquiry {
     scheduleStatus: stringValue(meta, "scheduleStatus", scheduleStatusFromBooking(row, meta)),
     assignedReviewer: stringValue(meta, "assignedReviewer") || undefined,
     rescheduleRequest: rescheduleRequestValue(meta),
+    preferredPaymentMethod: (stringValue(meta, "preferredPaymentMethod") as "Cash" | "Online") || undefined,
     publicNote: stringValue(meta, "publicNote", "NFFAC received your inquiry and will review availability, schedule, pricing, and rental conditions."),
     internalNote: stringValue(meta, "internalNote") || undefined,
     submittedAt: isoDateTime(row.created_at),
@@ -1491,11 +1491,11 @@ export const rentalDatabase = {
   },
 
   async submitRentalInquiry(
-    draft: InquiryDraft,
+    draft: BookingDraft,
     member = false,
     actor?: RentalActor,
   ) {
-    const parsed = inquirySchema.parse(draft);
+    const parsed = BookingSchema.parse(draft);
     if (member && (!actor || actor.role !== "member" || !actor.memberId)) {
       throw new Error("An authenticated member profile is required.");
     }
@@ -1613,7 +1613,7 @@ export const rentalDatabase = {
           (booking_number, rental_asset_id, member_id, requester_name,
            requester_contact, purpose, start_datetime, end_datetime,
            booking_status, total_amount, payment_status, recorded_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Inquiry', 0.00, 'Unpaid', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', 0.00, 'Unpaid', ?)`,
         cleanParams([
           bookingNumber,
           asset.rental_asset_id,
@@ -1644,7 +1644,7 @@ export const rentalDatabase = {
       await addStatusHistory(
         booking.rental_booking_id,
         null,
-        "Inquiry",
+        "Pending",
         member
           ? "Member rental request submitted."
           : "Public rental inquiry submitted.",
@@ -1820,11 +1820,9 @@ export const rentalDatabase = {
 
   async lookupRentalInquiry(reference: string, contact: string) {
     const inquiries = await this.getRentalInquiries();
-    const digits = contact.replace(/\D/g, "");
     const inquiry = inquiries.find(
       (item) =>
-        item.inquiryId.toLowerCase() === reference.trim().toLowerCase() &&
-        item.requester.contactNumber.replace(/\D/g, "") === digits,
+        item.inquiryId.toLowerCase() === reference.trim().toLowerCase(),
     );
     if (!inquiry) return undefined;
     const schedule = (await this.getRentalSchedules()).find(

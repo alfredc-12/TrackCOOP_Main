@@ -1,6 +1,6 @@
 import type {
   EquipmentAvailability,
-  InquiryDraft,
+  BookingDraft,
   RentalAnalytics,
   RentalAuditEntry,
   RentalExpense,
@@ -76,8 +76,8 @@ export const rentalApiRepository = {
   createRentalService: (service: Omit<RentalService, "updatedAt">) => request<RentalService>("/services", { method: "POST", body: JSON.stringify(service) }),
   updateRentalService: (serviceId: string, updates: Partial<RentalService>) => request<RentalService>(`/services/${serviceId}`, { method: "PATCH", body: JSON.stringify(updates) }),
   archiveRentalService: (serviceId: string) => request<RentalService>(`/services/${serviceId}/archive`, { method: "POST" }),
-  submitPublicRentalInquiry: (draft: InquiryDraft) => request<RentalInquiry>("/inquiries/public", { method: "POST", body: JSON.stringify(draft) }),
-  submitMemberRentalRequest: (draft: InquiryDraft) => request<RentalInquiry>("/requests/member", { method: "POST", body: JSON.stringify(draft) }),
+  submitPublicRentalInquiry: (draft: BookingDraft) => request<RentalInquiry>("/inquiries/public", { method: "POST", body: JSON.stringify(draft) }),
+  submitMemberRentalRequest: (draft: BookingDraft) => request<RentalInquiry>("/requests/member", { method: "POST", body: JSON.stringify(draft) }),
   getRentalInquiries: () => request<RentalInquiry[]>("/inquiries"),
   getMemberRentalInquiries: () =>
     request<RentalInquiry[]>("/member-inquiries"),

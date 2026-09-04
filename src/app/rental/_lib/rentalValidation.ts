@@ -7,7 +7,7 @@ const requiredConsent = z
   .boolean()
   .refine((value) => value, "This confirmation is required.");
 
-export const inquirySchema = z
+export const BookingSchema = z
   .object({
     fullName: z.string().trim().min(2, "Enter the requester's full name."),
     requesterType: z.enum(["Member", "Public or Non-member"]),
@@ -16,29 +16,21 @@ export const inquirySchema = z
     completeAddress: z.string().trim().min(5, "Enter the complete address."),
     barangay: z.string().min(1, "Select a barangay."),
     municipality: z.string().trim().min(2, "Enter the municipality."),
-    preferredContactMethod: z.enum(["Phone", "SMS", "Email"]),
     serviceId: z.string().min(1, "Select equipment or a service."),
     intendedUse: z.string().trim().min(3, "Describe the intended use."),
     preferredDate: z.iso.date("Choose a preferred start date."),
     preferredEndDate: z.iso.date("Choose a preferred end date."),
-    alternativeDate: optionalText,
-    alternativeEndDate: optionalText,
     preferredStartTime: z.string().min(1, "Choose a preferred start time."),
     preferredEndTime: z.string().min(1, "Choose a preferred end time."),
-    estimatedDuration: z.string().trim().min(1, "Enter an estimated duration."),
-    estimatedUsage: z.string().trim().min(1, "Enter the estimated area or usage."),
-    unitOfMeasurement: z.string().trim().min(1, "Enter the unit of measurement."),
-    serviceLocation: z.string().trim().min(5, "Enter the service location."),
-    serviceBarangay: z.string().min(1, "Select the service barangay."),
     requestDescription: z.string().trim().min(10, "Add at least 10 characters of request details."),
-    specialInstructions: optionalText,
-    additionalNotes: optionalText,
+    notes: optionalText,
     attachmentName: optionalText,
     membershipProofName: optionalText,
     clientRequestId: z.string().uuid().optional(),
     dataPrivacyConsent: requiredConsent,
     accuracyConfirmation: requiredConsent,
     contactConsent: requiredConsent,
+    preferredPaymentMethod: z.enum(["Cash", "Online"]).optional(),
   })
   .superRefine((data, context) => {
     const today = new Date();
@@ -69,46 +61,9 @@ export const inquirySchema = z
       });
     }
 
-    const hasAlternativeStart = Boolean(data.alternativeDate);
-    const hasAlternativeEnd = Boolean(data.alternativeEndDate);
-    if (hasAlternativeStart !== hasAlternativeEnd) {
-      context.addIssue({
-        code: "custom",
-        message: hasAlternativeStart
-          ? "Choose an alternative end date."
-          : "Choose an alternative start date.",
-        path: [hasAlternativeStart ? "alternativeEndDate" : "alternativeDate"],
-      });
-    }
-    if (data.alternativeDate && data.alternativeEndDate) {
-      if (data.alternativeDate < todayKey) {
-        context.addIssue({
-          code: "custom",
-          message: "Alternative start date cannot be in the past.",
-          path: ["alternativeDate"],
-        });
-      }
-      if (data.alternativeEndDate < data.alternativeDate) {
-        context.addIssue({
-          code: "custom",
-          message: "Alternative end date cannot be before the start date.",
-          path: ["alternativeEndDate"],
-        });
-      }
-      if (
-        data.alternativeDate === data.preferredDate &&
-        data.alternativeEndDate === data.preferredEndDate
-      ) {
-        context.addIssue({
-          code: "custom",
-          message: "Alternative date range must differ from the preferred range.",
-          path: ["alternativeDate"],
-        });
-      }
-    }
   });
 
-export type InquiryFormValues = z.infer<typeof inquirySchema>;
+export type BookingFormValues = z.infer<typeof BookingSchema>;
 
 export const rentalServiceSchema = z.object({
   serviceId: z

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import type { InquiryDraft, RentalInquiry, RentalService, UserRole } from "../_types/rental";
+import type { BookingDraft, RentalInquiry, RentalService, UserRole } from "../_types/rental";
 import { adaptTrackCoopRole } from "../_lib/rentalPermissions";
 import { rentalRepository } from "../_lib/rentalRepository";
 
@@ -17,10 +17,10 @@ interface RentalContextValue {
   role: UserRole;
   setRole: (role: UserRole) => void;
   refreshServices: () => Promise<void>;
-  saveInquiryDraft: (draft: InquiryDraft) => void;
-  getInquiryDraft: () => InquiryDraft | undefined;
+  saveInquiryDraft: (draft: BookingDraft) => void;
+  getInquiryDraft: () => BookingDraft | undefined;
   clearInquiryDraft: () => void;
-  submitInquiry: (draft: InquiryDraft, member?: boolean) => Promise<RentalInquiry>;
+  submitInquiry: (draft: BookingDraft, member?: boolean) => Promise<RentalInquiry>;
   getLastInquiry: () => RentalInquiry | undefined;
 }
 
@@ -99,7 +99,7 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
     saveInquiryDraft: (draft) => window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)),
     getInquiryDraft: () => {
       const value = window.sessionStorage.getItem(DRAFT_KEY);
-      return value ? JSON.parse(value) as InquiryDraft : undefined;
+      return value ? JSON.parse(value) as BookingDraft : undefined;
     },
     clearInquiryDraft: () => window.sessionStorage.removeItem(DRAFT_KEY),
     submitInquiry: async (draft, member = false) => {
