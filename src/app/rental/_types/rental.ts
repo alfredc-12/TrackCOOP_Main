@@ -113,6 +113,14 @@ export interface RentalRequester {
   municipality: string;
 }
 
+export interface RentalFeeEstimate {
+  days: number;
+  dailyRate: number;
+  rateLabel: "Member rate" | "Non-member rate" | "Standard rate";
+  total: number;
+  currency: "PHP";
+}
+
 export interface BookingDraft {
   clientRequestId?: string;
   fullName: string;
@@ -190,6 +198,7 @@ export interface RentalInquiry {
   preferredEndTime?: string;
   estimatedDuration: string;
   estimatedUsage: string;
+  estimatedFee?: RentalFeeEstimate;
   unitOfMeasurement: string;
   serviceLocation: string;
   serviceBarangay: string;

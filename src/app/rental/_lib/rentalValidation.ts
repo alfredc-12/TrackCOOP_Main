@@ -28,9 +28,10 @@ export const BookingSchema = z
     email: z
       .string()
       .trim()
+      .min(1, "Enter an email address so we can send your booking summary.")
       .max(190, "Email address is too long.")
       .refine(
-        (value) => value === "" || z.email().safeParse(value).success,
+        (value) => z.email().safeParse(value).success,
         "Enter a valid email address.",
       ),
     completeAddress: z.string().trim().min(5, "Enter the complete address."),

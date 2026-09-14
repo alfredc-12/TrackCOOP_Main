@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { estimateRentalFee } from "./rentalEstimate";
 import {
   BookingSchema,
   normalizePhilippineMobile,
@@ -12,7 +13,7 @@ const validInquiry = {
   fullName: "Integration Test Requester",
   requesterType: "Public or Non-member" as const,
   contactNumber: "09181234567",
-  email: "",
+  email: "requester@example.com",
   completeAddress: "Barangay Wawa, Nasugbu, Batangas",
   barangay: "Wawa",
   municipality: "Nasugbu",
@@ -99,7 +100,7 @@ test("accepts a multi-day inquiry and rejects a reversed date range", () => {
   );
 });
 
-test("validates requester contact, optional email, and valid ID type", () => {
+test("validates requester contact, required email, and valid ID type", () => {
   assert.equal(
     normalizePhilippineMobile("+63 918 123 4567"),
     normalizePhilippineMobile("09181234567"),
@@ -129,6 +130,13 @@ test("validates requester contact, optional email, and valid ID type", () => {
   assert.equal(
     BookingSchema.safeParse({
       ...validInquiry,
+      email: "",
+    }).success,
+    false,
+  );
+  assert.equal(
+    BookingSchema.safeParse({
+      ...validInquiry,
       email: "not-an-email",
     }).success,
     false,
@@ -139,6 +147,28 @@ test("validates requester contact, optional email, and valid ID type", () => {
       validIdType: "School ID",
     }).success,
     false,
+  );
+});
+
+test("computes an automatic possible rental fee from the date range and requester type", () => {
+  assert.deepEqual(
+    estimateRentalFee({
+      service: {
+        standardRate: 1000,
+        memberRate: 800,
+        nonMemberRate: 1200,
+      },
+      requesterType: "Public or Non-member",
+      startDate: "2099-08-01",
+      endDate: "2099-08-03",
+    }),
+    {
+      days: 3,
+      dailyRate: 1200,
+      rateLabel: "Non-member rate",
+      total: 3600,
+      currency: "PHP",
+    },
   );
 });
 

@@ -9,6 +9,7 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { checkRentalScheduleConflict } from "../_lib/rentalConflict";
+import { estimateRentalFee } from "../_lib/rentalEstimate";
 import {
   BookingSchema,
   normalizePhilippineMobile,
@@ -27,6 +28,7 @@ import type {
   RentalAnalytics,
   RentalAuditEntry,
   RentalExpense,
+  RentalFeeEstimate,
   RentalInquiry,
   RentalMaintenanceRecord,
   RentalNotification,
@@ -306,6 +308,41 @@ function rentalValidIdDocument(meta: JsonRecord): RentalValidIdDocument | undefi
     mimeType: mimeType as RentalValidIdDocument["mimeType"],
     fileSizeBytes,
     checksumSha256,
+  };
+}
+
+function rentalFeeEstimateValue(
+  meta: JsonRecord,
+): RentalFeeEstimate | undefined {
+  const value = meta.estimatedFee;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const estimate = value as JsonRecord;
+  const days = numberValue(
+    typeof estimate.days === "number" ? estimate.days : undefined,
+  );
+  const dailyRate = numberValue(
+    typeof estimate.dailyRate === "number" ? estimate.dailyRate : undefined,
+  );
+  const total = numberValue(
+    typeof estimate.total === "number" ? estimate.total : undefined,
+  );
+  const rateLabel = stringValue(estimate, "rateLabel");
+  if (
+    days <= 0 ||
+    dailyRate <= 0 ||
+    total <= 0 ||
+    !["Member rate", "Non-member rate", "Standard rate"].includes(rateLabel)
+  ) {
+    return undefined;
+  }
+  return {
+    days,
+    dailyRate,
+    total,
+    rateLabel: rateLabel as RentalFeeEstimate["rateLabel"],
+    currency: "PHP",
   };
 }
 
@@ -674,6 +711,7 @@ function mapBooking(row: BookingRow): RentalInquiry {
     preferredEndTime: stringValue(meta, "preferredEndTime", timePart(row.end_datetime)) || undefined,
     estimatedDuration: stringValue(meta, "estimatedDuration", "2 hours"),
     estimatedUsage: stringValue(meta, "estimatedUsage", "To be confirmed"),
+    estimatedFee: rentalFeeEstimateValue(meta),
     unitOfMeasurement: stringValue(meta, "unitOfMeasurement", "Operating session"),
     serviceLocation: stringValue(meta, "serviceLocation", "Nasugbu service area"),
     serviceBarangay: stringValue(meta, "serviceBarangay", barangay),
@@ -1678,9 +1716,16 @@ export const rentalDatabase = {
           checksumSha256: validIdFile.checksum,
         },
       });
+      const estimatedFee = estimateRentalFee({
+        service,
+        requesterType: member ? "Member" : parsed.requesterType,
+        startDate: parsed.preferredDate,
+        endDate: parsed.preferredEndDate,
+      });
       const purpose = JSON.stringify({
         ...submission,
         requesterType: member ? "Member" : parsed.requesterType,
+        estimatedFee,
         scheduleStatus: "Not scheduled",
         publicNote:
           "NFFAC received your inquiry and will review availability, schedule, pricing, and rental conditions.",

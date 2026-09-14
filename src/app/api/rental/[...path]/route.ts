@@ -8,7 +8,10 @@ import {
   rentalDatabase,
   type RentalActor,
 } from "@/app/rental/_server/rentalDatabase";
-import { triggerRentalStatusEmail } from "@/app/rental/_server/rentalEmail";
+import {
+  triggerRentalStatusEmail,
+  triggerRentalSubmittedEmail,
+} from "@/app/rental/_server/rentalEmail";
 import type { PaymentStatus, RentalStatus, ScheduleStatus } from "@/app/rental/_types/rental";
 import {
   getMemberProfileIdForUser,
@@ -384,7 +387,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         submission.validIdFile,
         false,
       );
-      await triggerRentalStatusEmail(inquiry);
+      await triggerRentalSubmittedEmail(inquiry);
       return json(inquiry, 201);
     }
     if (resource === "requests" && id === "member") {
@@ -397,7 +400,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         true,
         auth.actor ?? undefined,
       );
-      await triggerRentalStatusEmail(inquiry);
+      await triggerRentalSubmittedEmail(inquiry);
       return json(inquiry, 201);
     }
     if (resource === "inquiries" && id && action === "review") {

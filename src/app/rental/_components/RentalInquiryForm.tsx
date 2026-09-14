@@ -23,6 +23,8 @@ import {
   BookingSchema,
   validateUpload,
 } from "../_lib/rentalValidation";
+import { estimateRentalFee } from "../_lib/rentalEstimate";
+import { formatPeso } from "../_lib/rentalFormatting";
 import { z } from "zod";
 import { useRental } from "../_context/RentalProvider";
 import { rentalApiRepository } from "../_lib/rentalApi";
@@ -148,8 +150,20 @@ export function RentalInquiryForm({
   const selectedServiceId = useWatch({ control, name: "serviceId" });
   const preferredDate = useWatch({ control, name: "preferredDate" });
   const preferredEndDate = useWatch({ control, name: "preferredEndDate" });
+  const requesterType = useWatch({ control, name: "requesterType" });
   const selectedService = services.find(
     (service) => service.serviceId === selectedServiceId,
+  );
+  const estimatedFee = useMemo(
+    () =>
+      estimateRentalFee({
+        service: selectedService,
+        requesterType:
+          requesterType ?? (member ? "Member" : "Public or Non-member"),
+        startDate: preferredDate,
+        endDate: preferredEndDate,
+      }),
+    [member, preferredDate, preferredEndDate, requesterType, selectedService],
   );
   const effectiveBlockedDates = useMemo(
     () =>
@@ -457,7 +471,7 @@ export function RentalInquiryForm({
                 placeholder="09XXXXXXXXX"
               />
             </Field>
-            <Field label="Email (optional)" error={errors.email?.message}>
+            <Field label="Email" required error={errors.email?.message}>
               <input
                 {...register("email")}
                 type="email"
@@ -569,6 +583,40 @@ export function RentalInquiryForm({
             )}
             <input type="hidden" {...register("intendedUse")} />
             <div className="sm:col-span-2">
+              <div className="mb-4 grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Start date"
+                  required
+                  error={errors.preferredDate?.message}
+                >
+                  <input
+                    type="date"
+                    min={todayKey()}
+                    {...register("preferredDate", {
+                      onChange: (event) => {
+                        const date = event.target.value;
+                        const currentEndDate = getValues("preferredEndDate");
+                        if (!currentEndDate || currentEndDate < date) {
+                          setValue("preferredEndDate", date, {
+                            shouldValidate: true,
+                          });
+                        }
+                      },
+                    })}
+                  />
+                </Field>
+                <Field
+                  label="End date"
+                  required
+                  error={errors.preferredEndDate?.message}
+                >
+                  <input
+                    type="date"
+                    min={preferredDate || todayKey()}
+                    {...register("preferredEndDate")}
+                  />
+                </Field>
+              </div>
               <AvailabilityCalendar
                 serviceName={selectedService?.name}
                 selectedDate={preferredDate}
@@ -583,36 +631,31 @@ export function RentalInquiryForm({
                   }
                 }}
               />
-              {errors.preferredDate && (
-                <p className="mt-2 text-sm font-bold text-red-600">
-                  {errors.preferredDate.message}
-                </p>
-              )}
-              {errors.preferredEndDate && (
-                <p className="mt-2 text-sm font-bold text-red-600">
-                  {errors.preferredEndDate.message}
-                </p>
-              )}
               {selectedService && preferredDate && preferredEndDate && (
                 <div className="mt-4 rounded-xl border border-[#9bc9aa] bg-[#eaf4ec] p-4 text-[#123d2a]">
-                  <h4 className="font-bold">Estimated Rental Fee</h4>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm">
-                      {Math.round((new Date(preferredEndDate).getTime() - new Date(preferredDate).getTime()) / 86400000) + 1} day(s) 
-                      × ₱{member ? selectedService.memberRate?.toLocaleString() || selectedService.standardRate?.toLocaleString() : selectedService.nonMemberRate?.toLocaleString() || selectedService.standardRate?.toLocaleString()}
-                    </span>
-                    <strong className="text-lg">
-                      ₱{(((Math.round((new Date(preferredEndDate).getTime() - new Date(preferredDate).getTime()) / 86400000) + 1) * 
-                        (member ? selectedService.memberRate || selectedService.standardRate || 0 : selectedService.nonMemberRate || selectedService.standardRate || 0)) || 0).toLocaleString()}
-                    </strong>
-                  </div>
-                  <p className="mt-1 text-xs text-[#168046]">* Actual fee may vary based on exact schedule and usage upon confirmation.</p>
+                  <h4 className="font-bold">Possible rental fee</h4>
+                  {estimatedFee ? (
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm">
+                        {estimatedFee.days} day{estimatedFee.days === 1 ? "" : "s"} x{" "}
+                        {formatPeso(estimatedFee.dailyRate)} ({estimatedFee.rateLabel})
+                      </span>
+                      <strong className="text-lg">
+                        {formatPeso(estimatedFee.total)}
+                      </strong>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm font-semibold text-[#365f4a]">
+                      Rate is not configured yet. NFFAC will confirm the final amount.
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-[#168046]">
+                    This automatic estimate may change after schedule and usage review.
+                  </p>
                 </div>
               )}
             </div>
 
-            <input type="hidden" {...register("preferredDate")} />
-            <input type="hidden" {...register("preferredEndDate")} />
             <input type="hidden" {...register("preferredStartTime")} />
             <input type="hidden" {...register("preferredEndTime")} />
             <input type="hidden" {...register("requestDescription")} />

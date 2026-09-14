@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { RentalInquiry } from "../_types/rental";
 import { useRental } from "../_context/RentalProvider";
-import { formatRentalDate, formatRentalDateRange } from "../_lib/rentalFormatting";
+import { formatPeso, formatRentalDate } from "../_lib/rentalFormatting";
 import { RentalStatusBadge } from "./RentalStatusBadge";
 
 export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean; onDismiss?: () => void }) {
@@ -39,7 +39,12 @@ export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean
           <SuccessDetail term="Requester email" value={inquiry.requester.email ?? "Not provided"} />
           <SuccessDetail term="Date submitted" value={formatRentalDate(inquiry.submittedAt, true)} />
           <SuccessDetail term="Requested equipment" value={inquiry.equipmentName} />
-          <SuccessDetail term="Preferred period" value={formatRentalDateRange(inquiry.preferredDate, inquiry.preferredEndDate, true)} />
+          <SuccessDetail term="Start date" value={formatRentalDate(inquiry.preferredDate, true)} />
+          <SuccessDetail term="End date" value={formatRentalDate(inquiry.preferredEndDate, true)} />
+          <SuccessDetail
+            term="Possible rental fee"
+            value={formatEstimatedFee(inquiry)}
+          />
           <SuccessDetail term="Valid ID" value={inquiry.validId ? `${inquiry.validId.type} received` : "Not recorded"} />
           <div>
             <dt className="text-xs font-bold uppercase tracking-wide text-[#78857d]">Status</dt>
@@ -47,14 +52,12 @@ export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean
           </div>
         </dl>
         <div data-no-print className="mt-8 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#cbdac6] px-5 text-sm font-bold text-[#365f4a]">
+          <button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1f6b43] px-5 text-sm font-bold text-white">
             <Printer className="size-4" />Print Booking Summary
           </button>
-          {inModal ? (
-            <Link href="/portal/member/rentals" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1f6b43] px-5 text-sm font-bold text-white">View Rental History</Link>
-          ) : (
+          {!inModal ? (
             <Link href="/rental/inquiry/status" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1f6b43] px-5 text-sm font-bold text-white">Check Booking Status</Link>
-          )}
+          ) : null}
           <button type="button" onClick={onDismiss} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#cbdac6] px-5 text-sm font-bold text-[#365f4a]">
             {inModal ? "Close" : "Book Another Rental"}
           </button>
@@ -65,3 +68,9 @@ export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean
   );
 }
 function SuccessDetail({ term, value }: { term: string; value: string }) { return <div><dt className="text-xs font-bold uppercase tracking-wide text-[#78857d]">{term}</dt><dd className="mt-1 text-sm font-bold text-[#284735]">{value}</dd></div>; }
+
+function formatEstimatedFee(inquiry: RentalInquiry) {
+  if (!inquiry.estimatedFee) return "Pending rate confirmation";
+  const estimate = inquiry.estimatedFee;
+  return `${formatPeso(estimate.total)} (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)})`;
+}
