@@ -8,6 +8,7 @@ import {
   rentalDatabase,
   type RentalActor,
 } from "@/app/rental/_server/rentalDatabase";
+import { triggerRentalStatusEmail } from "@/app/rental/_server/rentalEmail";
 import type { PaymentStatus, RentalStatus, ScheduleStatus } from "@/app/rental/_types/rental";
 import {
   getMemberProfileIdForUser,
@@ -18,6 +19,11 @@ import {
   normalizeProtectedStoragePath,
   protectedUploadRoot,
 } from "@/../server/src/storage/protected-storage";
+import {
+  resolveProtectedDocumentPath,
+  validateDocumentFile,
+  type ValidatedDocumentFile,
+} from "@/features/records/server/document-security";
 
 export const runtime = "nodejs";
 
@@ -34,6 +40,8 @@ function notFound(message = "Rental resource was not found.") {
 function badRequest(message: string) {
   return json({ message }, 400);
 }
+
+class RentalUploadValidationError extends Error {}
 
 async function authorize(roles: Role[]) {
   const auth = await requireApiUser(roles);
@@ -62,6 +70,41 @@ async function authorizeActor(roles: Role[]) {
 
 async function body<T>(request: Request) {
   return request.json() as Promise<T>;
+}
+
+async function rentalSubmission(request: Request): Promise<{
+  draft: Parameters<typeof rentalDatabase.submitRentalInquiry>[0];
+  validIdFile: ValidatedDocumentFile;
+}> {
+  const form = await request.formData();
+  const rawDraft = form.get("draft");
+  const validId = form.get("validId");
+  if (typeof rawDraft !== "string") {
+    throw new RentalUploadValidationError("Rental request details are required.");
+  }
+  if (!(validId instanceof File)) {
+    throw new RentalUploadValidationError("Upload a valid ID before submitting the rental request.");
+  }
+  let draft: Parameters<typeof rentalDatabase.submitRentalInquiry>[0];
+  try {
+    draft = JSON.parse(rawDraft) as Parameters<typeof rentalDatabase.submitRentalInquiry>[0];
+  } catch {
+    throw new RentalUploadValidationError("Rental request details are invalid.");
+  }
+  try {
+    const validIdFile = await validateDocumentFile(validId);
+    if (
+      !["jpg", "jpeg", "png", "pdf"].includes(validIdFile.extension) ||
+      validIdFile.size > 5 * 1024 * 1024
+    ) {
+      throw new Error("Valid ID must be a JPG, PNG, or PDF file no larger than 5 MB.");
+    }
+    return { draft, validIdFile };
+  } catch (error) {
+    throw new RentalUploadValidationError(
+      error instanceof Error ? error.message : "The valid ID file is invalid.",
+    );
+  }
 }
 
 function parseFilters(request: NextRequest) {
@@ -122,6 +165,27 @@ export async function GET(request: NextRequest, context: RouteParams) {
       const unauthorized = await authorize(["chairman"]);
       if (unauthorized) return unauthorized;
       return json(await rentalDatabase.getRentalStatusHistory(id));
+    }
+    if (resource === "inquiries" && id && action === "valid-id") {
+      const unauthorized = await authorize(["chairman"]);
+      if (unauthorized) return unauthorized;
+      const document = await rentalDatabase.getRentalValidId(id);
+      if (!document) return notFound("Valid ID was not found for this rental request.");
+      const absolutePath = resolveProtectedDocumentPath(document.storagePath);
+      const file = await readFile(absolutePath);
+      const extension = document.mimeType === "application/pdf"
+        ? "pdf"
+        : document.mimeType === "image/png"
+          ? "png"
+          : "jpg";
+      return new NextResponse(file, {
+        headers: {
+          "Content-Type": document.mimeType,
+          "Content-Disposition": `inline; filename="rental-valid-id-${id}.${extension}"`,
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
     }
     if (resource === "inquiries" && !id) {
       const unauthorized = await authorize(["chairman", "bookkeeper"]);
@@ -314,21 +378,27 @@ export async function POST(request: NextRequest, context: RouteParams) {
       return service ? json(service) : notFound("Rental service was not found.");
     }
     if (resource === "inquiries" && id === "public") {
-      return json(await rentalDatabase.submitRentalInquiry(await body<Parameters<typeof rentalDatabase.submitRentalInquiry>[0]>(request), false), 201);
+      const submission = await rentalSubmission(request);
+      const inquiry = await rentalDatabase.submitRentalInquiry(
+        submission.draft,
+        submission.validIdFile,
+        false,
+      );
+      await triggerRentalStatusEmail(inquiry);
+      return json(inquiry, 201);
     }
     if (resource === "requests" && id === "member") {
       const auth = await authorizeActor(["member"]);
       if (auth.response) return auth.response;
-      return json(
-        await rentalDatabase.submitRentalInquiry(
-          await body<Parameters<typeof rentalDatabase.submitRentalInquiry>[0]>(
-            request,
-          ),
-          true,
-          auth.actor ?? undefined,
-        ),
-        201,
+      const submission = await rentalSubmission(request);
+      const inquiry = await rentalDatabase.submitRentalInquiry(
+        submission.draft,
+        submission.validIdFile,
+        true,
+        auth.actor ?? undefined,
       );
+      await triggerRentalStatusEmail(inquiry);
+      return json(inquiry, 201);
     }
     if (resource === "inquiries" && id && action === "review") {
       const auth = await authorizeActor(["chairman"]);
@@ -341,20 +411,21 @@ export async function POST(request: NextRequest, context: RouteParams) {
         payload.internalNote,
         auth.actor ?? undefined,
       );
+      if (inquiry) await triggerRentalStatusEmail(inquiry);
       return inquiry ? json(inquiry) : notFound("Rental inquiry was not found.");
     }
     if (resource === "schedules" && !id) {
       const auth = await authorizeActor(["chairman"]);
       if (auth.response) return auth.response;
-      return json(
-        await rentalDatabase.createRentalSchedule(
+      const schedule = await rentalDatabase.createRentalSchedule(
           await body<Parameters<typeof rentalDatabase.createRentalSchedule>[0]>(
             request,
           ),
           auth.actor ?? undefined,
-        ),
-        201,
       );
+      const inquiry = await rentalDatabase.getRentalInquiryById(schedule.rentalId);
+      if (inquiry) await triggerRentalStatusEmail(inquiry);
+      return json(schedule, 201);
     }
     if (resource === "schedules" && id === "conflicts") {
       const unauthorized = await authorize(["chairman"]);
@@ -446,6 +517,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
         auth.actor ?? undefined,
         payload.amount,
       );
+      if (result && payload.status === "Paid") {
+        const inquiry = await rentalDatabase.getRentalInquiryById(result.payment.rentalId);
+        if (inquiry) await triggerRentalStatusEmail(inquiry);
+      }
       return result ? json(result) : notFound("Rental payment was not found.");
     }
     if (resource === "expenses" && !id) {
@@ -490,6 +565,9 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
     return notFound();
   } catch (error) {
+    if (error instanceof RentalUploadValidationError) {
+      return json({ message: error.message }, 422);
+    }
     if (error instanceof ZodError) {
       return json(
         { message: "Rental request validation failed.", errors: error.flatten() },
@@ -531,6 +609,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
         auth.actor ?? undefined,
         payload.reason,
       );
+      if (inquiry) await triggerRentalStatusEmail(inquiry);
       return inquiry ? json(inquiry) : notFound("Rental inquiry was not found.");
     }
     if (resource === "member-inquiries" && action === "status") {
@@ -568,6 +647,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
             }
           : undefined,
       );
+      if (inquiry) await triggerRentalStatusEmail(inquiry);
       return inquiry
         ? json(inquiry)
         : notFound("Rental request was not found in this member account.");
@@ -581,6 +661,10 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
         { ...payload, status: payload.status as ScheduleStatus | undefined },
         auth.actor ?? undefined,
       );
+      if (schedule) {
+        const inquiry = await rentalDatabase.getRentalInquiryById(schedule.rentalId);
+        if (inquiry) await triggerRentalStatusEmail(inquiry);
+      }
       return schedule ? json(schedule) : notFound("Rental schedule was not found.");
     }
     if (resource === "availability") {

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -424,7 +423,7 @@ function MonthGrid({
                 {records.slice(0, 3).map((item) => (
                   <Link
                     key={item.scheduleId}
-                    href={`/chairman/rentals/bookings/${item.inquiryId}`}
+                    href={`/portal/chairman/rentals/bookings/${item.inquiryId}`}
                     className="rounded bg-[#E7F2E4] p-2 text-xs text-[#123D2A]"
                   >
                     <strong>
@@ -492,7 +491,7 @@ function ScheduleList({ schedules }: { schedules: RentalSchedule[] }) {
             <StatusBadge>{item.status}</StatusBadge>
             <StatusBadge>{item.paymentStatus}</StatusBadge>
             <Link
-              href={`/chairman/rentals/bookings/${item.inquiryId}`}
+              href={`/portal/chairman/rentals/bookings/${item.inquiryId}`}
               className="inline-flex min-h-11 items-center rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
             >
               Open

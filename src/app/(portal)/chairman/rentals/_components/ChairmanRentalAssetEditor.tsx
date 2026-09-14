@@ -137,7 +137,7 @@ export function ChairmanRentalAssetEditor({
         description="Maintain the shared database record used by both the public Rental Module and Chairman operations."
         actions={
           <Link
-            href="/chairman/rentals/assets"
+            href="/portal/chairman/rentals/assets"
             className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
           >
             <ArrowLeft className="size-4" />
@@ -501,7 +501,7 @@ export function ChairmanRentalAssetEditor({
 
         <div className="flex flex-col-reverse gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:justify-end">
           <Link
-            href="/chairman/rentals/assets"
+            href="/portal/chairman/rentals/assets"
             className="inline-flex min-h-11 items-center justify-center rounded-md px-5 text-sm font-bold text-[#5D6D63]"
           >
             Cancel

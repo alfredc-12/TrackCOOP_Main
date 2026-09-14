@@ -1,12 +1,13 @@
 "use client";
 
-import { SearchCheck, ShieldCheck } from "lucide-react";
+import { SearchCheck } from "lucide-react";
 import { useState } from "react";
 import {
   formatRentalDate,
   formatRentalDateRange,
 } from "../_lib/rentalFormatting";
 import { rentalRepository } from "../_lib/rentalRepository";
+import { PHILIPPINE_MOBILE_PATTERN } from "../_lib/rentalValidation";
 import type {
   PublicRentalInquiryStatus,
   RentalStatus,
@@ -36,14 +37,20 @@ export function RentalStatusLookup() {
   const [result, setResult] = useState<PublicRentalInquiryStatus>();
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [contactError, setContactError] = useState("");
 
   async function lookup(event: React.FormEvent) {
     event.preventDefault();
+    if (!PHILIPPINE_MOBILE_PATTERN.test(contact.trim())) {
+      setContactError("Use 09XXXXXXXXX or +639XXXXXXXXX.");
+      return;
+    }
+    setContactError("");
     setLoading(true);
     setSearched(false);
     try {
       setResult(
-        await rentalRepository.lookupRentalInquiry(reference, ""),
+        await rentalRepository.lookupRentalInquiry(reference, contact),
       );
     } finally {
       setLoading(false);
@@ -57,7 +64,7 @@ export function RentalStatusLookup() {
         onSubmit={lookup}
         className="rounded-3xl border border-[#d8e4d3] bg-[#f8fbf5] p-6 shadow-sm"
       >
-        <div className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-bold text-[#365f4a]">
             Booking reference number
             <input
@@ -69,6 +76,28 @@ export function RentalStatusLookup() {
               placeholder="RNT-2026-0042"
               className="h-11 rounded-xl border border-[#d5e1d0] px-3 font-normal uppercase outline-none focus:border-[#1f6b43]"
             />
+          </label>
+          <label className="grid gap-2 text-sm font-bold text-[#365f4a]">
+            Contact number used for booking
+            <input
+              required
+              inputMode="tel"
+              autoComplete="tel"
+              value={contact}
+              onChange={(event) => {
+                setContact(event.target.value);
+                if (contactError) setContactError("");
+              }}
+              placeholder="09XXXXXXXXX"
+              aria-invalid={Boolean(contactError)}
+              aria-describedby={contactError ? "rental-status-contact-error" : undefined}
+              className={`h-11 rounded-xl border px-3 font-normal outline-none focus:border-[#1f6b43] ${contactError ? "border-red-400" : "border-[#d5e1d0]"}`}
+            />
+            {contactError ? (
+              <span id="rental-status-contact-error" className="text-xs font-semibold text-red-700">
+                {contactError}
+              </span>
+            ) : null}
           </label>
         </div>
         <button
@@ -137,7 +166,7 @@ export function RentalStatusLookup() {
           >
             No matching booking was found.{" "}
             <span className="font-normal text-amber-800">
-              Check the reference number and try again.
+              Check the reference number and contact number, then try again.
             </span>
           </div>
         )

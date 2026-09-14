@@ -1,7 +1,20 @@
 import { z } from "zod";
+import { VALID_ID_TYPES } from "../_types/rental";
 
-const contactPattern = /^(?:\+?63|0)9\d{9}$/;
+export const PHILIPPINE_MOBILE_PATTERN = /^(?:\+63|0)9\d{9}$/;
+
+export function normalizePhilippineMobile(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("63") ? `0${digits.slice(2)}` : digits;
+}
 const optionalText = z.string().trim();
+const validIdDocumentSchema = z.object({
+  originalFileName: z.string().trim().min(1).max(255),
+  storagePath: z.string().trim().startsWith("storage/uploads/rental-valid-ids/"),
+  mimeType: z.enum(["image/jpeg", "image/png", "application/pdf"]),
+  fileSizeBytes: z.number().int().positive().max(5 * 1024 * 1024),
+  checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
 
 const requiredConsent = z
   .boolean()
@@ -11,8 +24,15 @@ export const BookingSchema = z
   .object({
     fullName: z.string().trim().min(2, "Enter the requester's full name."),
     requesterType: z.enum(["Member", "Public or Non-member"]),
-    contactNumber: z.string().trim().regex(contactPattern, "Use a valid Philippine mobile number."),
-    email: z.union([z.literal(""), z.email("Enter a valid email address.")]),
+    contactNumber: z.string().trim().regex(PHILIPPINE_MOBILE_PATTERN, "Use 09XXXXXXXXX or +639XXXXXXXXX."),
+    email: z
+      .string()
+      .trim()
+      .max(190, "Email address is too long.")
+      .refine(
+        (value) => value === "" || z.email().safeParse(value).success,
+        "Enter a valid email address.",
+      ),
     completeAddress: z.string().trim().min(5, "Enter the complete address."),
     barangay: z.string().min(1, "Select a barangay."),
     municipality: z.string().trim().min(2, "Enter the municipality."),
@@ -24,6 +44,10 @@ export const BookingSchema = z
     preferredEndTime: z.string().min(1, "Choose a preferred end time."),
     requestDescription: z.string().trim().min(10, "Add at least 10 characters of request details."),
     notes: optionalText,
+    validIdType: z.string().refine(
+      (value) => VALID_ID_TYPES.includes(value as (typeof VALID_ID_TYPES)[number]),
+      "Select the valid ID you are providing.",
+    ),
     attachmentName: optionalText,
     membershipProofName: optionalText,
     clientRequestId: z.string().uuid().optional(),
@@ -62,6 +86,10 @@ export const BookingSchema = z
     }
 
   });
+
+export const RentalSubmissionSchema = BookingSchema.safeExtend({
+  validIdDocument: validIdDocumentSchema,
+});
 
 export type BookingFormValues = z.infer<typeof BookingSchema>;
 
@@ -190,6 +218,7 @@ export const fileRules = {
 
 export function validateUpload(file?: File) {
   if (!file) return undefined;
+  if (file.size <= 0) return "Choose a non-empty file.";
   if (!fileRules.accepted.includes(file.type)) return "Use a JPG, PNG, or PDF file.";
   if (file.size > fileRules.maxSize) return "File must be 5 MB or smaller.";
   return undefined;

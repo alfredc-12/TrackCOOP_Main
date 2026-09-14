@@ -33,7 +33,6 @@ import {
   getChairmanRentalActions,
   type ChairmanRentalAction,
 } from "@/app/rental/_lib/rentalWorkflow";
-import { PageHeader } from "@/components/portal/PageHeader";
 import {
   ConfirmDialog,
   EmptyState,
@@ -409,7 +408,7 @@ export function ChairmanRentalBookingDetailsModal({
     return (
       <div className="grid gap-4">
         <Link
-          href="/chairman/rentals/bookings"
+          href="/portal/chairman/rentals/bookings"
           className="inline-flex min-h-11 items-center gap-2 font-bold text-[#123D2A]"
         >
           <ArrowLeft className="size-4" /> Back to Rental Bookings
@@ -631,6 +630,17 @@ export function ChairmanRentalBookingDetailsModal({
               ["Municipality", inquiry.requester.municipality],
             ]}
           />
+          {inquiry.validId ? (
+            <a
+              href={rentalApiRepository.getRentalValidIdUrl(inquiry.inquiryId)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] hover:bg-[#F1F5EF]"
+            >
+              <ShieldCheck className="size-4" />
+              View submitted valid ID
+            </a>
+          ) : null}
         </DetailCard>
         <DetailCard title="Request information" icon={FileText}>
           <InfoGrid
@@ -673,7 +683,7 @@ export function ChairmanRentalBookingDetailsModal({
               ],
               [
                 "Preferred payment method",
-                (inquiry as any).preferredPaymentMethod ?? "Not specified",
+                inquiry.preferredPaymentMethod ?? "Not specified",
               ],
             ]}
           />

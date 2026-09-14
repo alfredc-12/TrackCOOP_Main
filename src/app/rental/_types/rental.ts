@@ -42,6 +42,17 @@ export type OperationalStatus =
   | "Archived";
 export type ServiceVisibility = "Public" | "Member-only" | "Internal only" | "Hidden";
 
+export const VALID_ID_TYPES = [
+  "Philippine National ID",
+  "Driver's License",
+  "Passport",
+  "UMID",
+  "Voter's ID",
+  "Other Government-issued ID",
+] as const;
+
+export type ValidIdType = (typeof VALID_ID_TYPES)[number];
+
 export interface RentalService {
   serviceId: string;
   name: string;
@@ -119,6 +130,7 @@ export interface BookingDraft {
   preferredEndTime: string;
   requestDescription: string;
   notes: string;
+  validIdType: ValidIdType;
   attachmentName?: string;
   membershipProofName?: string;
   dataPrivacyConsent: boolean;
@@ -185,6 +197,10 @@ export interface RentalInquiry {
   specialInstructions?: string;
   additionalNotes?: string;
   attachmentNames: string[];
+  validId?: {
+    type: ValidIdType;
+    fileName: string;
+  };
   status: RentalStatus;
   paymentStatus: PaymentStatus;
   scheduleStatus: string;

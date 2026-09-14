@@ -151,14 +151,14 @@ export function ChairmanRentalAssetDetails({
         actions={
           <>
             <Link
-              href="/chairman/rentals/assets"
+              href="/portal/chairman/rentals/assets"
               className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
             >
               <ArrowLeft className="size-4" />
-              Assets
+              Back to Assets
             </Link>
             <Link
-              href={`/chairman/rentals/assets/${serviceId}/edit`}
+              href={`/portal/chairman/rentals/assets/${serviceId}/edit`}
               className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white"
             >
               <Pencil className="size-4" />
@@ -271,7 +271,7 @@ export function ChairmanRentalAssetDetails({
             id: item.rentalId,
             title: item.requesterName,
             detail: `${formatDateRange(item.date, item.endDate)} · ${item.startTime}–${item.endTime} · ${item.status}`,
-            href: `/chairman/rentals/bookings/${item.inquiryId}`,
+            href: `/portal/chairman/rentals/bookings/${item.inquiryId}`,
           }))}
       />
       <RecordSection
@@ -299,7 +299,7 @@ export function ChairmanRentalAssetDetails({
           id: item.inquiryId,
           title: item.requester.fullName,
           detail: `${formatDateRange(item.preferredDate, item.preferredEndDate)} · ${item.status} · ${item.paymentStatus}`,
-          href: `/chairman/rentals/bookings/${item.inquiryId}`,
+          href: `/portal/chairman/rentals/bookings/${item.inquiryId}`,
         }))}
       />
 

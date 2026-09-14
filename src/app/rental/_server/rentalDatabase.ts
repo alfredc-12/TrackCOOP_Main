@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { unlink } from "node:fs/promises";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/../server/src/db/transaction";
 import type {
@@ -10,6 +11,8 @@ import type {
 import { checkRentalScheduleConflict } from "../_lib/rentalConflict";
 import {
   BookingSchema,
+  normalizePhilippineMobile,
+  RentalSubmissionSchema,
   rentalRescheduleSchema,
   rentalScheduleSchema,
   rentalServiceSchema,
@@ -41,10 +44,16 @@ import type {
   ScheduleConflict,
   ScheduleStatus,
   ServiceVisibility,
+  ValidIdType,
   PublicRentalInquiryStatus,
 } from "../_types/rental";
+import { VALID_ID_TYPES } from "../_types/rental";
 import { createCentralDocument } from "../../../../server/src/records/central-document";
 import { createGeneratedPdfDocument } from "../../../../server/src/records/generated-pdf-document";
+import {
+  storeProtectedDocument,
+  type ValidatedDocumentFile,
+} from "@/features/records/server/document-security";
 
 type DbValue = string | number | boolean | null;
 type JsonRecord = Record<string, unknown>;
@@ -185,6 +194,15 @@ interface StatusHistoryRow extends RowDataPacket {
   display_name: string | null;
 }
 
+type RentalValidIdDocument = {
+  type: ValidIdType;
+  originalFileName: string;
+  storagePath: string;
+  mimeType: "image/jpeg" | "image/png" | "application/pdf";
+  fileSizeBytes: number;
+  checksumSha256: string;
+};
+
 interface MaintenanceRow extends RowDataPacket {
   rental_maintenance_id: number;
   rental_asset_id: number;
@@ -257,6 +275,38 @@ function stringValue(meta: JsonRecord, key: string, fallback = "") {
 function stringArrayValue(meta: JsonRecord, key: string, fallback: string[] = []) {
   const value = meta[key];
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+}
+
+function rentalValidIdDocument(meta: JsonRecord): RentalValidIdDocument | undefined {
+  const value = meta.validIdDocument;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const document = value as JsonRecord;
+  const type = stringValue(meta, "validIdType");
+  const originalFileName = stringValue(document, "originalFileName");
+  const storagePath = stringValue(document, "storagePath");
+  const mimeType = stringValue(document, "mimeType");
+  const fileSizeBytes = numberValue(
+    typeof document.fileSizeBytes === "number" ? document.fileSizeBytes : undefined,
+  );
+  const checksumSha256 = stringValue(document, "checksumSha256");
+  if (
+    !VALID_ID_TYPES.includes(type as ValidIdType) ||
+    !originalFileName ||
+    !storagePath.startsWith("storage/uploads/rental-valid-ids/") ||
+    !["image/jpeg", "image/png", "application/pdf"].includes(mimeType) ||
+    fileSizeBytes <= 0 ||
+    !/^[a-f0-9]{64}$/.test(checksumSha256)
+  ) {
+    return undefined;
+  }
+  return {
+    type: type as ValidIdType,
+    originalFileName,
+    storagePath,
+    mimeType: mimeType as RentalValidIdDocument["mimeType"],
+    fileSizeBytes,
+    checksumSha256,
+  };
 }
 
 function rescheduleRequestValue(
@@ -588,6 +638,7 @@ function mapAsset(row: AssetRow): RentalService {
 
 function mapBooking(row: BookingRow): RentalInquiry {
   const meta = parseJson(row.purpose);
+  const validIdDocument = rentalValidIdDocument(meta);
   const requestType = requesterType(stringValue(meta, "requesterType", row.member_id ? "Member" : "Public or Non-member"));
   const requesterName = row.requester_name ?? row.member_full_name ?? "Rental requester";
   const barangay = stringValue(meta, "barangay", row.member_barangay ?? stringValue(meta, "serviceBarangay", ""));
@@ -630,6 +681,12 @@ function mapBooking(row: BookingRow): RentalInquiry {
     specialInstructions: stringValue(meta, "specialInstructions") || undefined,
     additionalNotes: stringValue(meta, "additionalNotes") || undefined,
     attachmentNames: stringArrayValue(meta, "attachmentNames"),
+    validId: validIdDocument
+      ? {
+          type: validIdDocument.type,
+          fileName: validIdDocument.originalFileName,
+        }
+      : undefined,
     status: rentalStatusFromBooking(row.booking_status, meta),
     paymentStatus: paymentStatusFromBooking(row.payment_status, meta),
     scheduleStatus: stringValue(meta, "scheduleStatus", scheduleStatusFromBooking(row, meta)),
@@ -1492,14 +1549,24 @@ export const rentalDatabase = {
 
   async submitRentalInquiry(
     draft: BookingDraft,
+    validIdFile: ValidatedDocumentFile,
     member = false,
     actor?: RentalActor,
   ) {
     const parsed = BookingSchema.parse(draft);
+    if (
+      !["jpg", "jpeg", "png", "pdf"].includes(validIdFile.extension) ||
+      !["image/jpeg", "image/png", "application/pdf"].includes(validIdFile.mimeType) ||
+      validIdFile.size > 5 * 1024 * 1024
+    ) {
+      throw new Error("Valid ID must be a JPG, PNG, or PDF file no larger than 5 MB.");
+    }
     if (member && (!actor || actor.role !== "member" || !actor.memberId)) {
       throw new Error("An authenticated member profile is required.");
     }
-    return withRentalTransaction(async (connection) => {
+    let storedValidId: Awaited<ReturnType<typeof storeProtectedDocument>> | undefined;
+    try {
+      return await withRentalTransaction(async (connection) => {
       const idempotencyKey = parsed.clientRequestId
         ? `rental-inquiry:${parsed.clientRequestId}`
         : undefined;
@@ -1597,8 +1664,22 @@ export const rentalDatabase = {
 
       const bookingNumber = await nextReferenceNumber(connection);
       const userId = await actorUserId(actor, connection);
-      const purpose = JSON.stringify({
+      storedValidId = await storeProtectedDocument(
+        validIdFile,
+        "rental-valid-ids",
+      );
+      const submission = RentalSubmissionSchema.parse({
         ...parsed,
+        validIdDocument: {
+          originalFileName: validIdFile.originalFileName,
+          storagePath: storedValidId.storagePath,
+          mimeType: validIdFile.mimeType,
+          fileSizeBytes: validIdFile.size,
+          checksumSha256: validIdFile.checksum,
+        },
+      });
+      const purpose = JSON.stringify({
+        ...submission,
         requesterType: member ? "Member" : parsed.requesterType,
         scheduleStatus: "Not scheduled",
         publicNote:
@@ -1627,6 +1708,25 @@ export const rentalDatabase = {
         ]),
         connection,
       );
+      await createCentralDocument(connection, {
+        uploadedBy: userId,
+        uploaderRole: actor?.role ?? "public",
+        memberId: member ? actor?.memberId : null,
+        title: `Rental Valid ID - ${bookingNumber}`,
+        description: "Protected valid ID submitted for rental requester verification.",
+        category: "RENTAL",
+        documentType: "Other",
+        accessLevel: member ? "Member-only" : "Admin-only",
+        storagePath: storedValidId.storagePath,
+        originalFileName: validIdFile.originalFileName,
+        mimeType: validIdFile.mimeType,
+        fileSizeBytes: validIdFile.size,
+        checksum: validIdFile.checksum,
+        relatedModule: "RENTAL_BOOKING",
+        relatedRecordId: result.insertId,
+        relatedRecordReference: bookingNumber,
+        relationshipType: "VALID_ID",
+      });
       if (idempotencyKey) {
         await execute(
           `UPDATE rental_idempotency_keys
@@ -1674,7 +1774,13 @@ export const rentalDatabase = {
         connection,
       );
       return mapBooking(booking);
-    });
+      });
+    } catch (error) {
+      if (storedValidId) {
+        await unlink(storedValidId.absolutePath).catch(() => undefined);
+      }
+      throw error;
+    }
   },
 
   async getRentalInquiries() {
@@ -1684,6 +1790,11 @@ export const rentalDatabase = {
   async getRentalInquiryById(inquiryId: string) {
     const row = await bookingByRentalId(inquiryId);
     return row ? mapBooking(row) : undefined;
+  },
+
+  async getRentalValidId(inquiryId: string) {
+    const row = await bookingByRentalId(inquiryId);
+    return row ? rentalValidIdDocument(parseJson(row.purpose)) : undefined;
   },
 
   async getRentalInquiriesForMember(memberId: number) {
@@ -1819,10 +1930,14 @@ export const rentalDatabase = {
   },
 
   async lookupRentalInquiry(reference: string, contact: string) {
+    const lookupContact = normalizePhilippineMobile(contact);
+    if (!/^09\d{9}$/.test(lookupContact)) return undefined;
     const inquiries = await this.getRentalInquiries();
     const inquiry = inquiries.find(
       (item) =>
-        item.inquiryId.toLowerCase() === reference.trim().toLowerCase(),
+        item.inquiryId.toLowerCase() === reference.trim().toLowerCase() &&
+        normalizePhilippineMobile(item.requester.contactNumber) ===
+          lookupContact,
     );
     if (!inquiry) return undefined;
     const schedule = (await this.getRentalSchedules()).find(

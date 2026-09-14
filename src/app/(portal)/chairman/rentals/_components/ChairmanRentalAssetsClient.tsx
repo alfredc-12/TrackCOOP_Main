@@ -41,6 +41,19 @@ const fieldClass =
 const errorFieldClass =
   "min-h-11 w-full rounded-md border border-[#FF4D4F] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#FF4D4F] focus:ring-4 focus:ring-[#FF4D4F]/20";
 
+function createAddAssetForm() {
+  return {
+    serviceId: `AST-${Math.floor(1000 + Math.random() * 9000)}`,
+    name: "",
+    category: "Land Preparation",
+    shortDescription: "",
+    imageUrl: "",
+    unitOfUsage: "hour",
+    memberRate: "",
+    nonMemberRate: "",
+  };
+}
+
 function ChairmanAddAssetModal({
   open,
   onClose,
@@ -50,40 +63,10 @@ function ChairmanAddAssetModal({
   onClose: () => void;
   onAdded: () => void;
 }) {
-  const [form, setForm] = useState({
-    serviceId: "",
-    name: "",
-    category: "Land Preparation",
-    shortDescription: "",
-    imageUrl: "",
-    unitOfUsage: "hour",
-    memberRate: "",
-    nonMemberRate: "",
-  });
+  const [form, setForm] = useState(createAddAssetForm);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (open) {
-      setErrors({});
-      setForm((prev) => ({
-        ...prev,
-        serviceId: prev.serviceId || `AST-${Math.floor(1000 + Math.random() * 9000)}`,
-      }));
-    } else {
-      setForm({
-        serviceId: "",
-        name: "",
-        category: "Land Preparation",
-        shortDescription: "",
-        imageUrl: "",
-        unitOfUsage: "hour",
-        memberRate: "",
-        nonMemberRate: "",
-      });
-    }
-  }, [open]);
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -726,13 +709,15 @@ export function ChairmanRentalAssetsClient() {
           await load();
         }}
       />
-      <ChairmanAddAssetModal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        onAdded={() => {
-          void load();
-        }}
-      />
+      {addModalOpen ? (
+        <ChairmanAddAssetModal
+          open={addModalOpen}
+          onClose={() => setAddModalOpen(false)}
+          onAdded={() => {
+            void load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -920,12 +905,12 @@ function AssetActions({
       </summary>
       <div className="absolute right-0 z-20 mt-2 grid min-w-56 gap-1 rounded-lg border border-[#CAD8CB] bg-white p-2 shadow-xl">
         <ActionLink
-          href={`/chairman/rentals/assets/${asset.serviceId}`}
+          href={`/portal/chairman/rentals/assets/${asset.serviceId}`}
           icon={Eye}
           label="Open Details"
         />
         <ActionLink
-          href={`/chairman/rentals/assets/${asset.serviceId}/edit`}
+          href={`/portal/chairman/rentals/assets/${asset.serviceId}/edit`}
           icon={Pencil}
           label="Edit Asset"
         />

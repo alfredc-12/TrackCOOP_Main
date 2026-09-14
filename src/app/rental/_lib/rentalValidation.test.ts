@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BookingSchema,
+  normalizePhilippineMobile,
+  RentalSubmissionSchema,
   rentalRescheduleSchema,
   rentalScheduleSchema,
 } from "./rentalValidation";
@@ -22,6 +24,7 @@ const validInquiry = {
   preferredEndTime: "17:00",
   requestDescription: "Prepare agricultural land for planting.",
   notes: "",
+  validIdType: "Philippine National ID" as const,
   attachmentName: "",
   membershipProofName: "",
   dataPrivacyConsent: true,
@@ -93,5 +96,65 @@ test("accepts a multi-day inquiry and rejects a reversed date range", () => {
       preferredEndDate: "2099-07-31",
     }).success,
     false,
+  );
+});
+
+test("validates requester contact, optional email, and valid ID type", () => {
+  assert.equal(
+    normalizePhilippineMobile("+63 918 123 4567"),
+    normalizePhilippineMobile("09181234567"),
+  );
+  assert.equal(
+    BookingSchema.safeParse({
+      ...validInquiry,
+      contactNumber: "+639181234567",
+      email: "requester@example.com",
+    }).success,
+    true,
+  );
+  assert.equal(
+    BookingSchema.safeParse({
+      ...validInquiry,
+      contactNumber: "12345",
+    }).success,
+    false,
+  );
+  assert.equal(
+    BookingSchema.safeParse({
+      ...validInquiry,
+      contactNumber: "639181234567",
+    }).success,
+    false,
+  );
+  assert.equal(
+    BookingSchema.safeParse({
+      ...validInquiry,
+      email: "not-an-email",
+    }).success,
+    false,
+  );
+  assert.equal(
+    BookingSchema.safeParse({
+      ...validInquiry,
+      validIdType: "School ID",
+    }).success,
+    false,
+  );
+});
+
+test("requires protected valid ID metadata for persisted rental submissions", () => {
+  assert.equal(RentalSubmissionSchema.safeParse(validInquiry).success, false);
+  assert.equal(
+    RentalSubmissionSchema.safeParse({
+      ...validInquiry,
+      validIdDocument: {
+        originalFileName: "national-id.pdf",
+        storagePath: "storage/uploads/rental-valid-ids/2099/id.pdf",
+        mimeType: "application/pdf",
+        fileSizeBytes: 512,
+        checksumSha256: "a".repeat(64),
+      },
+    }).success,
+    true,
   );
 });

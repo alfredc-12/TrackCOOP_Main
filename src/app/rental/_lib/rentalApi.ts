@@ -62,6 +62,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 }
 
+function rentalSubmissionBody(draft: BookingDraft, validIdFile: File) {
+  const data = new FormData();
+  data.append("draft", JSON.stringify(draft));
+  data.append("validId", validIdFile);
+  return data;
+}
+
 export const rentalApiRepository = {
   getRentalOverview: () => request<RentalOverview>("/overview"),
   getRentalServices: () => request<RentalService[]>("/services"),
@@ -76,8 +83,8 @@ export const rentalApiRepository = {
   createRentalService: (service: Omit<RentalService, "updatedAt">) => request<RentalService>("/services", { method: "POST", body: JSON.stringify(service) }),
   updateRentalService: (serviceId: string, updates: Partial<RentalService>) => request<RentalService>(`/services/${serviceId}`, { method: "PATCH", body: JSON.stringify(updates) }),
   archiveRentalService: (serviceId: string) => request<RentalService>(`/services/${serviceId}/archive`, { method: "POST" }),
-  submitPublicRentalInquiry: (draft: BookingDraft) => request<RentalInquiry>("/inquiries/public", { method: "POST", body: JSON.stringify(draft) }),
-  submitMemberRentalRequest: (draft: BookingDraft) => request<RentalInquiry>("/requests/member", { method: "POST", body: JSON.stringify(draft) }),
+  submitPublicRentalInquiry: (draft: BookingDraft, validIdFile: File) => request<RentalInquiry>("/inquiries/public", { method: "POST", body: rentalSubmissionBody(draft, validIdFile) }),
+  submitMemberRentalRequest: (draft: BookingDraft, validIdFile: File) => request<RentalInquiry>("/requests/member", { method: "POST", body: rentalSubmissionBody(draft, validIdFile) }),
   getRentalInquiries: () => request<RentalInquiry[]>("/inquiries"),
   getMemberRentalInquiries: () =>
     request<RentalInquiry[]>("/member-inquiries"),
@@ -115,6 +122,8 @@ export const rentalApiRepository = {
       }),
     }),
   getRentalInquiryById: (inquiryId: string) => request<RentalInquiry>(`/inquiries/${inquiryId}`),
+  getRentalValidIdUrl: (inquiryId: string) =>
+    `${apiBase}/rental/inquiries/${encodeURIComponent(inquiryId)}/valid-id`,
   getRentalStatusHistory: (inquiryId: string) =>
     request<RentalStatusHistoryEntry[]>(`/inquiries/${inquiryId}/history`),
   lookupRentalInquiry: (reference: string, contact: string) => request<PublicRentalInquiryStatus>(`/inquiries/status?reference=${encodeURIComponent(reference)}&contact=${encodeURIComponent(contact)}`),
