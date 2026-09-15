@@ -637,8 +637,17 @@ export function RentalInquiryForm({
                   {estimatedFee ? (
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <span className="text-sm">
+                        Original rate: {formatPeso(estimatedFee.originalDailyRate ?? estimatedFee.dailyRate)}
+                        {estimatedFee.discountPercent ? (
+                          <>
+                            {" "}
+                            - member discount {estimatedFee.discountPercent}% ={" "}
+                            {formatPeso(estimatedFee.dailyRate)} per day
+                          </>
+                        ) : null}
+                        <br />
                         {estimatedFee.days} day{estimatedFee.days === 1 ? "" : "s"} x{" "}
-                        {formatPeso(estimatedFee.dailyRate)} ({estimatedFee.rateLabel})
+                        {formatPeso(estimatedFee.dailyRate)}
                       </span>
                       <strong className="text-lg">
                         {formatPeso(estimatedFee.total)}

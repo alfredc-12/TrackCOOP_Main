@@ -41,6 +41,27 @@ export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean
           <SuccessDetail term="Requested equipment" value={inquiry.equipmentName} />
           <SuccessDetail term="Start date" value={formatRentalDate(inquiry.preferredDate, true)} />
           <SuccessDetail term="End date" value={formatRentalDate(inquiry.preferredEndDate, true)} />
+          {inquiry.estimatedFee ? (
+            <>
+              <SuccessDetail
+                term="Original rental rate"
+                value={formatPeso(
+                  inquiry.estimatedFee.originalDailyRate ??
+                    inquiry.estimatedFee.dailyRate +
+                      (inquiry.estimatedFee.discountAmount ?? 0),
+                )}
+              />
+              <SuccessDetail
+                term="Discount if member"
+                value={
+                  inquiry.estimatedFee.discountPercent &&
+                  inquiry.estimatedFee.discountAmount
+                    ? `${inquiry.estimatedFee.discountPercent}% off (${formatPeso(inquiry.estimatedFee.discountAmount)} per day)`
+                    : "None"
+                }
+              />
+            </>
+          ) : null}
           <SuccessDetail
             term="Possible rental fee"
             value={formatEstimatedFee(inquiry)}
@@ -72,5 +93,9 @@ function SuccessDetail({ term, value }: { term: string; value: string }) { retur
 function formatEstimatedFee(inquiry: RentalInquiry) {
   if (!inquiry.estimatedFee) return "Pending rate confirmation";
   const estimate = inquiry.estimatedFee;
-  return `${formatPeso(estimate.total)} (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)})`;
+  const discount =
+    estimate.discountPercent && estimate.discountAmount
+      ? `, ${estimate.discountPercent}% member discount`
+      : "";
+  return `${formatPeso(estimate.total)} estimated (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)}${discount})`;
 }

@@ -115,8 +115,16 @@ export interface RentalRequester {
 
 export interface RentalFeeEstimate {
   days: number;
+  originalDailyRate?: number;
   dailyRate: number;
-  rateLabel: "Member rate" | "Non-member rate" | "Standard rate";
+  discountPercent?: number;
+  discountAmount?: number;
+  rateLabel:
+    | "Regular rate"
+    | "Member discounted rate"
+    | "Member rate"
+    | "Non-member rate"
+    | "Standard rate";
   total: number;
   currency: "PHP";
 }

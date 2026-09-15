@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   CalendarPlus,
   CheckCircle2,
-  Clock3,
   FileText,
   History,
   Info,
@@ -19,6 +18,7 @@ import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
+import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
 import {
   type EquipmentAvailability,
   type RentalInquiry,
@@ -119,6 +119,31 @@ function defaultPublicResponse(
     return `Your ${inquiry.equipmentName} rental has been completed. Thank you.`;
   }
   return "";
+}
+
+function rentalEstimateDetails(inquiry: RentalInquiry) {
+  const estimate = inquiry.estimatedFee;
+  if (!estimate) {
+    return {
+      originalRate: "Not set",
+      discount: inquiry.requester.requesterType === "Member" ? "20% off when rate is set" : "None",
+      finalAmount: "Pending rate confirmation",
+    };
+  }
+
+  const originalDailyRate =
+    estimate.originalDailyRate ??
+    estimate.dailyRate + (estimate.discountAmount ?? 0);
+  const discount =
+    estimate.discountPercent && estimate.discountAmount
+      ? `${estimate.discountPercent}% off (${formatPeso(estimate.discountAmount)} per day)`
+      : "None";
+
+  return {
+    originalRate: formatPeso(originalDailyRate),
+    discount,
+    finalAmount: `${formatPeso(estimate.total)} estimated (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)})`,
+  };
 }
 
 type TabType = "Details" | "Actions" | "History";
@@ -425,6 +450,7 @@ export function ChairmanRentalBookingDetailsModal({
       />
     );
   }
+  const estimateDetails = rentalEstimateDetails(inquiry);
 
   return (
     <Modal
@@ -616,18 +642,21 @@ export function ChairmanRentalBookingDetailsModal({
         </section>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <DetailCard title="Requester information" icon={UserRound}>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <DetailCard title="Booking details" icon={UserRound}>
           <InfoGrid
             items={[
-              ["Full name", inquiry.requester.fullName],
-              ["Requester type", inquiry.requester.requesterType],
-              ["Member ID", inquiry.requester.memberId ?? "Not applicable"],
-              ["Contact", inquiry.requester.contactNumber],
+              ["Booking number", inquiry.inquiryId],
+              ["Customer name", inquiry.requester.fullName],
+              ["Contact number", inquiry.requester.contactNumber],
               ["Email", inquiry.requester.email ?? "Not provided"],
-              ["Address", inquiry.requester.completeAddress],
-              ["Barangay", inquiry.requester.barangay],
-              ["Municipality", inquiry.requester.municipality],
+              ["Customer type", inquiry.requester.requesterType],
+              ["Equipment rented", inquiry.equipmentName],
+              ["Start date", displayDate(inquiry.preferredDate)],
+              ["End date", displayDate(inquiry.preferredEndDate)],
+              ["Rental status", inquiry.status],
+              ["Payment status", inquiry.paymentStatus],
+              ["Notes or purpose", inquiry.requestDescription || inquiry.intendedUse],
             ]}
           />
           {inquiry.validId ? (
@@ -638,11 +667,23 @@ export function ChairmanRentalBookingDetailsModal({
               className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] hover:bg-[#F1F5EF]"
             >
               <ShieldCheck className="size-4" />
-              View submitted valid ID
+              View valid ID
             </a>
           ) : null}
         </DetailCard>
-        <DetailCard title="Request information" icon={FileText}>
+        <DetailCard title="Rental amount estimate" icon={WalletCards}>
+          <InfoGrid
+            items={[
+              ["Original rental rate", estimateDetails.originalRate],
+              ["Discount if member", estimateDetails.discount],
+              ["Final estimated amount", estimateDetails.finalAmount],
+            ]}
+          />
+          <p className="mt-4 rounded-md bg-[#F7F8F3] p-3 text-sm font-semibold text-[#5D6D63]">
+            This amount is only an estimate until the cooperative confirms the
+            schedule and final payment.
+          </p>
+          <div className="hidden">
           <InfoGrid
             items={[
               ["Rental asset", inquiry.equipmentName],
@@ -687,8 +728,9 @@ export function ChairmanRentalBookingDetailsModal({
               ],
             ]}
           />
+          </div>
         </DetailCard>
-        <DetailCard title="Operations summary" icon={Clock3}>
+        <div className="hidden">
           <InfoGrid
             items={[
               ["Request status", inquiry.status],
@@ -705,7 +747,7 @@ export function ChairmanRentalBookingDetailsModal({
               ],
             ]}
           />
-        </DetailCard>
+        </div>
       </div>
 
       </>

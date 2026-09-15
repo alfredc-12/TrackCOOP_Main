@@ -23,6 +23,9 @@ import {
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
+import { getMemberDiscountedRate } from "@/app/rental/_lib/rentalEstimate";
+import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
+import { getRentalServiceImages } from "@/app/rental/_lib/rentalPhotos";
 import type {
   RentalInquiry,
   RentalMaintenanceRecord,
@@ -112,6 +115,10 @@ export function ChairmanRentalAssetDetails({
   if (!data) return <LoadingSkeleton />;
 
   const { asset } = data;
+  const photoUrls = getRentalServiceImages(asset);
+  const mainPhoto = photoUrls[0];
+  const rentalRate = asset.standardRate ?? 0;
+  const memberRate = getMemberDiscountedRate(rentalRate);
 
   async function completeMaintenance() {
     if (!maintenanceToComplete) return;
@@ -187,15 +194,30 @@ export function ChairmanRentalAssetDetails({
           <div
             className="grid min-h-72 place-items-center rounded-lg bg-[#E7F2E4] bg-cover bg-center"
             style={
-              asset.imageUrl
-                ? { backgroundImage: `url("${asset.imageUrl.replaceAll('"', "%22")}")` }
+              mainPhoto
+                ? { backgroundImage: `url("${mainPhoto.replaceAll('"', "%22")}")` }
                 : undefined
             }
           >
-            {!asset.imageUrl ? (
+            {!mainPhoto ? (
               <Tractor className="size-28 text-[#1F6B43]" strokeWidth={1.1} />
             ) : null}
           </div>
+          {photoUrls.length > 1 ? (
+            <div className="mt-3 grid grid-cols-5 gap-2">
+              {photoUrls.map((url, index) => (
+                <div
+                  key={url}
+                  className={`h-20 rounded-md bg-[#E7F2E4] bg-cover bg-center ${
+                    index === 0 ? "border-2 border-[#1F6B43]" : ""
+                  }`}
+                  style={{
+                    backgroundImage: `url("${url.replaceAll('"', "%22")}")`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
           <div className="mt-5 flex flex-wrap gap-2">
             <StatusBadge tone={asset.visibility === "Public" ? "success" : "neutral"}>
               {asset.visibility}
@@ -223,6 +245,14 @@ export function ChairmanRentalAssetDetails({
             <Detail label="Capacity" value={asset.capacity || "Unconfigured"} />
             <Detail label="Service area" value={asset.serviceArea} />
             <Detail label="Operator" value={asset.operatorRequirement} />
+            <Detail
+              label="Original rental rate"
+              value={rentalRate > 0 ? formatPeso(rentalRate) : "Not set"}
+            />
+            <Detail
+              label="Member rate"
+              value={memberRate ? `${formatPeso(memberRate)} (20% off)` : "Not set"}
+            />
             <Detail label="Condition" value={asset.assetCondition ?? "Not recorded"} />
             <Detail label="Last maintenance" value={formatDate(asset.lastMaintenanceDate)} />
             <Detail label="Next maintenance" value={formatDate(asset.nextMaintenanceDate)} />
@@ -248,15 +278,20 @@ export function ChairmanRentalAssetDetails({
               <ExternalLink className="size-4" />
             </Link>
           </section>
-          <section className="rounded-lg border border-[#E7C968] bg-[#FFF8E7] p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8A6200]">
-              Pending Client Validation
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#6C541A]">
-              Rental pricing, member discounts, gasoline handling, deposits,
-              cancellation rules, payment deadlines, and rescheduling policies
-              remain unconfigured.
-            </p>
+          <section className="rounded-lg border border-[#CAD8CB] bg-white p-5">
+            <h2 className="text-lg font-black text-[#123D2A]">Rental Rate</h2>
+            {rentalRate > 0 && memberRate ? (
+              <div className="mt-3 grid gap-2 text-sm font-semibold text-[#294B39]">
+                <p>Original rental rate: {formatPeso(rentalRate)}</p>
+                <p>Member discount: 20% off</p>
+                <p>Member price: {formatPeso(memberRate)}</p>
+                <p>Non-member price: {formatPeso(rentalRate)}</p>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm font-semibold text-[#8A2F1B]">
+                Enter the rental rate before publishing this asset.
+              </p>
+            )}
           </section>
         </div>
       </div>

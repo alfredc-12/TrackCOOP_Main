@@ -9,7 +9,8 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { checkRentalScheduleConflict } from "../_lib/rentalConflict";
-import { estimateRentalFee } from "../_lib/rentalEstimate";
+import { estimateRentalFee, getMemberDiscountedRate } from "../_lib/rentalEstimate";
+import { cleanRentalAssetPhotoUrls } from "../_lib/rentalPhotos";
 import {
   BookingSchema,
   normalizePhilippineMobile,
@@ -329,17 +330,38 @@ function rentalFeeEstimateValue(
     typeof estimate.total === "number" ? estimate.total : undefined,
   );
   const rateLabel = stringValue(estimate, "rateLabel");
+  const originalDailyRate =
+    typeof estimate.originalDailyRate === "number"
+      ? numberValue(estimate.originalDailyRate)
+      : undefined;
+  const discountPercent =
+    typeof estimate.discountPercent === "number"
+      ? numberValue(estimate.discountPercent)
+      : undefined;
+  const discountAmount =
+    typeof estimate.discountAmount === "number"
+      ? numberValue(estimate.discountAmount)
+      : undefined;
   if (
     days <= 0 ||
     dailyRate <= 0 ||
     total <= 0 ||
-    !["Member rate", "Non-member rate", "Standard rate"].includes(rateLabel)
+    ![
+      "Regular rate",
+      "Member discounted rate",
+      "Member rate",
+      "Non-member rate",
+      "Standard rate",
+    ].includes(rateLabel)
   ) {
     return undefined;
   }
   return {
     days,
+    originalDailyRate,
     dailyRate,
+    discountPercent,
+    discountAmount,
     total,
     rateLabel: rateLabel as RentalFeeEstimate["rateLabel"],
     currency: "PHP",
@@ -563,6 +585,13 @@ function visibility(row: AssetRow, meta: JsonRecord): ServiceVisibility {
 }
 
 function serviceDescriptionPayload(service: Partial<RentalService>) {
+  const imageUrls = cleanRentalAssetPhotoUrls([
+    service.imageUrl,
+    ...(service.imageUrls ?? []),
+  ]);
+  const standardRate =
+    typeof service.standardRate === "number" ? service.standardRate : null;
+  const memberRate = getMemberDiscountedRate(standardRate) ?? null;
   return JSON.stringify({
     shortDescription: service.shortDescription ?? "",
     description: service.description ?? "",
@@ -576,8 +605,8 @@ function serviceDescriptionPayload(service: Partial<RentalService>) {
     operatorRequirement: service.operatorRequirement ?? "Cooperative operator confirmation required",
     operationalNotes: service.operationalNotes ?? "",
     safetyReminders: service.safetyReminders ?? defaultSafetyReminders,
-    imageUrl: service.imageUrl ?? "",
-    imageUrls: service.imageUrls ?? [],
+    imageUrl: imageUrls[0] ?? "",
+    imageUrls,
     lastMaintenanceDate: service.lastMaintenanceDate ?? "",
     nextMaintenanceDate: service.nextMaintenanceDate ?? "",
     assetCondition: service.assetCondition ?? "",
@@ -595,8 +624,8 @@ function serviceDescriptionPayload(service: Partial<RentalService>) {
     publicNotes: service.publicNotes ?? "",
     publicAvailabilityMessage: service.publicAvailabilityMessage ?? "",
     featured: service.featured ?? false,
-    memberRate: service.memberRate ?? null,
-    nonMemberRate: service.nonMemberRate ?? null,
+    memberRate,
+    nonMemberRate: standardRate,
     gasolineHandling: service.gasolineHandling ?? null,
     cancellationPolicy: service.cancellationPolicy ?? null,
     reschedulingPolicy: service.reschedulingPolicy ?? null,
@@ -608,14 +637,19 @@ function mapAsset(row: AssetRow): RentalService {
   const meta = parseJson(row.description);
   const plainDescription = row.description && Object.keys(meta).length === 0 ? row.description : "";
   const description = stringValue(meta, "description", plainDescription || `${row.asset_name} rental service.`);
+  const imageUrls = cleanRentalAssetPhotoUrls([
+    stringValue(meta, "imageUrl"),
+    ...stringArrayValue(meta, "imageUrls"),
+  ]);
+  const standardRate = row.rate_amount === null ? null : numberValue(row.rate_amount);
   return {
     serviceId: row.asset_code,
     name: row.asset_name,
     category: row.category ?? "Rental",
     shortDescription: stringValue(meta, "shortDescription", description),
     description,
-    imageUrl: stringValue(meta, "imageUrl") || undefined,
-    imageUrls: stringArrayValue(meta, "imageUrls"),
+    imageUrl: imageUrls[0] || undefined,
+    imageUrls,
     availability: serviceAvailability(row, meta),
     operationalStatus: operationalStatus(row, meta),
     visibility: visibility(row, meta),
@@ -658,11 +692,12 @@ function mapAsset(row: AssetRow): RentalService {
     publicAvailabilityMessage:
       stringValue(meta, "publicAvailabilityMessage") || undefined,
     featured: Boolean(meta.featured),
-    standardRate: row.rate_amount === null ? null : numberValue(row.rate_amount),
+    standardRate,
     memberRate:
-      typeof meta.memberRate === "number" ? meta.memberRate : null,
+      getMemberDiscountedRate(standardRate) ??
+      (typeof meta.memberRate === "number" ? meta.memberRate : null),
     nonMemberRate:
-      typeof meta.nonMemberRate === "number" ? meta.nonMemberRate : null,
+      standardRate ?? (typeof meta.nonMemberRate === "number" ? meta.nonMemberRate : null),
     gasolineHandling: stringValue(meta, "gasolineHandling") || null,
     depositRequirement:
       row.deposit_amount === null ? null : numberValue(row.deposit_amount),

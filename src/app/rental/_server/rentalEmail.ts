@@ -28,7 +28,10 @@ export type RentalEmailPayload = {
     preferredTime: string;
     possibleFee?: {
       days: number;
+      originalDailyRate?: number;
       dailyRate: number;
+      discountPercent?: number;
+      discountAmount?: number;
       total: number;
       rateLabel: string;
       currency: "PHP";
@@ -47,7 +50,30 @@ function statusUrl() {
 function possibleFeeText(inquiry: RentalInquiry) {
   if (!inquiry.estimatedFee) return "Pending rate confirmation";
   const estimate = inquiry.estimatedFee;
-  return `${formatPeso(estimate.total)} (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)} - ${estimate.rateLabel})`;
+  const discount =
+    estimate.discountPercent && estimate.discountAmount
+      ? `, ${estimate.discountPercent}% member discount`
+      : "";
+  return `${formatPeso(estimate.total)} estimated (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)}${discount})`;
+}
+
+function possibleFeeLines(inquiry: RentalInquiry) {
+  if (!inquiry.estimatedFee) {
+    return ["Possible rental fee: Pending rate confirmation"];
+  }
+  const estimate = inquiry.estimatedFee;
+  const originalDailyRate =
+    estimate.originalDailyRate ??
+    estimate.dailyRate + (estimate.discountAmount ?? 0);
+  return [
+    `Original rental rate: ${formatPeso(originalDailyRate)}`,
+    `Discount if member: ${
+      estimate.discountPercent && estimate.discountAmount
+        ? `${estimate.discountPercent}% off (${formatPeso(estimate.discountAmount)} per day)`
+        : "None"
+    }`,
+    `Final estimated amount: ${possibleFeeText(inquiry)}`,
+  ];
 }
 
 function rentalSummaryLines(inquiry: RentalInquiry) {
@@ -57,7 +83,7 @@ function rentalSummaryLines(inquiry: RentalInquiry) {
     `Start date: ${formatRentalDate(inquiry.preferredDate, true)}`,
     `End date: ${formatRentalDate(inquiry.preferredEndDate, true)}`,
     `Preferred time: ${inquiry.preferredStartTime ?? "08:00"} - ${inquiry.preferredEndTime ?? "17:00"}`,
-    `Possible rental fee: ${possibleFeeText(inquiry)}`,
+    ...possibleFeeLines(inquiry),
   ];
 }
 
@@ -73,7 +99,10 @@ function baseRentalPayload(inquiry: RentalInquiry) {
     possibleFee: inquiry.estimatedFee
       ? {
           days: inquiry.estimatedFee.days,
+          originalDailyRate: inquiry.estimatedFee.originalDailyRate,
           dailyRate: inquiry.estimatedFee.dailyRate,
+          discountPercent: inquiry.estimatedFee.discountPercent,
+          discountAmount: inquiry.estimatedFee.discountAmount,
           total: inquiry.estimatedFee.total,
           rateLabel: inquiry.estimatedFee.rateLabel,
           currency: inquiry.estimatedFee.currency,
@@ -137,7 +166,7 @@ export function buildRentalStatusEmailPayload(
         inquiry.publicNote,
         "",
         `Preferred period: ${formatRentalDateRange(inquiry.preferredDate, inquiry.preferredEndDate, true)}`,
-        `Possible rental fee: ${possibleFeeText(inquiry)}`,
+        ...possibleFeeLines(inquiry),
         `Reference: ${inquiry.inquiryId}`,
         `Check status: ${url}`,
       ].join("\n"),
