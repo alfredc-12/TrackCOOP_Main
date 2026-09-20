@@ -21,6 +21,8 @@ import {
   getRequestDetail,
   addRequestReply,
 } from "@/features/communication/communication-api";
+import { getAuthenticatedUser } from "@/lib/auth-client";
+import type { AuthUser } from "@/features/auth/types";
 import type {
   ListRequestsQuery,
   RequestRecord,
@@ -58,6 +60,11 @@ export function MemberRequestsClient() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    getAuthenticatedUser().then(setUser).catch(console.error);
+  }, []);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'view' | 'thread'>('view');
@@ -456,18 +463,19 @@ export function MemberRequestsClient() {
                 {selectedRequestHistory
                   .filter(h => h.userVisibleMessage)
                   .map((historyItem, idx) => {
-                    const isStaffReply = Boolean(historyItem.changedBy);
-                    const isOwnReply = !isStaffReply;
+                    const isOwnReply = Boolean(user && historyItem.changedBy === user.id);
+                    const isStaffReply = !isOwnReply;
 
-                    let senderLabel = isStaffReply ? (historyItem.changedByName || "Admin") : "You";
+                    let senderLabel = isOwnReply ? "You" : (historyItem.changedByName || "Admin");
+                    if (senderLabel === "Test Chairman") senderLabel = "Chairman";
 
                     return (
                       <div key={historyItem.id || idx} className="relative pl-10">
                         {/* Timeline Dot */}
-                        <div className={`absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm ${isStaffReply ? 'bg-[#1F6B43]' : 'bg-slate-400'}`} />
+                        <div className={`absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm ${isOwnReply ? 'bg-[#1F6B43]' : 'bg-[#CAD8CB]'}`} />
                         
-                        <div className={`rounded-lg border p-4 text-sm leading-relaxed ${isStaffReply ? 'bg-[#E7F2E4] border-[#CAD8CB] text-[#1F6B43]' : 'bg-white border-slate-200 text-slate-800'}`}>
-                          <div className={`flex items-center justify-between mb-2 pb-2 border-b ${isStaffReply ? 'border-[#CAD8CB]/50' : 'border-slate-100'}`}>
+                        <div className={`rounded-lg border p-4 text-sm leading-relaxed ${isOwnReply ? 'bg-[#E7F2E4] border-[#CAD8CB] text-[#1F6B43]' : 'bg-white border-[#CAD8CB] text-[#123D2A]'}`}>
+                          <div className={`flex items-center justify-between mb-2 pb-2 border-b ${isStaffReply ? 'border-[#CAD8CB]/50' : 'border-[#CAD8CB]/50'}`}>
                             <span className="font-bold">
                               {senderLabel}
                             </span>

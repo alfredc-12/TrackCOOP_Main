@@ -63,14 +63,11 @@ import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
 import ActivityModal from "./components/ActivityModal";
 
-function getPreview(content: string) {
-  const tmp = typeof document !== "undefined" ? document.createElement("DIV") : null;
-  if (tmp) {
-    tmp.innerHTML = content;
-    content = tmp.textContent || tmp.innerText || "";
-  }
-  if (content.length <= 140) return content;
-  return `${content.slice(0, 140).trim()}...`;
+function getPreview(content?: string | null) {
+  if (!content) return "";
+  const plainText = content.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  if (plainText.length <= 140) return plainText;
+  return `${plainText.slice(0, 140).trim()}...`;
 }
 
 export default function MemberDashboardPage() {
@@ -966,7 +963,18 @@ export default function MemberDashboardPage() {
                               </div>
                             )}
                             {ann.featuredImagePath ? (
-                              <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                              <img src={
+                                (() => {
+                                  let path = ann.featuredImagePath;
+                                  try {
+                                    if (path.startsWith('[')) {
+                                      const parsed = JSON.parse(path);
+                                      if (parsed.length > 0) path = parsed[0];
+                                    }
+                                  } catch (e) {}
+                                  return path.startsWith('/') ? path : `${env.apiUrl}${path}`;
+                                })()
+                              } alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
                             ) : (
                               <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] z-0">
                                 <Megaphone className="h-10 w-10 text-[#1F6B43]/20" />
@@ -1067,7 +1075,7 @@ export default function MemberDashboardPage() {
                               </div>
                               <div>
                                 <h4 className={`text-sm font-bold ${colorTheme.textDark}`}>{ann.title}</h4>
-                                <p className={`mt-1 text-xs ${colorTheme.textLight} leading-relaxed line-clamp-2`}>{ann.excerpt || ann.message}</p>
+                                <p className={`mt-1 text-xs ${colorTheme.textLight} leading-relaxed line-clamp-2`}>{getPreview(ann.excerpt || ann.message)}</p>
                                 <span className={`mt-2 block text-[10px] font-bold uppercase ${colorTheme.timeText}`}>
                                   {new Date(ann.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                 </span>

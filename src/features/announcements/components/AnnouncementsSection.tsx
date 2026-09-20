@@ -17,7 +17,8 @@ function formatDate(date?: string) {
   }).format(new Date(date));
 }
 
-function getPreview(content: string) {
+function getPreview(content?: string | null) {
+  if (!content) return "";
   const tmp = typeof document !== "undefined" ? document.createElement("DIV") : null;
   if (tmp) {
     tmp.innerHTML = content;
@@ -348,7 +349,7 @@ export default function AnnouncementsSection() {
                         <div className="flex flex-col p-6 sm:p-8 max-h-[60vh] overflow-y-auto">
                           <div 
                             className="whitespace-pre-line text-base leading-relaxed text-[#123D2A] quill-content"
-                            dangerouslySetInnerHTML={{ __html: announcement.message }}
+                            dangerouslySetInnerHTML={{ __html: announcement.message || "" }}
                           />
                         </div>
                       </div>

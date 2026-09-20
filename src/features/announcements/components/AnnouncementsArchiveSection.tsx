@@ -19,14 +19,11 @@ import { createPortal } from "react-dom";
 import { getAnnouncements } from "../service";
 import { env } from "@/config/env";
 
-function getPreview(content: string) {
-  const tmp = typeof document !== "undefined" ? document.createElement("DIV") : null;
-  if (tmp) {
-    tmp.innerHTML = content;
-    content = tmp.textContent || tmp.innerText || "";
-  }
-  if (content.length <= 140) return content;
-  return `${content.slice(0, 140).trim()}...`;
+function getPreview(content?: string | null) {
+  if (!content) return "";
+  const plainText = content.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  if (plainText.length <= 140) return plainText;
+  return `${plainText.slice(0, 140).trim()}...`;
 }
 
 function formatDate(date?: string) {
@@ -358,19 +355,39 @@ export default function AnnouncementsArchiveSection() {
                         <div className="relative h-64 sm:h-96 md:h-[450px] bg-[#123D2A] shrink-0">
                           {modalImages.length > 0 ? (
                             modalImages.map((image, index) => (
-                              <Image
+                              <div
                                 key={`modal-${selectedAnnouncement.id}-${image}`}
-                                src={`${env.apiUrl}${image}`}
-                                alt=""
-                                fill
-                                unoptimized
-                                sizes="(max-width: 1024px) 100vw, 896px"
-                                className={`object-cover transition duration-500 opacity-100 ${
+                                className={`absolute inset-0 transition duration-500 ${
                                   currentImage === index
                                     ? "opacity-100"
                                     : "opacity-0"
                                 }`}
-                              />
+                              >
+                                {selectedAnnouncement.featuredImagePath ? (
+                                  <div className="relative h-full w-full">
+                                    <img
+                                      src={
+                                        (() => {
+                                          let path = image;
+                                          try {
+                                            if (path.startsWith('[')) {
+                                              const parsed = JSON.parse(path);
+                                              if (parsed.length > 0) path = parsed[0];
+                                            }
+                                          } catch (e) {}
+                                          return path.startsWith('/') ? path : `${env.apiUrl}${path}`;
+                                        })()
+                                      }
+                                      alt={selectedAnnouncement.title || ""}
+                                      className="absolute inset-0 h-full w-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]">
+                                    <Megaphone className="size-12 text-[#1F6B43]/20" />
+                                  </div>
+                                )}
+                              </div>
                             ))
                           ) : (
                             <div className="absolute inset-0 bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] flex items-center justify-center">

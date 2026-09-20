@@ -29,9 +29,12 @@ import { Button } from "@/components/ui/Button";
 import { ApiClientError } from "@/lib/api-client";
 import {
   listRequests,
-  getRequestDetail,
   updateRequestStatus,
+  addRequestReply,
+  getRequestDetail,
 } from "@/features/communication/communication-api";
+import { getAuthenticatedUser } from "@/lib/auth-client";
+import type { AuthUser } from "@/features/auth/types";
 import type {
   ListRequestsQuery,
   RequestRecord,
@@ -60,6 +63,11 @@ export function RequestsClient() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    getAuthenticatedUser().then(setUser).catch(console.error);
+  }, []);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<RequestRecord | null>(null);
@@ -123,8 +131,12 @@ export function RequestsClient() {
       });
       toast.success("Request updated successfully.");
       void fetchRequests();
-      setSelectedId(null);
-      setSelectedRequest(null);
+      
+      // Refresh the details instead of closing the modal
+      const detail = await getRequestDetail(selectedRequest.id);
+      setSelectedRequest(detail.request);
+      setSelectedRequestHistory(detail.history || []);
+      setReplyText("");
     } catch (caught) {
       toast.error(
         caught instanceof ApiClientError ? caught.message : "Failed to update request."
@@ -399,24 +411,24 @@ export function RequestsClient() {
                     {selectedRequestHistory
                       .filter(h => h.userVisibleMessage)
                       .map((historyItem, idx) => {
-                        // NULL changedBy = public user reply, changedBy = staff/member reply
+                        const isOwnReply = Boolean(user && historyItem.changedBy === user.id);
                         const isPublicReply = !historyItem.changedBy;
-                        const isAdminReply = !isPublicReply;
+                        const isOtherReply = !isOwnReply;
 
                         let senderLabel = "";
-                        if (isPublicReply) {
-                          senderLabel = selectedRequest.requesterName || "Public User";
+                        if (isOwnReply) {
+                          senderLabel = "You";
                         } else {
-                          senderLabel = historyItem.changedByName || "Admin";
+                          senderLabel = historyItem.changedByName || selectedRequest.requesterName || (isPublicReply ? "Public User" : "Member");
                         }
 
                         return (
                           <div key={historyItem.id || idx} className="relative pl-10">
                             {/* Timeline Dot */}
-                            <div className={`absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm ${isAdminReply ? 'bg-[#1F6B43]' : 'bg-blue-400'}`} />
+                            <div className={`absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm ${isOwnReply ? 'bg-[#1F6B43]' : 'bg-[#CAD8CB]'}`} />
                             
-                            <div className={`rounded-lg border p-4 text-sm leading-relaxed ${isAdminReply ? 'bg-[#E7F2E4] border-[#CAD8CB] text-[#1F6B43]' : 'bg-blue-50 border-blue-200 text-blue-900'}`}>
-                              <div className={`flex items-center justify-between mb-2 pb-2 border-b ${isAdminReply ? 'border-[#CAD8CB]/50' : 'border-blue-100'}`}>
+                            <div className={`rounded-lg border p-4 text-sm leading-relaxed ${isOwnReply ? 'bg-[#E7F2E4] border-[#CAD8CB] text-[#1F6B43]' : 'bg-white border-[#CAD8CB] text-[#123D2A]'}`}>
+                              <div className={`flex items-center justify-between mb-2 pb-2 border-b ${isOwnReply ? 'border-[#CAD8CB]/50' : 'border-[#CAD8CB]/50'}`}>
                                 <span className="font-bold">
                                   {senderLabel}
                                 </span>
@@ -481,7 +493,7 @@ export function RequestsClient() {
                 Close
               </Button>
               <Button onClick={handleUpdate} disabled={isMutating}>
-                {isMutating ? "Updating..." : "Save Changes"}
+                {isMutating ? (modalMode === 'thread' ? "Sending..." : "Updating...") : (modalMode === 'thread' ? "Send Reply" : "Save Changes")}
               </Button>
             </div>
           </div>
