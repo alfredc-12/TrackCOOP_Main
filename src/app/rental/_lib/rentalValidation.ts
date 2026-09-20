@@ -1,7 +1,21 @@
 import { z } from "zod";
+import { VALID_ID_TYPES } from "../_types/rental";
+import { MAX_RENTAL_ASSET_PHOTOS } from "./rentalPhotos";
 
-const contactPattern = /^(?:\+?63|0)9\d{9}$/;
+export const PHILIPPINE_MOBILE_PATTERN = /^(?:\+63|0)9\d{9}$/;
+
+export function normalizePhilippineMobile(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("63") ? `0${digits.slice(2)}` : digits;
+}
 const optionalText = z.string().trim();
+const validIdDocumentSchema = z.object({
+  originalFileName: z.string().trim().min(1).max(255),
+  storagePath: z.string().trim().startsWith("storage/uploads/rental-valid-ids/"),
+  mimeType: z.enum(["image/jpeg", "image/png", "application/pdf"]),
+  fileSizeBytes: z.number().int().positive().max(5 * 1024 * 1024),
+  checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
 
 const requiredConsent = z
   .boolean()
@@ -11,8 +25,16 @@ export const BookingSchema = z
   .object({
     fullName: z.string().trim().min(2, "Enter the requester's full name."),
     requesterType: z.enum(["Member", "Public or Non-member"]),
-    contactNumber: z.string().trim().regex(contactPattern, "Use a valid Philippine mobile number."),
-    email: z.union([z.literal(""), z.email("Enter a valid email address.")]),
+    contactNumber: z.string().trim().regex(PHILIPPINE_MOBILE_PATTERN, "Use 09XXXXXXXXX or +639XXXXXXXXX."),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Enter an email address so we can send your booking summary.")
+      .max(190, "Email address is too long.")
+      .refine(
+        (value) => z.email().safeParse(value).success,
+        "Enter a valid email address.",
+      ),
     completeAddress: z.string().trim().min(5, "Enter the complete address."),
     barangay: z.string().min(1, "Select a barangay."),
     municipality: z.string().trim().min(2, "Enter the municipality."),
@@ -24,6 +46,10 @@ export const BookingSchema = z
     preferredEndTime: z.string().min(1, "Choose a preferred end time."),
     requestDescription: z.string().trim().min(10, "Add at least 10 characters of request details."),
     notes: optionalText,
+    validIdType: z.string().refine(
+      (value) => VALID_ID_TYPES.includes(value as (typeof VALID_ID_TYPES)[number]),
+      "Select the valid ID you are providing.",
+    ),
     attachmentName: optionalText,
     membershipProofName: optionalText,
     clientRequestId: z.string().uuid().optional(),
@@ -63,38 +89,91 @@ export const BookingSchema = z
 
   });
 
+export const RentalSubmissionSchema = BookingSchema.safeExtend({
+  validIdDocument: validIdDocumentSchema,
+});
+
 export type BookingFormValues = z.infer<typeof BookingSchema>;
 
-export const rentalServiceSchema = z.object({
-  serviceId: z
-    .string()
-    .trim()
-    .min(3)
-    .max(80)
-    .regex(/^[A-Z0-9][A-Z0-9_-]*$/, "Use uppercase letters, numbers, hyphens, or underscores."),
-  name: z.string().trim().min(2).max(190),
-  category: z.string().trim().min(2).max(120),
-  shortDescription: z.string().trim().min(5).max(500),
-  description: z.string().trim().min(5),
-  availability: z.enum([
-    "Available",
-    "Limited Availability",
-    "Unavailable",
-    "By Schedule Only",
-  ]),
-  operationalStatus: z.enum([
-    "Ready for Use",
-    "Under Maintenance",
-    "Out of Service",
-    "Archived",
-  ]),
-  visibility: z.enum(["Public", "Member-only", "Internal only", "Hidden"]),
-  capacity: z.string().trim(),
-  maximumBookingsPerDay: z.number().int().min(0).max(100).optional(),
-  preparationMinutes: z.number().int().min(0).max(1440).optional(),
-  travelMinutes: z.number().int().min(0).max(1440).optional(),
-  bufferMinutes: z.number().int().min(0).max(1440).optional(),
-});
+const rentalAssetPhotoUrlSchema = z.string().trim().min(1).max(500);
+
+export const rentalServiceSchema = z
+  .object({
+    serviceId: z
+      .string()
+      .trim()
+      .min(3, "Enter the asset code.")
+      .max(80)
+      .regex(
+        /^[A-Z0-9][A-Z0-9_-]*$/,
+        "Use uppercase letters, numbers, hyphens, or underscores.",
+      ),
+    name: z.string().trim().min(2, "Enter the asset name.").max(190),
+    category: z.string().trim().min(2, "Choose a category.").max(120),
+    shortDescription: z
+      .string()
+      .trim()
+      .min(5, "Enter a short description.")
+      .max(500),
+    description: z.string().trim().min(5, "Enter the full description."),
+    imageUrl: z.string().trim().max(500).optional(),
+    imageUrls: z
+      .array(rentalAssetPhotoUrlSchema)
+      .max(MAX_RENTAL_ASSET_PHOTOS, "Upload up to 5 photos only.")
+      .optional(),
+    availability: z.enum(
+      ["Available", "Limited Availability", "Unavailable", "By Schedule Only"],
+      "Choose a valid availability.",
+    ),
+    operationalStatus: z.enum(
+      ["Ready for Use", "Under Maintenance", "Out of Service", "Archived"],
+      "Choose a valid status.",
+    ),
+    visibility: z.enum(
+      ["Public", "Member-only", "Internal only", "Hidden"],
+      "Choose a valid status.",
+    ),
+    unitOfUsage: z.string().trim().min(1, "Choose a unit."),
+    capacity: z.string().trim(),
+    standardRate: z.number().nullable().optional(),
+    memberRate: z.number().nullable().optional(),
+    nonMemberRate: z.number().nullable().optional(),
+    maximumBookingsPerDay: z.number().int().min(0).max(100).optional(),
+    preparationMinutes: z.number().int().min(0).max(1440).optional(),
+    travelMinutes: z.number().int().min(0).max(1440).optional(),
+    bufferMinutes: z.number().int().min(0).max(1440).optional(),
+  })
+  .superRefine((service, context) => {
+    const photos = [service.imageUrl, ...(service.imageUrls ?? [])].filter(
+      (url) => Boolean(url?.trim()),
+    );
+    const hasRate =
+      typeof service.standardRate === "number" && service.standardRate > 0;
+
+    if (service.visibility === "Public" && photos.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Upload at least one photo.",
+        path: ["imageUrls"],
+      });
+    }
+
+    if (typeof service.standardRate === "number" && service.standardRate <= 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the rental rate.",
+        path: ["standardRate"],
+      });
+    }
+
+    if (service.visibility === "Public" && !hasRate) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the rental rate.",
+        path: ["standardRate"],
+      });
+    }
+  });
 
 export const rentalScheduleSchema = z
   .object({
@@ -190,6 +269,7 @@ export const fileRules = {
 
 export function validateUpload(file?: File) {
   if (!file) return undefined;
+  if (file.size <= 0) return "Choose a non-empty file.";
   if (!fileRules.accepted.includes(file.type)) return "Use a JPG, PNG, or PDF file.";
   if (file.size > fileRules.maxSize) return "File must be 5 MB or smaller.";
   return undefined;

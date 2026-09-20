@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRental } from "../_context/RentalProvider";
+import { getRentalServiceImages } from "../_lib/rentalPhotos";
 import { BookRentalModal } from "./BookRentalModal";
 import { RentalPolicyNotice } from "./RentalPolicyNotice";
 import { RentalLoadingState } from "./RentalStates";
@@ -47,6 +48,8 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
     !["Under Maintenance", "Out of Service", "Archived"].includes(
       service.operationalStatus,
     );
+  const images = getRentalServiceImages(service);
+  const mainImage = images[0];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -59,19 +62,44 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
       </Link>
       <div className="mt-4 grid gap-8 lg:grid-cols-[1.05fr_.95fr]">
         <section>
-          <div className="grid min-h-80 place-items-center rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)]">
-            <Tractor
-              className="size-36 text-[#1f6b43]"
-              strokeWidth={1.1}
-            />
+          <div
+            className="grid min-h-80 place-items-center rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)] bg-cover bg-center"
+            style={
+              mainImage
+                ? { backgroundImage: `url("${mainImage.replaceAll('"', "%22")}")` }
+                : undefined
+            }
+          >
+            {!mainImage ? (
+              <Tractor
+                className="size-36 text-[#1f6b43]"
+                strokeWidth={1.1}
+              />
+            ) : null}
           </div>
           <div
             className="mt-3 grid grid-cols-3 gap-3"
             aria-label="Equipment image gallery"
           >
-            <div className="h-24 rounded-2xl border-2 border-[#1f6b43] bg-[#e4efdf]" />
-            <div className="h-24 rounded-2xl bg-[#e8eee1]" />
-            <div className="h-24 rounded-2xl bg-[#f0ead8]" />
+            {images.length ? (
+              images.map((image, index) => (
+                <div
+                  key={image}
+                  className={`h-24 rounded-2xl bg-[#e4efdf] bg-cover bg-center ${
+                    index === 0 ? "border-2 border-[#1f6b43]" : ""
+                  }`}
+                  style={{
+                    backgroundImage: `url("${image.replaceAll('"', "%22")}")`,
+                  }}
+                />
+              ))
+            ) : (
+              <>
+                <div className="h-24 rounded-2xl border-2 border-[#1f6b43] bg-[#e4efdf]" />
+                <div className="h-24 rounded-2xl bg-[#e8eee1]" />
+                <div className="h-24 rounded-2xl bg-[#f0ead8]" />
+              </>
+            )}
           </div>
         </section>
         <section>

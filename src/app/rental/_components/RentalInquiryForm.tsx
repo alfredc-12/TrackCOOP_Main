@@ -16,22 +16,26 @@ import { cloneElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   useForm,
   useWatch,
-  type FieldErrors,
   type FieldPath,
 } from "react-hook-form";
 import { BARANGAYS } from "../_lib/rentalConstants";
 import {
   BookingSchema,
   validateUpload,
-  type BookingFormValues,
 } from "../_lib/rentalValidation";
+import { estimateRentalFee } from "../_lib/rentalEstimate";
+import { formatPeso } from "../_lib/rentalFormatting";
 import { z } from "zod";
 import { useRental } from "../_context/RentalProvider";
 import { rentalApiRepository } from "../_lib/rentalApi";
-import type { PublicRentalBlockedDate } from "../_types/rental";
+import {
+  VALID_ID_TYPES,
+  type PublicRentalBlockedDate,
+  type ValidIdType,
+} from "../_types/rental";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 
-const ClientBookingSchema = BookingSchema.extend({
+const ClientBookingSchema = BookingSchema.safeExtend({
   firstName: z.string().trim().min(2, "Enter your first name."),
   lastName: z.string().trim().min(2, "Enter your last name."),
 });
@@ -55,6 +59,7 @@ const defaultValues: ClientFormValues = {
   preferredEndTime: "17:00",
   requestDescription: "No additional details provided.",
   notes: "",
+  validIdType: "",
   attachmentName: "",
   membershipProofName: "",
   dataPrivacyConsent: false,
@@ -73,6 +78,7 @@ const requesterFields: FieldPath<ClientFormValues>[] = [
   "completeAddress",
   "barangay",
   "municipality",
+  "validIdType",
 ];
 
 const rentalFields: FieldPath<ClientFormValues>[] = [
@@ -85,6 +91,13 @@ const rentalFields: FieldPath<ClientFormValues>[] = [
   "requestDescription",
   "notes",
   "attachmentName",
+];
+
+const confirmationFields: FieldPath<ClientFormValues>[] = [
+  "dataPrivacyConsent",
+  "accuracyConfirmation",
+  "contactConsent",
+  "preferredPaymentMethod",
 ];
 
 export function RentalInquiryForm({
@@ -106,7 +119,11 @@ export function RentalInquiryForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
   const requestIdRef = useRef<string | null>(null);
-  const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [validIdFile, setValidIdFile] = useState<File>();
+  const [validIdFileError, setValidIdFileError] = useState<string>();
+  const [preselectedServiceId, setPreselectedServiceId] = useState(
+    initialServiceId ?? "",
+  );
   const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
   const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
   const [blockedDatesError, setBlockedDatesError] = useState<string>();
@@ -119,10 +136,11 @@ export function RentalInquiryForm({
     trigger,
     control,
     getValues,
-    watch,
     formState: { errors },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(ClientBookingSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
     defaultValues: {
       ...defaultValues,
       requesterType: member ? "Member" : "Public or Non-member",
@@ -132,8 +150,20 @@ export function RentalInquiryForm({
   const selectedServiceId = useWatch({ control, name: "serviceId" });
   const preferredDate = useWatch({ control, name: "preferredDate" });
   const preferredEndDate = useWatch({ control, name: "preferredEndDate" });
+  const requesterType = useWatch({ control, name: "requesterType" });
   const selectedService = services.find(
     (service) => service.serviceId === selectedServiceId,
+  );
+  const estimatedFee = useMemo(
+    () =>
+      estimateRentalFee({
+        service: selectedService,
+        requesterType:
+          requesterType ?? (member ? "Member" : "Public or Non-member"),
+        startDate: preferredDate,
+        endDate: preferredEndDate,
+      }),
+    [member, preferredDate, preferredEndDate, requesterType, selectedService],
   );
   const effectiveBlockedDates = useMemo(
     () =>
@@ -159,8 +189,12 @@ export function RentalInquiryForm({
     blockedDateByKey,
   );
 
-  const firstName = watch("firstName");
-  const lastName = watch("lastName");
+  const firstName = useWatch({ control, name: "firstName" });
+  const lastName = useWatch({ control, name: "lastName" });
+  const preferredPaymentMethod = useWatch({
+    control,
+    name: "preferredPaymentMethod",
+  });
   useEffect(() => {
     setValue("fullName", `${firstName || ""} ${lastName || ""}`.trim(), {
       shouldValidate: true,
@@ -171,6 +205,7 @@ export function RentalInquiryForm({
     const timer = window.setTimeout(() => {
       const saved = getInquiryDraft();
       const params = new URLSearchParams(window.location.search);
+      const selectedService = initialServiceId || params.get("service") || "";
 
       if (saved) {
         reset({
@@ -180,12 +215,10 @@ export function RentalInquiryForm({
           preferredEndTime: saved.preferredEndTime || "",
         });
       }
-      else {
-        const selectedService = params.get("service") || initialServiceId;
-        if (selectedService) setValue("serviceId", selectedService);
+      if (selectedService) {
+        setPreselectedServiceId(selectedService);
+        setValue("serviceId", selectedService, { shouldValidate: true });
       }
-
-
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -228,7 +261,7 @@ export function RentalInquiryForm({
                 }
               }
             }
-          } catch (e) {}
+          } catch {}
         }
       })
       .catch(() => {}); // ignore error if unauthenticated
@@ -292,11 +325,16 @@ export function RentalInquiryForm({
 
   const submitBooking = async () => {
     setSubmitError(undefined);
-    if (Object.keys(errors).length > 0) {
+
+    const requesterValid = await trigger(requesterFields);
+    const hasValidId = validateValidIdFile(validIdFile, setValidIdFileError);
+    if (!requesterValid || !hasValidId) {
+      setCurrentStep(1);
       toast.error("Please fix the highlighted fields.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+
     if (blockedDatesLoading || effectiveBlockedDatesError) {
       setError("preferredDate", {
         type: "manual",
@@ -322,12 +360,24 @@ export function RentalInquiryForm({
       });
     }
     if (selectedPreferredBlock) {
+      setCurrentStep(2);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    if (!values.dataPrivacyConsent || !values.accuracyConfirmation || !values.contactConsent) {
-      setSubmitError("Please confirm all declarations at the bottom of the form before submitting.");
+    const rentalValid = await trigger(rentalFields);
+    if (!rentalValid) {
+      setCurrentStep(2);
+      toast.error("Please fix the highlighted fields.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const confirmationsValid = await trigger(confirmationFields, {
+      shouldFocus: true,
+    });
+    if (!confirmationsValid) {
+      toast.error("Please confirm all required declarations.");
       return;
     }
 
@@ -336,8 +386,9 @@ export function RentalInquiryForm({
       requestIdRef.current ??= crypto.randomUUID();
       await submitInquiry({
         ...values,
+        validIdType: values.validIdType as ValidIdType,
         clientRequestId: requestIdRef.current,
-      }, member);
+      }, validIdFile!, member);
       if (onSuccess) {
         onSuccess();
       } else {
@@ -349,34 +400,24 @@ export function RentalInquiryForm({
     }
   };
 
-  const handleFile = (
-    file: File | undefined,
-    field: "attachmentName" | "membershipProofName",
-  ) => {
+  const handleValidIdFile = (file: File | undefined) => {
     const issue = validateUpload(file);
-    setFileErrors((current) =>
-      issue
-        ? [
-            ...current.filter((item) => !item.startsWith(field)),
-            `${field}: ${issue}`,
-          ]
-        : current.filter((item) => !item.startsWith(field)),
-    );
-    setValue(field, issue ? "" : file?.name ?? "");
+    setValidIdFile(issue ? undefined : file);
+    setValidIdFileError(issue ?? (file ? undefined : "Upload a clear copy of the selected valid ID."));
   };
 
   const handleNext = async (fields: FieldPath<ClientFormValues>[], step: number) => {
     const valid = await trigger(fields, { shouldFocus: true });
-    if (valid) {
+    const fileValid =
+      currentStep !== 1 ||
+      validateValidIdFile(validIdFile, setValidIdFileError);
+    if (valid && fileValid) {
       setCurrentStep(step);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
       toast.error("Please fix the highlighted fields.");
     }
   };
-
-  const visibleFields = currentStep === 1 ? requesterFields : currentStep === 2 ? rentalFields : [];
-  const errorMessages = flattenErrors(errors, visibleFields);
 
   return (
     <form
@@ -430,7 +471,7 @@ export function RentalInquiryForm({
                 placeholder="09XXXXXXXXX"
               />
             </Field>
-            <Field label="Email (optional)" error={errors.email?.message}>
+            <Field label="Email" required error={errors.email?.message}>
               <input
                 {...register("email")}
                 type="email"
@@ -457,6 +498,21 @@ export function RentalInquiryForm({
             <Field label="Municipality" required error={errors.municipality?.message}>
               <input {...register("municipality")} />
             </Field>
+            <Field label="Valid ID type" required error={errors.validIdType?.message}>
+              <select {...register("validIdType")}>
+                <option value="">Select valid ID type</option>
+                {VALID_ID_TYPES.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </Field>
+            <UploadField
+              label="Valid ID file"
+              required
+              fileName={validIdFile?.name}
+              error={validIdFileError}
+              onChange={handleValidIdFile}
+            />
           </div>
 
           <FormActions center={hideBackButton && !onCancel}>
@@ -485,26 +541,82 @@ export function RentalInquiryForm({
         <FormSection
           step="Step 2 of 3"
           title="Rental Details"
-          description="Select the equipment and check its availability schedule."
+          description={preselectedServiceId
+            ? "Review the selected equipment and check its availability schedule."
+            : "Select the equipment and check its availability schedule."}
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Equipment or service"
-              required
-              error={errors.serviceId?.message}
-              wide
-            >
-              <select {...register("serviceId")}>
-                <option value="">Select equipment</option>
-                {services.map((service) => (
-                  <option value={service.serviceId} key={service.serviceId}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {preselectedServiceId ? (
+              <div className="sm:col-span-2">
+                <input type="hidden" {...register("serviceId")} />
+                <p className="text-sm font-bold text-[#334b3d]">Selected equipment</p>
+                <div className="mt-2 rounded-xl border border-[#b9cfbe] bg-[#f2f8f4] px-4 py-3">
+                  <p className="font-extrabold text-[#123d2a]">
+                    {selectedService?.name ?? preselectedServiceId}
+                  </p>
+                  <p className="mt-1 text-xs text-[#607067]">
+                    This equipment was selected before the booking form opened.
+                  </p>
+                </div>
+                {errors.serviceId?.message ? (
+                  <p className="mt-2 text-xs font-semibold text-red-700">
+                    {errors.serviceId.message}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <Field
+                label="Equipment or service"
+                required
+                error={errors.serviceId?.message}
+                wide
+              >
+                <select {...register("serviceId")}>
+                  <option value="">Select equipment</option>
+                  {services.map((service) => (
+                    <option value={service.serviceId} key={service.serviceId}>
+                      {service.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <input type="hidden" {...register("intendedUse")} />
             <div className="sm:col-span-2">
+              <div className="mb-4 grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Start date"
+                  required
+                  error={errors.preferredDate?.message}
+                >
+                  <input
+                    type="date"
+                    min={todayKey()}
+                    {...register("preferredDate", {
+                      onChange: (event) => {
+                        const date = event.target.value;
+                        const currentEndDate = getValues("preferredEndDate");
+                        if (!currentEndDate || currentEndDate < date) {
+                          setValue("preferredEndDate", date, {
+                            shouldValidate: true,
+                          });
+                        }
+                      },
+                    })}
+                  />
+                </Field>
+                <Field
+                  label="End date"
+                  required
+                  error={errors.preferredEndDate?.message}
+                >
+                  <input
+                    type="date"
+                    min={preferredDate || todayKey()}
+                    {...register("preferredEndDate")}
+                  />
+                </Field>
+              </div>
               <AvailabilityCalendar
                 serviceName={selectedService?.name}
                 selectedDate={preferredDate}
@@ -519,31 +631,40 @@ export function RentalInquiryForm({
                   }
                 }}
               />
-              {errors.preferredDate && (
-                <p className="mt-2 text-sm font-bold text-red-600">
-                  {errors.preferredDate.message}
-                </p>
-              )}
               {selectedService && preferredDate && preferredEndDate && (
                 <div className="mt-4 rounded-xl border border-[#9bc9aa] bg-[#eaf4ec] p-4 text-[#123d2a]">
-                  <h4 className="font-bold">Estimated Rental Fee</h4>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm">
-                      {Math.round((new Date(preferredEndDate).getTime() - new Date(preferredDate).getTime()) / 86400000) + 1} day(s) 
-                      × ₱{member ? selectedService.memberRate?.toLocaleString() || selectedService.standardRate?.toLocaleString() : selectedService.nonMemberRate?.toLocaleString() || selectedService.standardRate?.toLocaleString()}
-                    </span>
-                    <strong className="text-lg">
-                      ₱{(((Math.round((new Date(preferredEndDate).getTime() - new Date(preferredDate).getTime()) / 86400000) + 1) * 
-                        (member ? selectedService.memberRate || selectedService.standardRate || 0 : selectedService.nonMemberRate || selectedService.standardRate || 0)) || 0).toLocaleString()}
-                    </strong>
-                  </div>
-                  <p className="mt-1 text-xs text-[#168046]">* Actual fee may vary based on exact schedule and usage upon confirmation.</p>
+                  <h4 className="font-bold">Possible rental fee</h4>
+                  {estimatedFee ? (
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm">
+                        Original rate: {formatPeso(estimatedFee.originalDailyRate ?? estimatedFee.dailyRate)}
+                        {estimatedFee.discountPercent ? (
+                          <>
+                            {" "}
+                            - member discount {estimatedFee.discountPercent}% ={" "}
+                            {formatPeso(estimatedFee.dailyRate)} per day
+                          </>
+                        ) : null}
+                        <br />
+                        {estimatedFee.days} day{estimatedFee.days === 1 ? "" : "s"} x{" "}
+                        {formatPeso(estimatedFee.dailyRate)}
+                      </span>
+                      <strong className="text-lg">
+                        {formatPeso(estimatedFee.total)}
+                      </strong>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm font-semibold text-[#365f4a]">
+                      Rate is not configured yet. NFFAC will confirm the final amount.
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-[#168046]">
+                    This automatic estimate may change after schedule and usage review.
+                  </p>
                 </div>
               )}
             </div>
 
-            <input type="hidden" {...register("preferredDate")} />
-            <input type="hidden" {...register("preferredEndDate")} />
             <input type="hidden" {...register("preferredStartTime")} />
             <input type="hidden" {...register("preferredEndTime")} />
             <input type="hidden" {...register("requestDescription")} />
@@ -564,10 +685,19 @@ export function RentalInquiryForm({
             <button
               type="button"
               onClick={async () => {
+                if (blockedDatesLoading || effectiveBlockedDatesError) {
+                  setError("preferredDate", {
+                    type: "manual",
+                    message: blockedDatesLoading
+                      ? "Please wait while availability dates load."
+                      : "Availability dates could not be verified. Choose the equipment again or refresh the page.",
+                  });
+                  return;
+                }
                 const blockedMap = new Map(effectiveBlockedDates.map(item => [item.date, item]));
                 const selectedBlock = firstBlockedDateInRange(getValues("preferredDate"), getValues("preferredEndDate"), blockedMap);
                 if (selectedBlock) {
-                  setError("preferredDate", { type: "manual", message: `${selectedBlock.date} is unavailable.` });
+                  setError("preferredEndDate", { type: "manual", message: `${selectedBlock.date} is unavailable.` });
                 }
                 if (!selectedBlock) handleNext(rentalFields, 3);
               }}
@@ -587,31 +717,31 @@ export function RentalInquiryForm({
           description="Acknowledge the policies and finalize your booking request."
         >
           <div className="grid gap-3">
-            <label className="flex items-start gap-3 rounded-xl border border-[#e1e8e2] bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec]">
+            <ConsentField error={errors.dataPrivacyConsent?.message}>
               <input type="checkbox" className="mt-0.5" {...register("dataPrivacyConsent")} />
               <span>I consent to NFFAC collecting and processing my data in accordance with the Data Privacy Act for the purpose of this rental booking.</span>
-            </label>
-            <label className="flex items-start gap-3 rounded-xl border border-[#e1e8e2] bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec]">
+            </ConsentField>
+            <ConsentField error={errors.accuracyConfirmation?.message}>
               <input type="checkbox" className="mt-0.5" {...register("accuracyConfirmation")} />
               <span>I confirm that the information provided is accurate, and I agree to use the equipment only for the stated agricultural purpose.</span>
-            </label>
-            <label className="flex items-start gap-3 rounded-xl border border-[#e1e8e2] bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec]">
+            </ConsentField>
+            <ConsentField error={errors.contactConsent?.message}>
               <input type="checkbox" className="mt-0.5" {...register("contactConsent")} />
               <span>I agree to be contacted by NFFAC via SMS or email regarding my booking schedule, payment, and policy updates.</span>
-            </label>
+            </ConsentField>
           </div>
           
           <div className="mt-6 border-t border-[#e3e9e5] pt-6">
             <h3 className="mb-3 text-sm font-bold text-[#123d2a]">Preferred Payment Method</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${watch("preferredPaymentMethod") === "Cash" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
+              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${preferredPaymentMethod === "Cash" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
                 <input type="radio" value="Cash" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
                 <div>
                   <span className="block text-sm font-bold text-[#123d2a]">Cash Payment</span>
                   <span className="block text-xs text-[#6b786f]">Pay over the counter at the cooperative</span>
                 </div>
               </label>
-              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${watch("preferredPaymentMethod") === "Online" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
+              <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${preferredPaymentMethod === "Online" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
                 <input type="radio" value="Online" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
                 <div>
                   <span className="block text-sm font-bold text-[#123d2a]">Online (GCash)</span>
@@ -634,7 +764,7 @@ export function RentalInquiryForm({
               Back
             </button>
             <button
-              disabled={fileErrors.length > 0 || blockedDatesLoading || submitting}
+              disabled={Boolean(validIdFileError) || blockedDatesLoading || submitting}
               type="submit"
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a] disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -746,26 +876,70 @@ function withFieldStyles(
 
 function UploadField({
   label,
+  required,
+  fileName,
+  error,
   onChange,
 }: {
   label: string;
+  required?: boolean;
+  fileName?: string;
+  error?: string;
   onChange: (file?: File) => void;
 }) {
   return (
-    <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#aebfa9] bg-[#f8faf7] p-4 text-center text-sm font-bold text-[#365f4a] transition hover:border-[#168046] hover:bg-[#f2f7f0]">
-      <span className="grid size-10 place-items-center rounded-full bg-[#e8f3e9] text-[#168046]">
-        <FileUp className="size-5" />
+    <label className="grid gap-2 text-sm font-bold text-[#334b3d]">
+      <span>
+        {label}
+        {required ? <span className="text-red-700"> *</span> : null}
       </span>
-      <span className="mt-2">{label}</span>
-      <span className="mt-1 text-xs font-normal text-[#7a877f]">Choose JPG, PNG, or PDF</span>
-      <input
-        type="file"
-        accept=".jpg,.jpeg,.png,.pdf"
-        className="sr-only"
-        onChange={(event) => onChange(event.target.files?.[0])}
-      />
+      <span className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-dashed bg-[#f8faf7] px-4 py-3 transition hover:border-[#168046] hover:bg-[#f2f7f0] ${error ? "border-red-400" : "border-[#aebfa9]"}`}>
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e8f3e9] text-[#168046]">
+          <FileUp className="size-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm text-[#365f4a]">
+            {fileName ?? "Choose ID file"}
+          </span>
+          <span className="block text-xs font-normal text-[#7a877f]">JPG, PNG, or PDF; up to 5 MB</span>
+        </span>
+        <input
+          type="file"
+          accept=".jpg,.jpeg,.png,.pdf"
+          className="sr-only"
+          aria-invalid={Boolean(error)}
+          onChange={(event) => onChange(event.target.files?.[0])}
+        />
+      </span>
+      {error ? <span className="text-xs font-semibold text-red-700">{error}</span> : null}
     </label>
   );
+}
+
+function ConsentField({
+  error,
+  children,
+}: {
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={`rounded-xl border bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec] ${error ? "border-red-400" : "border-[#e1e8e2]"}`}>
+      <span className="flex items-start gap-3">{children}</span>
+      {error ? <span className="mt-2 block text-xs font-semibold text-red-700">{error}</span> : null}
+    </label>
+  );
+}
+
+function validateValidIdFile(
+  file: File | undefined,
+  setError: (message: string | undefined) => void,
+) {
+  const issue = file
+    ? validateUpload(file)
+    : "Upload a clear copy of the selected valid ID.";
+  setError(issue);
+  return !issue;
 }
 
 function AvailabilityCalendar({
@@ -980,14 +1154,4 @@ function monthDays(cursor: Date) {
     days.push(new Date(date));
   }
   return days;
-}
-
-function flattenErrors(
-  errors: FieldErrors<ClientFormValues>,
-  fields: FieldPath<ClientFormValues>[],
-) {
-  return fields.flatMap((field) => {
-    const error = errors[field];
-    return error?.message ? [String(error.message)] : [];
-  });
 }

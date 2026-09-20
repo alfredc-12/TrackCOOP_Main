@@ -17,6 +17,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
+import { getMemberDiscountedRate } from "@/app/rental/_lib/rentalEstimate";
+import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
+import {
+  MAX_RENTAL_ASSET_PHOTOS,
+  cleanRentalAssetPhotoUrls,
+  validateRentalAssetPhoto,
+} from "@/app/rental/_lib/rentalPhotos";
 import type {
   EquipmentAvailability,
   RentalMaintenanceRecord,
@@ -41,6 +48,19 @@ const fieldClass =
 const errorFieldClass =
   "min-h-11 w-full rounded-md border border-[#FF4D4F] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#FF4D4F] focus:ring-4 focus:ring-[#FF4D4F]/20";
 
+function createAddAssetForm() {
+  return {
+    serviceId: `AST-${Math.floor(1000 + Math.random() * 9000)}`,
+    name: "",
+    category: "Land Preparation",
+    shortDescription: "",
+    imageUrl: "",
+    imageUrls: [] as string[],
+    unitOfUsage: "hour",
+    standardRate: "",
+  };
+}
+
 function ChairmanAddAssetModal({
   open,
   onClose,
@@ -50,48 +70,37 @@ function ChairmanAddAssetModal({
   onClose: () => void;
   onAdded: () => void;
 }) {
-  const [form, setForm] = useState({
-    serviceId: "",
-    name: "",
-    category: "Land Preparation",
-    shortDescription: "",
-    imageUrl: "",
-    unitOfUsage: "hour",
-    memberRate: "",
-    nonMemberRate: "",
-  });
+  const [form, setForm] = useState(createAddAssetForm);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (open) {
-      setErrors({});
-      setForm((prev) => ({
-        ...prev,
-        serviceId: prev.serviceId || `AST-${Math.floor(1000 + Math.random() * 9000)}`,
-      }));
-    } else {
-      setForm({
-        serviceId: "",
-        name: "",
-        category: "Land Preparation",
-        shortDescription: "",
-        imageUrl: "",
-        unitOfUsage: "hour",
-        memberRate: "",
-        nonMemberRate: "",
-      });
-    }
-  }, [open]);
-
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    e.currentTarget.value = "";
+
+    if (form.imageUrls.length + files.length > MAX_RENTAL_ASSET_PHOTOS) {
+      setErrors((current) => ({
+        ...current,
+        imageUrls: "Upload up to 5 photos only.",
+      }));
+      toast.error("Upload up to 5 photos only.");
+      return;
+    }
+
+    const invalid = files
+      .map((file) => validateRentalAssetPhoto(file))
+      .find(Boolean);
+    if (invalid) {
+      setErrors((current) => ({ ...current, imageUrls: invalid }));
+      toast.error(invalid);
+      return;
+    }
 
     setUploading(true);
     const formData = new FormData();
-    formData.append("image", file);
+    files.forEach((file) => formData.append("images", file));
 
     try {
       const response = await fetch("/api/rental/upload-image", {
@@ -100,30 +109,53 @@ function ChairmanAddAssetModal({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to upload image");
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "Could not upload photo.");
       }
 
       const data = await response.json();
-      setForm({ ...form, imageUrl: data.url });
-      toast.success("Image uploaded successfully.");
+      const uploaded = Array.isArray(data.urls)
+        ? data.urls
+        : data.url
+          ? [data.url]
+          : [];
+      setForm((current) => {
+        const imageUrls = cleanRentalAssetPhotoUrls([
+          ...current.imageUrls,
+          ...uploaded,
+        ]);
+        return { ...current, imageUrl: imageUrls[0] ?? "", imageUrls };
+      });
+      setErrors((current) => ({ ...current, imageUrls: "" }));
+      toast.success("Photo uploaded.");
     } catch (error) {
       console.error(error);
-      toast.error("Could not upload image. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Could not upload photo.");
     } finally {
       setUploading(false);
     }
+  }
+
+  function removeImage(url: string) {
+    setForm((current) => {
+      const imageUrls = current.imageUrls.filter((item) => item !== url);
+      return { ...current, imageUrl: imageUrls[0] ?? "", imageUrls };
+    });
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     
     const newErrors: Record<string, string> = {};
-    if (!form.name.trim()) newErrors.name = "Asset name is required.";
-    if (!form.category) newErrors.category = "Category is required.";
-    if (!form.shortDescription.trim()) newErrors.shortDescription = "Short description is required.";
-    if (!form.unitOfUsage.trim()) newErrors.unitOfUsage = "Unit of usage is required.";
-    if (!form.memberRate) newErrors.memberRate = "Member rate is required.";
-    if (!form.nonMemberRate) newErrors.nonMemberRate = "Non-member rate is required.";
+    const rentalRate = Number(form.standardRate);
+    if (!form.name.trim()) newErrors.name = "Enter the asset name.";
+    if (!form.category) newErrors.category = "Choose a category.";
+    if (!form.shortDescription.trim()) newErrors.shortDescription = "Enter a short description.";
+    if (!form.unitOfUsage.trim()) newErrors.unitOfUsage = "Choose a unit.";
+    if (!form.standardRate || Number.isNaN(rentalRate) || rentalRate <= 0) {
+      newErrors.standardRate = "Enter the rental rate.";
+    }
+    if (!form.imageUrls.length) newErrors.imageUrls = "Upload at least one photo.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -134,13 +166,15 @@ function ChairmanAddAssetModal({
     setErrors({});
     setSaving(true);
     try {
+      const imageUrls = cleanRentalAssetPhotoUrls(form.imageUrls);
       await rentalApiRepository.createRentalService({
         ...form,
-        memberRate: form.memberRate ? Number(form.memberRate) : null,
-        nonMemberRate: form.nonMemberRate ? Number(form.nonMemberRate) : null,
-        standardRate: form.nonMemberRate ? Number(form.nonMemberRate) : null,
+        imageUrl: imageUrls[0] ?? "",
+        imageUrls,
+        memberRate: getMemberDiscountedRate(rentalRate) ?? null,
+        nonMemberRate: rentalRate,
+        standardRate: rentalRate,
         description: form.shortDescription,
-        imageUrls: form.imageUrl ? [form.imageUrl] : [],
         availability: "Available",
         operationalStatus: "Ready for Use",
         visibility: "Hidden",
@@ -177,7 +211,7 @@ function ChairmanAddAssetModal({
         if (!isOpen) onClose();
       }}
       title="Quick Add Asset"
-      description="Enter the basic details to register a new equipment. You can configure complex pricing and scheduling rules later."
+      description="Add the asset name, photos, and one rental rate. Members automatically get 20% off."
     >
       <form onSubmit={submit} noValidate className="grid gap-4 py-4">
         <FormField label="Asset Code (ID)" required>
@@ -234,7 +268,7 @@ function ChairmanAddAssetModal({
             }}
           />
         </FormField>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Unit of Usage" required error={errors.unitOfUsage}>
             <select
               required
@@ -252,54 +286,80 @@ function ChairmanAddAssetModal({
               <option value="session">session</option>
             </select>
           </FormField>
-          <FormField label="Member Rate (₱)" required error={errors.memberRate}>
+          <FormField
+            label="Rental rate (₱)"
+            required
+            error={errors.standardRate}
+            hint="This is the original rate before the member discount."
+          >
             <input
               required
               type="number"
               min="0"
               step="0.01"
-              className={errors.memberRate ? errorFieldClass : fieldClass}
+              className={errors.standardRate ? errorFieldClass : fieldClass}
               placeholder="0.00"
-              value={form.memberRate}
+              value={form.standardRate}
               onChange={(e) => {
-                setForm({ ...form, memberRate: e.target.value });
-                if (errors.memberRate) setErrors((prev) => ({ ...prev, memberRate: "" }));
-              }}
-            />
-          </FormField>
-          <FormField label="Non-Member (₱)" required error={errors.nonMemberRate}>
-            <input
-              required
-              type="number"
-              min="0"
-              step="0.01"
-              className={errors.nonMemberRate ? errorFieldClass : fieldClass}
-              placeholder="0.00"
-              value={form.nonMemberRate}
-              onChange={(e) => {
-                setForm({ ...form, nonMemberRate: e.target.value });
-                if (errors.nonMemberRate) setErrors((prev) => ({ ...prev, nonMemberRate: "" }));
+                setForm({ ...form, standardRate: e.target.value });
+                if (errors.standardRate) setErrors((prev) => ({ ...prev, standardRate: "" }));
               }}
             />
           </FormField>
         </div>
-        <FormField label="Image (Optional)">
-          <div className="flex gap-2">
-            <input
-              type="url"
-              className={fieldClass}
-              placeholder="https://example.com/image.jpg"
-              value={form.imageUrl}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-            />
-            <label className="flex cursor-pointer items-center justify-center rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-4 py-2 text-sm font-semibold text-[#123D2A] hover:bg-[#EEF2EC] transition-colors whitespace-nowrap">
-              {uploading ? "Uploading..." : "Upload from Device"}
+        {Number(form.standardRate) > 0 ? (
+          <div className="rounded-md bg-[#F7F8F3] p-3 text-sm font-semibold text-[#294B39]">
+            Member price:{" "}
+            {formatPeso(getMemberDiscountedRate(Number(form.standardRate)) ?? 0)}{" "}
+            per {form.unitOfUsage || "day"} after 20% discount. Non-members pay{" "}
+            {formatPeso(Number(form.standardRate))}.
+          </div>
+        ) : null}
+        <FormField
+          label="Asset photos"
+          required
+          error={errors.imageUrls}
+          hint="Upload 1 to 5 photos. The first photo appears on the public rental page."
+        >
+          <div className="grid gap-3">
+            {form.imageUrls.length ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {form.imageUrls.map((url, index) => (
+                  <div
+                    key={url}
+                    className="flex items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-12 rounded-md bg-[#E7F2E4] bg-cover bg-center"
+                        style={{
+                          backgroundImage: `url("${url.replaceAll('"', "%22")}")`,
+                        }}
+                      />
+                      <span className="text-xs font-semibold text-[#294B39]">
+                        Photo {index + 1}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeImage(url)}
+                      className="rounded-md px-2 py-1 text-xs font-bold text-[#8A2F1B] hover:bg-[#FFF1EA]"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed border-[#CAD8CB] bg-[#F7F8F3] px-4 py-3 text-sm font-semibold text-[#123D2A] transition-colors hover:bg-[#EEF2EC]">
+              {uploading ? "Uploading..." : "Upload photos"}
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
                 className="hidden"
                 onChange={handleImageUpload}
-                disabled={uploading}
+                disabled={uploading || form.imageUrls.length >= MAX_RENTAL_ASSET_PHOTOS}
               />
             </label>
           </div>
@@ -726,13 +786,15 @@ export function ChairmanRentalAssetsClient() {
           await load();
         }}
       />
-      <ChairmanAddAssetModal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        onAdded={() => {
-          void load();
-        }}
-      />
+      {addModalOpen ? (
+        <ChairmanAddAssetModal
+          open={addModalOpen}
+          onClose={() => setAddModalOpen(false)}
+          onAdded={() => {
+            void load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -920,12 +982,12 @@ function AssetActions({
       </summary>
       <div className="absolute right-0 z-20 mt-2 grid min-w-56 gap-1 rounded-lg border border-[#CAD8CB] bg-white p-2 shadow-xl">
         <ActionLink
-          href={`/chairman/rentals/assets/${asset.serviceId}`}
+          href={`/portal/chairman/rentals/assets/${asset.serviceId}`}
           icon={Eye}
           label="Open Details"
         />
         <ActionLink
-          href={`/chairman/rentals/assets/${asset.serviceId}/edit`}
+          href={`/portal/chairman/rentals/assets/${asset.serviceId}/edit`}
           icon={Pencil}
           label="Edit Asset"
         />

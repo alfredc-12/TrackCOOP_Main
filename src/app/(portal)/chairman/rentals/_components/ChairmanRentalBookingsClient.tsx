@@ -10,17 +10,12 @@ import {
   RefreshCcw,
   Search,
   WalletCards,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
-import {
-  canTransitionRentalStatus,
-  getChairmanRentalActions,
-} from "@/app/rental/_lib/rentalWorkflow";
+import { canTransitionRentalStatus } from "@/app/rental/_lib/rentalWorkflow";
 import {
   PAYMENT_STATUSES,
   type RentalInquiry,
@@ -213,11 +208,6 @@ export function ChairmanRentalBookingsClient() {
     });
   }, [asset, inquiries, payment, preferredDate, requesterType, search, view]);
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [search, view, asset, requesterType, payment, preferredDate]);
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
@@ -317,7 +307,7 @@ export function ChairmanRentalBookingsClient() {
               Export
             </button>
             <Link
-              href="/chairman/rentals/bookings/calendar"
+              href="/portal/chairman/rentals/bookings/calendar"
               className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
             >
               <CalendarCheck2 className="size-4" />
@@ -352,7 +342,10 @@ export function ChairmanRentalBookingsClient() {
             <button
               key={item}
               type="button"
-              onClick={() => setView(item)}
+              onClick={() => {
+                setView(item);
+                setPage(1);
+              }}
               className={`min-h-11 rounded-full px-4 text-xs font-bold ${
                 view === item
                   ? "bg-[#123D2A] text-white"
@@ -373,7 +366,10 @@ export function ChairmanRentalBookingsClient() {
             <Search className="absolute left-3 top-3.5 size-4 text-[#6C7A70]" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
               type="search"
               placeholder="Reference, requester, contact, asset"
               className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm font-normal"
@@ -383,19 +379,28 @@ export function ChairmanRentalBookingsClient() {
         <Filter
           label="Asset"
           value={asset}
-          onChange={setAsset}
+          onChange={(value) => {
+            setAsset(value);
+            setPage(1);
+          }}
           options={["All", ...unique(inquiries.map((item) => item.equipmentName))]}
         />
         <Filter
           label="Requester type"
           value={requesterType}
-          onChange={setRequesterType}
+          onChange={(value) => {
+            setRequesterType(value);
+            setPage(1);
+          }}
           options={["All", "Member", "Public or Non-member"]}
         />
         <Filter
           label="Payment"
           value={payment}
-          onChange={setPayment}
+          onChange={(value) => {
+            setPayment(value);
+            setPage(1);
+          }}
           options={["All", ...PAYMENT_STATUSES]}
         />
         <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
@@ -403,7 +408,10 @@ export function ChairmanRentalBookingsClient() {
           <input
             type="date"
             value={preferredDate}
-            onChange={(event) => setPreferredDate(event.target.value)}
+            onChange={(event) => {
+              setPreferredDate(event.target.value);
+              setPage(1);
+            }}
             className="h-11 w-full rounded-md border border-[#CAD8CB] px-3 text-sm font-normal"
           />
         </label>
@@ -605,8 +613,6 @@ function BookingRow({
       </td>
       <td className="px-4 py-4">
         <BookingActions
-          inquiry={inquiry}
-          schedule={schedule}
           onSelectBooking={onSelectBooking}
         />
       </td>
@@ -664,8 +670,6 @@ function BookingMobileCard({
       </p>
       <div className="mt-4">
         <BookingActions
-          inquiry={inquiry}
-          schedule={schedule}
           onSelectBooking={onSelectBooking}
         />
       </div>
@@ -673,20 +677,12 @@ function BookingMobileCard({
   );
 }
 
-function BookingActions({
-  inquiry,
-  schedule,
-  onSelectBooking,
-}: {
-  inquiry: RentalInquiry;
-  schedule?: RentalSchedule;
-  onSelectBooking: () => void;
-}) {
+function BookingActions({ onSelectBooking }: { onSelectBooking: () => void }) {
   return (
     <button
       type="button"
       onClick={onSelectBooking}
-      className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-[#CAD8CB] bg-white px-4 text-xs font-bold text-[#123D2A hover:bg-[#F7F8F3]"
+      className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-[#CAD8CB] bg-white px-4 text-xs font-bold text-[#123D2A] hover:bg-[#F7F8F3]"
     >
       <Eye className="mr-2 size-4" />
       View Details

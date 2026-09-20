@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { unlink } from "node:fs/promises";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/../server/src/db/transaction";
 import type {
@@ -8,8 +9,12 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { checkRentalScheduleConflict } from "../_lib/rentalConflict";
+import { estimateRentalFee, getMemberDiscountedRate } from "../_lib/rentalEstimate";
+import { cleanRentalAssetPhotoUrls } from "../_lib/rentalPhotos";
 import {
   BookingSchema,
+  normalizePhilippineMobile,
+  RentalSubmissionSchema,
   rentalRescheduleSchema,
   rentalScheduleSchema,
   rentalServiceSchema,
@@ -24,6 +29,7 @@ import type {
   RentalAnalytics,
   RentalAuditEntry,
   RentalExpense,
+  RentalFeeEstimate,
   RentalInquiry,
   RentalMaintenanceRecord,
   RentalNotification,
@@ -41,10 +47,16 @@ import type {
   ScheduleConflict,
   ScheduleStatus,
   ServiceVisibility,
+  ValidIdType,
   PublicRentalInquiryStatus,
 } from "../_types/rental";
+import { VALID_ID_TYPES } from "../_types/rental";
 import { createCentralDocument } from "../../../../server/src/records/central-document";
 import { createGeneratedPdfDocument } from "../../../../server/src/records/generated-pdf-document";
+import {
+  storeProtectedDocument,
+  type ValidatedDocumentFile,
+} from "@/features/records/server/document-security";
 
 type DbValue = string | number | boolean | null;
 type JsonRecord = Record<string, unknown>;
@@ -185,6 +197,15 @@ interface StatusHistoryRow extends RowDataPacket {
   display_name: string | null;
 }
 
+type RentalValidIdDocument = {
+  type: ValidIdType;
+  originalFileName: string;
+  storagePath: string;
+  mimeType: "image/jpeg" | "image/png" | "application/pdf";
+  fileSizeBytes: number;
+  checksumSha256: string;
+};
+
 interface MaintenanceRow extends RowDataPacket {
   rental_maintenance_id: number;
   rental_asset_id: number;
@@ -257,6 +278,94 @@ function stringValue(meta: JsonRecord, key: string, fallback = "") {
 function stringArrayValue(meta: JsonRecord, key: string, fallback: string[] = []) {
   const value = meta[key];
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+}
+
+function rentalValidIdDocument(meta: JsonRecord): RentalValidIdDocument | undefined {
+  const value = meta.validIdDocument;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const document = value as JsonRecord;
+  const type = stringValue(meta, "validIdType");
+  const originalFileName = stringValue(document, "originalFileName");
+  const storagePath = stringValue(document, "storagePath");
+  const mimeType = stringValue(document, "mimeType");
+  const fileSizeBytes = numberValue(
+    typeof document.fileSizeBytes === "number" ? document.fileSizeBytes : undefined,
+  );
+  const checksumSha256 = stringValue(document, "checksumSha256");
+  if (
+    !VALID_ID_TYPES.includes(type as ValidIdType) ||
+    !originalFileName ||
+    !storagePath.startsWith("storage/uploads/rental-valid-ids/") ||
+    !["image/jpeg", "image/png", "application/pdf"].includes(mimeType) ||
+    fileSizeBytes <= 0 ||
+    !/^[a-f0-9]{64}$/.test(checksumSha256)
+  ) {
+    return undefined;
+  }
+  return {
+    type: type as ValidIdType,
+    originalFileName,
+    storagePath,
+    mimeType: mimeType as RentalValidIdDocument["mimeType"],
+    fileSizeBytes,
+    checksumSha256,
+  };
+}
+
+function rentalFeeEstimateValue(
+  meta: JsonRecord,
+): RentalFeeEstimate | undefined {
+  const value = meta.estimatedFee;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const estimate = value as JsonRecord;
+  const days = numberValue(
+    typeof estimate.days === "number" ? estimate.days : undefined,
+  );
+  const dailyRate = numberValue(
+    typeof estimate.dailyRate === "number" ? estimate.dailyRate : undefined,
+  );
+  const total = numberValue(
+    typeof estimate.total === "number" ? estimate.total : undefined,
+  );
+  const rateLabel = stringValue(estimate, "rateLabel");
+  const originalDailyRate =
+    typeof estimate.originalDailyRate === "number"
+      ? numberValue(estimate.originalDailyRate)
+      : undefined;
+  const discountPercent =
+    typeof estimate.discountPercent === "number"
+      ? numberValue(estimate.discountPercent)
+      : undefined;
+  const discountAmount =
+    typeof estimate.discountAmount === "number"
+      ? numberValue(estimate.discountAmount)
+      : undefined;
+  if (
+    days <= 0 ||
+    dailyRate <= 0 ||
+    total <= 0 ||
+    ![
+      "Regular rate",
+      "Member discounted rate",
+      "Member rate",
+      "Non-member rate",
+      "Standard rate",
+    ].includes(rateLabel)
+  ) {
+    return undefined;
+  }
+  return {
+    days,
+    originalDailyRate,
+    dailyRate,
+    discountPercent,
+    discountAmount,
+    total,
+    rateLabel: rateLabel as RentalFeeEstimate["rateLabel"],
+    currency: "PHP",
+  };
 }
 
 function rescheduleRequestValue(
@@ -476,6 +585,13 @@ function visibility(row: AssetRow, meta: JsonRecord): ServiceVisibility {
 }
 
 function serviceDescriptionPayload(service: Partial<RentalService>) {
+  const imageUrls = cleanRentalAssetPhotoUrls([
+    service.imageUrl,
+    ...(service.imageUrls ?? []),
+  ]);
+  const standardRate =
+    typeof service.standardRate === "number" ? service.standardRate : null;
+  const memberRate = getMemberDiscountedRate(standardRate) ?? null;
   return JSON.stringify({
     shortDescription: service.shortDescription ?? "",
     description: service.description ?? "",
@@ -489,8 +605,8 @@ function serviceDescriptionPayload(service: Partial<RentalService>) {
     operatorRequirement: service.operatorRequirement ?? "Cooperative operator confirmation required",
     operationalNotes: service.operationalNotes ?? "",
     safetyReminders: service.safetyReminders ?? defaultSafetyReminders,
-    imageUrl: service.imageUrl ?? "",
-    imageUrls: service.imageUrls ?? [],
+    imageUrl: imageUrls[0] ?? "",
+    imageUrls,
     lastMaintenanceDate: service.lastMaintenanceDate ?? "",
     nextMaintenanceDate: service.nextMaintenanceDate ?? "",
     assetCondition: service.assetCondition ?? "",
@@ -508,8 +624,8 @@ function serviceDescriptionPayload(service: Partial<RentalService>) {
     publicNotes: service.publicNotes ?? "",
     publicAvailabilityMessage: service.publicAvailabilityMessage ?? "",
     featured: service.featured ?? false,
-    memberRate: service.memberRate ?? null,
-    nonMemberRate: service.nonMemberRate ?? null,
+    memberRate,
+    nonMemberRate: standardRate,
     gasolineHandling: service.gasolineHandling ?? null,
     cancellationPolicy: service.cancellationPolicy ?? null,
     reschedulingPolicy: service.reschedulingPolicy ?? null,
@@ -521,14 +637,19 @@ function mapAsset(row: AssetRow): RentalService {
   const meta = parseJson(row.description);
   const plainDescription = row.description && Object.keys(meta).length === 0 ? row.description : "";
   const description = stringValue(meta, "description", plainDescription || `${row.asset_name} rental service.`);
+  const imageUrls = cleanRentalAssetPhotoUrls([
+    stringValue(meta, "imageUrl"),
+    ...stringArrayValue(meta, "imageUrls"),
+  ]);
+  const standardRate = row.rate_amount === null ? null : numberValue(row.rate_amount);
   return {
     serviceId: row.asset_code,
     name: row.asset_name,
     category: row.category ?? "Rental",
     shortDescription: stringValue(meta, "shortDescription", description),
     description,
-    imageUrl: stringValue(meta, "imageUrl") || undefined,
-    imageUrls: stringArrayValue(meta, "imageUrls"),
+    imageUrl: imageUrls[0] || undefined,
+    imageUrls,
     availability: serviceAvailability(row, meta),
     operationalStatus: operationalStatus(row, meta),
     visibility: visibility(row, meta),
@@ -571,11 +692,12 @@ function mapAsset(row: AssetRow): RentalService {
     publicAvailabilityMessage:
       stringValue(meta, "publicAvailabilityMessage") || undefined,
     featured: Boolean(meta.featured),
-    standardRate: row.rate_amount === null ? null : numberValue(row.rate_amount),
+    standardRate,
     memberRate:
-      typeof meta.memberRate === "number" ? meta.memberRate : null,
+      getMemberDiscountedRate(standardRate) ??
+      (typeof meta.memberRate === "number" ? meta.memberRate : null),
     nonMemberRate:
-      typeof meta.nonMemberRate === "number" ? meta.nonMemberRate : null,
+      standardRate ?? (typeof meta.nonMemberRate === "number" ? meta.nonMemberRate : null),
     gasolineHandling: stringValue(meta, "gasolineHandling") || null,
     depositRequirement:
       row.deposit_amount === null ? null : numberValue(row.deposit_amount),
@@ -588,6 +710,7 @@ function mapAsset(row: AssetRow): RentalService {
 
 function mapBooking(row: BookingRow): RentalInquiry {
   const meta = parseJson(row.purpose);
+  const validIdDocument = rentalValidIdDocument(meta);
   const requestType = requesterType(stringValue(meta, "requesterType", row.member_id ? "Member" : "Public or Non-member"));
   const requesterName = row.requester_name ?? row.member_full_name ?? "Rental requester";
   const barangay = stringValue(meta, "barangay", row.member_barangay ?? stringValue(meta, "serviceBarangay", ""));
@@ -623,6 +746,7 @@ function mapBooking(row: BookingRow): RentalInquiry {
     preferredEndTime: stringValue(meta, "preferredEndTime", timePart(row.end_datetime)) || undefined,
     estimatedDuration: stringValue(meta, "estimatedDuration", "2 hours"),
     estimatedUsage: stringValue(meta, "estimatedUsage", "To be confirmed"),
+    estimatedFee: rentalFeeEstimateValue(meta),
     unitOfMeasurement: stringValue(meta, "unitOfMeasurement", "Operating session"),
     serviceLocation: stringValue(meta, "serviceLocation", "Nasugbu service area"),
     serviceBarangay: stringValue(meta, "serviceBarangay", barangay),
@@ -630,6 +754,12 @@ function mapBooking(row: BookingRow): RentalInquiry {
     specialInstructions: stringValue(meta, "specialInstructions") || undefined,
     additionalNotes: stringValue(meta, "additionalNotes") || undefined,
     attachmentNames: stringArrayValue(meta, "attachmentNames"),
+    validId: validIdDocument
+      ? {
+          type: validIdDocument.type,
+          fileName: validIdDocument.originalFileName,
+        }
+      : undefined,
     status: rentalStatusFromBooking(row.booking_status, meta),
     paymentStatus: paymentStatusFromBooking(row.payment_status, meta),
     scheduleStatus: stringValue(meta, "scheduleStatus", scheduleStatusFromBooking(row, meta)),
@@ -1492,14 +1622,24 @@ export const rentalDatabase = {
 
   async submitRentalInquiry(
     draft: BookingDraft,
+    validIdFile: ValidatedDocumentFile,
     member = false,
     actor?: RentalActor,
   ) {
     const parsed = BookingSchema.parse(draft);
+    if (
+      !["jpg", "jpeg", "png", "pdf"].includes(validIdFile.extension) ||
+      !["image/jpeg", "image/png", "application/pdf"].includes(validIdFile.mimeType) ||
+      validIdFile.size > 5 * 1024 * 1024
+    ) {
+      throw new Error("Valid ID must be a JPG, PNG, or PDF file no larger than 5 MB.");
+    }
     if (member && (!actor || actor.role !== "member" || !actor.memberId)) {
       throw new Error("An authenticated member profile is required.");
     }
-    return withRentalTransaction(async (connection) => {
+    let storedValidId: Awaited<ReturnType<typeof storeProtectedDocument>> | undefined;
+    try {
+      return await withRentalTransaction(async (connection) => {
       const idempotencyKey = parsed.clientRequestId
         ? `rental-inquiry:${parsed.clientRequestId}`
         : undefined;
@@ -1597,9 +1737,30 @@ export const rentalDatabase = {
 
       const bookingNumber = await nextReferenceNumber(connection);
       const userId = await actorUserId(actor, connection);
-      const purpose = JSON.stringify({
+      storedValidId = await storeProtectedDocument(
+        validIdFile,
+        "rental-valid-ids",
+      );
+      const submission = RentalSubmissionSchema.parse({
         ...parsed,
+        validIdDocument: {
+          originalFileName: validIdFile.originalFileName,
+          storagePath: storedValidId.storagePath,
+          mimeType: validIdFile.mimeType,
+          fileSizeBytes: validIdFile.size,
+          checksumSha256: validIdFile.checksum,
+        },
+      });
+      const estimatedFee = estimateRentalFee({
+        service,
         requesterType: member ? "Member" : parsed.requesterType,
+        startDate: parsed.preferredDate,
+        endDate: parsed.preferredEndDate,
+      });
+      const purpose = JSON.stringify({
+        ...submission,
+        requesterType: member ? "Member" : parsed.requesterType,
+        estimatedFee,
         scheduleStatus: "Not scheduled",
         publicNote:
           "NFFAC received your inquiry and will review availability, schedule, pricing, and rental conditions.",
@@ -1627,6 +1788,25 @@ export const rentalDatabase = {
         ]),
         connection,
       );
+      await createCentralDocument(connection, {
+        uploadedBy: userId,
+        uploaderRole: actor?.role ?? "public",
+        memberId: member ? actor?.memberId : null,
+        title: `Rental Valid ID - ${bookingNumber}`,
+        description: "Protected valid ID submitted for rental requester verification.",
+        category: "RENTAL",
+        documentType: "Other",
+        accessLevel: member ? "Member-only" : "Admin-only",
+        storagePath: storedValidId.storagePath,
+        originalFileName: validIdFile.originalFileName,
+        mimeType: validIdFile.mimeType,
+        fileSizeBytes: validIdFile.size,
+        checksum: validIdFile.checksum,
+        relatedModule: "RENTAL_BOOKING",
+        relatedRecordId: result.insertId,
+        relatedRecordReference: bookingNumber,
+        relationshipType: "VALID_ID",
+      });
       if (idempotencyKey) {
         await execute(
           `UPDATE rental_idempotency_keys
@@ -1674,7 +1854,13 @@ export const rentalDatabase = {
         connection,
       );
       return mapBooking(booking);
-    });
+      });
+    } catch (error) {
+      if (storedValidId) {
+        await unlink(storedValidId.absolutePath).catch(() => undefined);
+      }
+      throw error;
+    }
   },
 
   async getRentalInquiries() {
@@ -1684,6 +1870,11 @@ export const rentalDatabase = {
   async getRentalInquiryById(inquiryId: string) {
     const row = await bookingByRentalId(inquiryId);
     return row ? mapBooking(row) : undefined;
+  },
+
+  async getRentalValidId(inquiryId: string) {
+    const row = await bookingByRentalId(inquiryId);
+    return row ? rentalValidIdDocument(parseJson(row.purpose)) : undefined;
   },
 
   async getRentalInquiriesForMember(memberId: number) {
@@ -1819,10 +2010,14 @@ export const rentalDatabase = {
   },
 
   async lookupRentalInquiry(reference: string, contact: string) {
+    const lookupContact = normalizePhilippineMobile(contact);
+    if (!/^09\d{9}$/.test(lookupContact)) return undefined;
     const inquiries = await this.getRentalInquiries();
     const inquiry = inquiries.find(
       (item) =>
-        item.inquiryId.toLowerCase() === reference.trim().toLowerCase(),
+        item.inquiryId.toLowerCase() === reference.trim().toLowerCase() &&
+        normalizePhilippineMobile(item.requester.contactNumber) ===
+          lookupContact,
     );
     if (!inquiry) return undefined;
     const schedule = (await this.getRentalSchedules()).find(

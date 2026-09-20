@@ -20,7 +20,7 @@ interface RentalContextValue {
   saveInquiryDraft: (draft: BookingDraft) => void;
   getInquiryDraft: () => BookingDraft | undefined;
   clearInquiryDraft: () => void;
-  submitInquiry: (draft: BookingDraft, member?: boolean) => Promise<RentalInquiry>;
+  submitInquiry: (draft: BookingDraft, validIdFile: File, member?: boolean) => Promise<RentalInquiry>;
   getLastInquiry: () => RentalInquiry | undefined;
 }
 
@@ -102,10 +102,10 @@ export function RentalProvider({ children }: { children: React.ReactNode }) {
       return value ? JSON.parse(value) as BookingDraft : undefined;
     },
     clearInquiryDraft: () => window.sessionStorage.removeItem(DRAFT_KEY),
-    submitInquiry: async (draft, member = false) => {
+    submitInquiry: async (draft, validIdFile, member = false) => {
       const result = member
-        ? await rentalRepository.submitMemberRentalRequest(draft)
-        : await rentalRepository.submitPublicRentalInquiry(draft);
+        ? await rentalRepository.submitMemberRentalRequest(draft, validIdFile)
+        : await rentalRepository.submitPublicRentalInquiry(draft, validIdFile);
       window.sessionStorage.setItem(RESULT_KEY, JSON.stringify(result));
       window.sessionStorage.removeItem(DRAFT_KEY);
       return result;

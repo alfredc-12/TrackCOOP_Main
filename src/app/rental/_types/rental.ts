@@ -42,6 +42,17 @@ export type OperationalStatus =
   | "Archived";
 export type ServiceVisibility = "Public" | "Member-only" | "Internal only" | "Hidden";
 
+export const VALID_ID_TYPES = [
+  "Philippine National ID",
+  "Driver's License",
+  "Passport",
+  "UMID",
+  "Voter's ID",
+  "Other Government-issued ID",
+] as const;
+
+export type ValidIdType = (typeof VALID_ID_TYPES)[number];
+
 export interface RentalService {
   serviceId: string;
   name: string;
@@ -102,6 +113,22 @@ export interface RentalRequester {
   municipality: string;
 }
 
+export interface RentalFeeEstimate {
+  days: number;
+  originalDailyRate?: number;
+  dailyRate: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  rateLabel:
+    | "Regular rate"
+    | "Member discounted rate"
+    | "Member rate"
+    | "Non-member rate"
+    | "Standard rate";
+  total: number;
+  currency: "PHP";
+}
+
 export interface BookingDraft {
   clientRequestId?: string;
   fullName: string;
@@ -119,6 +146,7 @@ export interface BookingDraft {
   preferredEndTime: string;
   requestDescription: string;
   notes: string;
+  validIdType: ValidIdType;
   attachmentName?: string;
   membershipProofName?: string;
   dataPrivacyConsent: boolean;
@@ -178,6 +206,7 @@ export interface RentalInquiry {
   preferredEndTime?: string;
   estimatedDuration: string;
   estimatedUsage: string;
+  estimatedFee?: RentalFeeEstimate;
   unitOfMeasurement: string;
   serviceLocation: string;
   serviceBarangay: string;
@@ -185,6 +214,10 @@ export interface RentalInquiry {
   specialInstructions?: string;
   additionalNotes?: string;
   attachmentNames: string[];
+  validId?: {
+    type: ValidIdType;
+    fileName: string;
+  };
   status: RentalStatus;
   paymentStatus: PaymentStatus;
   scheduleStatus: string;
