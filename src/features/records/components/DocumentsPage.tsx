@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import {
   Archive,
   ArchiveRestore,
@@ -10,16 +12,21 @@ import {
   ChevronsRight,
   Clock3,
   Download,
+  Eye,
   FileLock2,
   FilePlus2,
   FileText,
   Filter,
   FolderArchive,
+  LayoutGrid,
+  List,
   MoreVertical,
   Printer,
   Search,
   ShieldCheck,
   Upload,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -60,6 +67,7 @@ import {
   secondaryButtonClass,
   warningButtonClass,
 } from "./RecordsUi";
+import { useDebounce } from "@/hooks/useDebounce";
 
 type Filters = {
   search: string;
@@ -128,6 +136,17 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [mutating, setMutating] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const [confirmUpload, setConfirmUpload] = useState<FormData | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isZipping, setIsZipping] = useState(false);
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+
+  const debouncedSearch = useDebounce(draftFilters.search, 300);
+
+  useEffect(() => {
+    setFilters((current) => ({ ...current, search: debouncedSearch }));
+    setPage(1);
+  }, [debouncedSearch]);
 
   const load = useCallback(async () => {
     try {
@@ -175,7 +194,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     const category = String(formData.get("category") || "");
     const documentType = String(formData.get("documentType") || "");
     const accessLevel = String(formData.get("accessLevel") || "");
-    const file = formData.get("file") as File | null;
+    const file = uploadFile;
     
     const errors: Record<string, string> = {};
     if (title.length < 2 || title.length > 255) errors.title = "Document title must contain 2 to 255 characters.";
@@ -191,6 +210,10 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     }
     
     setUploadErrors({});
+    formData.delete("file-dropzone");
+    if (file) {
+      formData.set("file", file);
+    }
     setConfirmUpload(formData);
   }
 
@@ -207,6 +230,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       toast.success(`${result.reference} uploaded successfully.`);
       setUploadOpen(false);
       setConfirmUpload(null);
+      setUploadFile(null);
       setUploadErrors({});
       await load();
     } catch (requestError) {
@@ -248,6 +272,68 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     }
   }
 
+  async function handleBulkArchive() {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Archive ${selectedIds.size} selected documents?`)) return;
+    
+    setMutating(true);
+    let successCount = 0;
+    
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const response = await fetch(`/api/documents/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "archive", reason: "Bulk archived" }),
+        });
+        if (response.ok) successCount++;
+      } catch (err) {
+        // Continue with others
+      }
+    }
+    
+    toast.success(`Archived ${successCount} documents.`);
+    setSelectedIds(new Set());
+    setMutating(false);
+    await load();
+  }
+
+  async function handleBulkDownload() {
+    if (selectedIds.size === 0) return;
+    setIsZipping(true);
+    const zip = new JSZip();
+    let successCount = 0;
+
+    try {
+      const selectedDocs = data?.documents.filter(doc => selectedIds.has(doc.id)) || [];
+      
+      const downloadPromises = selectedDocs.map(async (doc) => {
+        try {
+          const response = await fetch(`/api/documents/${doc.id}/file?action=download`);
+          if (!response.ok) throw new Error("Failed to fetch");
+          const blob = await response.blob();
+          zip.file(doc.fileName, blob);
+          successCount++;
+        } catch (err) {
+          toast.error(`Failed to download ${doc.fileName}`);
+        }
+      });
+
+      await Promise.all(downloadPromises);
+
+      if (successCount > 0) {
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        saveAs(zipBlob, `documents_export_${new Date().toISOString().slice(0, 10)}.zip`);
+        toast.success(`Downloaded ${successCount} documents.`);
+      }
+    } catch (err) {
+      toast.error("An error occurred during bulk download.");
+    } finally {
+      setIsZipping(false);
+      setSelectedIds(new Set());
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeader
@@ -255,29 +341,48 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         title="Documents"
         description="Manage cooperative files, access permissions, and document activity."
         actions={
-          <>
-
-            <a
-              href={`/api/documents/export?${queryFor(filters)}`}
-              className={secondaryButtonClass}
-            >
-              <Download className="size-4" /> Export List
-            </a>
-            <button
-              type="button"
-              onClick={() => setArchiveModalOpen(true)}
-              className={secondaryButtonClass}
-            >
-              <Archive className="size-4" /> Archived Documents
-            </button>
-            <button
-              type="button"
-              onClick={() => setUploadOpen(true)}
-              className={primaryButtonClass}
-            >
-              <Upload className="size-4" /> Upload Document
-            </button>
-          </>
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex bg-[#F8FAF8] rounded-md border border-[#CAD8CB] p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "table" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
+                aria-label="Table View"
+              >
+                <List className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "grid" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
+                aria-label="Grid View"
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 justify-end">
+              <a
+                href={`/api/documents/export?${queryFor(filters)}`}
+                className={secondaryButtonClass}
+              >
+                <Download className="size-4" /> Export List
+              </a>
+              <button
+                type="button"
+                onClick={() => setArchiveModalOpen(true)}
+                className={secondaryButtonClass}
+              >
+                <Archive className="size-4" /> Archived Documents
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadOpen(true)}
+                className={primaryButtonClass}
+              >
+                <Upload className="size-4" /> Upload Document
+              </button>
+            </div>
+          </div>
         }
       />
 
@@ -433,11 +538,50 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       ) : null}
       {data?.documents.length ? (
         <>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between rounded-lg bg-[#E7F2E4] p-3 text-sm font-medium text-[#123D2A]">
+              <span>{selectedIds.size} document{selectedIds.size > 1 ? 's' : ''} selected</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleBulkDownload}
+                  disabled={isZipping}
+                  className={`${secondaryButtonClass} bg-white`}
+                >
+                  <Download className="size-4" /> {isZipping ? 'Zipping...' : 'Download ZIP'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkArchive}
+                  disabled={mutating}
+                  className={`${warningButtonClass} bg-white`}
+                >
+                  <Archive className="size-4" /> Archive
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="hidden min-w-0 md:block">
-            <DataTable>
-              <table className="w-full min-w-[1200px] text-left text-sm">
+            {viewMode === "table" ? (
+              <DataTable>
+                <table className="w-full min-w-[1200px] text-left text-sm">
                 <thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#53675A]">
                   <tr>
+                    <th className="px-3 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === data.documents.length && data.documents.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds(new Set(data.documents.map(d => d.id)));
+                          } else {
+                            setSelectedIds(new Set());
+                          }
+                        }}
+                        className="rounded border-[#CAD8CB] text-[#1F6B43] focus:ring-[#1F6B43]"
+                      />
+                    </th>
                     <th className="px-3 py-3 font-bold">Document</th>
                     <th className="px-3 py-3 font-bold">Reference</th>
                     <th className="px-3 py-3 font-bold">Category</th>
@@ -454,6 +598,19 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                       key={document.id}
                       className="border-t border-[#E1E9E2] align-top"
                     >
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(document.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedIds);
+                            if (e.target.checked) newSet.add(document.id);
+                            else newSet.delete(document.id);
+                            setSelectedIds(newSet);
+                          }}
+                          className="rounded border-[#CAD8CB] text-[#1F6B43] focus:ring-[#1F6B43]"
+                        />
+                      </td>
                       <td className="px-3 py-3">
                         <div className="flex gap-3">
                           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[#E7F2E4] text-[#1F6B43]">
@@ -507,6 +664,56 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                 </tbody>
               </table>
             </DataTable>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {data.documents.map((document) => {
+                  const previewUrl = `/api/documents/${document.id}/file?action=preview`;
+                  const isImage = document.mimeType?.startsWith("image/");
+                  return (
+                    <div key={document.id} className="relative flex flex-col overflow-hidden rounded-lg border border-[#CAD8CB] bg-white transition-shadow hover:shadow-md">
+                      <div className="absolute top-2 left-2 z-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(document.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedIds);
+                            if (e.target.checked) newSet.add(document.id);
+                            else newSet.delete(document.id);
+                            setSelectedIds(newSet);
+                          }}
+                          className="rounded border-[#CAD8CB] bg-white text-[#1F6B43] focus:ring-[#1F6B43] shadow-sm"
+                        />
+                      </div>
+                      <div className="absolute top-2 right-2 z-10">
+                        <DocumentActions document={document} basePath={basePath} onArchive={() => setArchiveTarget(document)} mobile />
+                      </div>
+                      <div className="aspect-[4/3] bg-[#F8FAF8] border-b border-[#E1E9E2] flex items-center justify-center relative">
+                        {isImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={previewUrl} alt={document.title} className="object-cover w-full h-full" />
+                        ) : (
+                          <FileText className="size-16 text-[#CAD8CB]" />
+                        )}
+                      </div>
+                      <div className="flex flex-1 flex-col p-4">
+                        <Link href={`${basePath}/documents/${document.id}`} className="font-bold text-[#123D2A] hover:underline line-clamp-1 mb-1">
+                          {document.title}
+                        </Link>
+                        <div className="flex items-center gap-2 mb-2">
+                          <StatusBadge tone={statusTone(document.status)}>
+                            {humanizeConstant(document.status)}
+                          </StatusBadge>
+                        </div>
+                        <div className="text-xs text-[#5D6D63] mt-auto">
+                          <p>Uploaded: {formatDate(document.uploadedAt)}</p>
+                          <p className="truncate">By: {document.uploadedBy}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="grid gap-3 md:hidden">
             {data.documents.map((document) => (
@@ -600,13 +807,25 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
       <FormDialog
         open={uploadOpen}
-        onOpenChange={setUploadOpen}
+        onOpenChange={(open) => {
+          setUploadOpen(open);
+          if (!open) {
+            setUploadFile(null);
+            setUploadErrors({});
+          }
+        }}
         title="Upload Document"
         description="The file is validated and stored outside public web paths. Access is enforced by the server."
         contentClassName="w-[min(48rem,calc(100vw-2rem))]"
       >
         <form onSubmit={submitUpload} noValidate>
-          <DocumentMetadataFields role={role} includeFile errors={uploadErrors} />
+          <DocumentMetadataFields 
+            role={role} 
+            includeFile 
+            errors={uploadErrors} 
+            file={uploadFile}
+            onFileChange={setUploadFile}
+          />
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -870,7 +1089,10 @@ function DocumentActions({
   mobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const download = `/api/documents/${document.id}/file?action=download`;
+  const previewUrl = `/api/documents/${document.id}/file?action=preview`;
 
   const triggerButton = mobile ? (
     <button
@@ -988,9 +1210,85 @@ function DocumentActions({
             )}
             {document.status === "ARCHIVED" ? "Restore" : "Archive"}
           </button>
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className={secondaryButtonClass}
+          >
+            <Eye className="size-4" /> Preview
+          </button>
           <a href={download} className={primaryButtonClass}>
             <Download className="size-4" /> Download
           </a>
+        </div>
+      </FormDialog>
+
+      <FormDialog
+        open={previewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open) setZoomLevel(1);
+        }}
+        title={`Preview: ${document.title}`}
+        description=""
+        contentClassName="w-[min(64rem,calc(100vw-2rem))] h-[85vh] flex flex-col"
+        bodyClassName="flex-1 flex flex-col min-h-0"
+      >
+        <div className="flex-1 min-h-0 mt-4 overflow-auto rounded-lg border border-[#CAD8CB] bg-black/5 flex items-center justify-center relative">
+          {document.mimeType?.startsWith("image/") ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={previewUrl}
+              alt={`Preview of ${document.title}`}
+              className="max-w-full max-h-full transition-transform duration-200"
+              style={{ transform: `scale(${zoomLevel})` }}
+            />
+          ) : (
+            <iframe
+              src={previewUrl}
+              className="w-full h-full"
+              title={`Preview of ${document.title}`}
+            />
+          )}
+        </div>
+        <div className="mt-4 flex justify-between gap-2">
+          <div>
+            {document.mimeType?.startsWith("image/") && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}
+                  className={secondaryButtonClass}
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(1)}
+                  className={secondaryButtonClass}
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
+                  className={secondaryButtonClass}
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="size-4" />
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setPreviewOpen(false)} className={secondaryButtonClass}>
+              Close
+            </button>
+            <a href={download} className={primaryButtonClass}>
+              <Download className="size-4" /> Download Original
+            </a>
+          </div>
         </div>
       </FormDialog>
     </>

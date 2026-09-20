@@ -133,6 +133,7 @@ export function FormDialog({
   description,
   trigger,
   contentClassName,
+  bodyClassName,
   children,
 }: {
   open?: boolean;
@@ -141,6 +142,7 @@ export function FormDialog({
   description?: string;
   trigger?: ReactNode;
   contentClassName?: string;
+  bodyClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -170,7 +172,7 @@ export function FormDialog({
                   <X className="size-4" aria-hidden="true" />
                 </Dialog.Close>
               </div>
-              <div className="mt-2">{children}</div>
+              <div className={cn("mt-2", bodyClassName)}>{children}</div>
             </div>
           </div>
         </Dialog.Content>
