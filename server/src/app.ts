@@ -94,7 +94,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(cookieParser());
 
   // Serve public uploads statically
-  app.use("/uploads", express.static(path.join(process.cwd(), "storage/public/uploads")));
+  app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
   app.use("/api/health", createHealthRouter(options.databaseProbe));
   app.use("/api/auth", createAuthRouter(options.authService));

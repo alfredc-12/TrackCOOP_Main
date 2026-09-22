@@ -1,6 +1,5 @@
-import { apiRequest } from "@/lib/api-client";
 import { env } from "@/config/env";
-import { ApiClientError } from "@/lib/api-client";
+import { ApiClientError, apiRequest } from "@/lib/api-client";
 import type {
   ApprovalInput,
   ApprovalResult,
@@ -241,6 +240,10 @@ export function deleteApplicationDocument(documentId: string) {
   });
 }
 
+export function applicationDocumentViewUrl(documentId: string) {
+  return `${env.apiUrl}/api/membership-application-documents/${encodeURIComponent(documentId)}/view`;
+}
+
 export function addApplicationRequirement(applicationId: string, input: RequirementInput) {
   return apiRequest(`/api/membership-applications/${applicationId}/requirements`, {
     method: "POST",
@@ -255,6 +258,12 @@ export function updateApplicationRequirement(
   return apiRequest(`/api/membership-application-requirements/${requirementId}`, {
     method: "PATCH",
     body: JSON.stringify(input),
+  });
+}
+
+export function deleteApplicationRequirement(requirementId: string) {
+  return apiRequest(`/api/membership-application-requirements/${requirementId}`, {
+    method: "DELETE",
   });
 }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileCheck2, Phone, Sprout, UsersRound, Waves, Wheat } from "lucide-react";
 import { env } from "@/config/env";
 
 export type PublishedLandingRow = Record<string, unknown> & {
@@ -9,25 +8,27 @@ export type PublishedLandingRow = Record<string, unknown> & {
 };
 
 type PublishedLandingPayload = {
-  contentBlocks: PublishedLandingRow[];
-  services: PublishedLandingRow[];
-  programs: PublishedLandingRow[];
   partners: PublishedLandingRow[];
   gallery: PublishedLandingRow[];
 };
 
 const emptyPayload: PublishedLandingPayload = {
-  contentBlocks: [],
-  services: [],
-  programs: [],
   partners: [],
   gallery: [],
 };
 
-const serviceIcons = [UsersRound, Wheat, FileCheck2, Phone, Sprout, Waves];
-
 function asString(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function resolveMediaPath(path: string) {
+  if (!path) return path;
+  if (path.startsWith("http") || path.startsWith("/images/")) return path;
+  return `${env.apiUrl}${path}`;
+}
+
+function isPdfPath(path: string) {
+  return path.toLowerCase().split("?")[0].endsWith(".pdf");
 }
 
 export function usePublishedLandingContent() {
@@ -61,21 +62,11 @@ export function usePublishedLandingContent() {
   return content;
 }
 
-export function mapPublishedServices(rows: PublishedLandingRow[]) {
-  return rows.map((row, index) => ({
-    title: asString(row.title, "Cooperative Service"),
-    description: asString(row.shortDescription, "Published cooperative service."),
-    cta: asString(row.ctaLabel, "Learn more"),
-    href: asString(row.ctaUrl, "#contact"),
-    icon: serviceIcons[index % serviceIcons.length],
-  }));
-}
-
-export function mapPublishedProjects(rows: PublishedLandingRow[], areaClasses: string[]) {
+export function mapPublishedGallery(rows: PublishedLandingRow[], areaClasses: string[]) {
   return rows.slice(0, areaClasses.length).map((row, index) => ({
-    title: asString(row.title, "Cooperative Project"),
-    description: asString(row.summary, "Published cooperative program or project."),
-    image: asString(row.imagePath, "/images/Other%20Landing%20Page/About.jpg"),
+    title: asString(row.title, "Cooperative Photo"),
+    description: asString(row.caption, "Published cooperative gallery photo."),
+    image: resolveMediaPath(asString(row.imagePath, "/images/Other%20Landing%20Page/About.jpg")),
     area: `published-${index}`,
     areaClass: areaClasses[index],
   }));
@@ -84,11 +75,15 @@ export function mapPublishedProjects(rows: PublishedLandingRow[], areaClasses: s
 export function mapPublishedCertifications(rows: PublishedLandingRow[]) {
   return rows
     .filter((row) => ["Certification", "Accreditation", "Recognition"].includes(asString(row.recordType)))
-    .map((row) => ({
-      title: asString(row.name, "Certification"),
-      tag: `${asString(row.name, "Certification")} (${asString(row.recordType, "Record")})`,
-      image: asString(row.logoPath, "/images/Other%20Landing%20Page/Certification.jpg"),
-      aspectRatio: 3 / 4,
-      maxWidth: 620,
-    }));
+    .map((row) => {
+      const image = resolveMediaPath(asString(row.logoPath, "/images/Other%20Landing%20Page/Certification.jpg"));
+      return {
+        title: asString(row.name, "Certification"),
+        tag: `${asString(row.name, "Certification")} (${asString(row.recordType, "Record")})`,
+        image,
+        fileType: isPdfPath(image) ? "pdf" : "image",
+        aspectRatio: 3 / 4,
+        maxWidth: 620,
+      };
+    });
 }

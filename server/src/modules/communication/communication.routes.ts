@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import path from "node:path";
 import crypto from "node:crypto";
+import { mkdirSync } from "node:fs";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
 import { createAuthService, type AuthService } from "../auth/auth.service";
@@ -10,7 +11,9 @@ import { createCommunicationService, type CommunicationService } from "./communi
 
 const uploadStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(process.cwd(), "storage/public/uploads"));
+    const destination = path.join(process.cwd(), "public", "uploads", "announcements");
+    mkdirSync(destination, { recursive: true });
+    cb(null, destination);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -46,13 +49,23 @@ export function createCommunicationRouter(
 
   router.get("/announcements", ...authenticated, controller.listAnnouncements);
   
-  router.post("/announcements/upload-image", ...chairmanOnly, upload.single("image"), (req, res) => {
-    if (!req.file) {
-      res.status(400).json({ success: false, message: "No image provided", errors: [] });
+  router.post("/announcements/upload-image", ...chairmanOnly, upload.fields([
+    { name: "images", maxCount: 12 },
+    { name: "image", maxCount: 1 },
+  ]), (req, res) => {
+    const filesByField = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const files = [
+      ...(filesByField?.images ?? []),
+      ...(filesByField?.image ?? []),
+    ];
+
+    if (files.length === 0) {
+      res.status(400).json({ success: false, message: "No images provided", errors: [] });
       return;
     }
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ success: true, data: { url: imageUrl }, message: "Success", meta: {} });
+
+    const urls = files.map((file) => `/uploads/announcements/${file.filename}`);
+    res.json({ success: true, data: { url: urls[0], urls }, message: "Success", meta: {} });
   });
 
   router.post("/announcements", ...chairmanOnly, controller.createAnnouncement);

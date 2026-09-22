@@ -20,7 +20,7 @@ export interface MemberService {
   updateApproval(memberId: string, approvalStatus: ApprovalStatus, reason: string | null | undefined, auth: AuthContext): ReturnType<MemberRepository["updateApproval"]>;
   updateStatus(memberId: string, input: UpdateMemberStatusInput, auth: AuthContext): ReturnType<MemberRepository["updateStatus"]>;
   statusHistory(memberId: string): ReturnType<MemberRepository["history"]>;
-  unifiedStatusHistory(query: { search?: string; sourceModule?: string; page: number; pageSize: number }): ReturnType<MemberRepository["unifiedStatusHistory"]>;
+  unifiedStatusHistory(query: { search?: string; sourceModule?: string; date?: string; page: number; pageSize: number }): ReturnType<MemberRepository["unifiedStatusHistory"]>;
   summary(): ReturnType<MemberRepository["summary"]>;
   barangayDistribution(): ReturnType<MemberRepository["barangayDistribution"]>;
 }

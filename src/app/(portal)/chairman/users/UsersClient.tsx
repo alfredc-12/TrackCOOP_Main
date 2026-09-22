@@ -1,9 +1,18 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
+  Activity,
+  ChevronDown,
+  Download,
+  FileText,
   KeyRound,
   Link2,
+  LockKeyhole,
   LogOut,
+  Mail,
+  Monitor,
+  Pencil,
   RefreshCcw,
   Search,
   ShieldCheck,
@@ -11,6 +20,7 @@ import {
   UserCog,
   UserMinus,
   UserPlus,
+  UserRound,
   UsersRound,
   Trash2,
   ChevronsLeft,
@@ -20,7 +30,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
@@ -28,7 +38,6 @@ import {
   ErrorState,
   FormDialog,
   LoadingSkeleton,
-  StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { getAuthenticatedUser } from "@/lib/auth-client";
@@ -49,7 +58,6 @@ import {
   updateUser,
   deleteUser,
   resetUserPassword,
-  bulkUserAction,
   exportUsersCsv,
   getUserAuditLogs,
   type AccountStatus,
@@ -66,9 +74,18 @@ import {
 
 const accountStatuses: AccountStatus[] = ["Pending", "Active", "Suspended", "Inactive"];
 const roles: RoleSlug[] = ["chairman", "bookkeeper", "member"];
+const sortOptions = [
+  { value: "createdAt:desc", label: "Created date" },
+  { value: "createdAt:asc", label: "Oldest first" },
+  { value: "displayName:asc", label: "Display name A-Z" },
+  { value: "displayName:desc", label: "Display name Z-A" },
+  { value: "email:asc", label: "Email A-Z" },
+  { value: "role:asc", label: "Role A-Z" },
+  { value: "accountStatus:asc", label: "Status A-Z" },
+] as const;
 
 const inputClass =
-  "h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
+  "h-11 w-full min-w-0 rounded-md border border-[#D9E2D8] bg-white px-3 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
 const labelClass = "grid gap-2 text-sm font-semibold text-[#294B39]";
 
 type ActionKind =
@@ -133,6 +150,93 @@ function roleLabel(role: RoleSlug) {
   return "Member";
 }
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "UA";
+}
+
+function UserMetricCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon: ComponentType<{ className?: string }>;
+}) {
+  return (
+    <article className="min-w-0 rounded-lg border border-[#D9E2D8] bg-white p-4 shadow-[0_12px_28px_rgba(18,61,42,0.05)]">
+      <div className="flex items-center gap-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EEF6EC] text-[#1F6B43]">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-[#6C7A70]">{label}</p>
+          <p className="text-2xl font-black leading-none text-[#123D2A]">{value}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ComboSelect<T extends string>({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  placeholder = "Select option",
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: { value: T; label: string; disabled?: boolean }[];
+  ariaLabel: string;
+  placeholder?: string;
+}) {
+  const selected = options.find((option) => option.value === value);
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="group inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-[#D9E2D8] bg-white px-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43]/55 hover:bg-[#FBFCF8] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+          aria-label={ariaLabel}
+        >
+          <span className="truncate">{selected?.label ?? placeholder}</span>
+          <ChevronDown className="size-4 shrink-0 text-[#365f4a] transition group-data-[state=open]:rotate-180" aria-hidden="true" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={8}
+          className="z-[90] max-h-72 min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-[#DDE8D8] bg-white p-2 text-[#365f4a] shadow-2xl shadow-[#123D2A]/14"
+        >
+          {options.map((option) => (
+            <DropdownMenu.Item
+              key={option.value}
+              disabled={option.disabled}
+              onSelect={() => onChange(option.value)}
+              className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition ${
+                option.value === value
+                  ? "bg-[#EAF3E8] text-[#123D2A]"
+                  : "text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A] focus:bg-[#EAF3E8] focus:text-[#123D2A]"
+              } data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45`}
+            >
+              <span className="min-w-0 break-words">{option.label}</span>
+              {option.value === value ? <span className="size-1.5 shrink-0 rounded-full bg-[#1F6B43]" aria-hidden="true" /> : null}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 function isHiddenSystemUser(user: UserSummary) {
   return (
     user.username === "paymongo-system" ||
@@ -175,10 +279,9 @@ export function UsersClient() {
   const [editUser, setEditUser] = useState<UserDetail | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [activationResult, setActivationResult] = useState<ActivationLinkResult | null>(null);
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-  const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
@@ -253,28 +356,19 @@ export function UsersClient() {
 
   function updateQuery(next: Partial<UserListQuery>) {
     setQuery((current) => ({ ...current, ...next, page: next.page ?? 1 }));
-    setSelectedUserIds(new Set()); // Clear selection on pagination/filter change
+    setExpandedUserId(null);
   }
 
   function handleExportCsv() {
     window.location.href = exportUsersCsv(query);
   }
 
-  function toggleSelection(userId: string) {
-    setSelectedUserIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
-  }
-
-  function toggleAllSelection() {
-    if (selectedUserIds.size === users.length) {
-      setSelectedUserIds(new Set());
-    } else {
-      setSelectedUserIds(new Set(users.map((u) => u.id)));
-    }
+  function updateSort(value: string) {
+    const [sortBy, sortDirection] = value.split(":") as [
+      NonNullable<UserListQuery["sortBy"]>,
+      NonNullable<UserListQuery["sortDirection"]>,
+    ];
+    updateQuery({ sortBy, sortDirection });
   }
 
   async function openAuditLogs(userId: string) {
@@ -289,91 +383,133 @@ export function UsersClient() {
     }
   }
 
+  async function openResetPassword(userId: string) {
+    setIsMutating(true);
+    try {
+      const detail = await getUserDetail(userId);
+      setPendingAction({ kind: "reset-password", user: detail });
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "User details could not be loaded.");
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeader
         eyebrow="People"
         title="User Accounts"
-        description="Chairman-controlled account access, role assignments, activation links, and session lifecycle."
+        description="Manage access, roles, and account status."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex h-11 items-center gap-2 rounded-md bg-white px-4 text-sm font-bold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50"
-            >
-              Export CSV
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white shadow-[0_10px_22px_rgba(18,61,42,0.18)] transition hover:bg-[#1F6B43]"
             >
               <UserPlus className="size-4" aria-hidden="true" />
               Create Account
             </button>
             <button
               type="button"
+              onClick={handleExportCsv}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#D9E2D8] bg-white px-4 text-sm font-bold text-[#294B39] shadow-sm transition hover:bg-[#F7F8F3]"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Export
+            </button>
+            <button
+              type="button"
               onClick={() => void loadUsers()}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+              className="grid size-11 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] shadow-sm transition hover:bg-[#F7F8F3]"
+              aria-label="Refresh users"
+              title="Refresh users"
             >
               <RefreshCcw className="size-4" aria-hidden="true" />
-              Refresh
             </button>
           </div>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <StatCard label="Total Accounts" value={String(summary.total)} icon={UsersRound} />
-        <StatCard label="Active" value={String(summary.active)} icon={ShieldCheck} />
-        <StatCard label="Pending Activation" value={String(summary.pendingActivation)} icon={KeyRound} />
-        <StatCard label="Suspended/Inactive" value={String(summary.suspendedInactive)} icon={UserMinus} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <UserMetricCard label="Total Accounts" value={String(summary.total)} icon={UsersRound} />
+        <UserMetricCard label="Active" value={String(summary.active)} icon={ShieldCheck} />
+        <UserMetricCard label="Pending Activation" value={String(summary.pendingActivation)} icon={KeyRound} />
+        <UserMetricCard label="Suspended / Inactive" value={String(summary.suspendedInactive)} icon={UserMinus} />
       </div>
 
-      <section className="grid min-w-0 gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(14rem,1fr)_repeat(4,minmax(8rem,10rem))]">
-          <label className="relative block min-w-0">
+      <section className="grid min-w-0 gap-3 rounded-lg border border-[#D9E2D8] bg-white p-4 shadow-[0_14px_32px_rgba(18,61,42,0.06)]">
+        <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1.6fr)_minmax(8rem,0.7fr)_minmax(9rem,0.7fr)_minmax(10rem,0.8fr)_minmax(8rem,0.7fr)_auto]">
+          <label className="relative block min-w-0 md:col-span-2 xl:col-span-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
             <input
               value={query.search ?? ""}
               onChange={(event) => updateQuery({ search: event.target.value })}
-              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+              className="h-11 w-full rounded-md border border-[#D9E2D8] bg-white pl-10 pr-4 text-sm outline-none transition placeholder:text-[#8A9A91] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
               placeholder="Search users"
               type="search"
             />
           </label>
-          <select className={inputClass} value={query.role ?? "all"} onChange={(event) => updateQuery({ role: event.target.value as UserListQuery["role"] })} aria-label="Role filter">
-            <option value="all">All roles</option>
-            {roles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-          </select>
-          <select className={inputClass} value={query.status ?? "all"} onChange={(event) => updateQuery({ status: event.target.value as UserListQuery["status"] })} aria-label="Status filter">
-            <option value="all">All statuses</option>
-            {accountStatuses.map((status) => <option key={status}>{status}</option>)}
-          </select>
-          <select className={inputClass} value={query.sortBy ?? "createdAt"} onChange={(event) => updateQuery({ sortBy: event.target.value as UserListQuery["sortBy"] })} aria-label="Sort users by">
-            <option value="createdAt">Created date</option>
-            <option value="displayName">Display name</option>
-            <option value="email">Email</option>
-            <option value="role">Role</option>
-            <option value="accountStatus">Status</option>
-          </select>
-          <select className={inputClass} value={query.sortDirection ?? "desc"} onChange={(event) => updateQuery({ sortDirection: event.target.value as UserListQuery["sortDirection"] })} aria-label="Sort direction">
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
-          </select>
+          <ComboSelect
+            value={query.role ?? "all"}
+            onChange={(value) => updateQuery({ role: value })}
+            ariaLabel="Role filter"
+            options={[
+              { value: "all", label: "All roles" },
+              ...roles.map((role) => ({ value: role, label: roleLabel(role) })),
+            ]}
+          />
+          <ComboSelect
+            value={query.status ?? "all"}
+            onChange={(value) => updateQuery({ status: value })}
+            ariaLabel="Status filter"
+            options={[
+              { value: "all", label: "All statuses" },
+              ...accountStatuses.map((status) => ({ value: status, label: status })),
+            ]}
+          />
+          <ComboSelect
+            value={`${query.sortBy ?? "createdAt"}:${query.sortDirection ?? "desc"}`}
+            onChange={updateSort}
+            ariaLabel="Sort users"
+            options={[...sortOptions]}
+          />
+          <ComboSelect
+            value={query.sortDirection ?? "desc"}
+            onChange={(value) => updateQuery({ sortDirection: value })}
+            ariaLabel="Sort direction"
+            options={[
+              { value: "desc", label: "Descending" },
+              { value: "asc", label: "Ascending" },
+            ]}
+          />
           <button
             type="button"
             onClick={() => updateQuery({ includeHidden: !query.includeHidden })}
-            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
-            aria-pressed={Boolean(query.includeHidden)}
+            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-md bg-[#F7F8F3] px-3 text-sm font-bold text-[#294B39] transition hover:bg-[#EEF2EC]"
+            role="switch"
+            aria-checked={Boolean(query.includeHidden)}
+            aria-label={query.includeHidden ? "Hide hidden accounts" : "Show hidden accounts"}
+            title={query.includeHidden ? "Hide hidden accounts" : "Show hidden accounts"}
           >
             {query.includeHidden ? (
-              <EyeOff className="size-4" aria-hidden="true" />
-            ) : (
               <Eye className="size-4" aria-hidden="true" />
+            ) : (
+              <EyeOff className="size-4" aria-hidden="true" />
             )}
-            {query.includeHidden ? "Hide hidden" : "Show hidden"}
+            <span
+              className={`relative h-5 w-9 rounded-full transition ${
+                query.includeHidden ? "bg-[#123D2A]" : "bg-[#D9E2D8]"
+              }`}
+              aria-hidden="true"
+            >
+              <span
+                className={`absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition ${
+                  query.includeHidden ? "left-[1.125rem]" : "left-0.5"
+                }`}
+              />
+            </span>
           </button>
         </div>
       </section>
@@ -389,82 +525,19 @@ export function UsersClient() {
         />
       ) : (
         <>
-          {selectedUserIds.size > 0 && (
-            <div className="flex items-center justify-between rounded-lg border border-[#CAD8CB] bg-[#EEF2EC] p-3 text-sm font-semibold text-[#123D2A]">
-              <span>{selectedUserIds.size} selected</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBulkActionOpen(true)}
-                  className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-[#123D2A] shadow-sm ring-1 ring-inset ring-[#CAD8CB] hover:bg-gray-50"
-                >
-                  Bulk Actions
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserIds(new Set())}
-                  className="rounded-md px-3 py-1.5 text-xs font-bold text-[#5D6D63] hover:bg-[#CAD8CB]"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-          <UserTable
+          <UserAccountList
             users={users}
             onOpen={openDetail}
-            selectedUserIds={selectedUserIds}
-            toggleSelection={toggleSelection}
-            toggleAllSelection={toggleAllSelection}
+            onResetPassword={openResetPassword}
+            expandedUserId={expandedUserId}
+            onToggleExpanded={(userId) => setExpandedUserId((current) => (current === userId ? null : userId))}
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            onPageChange={(nextPage) => updateQuery({ page: nextPage })}
+            onPageSizeChange={(nextPageSize) => updateQuery({ pageSize: nextPageSize, page: 1 })}
           />
-          <UserCards users={users} onOpen={openDetail} />
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-[#CAD8CB] bg-white p-4 text-sm font-semibold text-[#294B39] sm:flex-row">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => updateQuery({ page: 1 })}
-                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="First page"
-              >
-                <ChevronsLeft className="size-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => updateQuery({ page: page - 1 })}
-                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Previous page"
-              >
-                <ChevronLeft className="size-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <span className="px-2">
-              Page {page} of {totalPages} &middot; {total} accounts
-            </span>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => updateQuery({ page: page + 1 })}
-                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Next page"
-              >
-                <ChevronRight className="size-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => updateQuery({ page: totalPages })}
-                className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Last page"
-              >
-                <ChevronsRight className="size-4" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
         </>
       )}
 
@@ -582,18 +655,6 @@ export function UsersClient() {
         }}
       />
 
-      <BulkActionDialog
-        open={bulkActionOpen}
-        onOpenChange={setBulkActionOpen}
-        selectedCount={selectedUserIds.size}
-        onConfirm={async (action, reason) => {
-          await runMutation(`Successfully processed ${selectedUserIds.size} accounts.`, async () => {
-            await bulkUserAction(Array.from(selectedUserIds), action, reason);
-            setSelectedUserIds(new Set());
-          });
-        }}
-      />
-
       <AuditLogDialog
         open={auditLogsOpen}
         onOpenChange={setAuditLogsOpen}
@@ -603,137 +664,200 @@ export function UsersClient() {
   );
 }
 
-function UserTable({
+function UserAccountList({
   users,
   onOpen,
-  selectedUserIds,
-  toggleSelection,
-  toggleAllSelection,
+  onResetPassword,
+  expandedUserId,
+  onToggleExpanded,
+  page,
+  pageSize,
+  total,
+  totalPages,
+  onPageChange,
+  onPageSizeChange,
 }: {
   users: UserSummary[];
   onOpen: (userId: string) => Promise<void>;
-  selectedUserIds: Set<string>;
-  toggleSelection: (userId: string) => void;
-  toggleAllSelection: () => void;
+  onResetPassword: (userId: string) => Promise<void>;
+  expandedUserId: string | null;
+  onToggleExpanded: (userId: string) => void;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
-  const allSelected = users.length > 0 && selectedUserIds.size === users.length;
-  const someSelected = selectedUserIds.size > 0 && !allSelected;
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min((page - 1) * pageSize + users.length, total);
 
   return (
-    <div className="hidden 2xl:block min-w-0">
-      <div className="overflow-x-auto rounded-lg border border-[#CAD8CB] bg-white shadow-sm">
-        <table className="w-full divide-y divide-[#E2E8E2] text-left text-sm whitespace-nowrap">
-          <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
-            <tr>
-              <th className="px-5 py-4 w-10">
-                <input
-                  type="checkbox"
-                  className="rounded border-[#CAD8CB] text-[#123D2A] focus:ring-[#1F6B43]"
-                  checked={allSelected}
-                  ref={(input) => {
-                    if (input) input.indeterminate = someSelected;
-                  }}
-                  onChange={toggleAllSelection}
-                  aria-label="Select all"
-                />
-              </th>
-              <th className="px-5 py-4">Display Name</th>
-              <th className="px-5 py-4">Email</th>
-              <th className="px-5 py-4">Username</th>
-              <th className="px-5 py-4">Role</th>
-              <th className="px-5 py-4">Status</th>
-              <th className="px-5 py-4">Linked Member</th>
-              <th className="px-5 py-4">Created</th>
-              <th className="px-5 py-4">Last Login</th>
-              <th className="px-5 py-4">Sessions</th>
-              <th className="px-5 py-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-            {users.map((user) => (
-              <tr key={user.id} className={`hover:bg-[#F7F8F3] ${selectedUserIds.has(user.id) ? "bg-[#EEF2EC]" : ""}`}>
-                <td className="px-5 py-4">
-                  <input
-                    type="checkbox"
-                    className="rounded border-[#CAD8CB] text-[#123D2A] focus:ring-[#1F6B43]"
-                    checked={selectedUserIds.has(user.id)}
-                    onChange={() => toggleSelection(user.id)}
-                    aria-label={`Select ${user.displayName}`}
-                  />
-                </td>
-                <td className="px-5 py-4 font-bold text-[#123D2A]">
-                  <div className="flex items-center gap-2">
-                    <span>{user.displayName}</span>
-                    {isHiddenSystemUser(user) ? (
-                      <span className="rounded-full bg-[#FFF3C9] px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#775200]">
-                        Hidden
-                      </span>
-                    ) : null}
+    <section className="overflow-hidden rounded-lg border border-[#D9E2D8] bg-white shadow-[0_16px_34px_rgba(18,61,42,0.06)]">
+      <div className="hidden grid-cols-[minmax(14rem,1.4fr)_minmax(7rem,.7fr)_minmax(9rem,.9fr)_minmax(8rem,.7fr)_4rem] border-b border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-[#6C7A70] md:grid">
+        <button type="button" className="inline-flex items-center gap-1 text-left" aria-label="Name column">
+          Name
+          <ChevronDown className="size-3" aria-hidden="true" />
+        </button>
+        <span>Role</span>
+        <span>Member ID</span>
+        <span>Status</span>
+        <span className="text-right">Actions</span>
+      </div>
+
+      <div className="divide-y divide-[#E7EEE5]">
+        {users.map((user) => {
+          const expanded = expandedUserId === user.id;
+          const memberCode = user.linkedMemberCode ?? "Unlinked";
+
+          return (
+            <article key={user.id} className="bg-white">
+              <div className="grid min-w-0 gap-3 px-4 py-4 md:grid-cols-[minmax(14rem,1.4fr)_minmax(7rem,.7fr)_minmax(9rem,.9fr)_minmax(8rem,.7fr)_4rem] md:items-center md:px-5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-sm font-black text-[#123D2A]">
+                    {initials(user.displayName)}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <p className="truncate font-black text-[#123D2A]">{user.displayName}</p>
+                      {isHiddenSystemUser(user) ? (
+                        <span className="rounded-full bg-[#FFF3C9] px-2 py-0.5 text-[0.62rem] font-black uppercase tracking-[0.12em] text-[#775200]">
+                          Hidden
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-[#5D6D63]">{user.email}</p>
                   </div>
-                </td>
-                <td className="px-5 py-4">{user.email}</td>
-                <td className="px-5 py-4">{user.username ?? "None"}</td>
-                <td className="px-5 py-4">{roleLabel(user.role)}</td>
-                <td className="px-5 py-4">
+                </div>
+
+                <div className="grid grid-cols-[6rem_1fr] items-center gap-2 text-sm md:block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#8A9A91] md:hidden">Role</span>
+                  <span className="font-semibold text-[#294B39]">{roleLabel(user.role)}</span>
+                </div>
+
+                <div className="grid grid-cols-[6rem_1fr] items-center gap-2 text-sm md:block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#8A9A91] md:hidden">Member ID</span>
+                  <span className="font-semibold text-[#294B39]">{memberCode}</span>
+                </div>
+
+                <div className="grid grid-cols-[6rem_1fr] items-center gap-2 md:block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#8A9A91] md:hidden">Status</span>
                   <StatusBadge tone={statusTone(user.accountStatus)}>{user.accountStatus}</StatusBadge>
-                </td>
-                <td className="px-5 py-4">{user.linkedMemberCode ?? "Unlinked"}</td>
-                <td className="px-5 py-4">{formatDate(user.createdAt)}</td>
-                <td className="px-5 py-4">{formatDate(user.lastLoginAt)}</td>
-                <td className="px-5 py-4">{user.activeSessionCount}</td>
-                <td className="px-5 py-4">
+                </div>
+
+                <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => void onOpen(user.id)}
-                    className="h-9 rounded-md bg-[#123D2A] px-3 text-xs font-bold text-white transition hover:bg-[#1F6B43]"
+                    onClick={() => onToggleExpanded(user.id)}
+                    className="ml-auto flex size-8 items-center justify-center rounded-md border border-transparent bg-transparent p-0 text-[#123D2A] transition hover:border-[#CAD8CB] hover:bg-[#EEF2EC]"
+                    aria-expanded={expanded}
+                    aria-label={`${expanded ? "Collapse" : "Expand"} ${user.displayName}`}
                   >
-                    Manage
+                    <ChevronDown className={`size-4 transition ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function UserCards({ users, onOpen }: { users: UserSummary[]; onOpen: (userId: string) => Promise<void> }) {
-  return (
-    <div className="grid gap-3 2xl:hidden">
-      {users.map((user) => (
-        <article key={user.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
-          <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="break-words font-bold text-[#123D2A]">{user.displayName}</p>
-                {isHiddenSystemUser(user) ? (
-                  <span className="rounded-full bg-[#FFF3C9] px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#775200]">
-                    Hidden
-                  </span>
-                ) : null}
+                </div>
               </div>
-              <p className="mt-1 break-all text-sm text-[#5D6D63]">{user.email}</p>
-            </div>
-            <StatusBadge tone={statusTone(user.accountStatus)}>{user.accountStatus}</StatusBadge>
-          </div>
-          <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
-            <Info label="Role" value={roleLabel(user.role)} />
-            <Info label="Username" value={user.username ?? "None"} />
-            <Info label="Member" value={user.linkedMemberCode ?? "Unlinked"} />
-            <Info label="Sessions" value={String(user.activeSessionCount)} />
-          </dl>
+
+              {expanded ? (
+                <div className="px-4 pb-4 md:px-5">
+                  <div className="rounded-lg border border-[#D9E2D8] bg-[#FBFCF8] p-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)]">
+                    <dl className="grid gap-x-6 gap-y-4 border-b border-[#E7EEE5] pb-4 text-sm sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+                      <Info label="Email" value={user.email} />
+                      <Info label="Username" value={user.username ?? "None"} />
+                      <Info label="Member Code" value={memberCode} />
+                      <Info label="Sessions" value={String(user.activeSessionCount)} />
+                      <Info label="Created" value={formatDate(user.createdAt)} />
+                      <Info label="Last Login" value={formatDate(user.lastLoginAt)} />
+                      <Info
+                        label="Activation Link"
+                        value={user.activationTokenExpiresAt ? `Expires ${formatDate(user.activationTokenExpiresAt)}` : "None pending"}
+                      />
+                    </dl>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => void onOpen(user.id)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white shadow-[0_10px_20px_rgba(18,61,42,0.16)] transition hover:bg-[#1F6B43]"
+                      >
+                        <UserCog className="size-4" aria-hidden="true" />
+                        Manage Account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onResetPassword(user.id)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#D9E2D8] bg-white px-4 text-sm font-bold text-[#294B39] transition hover:bg-[#EAF3E8]"
+                      >
+                        <KeyRound className="size-4" aria-hidden="true" />
+                        Reset Password
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm font-semibold text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          Showing {start}-{end} of {total} users
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => void onOpen(user.id)}
-            className="mt-4 h-10 w-full rounded-md bg-[#123D2A] text-sm font-bold text-white transition hover:bg-[#1F6B43]"
+            disabled={page <= 1}
+            onClick={() => onPageChange(1)}
+            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="First page"
           >
-            Manage Account
+            <ChevronsLeft className="size-4" aria-hidden="true" />
           </button>
-        </article>
-      ))}
-    </div>
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+          </button>
+          <span className="grid size-9 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white">
+            {page}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => onPageChange(page + 1)}
+            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Next page"
+          >
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => onPageChange(totalPages)}
+            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Last page"
+          >
+            <ChevronsRight className="size-4" aria-hidden="true" />
+          </button>
+          <div className="w-32">
+            <ComboSelect
+              value={String(pageSize)}
+              onChange={(value) => onPageSizeChange(Number(value))}
+              ariaLabel="Accounts per page"
+              options={[
+                { value: "5", label: "5 per page" },
+                { value: "10", label: "10 per page" },
+                { value: "20", label: "20 per page" },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -760,69 +884,83 @@ function UserDetailDialog({
 
   const canLink = user.role === "member" && !user.linkedMemberId;
   const canUnlink = user.role === "member" && Boolean(user.linkedMemberId);
+  const suspensionToggle =
+    user.accountStatus === "Suspended"
+      ? { kind: "reactivate" as const, label: "Unsuspend", icon: UserCheck }
+      : { kind: "suspend" as const, label: "Suspend", icon: UserMinus };
+  const activeToggle =
+    user.accountStatus === "Inactive"
+      ? { kind: "activate" as const, label: "Activate", icon: ShieldCheck }
+      : { kind: "deactivate" as const, label: "Deactivate", icon: UserMinus };
 
   return (
     <FormDialog
       open={Boolean(user)}
       onOpenChange={onOpenChange}
-      title={user.displayName}
+      title={
+        <span className="inline-flex flex-wrap items-center gap-3">
+          {user.displayName}
+          <StatusBadge tone={statusTone(user.accountStatus)}>{user.accountStatus}</StatusBadge>
+        </span>
+      }
       description="Account profile, linked member profile, sessions, and lifecycle controls."
+      contentClassName="w-[min(54rem,calc(100vw-2rem))] p-5 sm:p-8"
     >
-      <div className="grid gap-5">
-        <section className="grid gap-3 rounded-lg border border-[#CAD8CB] p-4 md:grid-cols-3">
-          <Info label="Email" value={user.email} />
-          <Info label="Username" value={user.username ?? "None"} />
-          <Info label="Role" value={roleLabel(user.role)} />
-          <Info label="Status" value={user.accountStatus} />
-          <Info label="Linked Member" value={user.linkedMemberCode ? `${user.linkedMemberCode} · ${user.linkedMemberName}` : "Unlinked"} />
-          <Info label="Pending Activation" value={user.activationTokenExpiresAt ? formatDate(user.activationTokenExpiresAt) : "None"} />
+      <div className="grid gap-6">
+        <section className="rounded-lg border border-[#D9E2D8] bg-white p-5">
+          <div className="grid gap-6 md:grid-cols-3">
+            <IconInfo icon={Mail} label="Email" value={user.email} />
+            <IconInfo icon={UserRound} label="Username" value={user.username ?? "None"} />
+            <IconInfo icon={ShieldCheck} label="Role" value={roleLabel(user.role)} />
+            <IconInfo icon={Activity} label="Status" value={user.accountStatus} valueClassName="text-[#1F6B43]" />
+            <IconInfo
+              icon={Link2}
+              label="Linked Member"
+              value={user.linkedMemberCode ? `${user.linkedMemberCode} · ${user.linkedMemberName}` : "Unlinked"}
+            />
+            <IconInfo
+              icon={RefreshCcw}
+              label="Pending Activation"
+              value={user.activationTokenExpiresAt ? formatDate(user.activationTokenExpiresAt) : "None"}
+            />
+          </div>
+          <div className="mt-6 border-t border-[#E7EEE5] pt-6">
+            <IconInfo
+              icon={Monitor}
+              label="Sessions"
+              value={`${user.sessions.length} active session${user.sessions.length === 1 ? "" : "s"}`}
+              inline
+            />
+          </div>
         </section>
 
-        <section className="grid gap-6">
-          <div>
-            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Profile & Role</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <ActionButton icon={UserCog} label="Edit Profile" onClick={() => onEdit(user)} />
-              <ActionButton icon={UserCog} label="Change Role" onClick={() => onAction({ kind: "role", user })} />
-              <ActionButton icon={Link2} label="Link Member" disabled={!canLink} onClick={() => onAction({ kind: "link-member", user })} />
-              <ActionButton icon={Link2} label="Unlink Member" disabled={!canUnlink} onClick={() => onAction({ kind: "unlink-member", user })} />
-            </div>
+        <section className="border-t border-[#E7EEE5] pt-5">
+          <h2 className="text-lg font-black text-[#123D2A]">Manage Account</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <ActionButton icon={Pencil} label="Edit Profile" variant="primary" onClick={() => onEdit(user)} />
+            <ActionButton icon={UsersRound} label="Change Role" variant="primary" onClick={() => onAction({ kind: "role", user })} />
+            <ActionButton icon={LockKeyhole} label="Reset Password" onClick={() => onAction({ kind: "reset-password", user })} />
           </div>
-
-          <div>
-            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Access & Security</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <ActionButton icon={KeyRound} label="Reset Password" onClick={() => onAction({ kind: "reset-password", user })} />
-              <ActionButton icon={KeyRound} label="Issue Activation Link" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activation", user })} />
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-[#E7B8A8] bg-[#FFF5F3] p-4">
-            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#9A392A]">Danger Zone</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <ActionButton icon={ShieldCheck} label="Activate" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activate", user })} />
-              <ActionButton icon={UserMinus} label="Suspend" disabled={user.accountStatus === "Suspended"} onClick={() => onAction({ kind: "suspend", user })} />
-              <ActionButton icon={UserMinus} label="Deactivate" disabled={user.accountStatus === "Inactive"} onClick={() => onAction({ kind: "deactivate", user })} />
-              <ActionButton icon={UserCheck} label="Reactivate" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "reactivate", user })} />
-              <ActionButton icon={Trash2} label="Delete Account" onClick={() => onAction({ kind: "delete", user })} />
-            </div>
-          </div>
-
-          {user.id === currentUserId ? (
-            <p className="rounded-md bg-[#FFF4D7] p-3 text-sm font-semibold text-[#7A5A00]">
-              Changes that disable your own account require typing your display name.
-            </p>
-          ) : null}
         </section>
 
-        <section>
+        <section className="border-t border-[#E7EEE5] pt-5">
+          <h2 className="text-lg font-black text-[#123D2A]">Member & Access</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <ActionButton icon={Link2} label="Link Member" disabled={!canLink} onClick={() => onAction({ kind: "link-member", user })} />
+            <ActionButton icon={Link2} label="Unlink Member" disabled={!canUnlink} onClick={() => onAction({ kind: "unlink-member", user })} />
+            <ActionButton icon={Mail} label="Issue Activation Link" disabled={user.accountStatus === "Active"} onClick={() => onAction({ kind: "activation", user })} />
+            <ActionButton icon={FileText} label="View Activity Log" onClick={() => onViewAuditLogs(user.id)} />
+          </div>
+        </section>
+
+        <section className="border-t border-[#E7EEE5] pt-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Active Sessions</h2>
+            <h2 className="text-lg font-black text-[#123D2A]">Active Sessions</h2>
             <button
               type="button"
               disabled={isMutating || user.sessions.length === 0}
               onClick={() => onAction({ kind: "revoke-all", user })}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-[#E7B8A8] px-3 text-xs font-bold text-[#9A392A] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-[#E7B8A8] bg-white px-4 text-sm font-bold text-[#C62828] transition hover:bg-[#FFF5F3] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <LogOut className="size-4" aria-hidden="true" />
               Revoke All
@@ -830,11 +968,29 @@ function UserDetailDialog({
           </div>
           <div className="mt-3 grid gap-2">
             {user.sessions.length === 0 ? (
-              <p className="rounded-md border border-dashed border-[#CAD8CB] p-4 text-sm text-[#5D6D63]">No active sessions.</p>
+              <div className="flex flex-col gap-4 rounded-lg border border-[#D9E2D8] p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="grid size-14 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
+                    <Monitor className="size-7" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-black text-[#123D2A]">No active sessions.</p>
+                    <p className="mt-1 text-sm text-[#5D6D63]">This user has no active sessions at this time.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void onRefresh(user.id)}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#D9E2D8] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EAF3E8]"
+                >
+                  <RefreshCcw className="size-4" aria-hidden="true" />
+                  Refresh
+                </button>
+              </div>
             ) : (
               user.sessions.map((session) => (
-                <div key={session.id} className="flex flex-col gap-3 rounded-md border border-[#CAD8CB] p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+                <div key={session.id} className="flex flex-col gap-3 rounded-lg border border-[#D9E2D8] p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <p className="font-bold text-[#123D2A]">{session.ipAddress ?? "Unknown IP"} {session.isCurrent ? "· Current session" : ""}</p>
                     <p className="mt-1 text-[#5D6D63]">{session.userAgent ?? "Unknown device"}</p>
                     <p className="mt-1 text-xs text-[#6C7A70]">Created {formatDate(session.createdAt)} · Expires {formatDate(session.expiresAt)}</p>
@@ -843,7 +999,7 @@ function UserDetailDialog({
                     type="button"
                     disabled={isMutating}
                     onClick={() => onAction({ kind: "revoke-session", user, session })}
-                    className="h-9 rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
+                    className="h-10 rounded-md border border-[#E7B8A8] px-4 text-sm font-bold text-[#C62828]"
                   >
                     Revoke
                   </button>
@@ -851,22 +1007,31 @@ function UserDetailDialog({
               ))
             )}
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void onRefresh(user.id)}
-              className="h-9 rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
-            >
-              Refresh Details
-            </button>
-            <button
-              type="button"
-              onClick={() => onViewAuditLogs(user.id)}
-              className="h-9 rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]"
-            >
-              View Activity Log
-            </button>
+        </section>
+
+        <section className="rounded-lg border border-[#F1A6A6] bg-[#FFF5F3] p-5">
+          <h2 className="text-lg font-black text-[#B91C1C]">Danger Zone</h2>
+          <p className="mt-1 text-sm text-[#7A3023]">These actions impact account access and status.</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <ActionButton
+              icon={suspensionToggle.icon}
+              label={suspensionToggle.label}
+              variant="danger"
+              onClick={() => onAction({ kind: suspensionToggle.kind, user })}
+            />
+            <ActionButton
+              icon={activeToggle.icon}
+              label={activeToggle.label}
+              variant="danger"
+              onClick={() => onAction({ kind: activeToggle.kind, user })}
+            />
+            <ActionButton icon={Trash2} label="Delete Account" variant="solidDanger" onClick={() => onAction({ kind: "delete", user })} />
           </div>
+          {user.id === currentUserId ? (
+            <p className="mt-4 rounded-md bg-[#FFF4D7] p-3 text-sm font-semibold text-[#7A5A00]">
+              Changes that disable your own account require typing your display name.
+            </p>
+          ) : null}
         </section>
       </div>
     </FormDialog>
@@ -933,18 +1098,24 @@ function UserFormDialog({
         {mode === "create" ? (
           <>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className={labelClass}>
-                Role
-                <select className={inputClass} value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value as RoleSlug }))}>
-                  {roles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-                </select>
-              </label>
-              <label className={labelClass}>
-                Status
-                <select className={inputClass} value={draft.accountStatus} onChange={(event) => setDraft((current) => ({ ...current, accountStatus: event.target.value as AccountStatus }))}>
-                  {accountStatuses.map((status) => <option key={status}>{status}</option>)}
-                </select>
-              </label>
+              <div className={labelClass}>
+                <span>Role</span>
+                <ComboSelect
+                  value={draft.role}
+                  onChange={(value) => setDraft((current) => ({ ...current, role: value }))}
+                  ariaLabel="Account role"
+                  options={roles.map((role) => ({ value: role, label: roleLabel(role) }))}
+                />
+              </div>
+              <div className={labelClass}>
+                <span>Status</span>
+                <ComboSelect
+                  value={draft.accountStatus}
+                  onChange={(value) => setDraft((current) => ({ ...current, accountStatus: value }))}
+                  ariaLabel="Account status"
+                  options={accountStatuses.map((status) => ({ value: status, label: status }))}
+                />
+              </div>
             </div>
             
             <label className={labelClass}>
@@ -1058,12 +1229,15 @@ function LifecycleActionDialog({
         }}
       >
         {action.kind === "role" ? (
-          <label className={labelClass}>
-            New Role
-            <select className={inputClass} value={role} onChange={(event) => setRole(event.target.value as RoleSlug)}>
-              {roles.map((item) => <option key={item} value={item}>{roleLabel(item)}</option>)}
-            </select>
-          </label>
+          <div className={labelClass}>
+            <span>New Role</span>
+            <ComboSelect
+              value={role}
+              onChange={setRole}
+              ariaLabel="New role"
+              options={roles.map((item) => ({ value: item, label: roleLabel(item) }))}
+            />
+          </div>
         ) : null}
         {action.kind === "reset-password" ? (
           <label className={labelClass}>
@@ -1077,17 +1251,22 @@ function LifecycleActionDialog({
               Search Unlinked Members
               <input className={inputClass} value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Name, code, or email" />
             </label>
-            <label className={labelClass}>
-              Member Profile
-              <select className={inputClass} required value={memberId} onChange={(event) => setMemberId(event.target.value)}>
-                <option value="">Select member</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.memberCode} · {member.fullName}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className={labelClass}>
+              <span>Member Profile</span>
+              <ComboSelect
+                value={memberId}
+                onChange={setMemberId}
+                ariaLabel="Member profile"
+                placeholder="Select member"
+                options={[
+                  { value: "", label: "Select member" },
+                  ...members.map((member) => ({
+                    value: member.id,
+                    label: `${member.memberCode} · ${member.fullName}`,
+                  })),
+                ]}
+              />
+            </div>
           </div>
         ) : null}
         <label className={labelClass}>
@@ -1146,8 +1325,34 @@ function ActivationResultDialog({ result, onOpenChange }: { result: ActivationLi
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6C7A70]">{label}</p>
-      <p className="mt-1 break-words font-semibold text-[#123D2A]">{value}</p>
+      <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#6C7A70]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold leading-5 text-[#123D2A] [overflow-wrap:anywhere]">{value}</p>
+    </div>
+  );
+}
+
+function IconInfo({
+  icon: Icon,
+  label,
+  value,
+  valueClassName = "text-[#123D2A]",
+  inline = false,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  valueClassName?: string;
+  inline?: boolean;
+}) {
+  return (
+    <div className={`min-w-0 ${inline ? "flex flex-wrap items-center gap-x-3 gap-y-1" : "grid gap-2"}`}>
+      <div className="flex min-w-0 items-center gap-3">
+        <Icon className="size-4 shrink-0 text-[#365f4a]" aria-hidden="true" />
+        <p className="truncate text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#6C7A70]">{label}</p>
+      </div>
+      <p className={`min-w-0 max-w-full break-words text-sm font-black leading-5 [overflow-wrap:anywhere] ${inline ? "ml-0" : "ml-7"} ${valueClassName}`}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -1157,21 +1362,30 @@ function ActionButton({
   label,
   disabled,
   onClick,
+  variant = "secondary",
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   disabled?: boolean;
   onClick: () => void;
+  variant?: "primary" | "secondary" | "danger" | "solidDanger";
 }) {
+  const variantClass = {
+    primary: "border-[#123D2A] bg-[#0B6B3A] text-white shadow-[0_10px_18px_rgba(18,61,42,0.14)] hover:bg-[#123D2A]",
+    secondary: "border-[#D9E2D8] bg-white text-[#123D2A] hover:bg-[#EAF3E8]",
+    danger: "border-[#F1A6A6] bg-white text-[#B91C1C] hover:bg-[#FFE6E0]",
+    solidDanger: "border-[#C62828] bg-[#C62828] text-white shadow-[0_10px_18px_rgba(198,40,40,0.16)] hover:bg-[#A91F1F]",
+  }[variant];
+
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-3 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
+      className={`inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-md border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${variantClass}`}
     >
-      <Icon className="size-4" aria-hidden="true" />
-      {label}
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -1212,85 +1426,6 @@ function successMessage(action: PendingAction) {
   };
 
   return messages[action.kind];
-}
-
-function BulkActionDialog({
-  open,
-  onOpenChange,
-  selectedCount,
-  onConfirm,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedCount: number;
-  onConfirm: (action: "Suspend" | "Activate" | "Delete", reason: string) => Promise<void>;
-}) {
-  const [action, setAction] = useState<"Suspend" | "Activate" | "Delete">("Suspend");
-  const [reason, setReason] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  return (
-    <FormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Bulk Account Actions"
-      description={`Apply an action to ${selectedCount} selected accounts simultaneously.`}
-    >
-      <form
-        className="grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setIsSubmitting(true);
-          onConfirm(action, reason).finally(() => {
-            setIsSubmitting(false);
-            onOpenChange(false);
-            setReason("");
-          });
-        }}
-      >
-        <label className="block text-sm font-bold text-[#123D2A]">
-          Action to Apply
-          <select
-            className="mt-1 block h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
-            value={action}
-            onChange={(event) => setAction(event.target.value as "Suspend" | "Activate" | "Delete")}
-            required
-          >
-            <option value="Suspend">Suspend Accounts</option>
-            <option value="Activate">Activate Accounts</option>
-            <option value="Delete">Delete Accounts Permanently</option>
-          </select>
-        </label>
-
-        <label className="block text-sm font-bold text-[#123D2A]">
-          Reason
-          <textarea
-            required
-            rows={3}
-            className="mt-1 block w-full rounded-md border border-[#CAD8CB] bg-white px-3 py-2 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Why are you taking this action?"
-          />
-        </label>
-
-        {action === "Delete" ? (
-          <p className="rounded-md bg-[#FFF4D7] p-3 text-sm font-semibold text-[#7A5A00]">
-            Warning: Deleting accounts is permanent and cannot be undone.
-          </p>
-        ) : null}
-
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={() => onOpenChange(false)} className="h-11 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#294B39]">
-            Cancel
-          </button>
-          <button disabled={isSubmitting} type="submit" className={`h-11 rounded-md px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${action === "Delete" ? "bg-[#B91C1C]" : "bg-[#123D2A]"}`}>
-            Confirm Action
-          </button>
-        </div>
-      </form>
-    </FormDialog>
-  );
 }
 
 function AuditLogDialog({

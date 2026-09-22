@@ -13,7 +13,7 @@ import {
 
 export async function GET(
   _request: NextRequest,
-  context: RouteContext<"/api/documents/[id]">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper", "member"]);
@@ -32,7 +32,7 @@ type PatchBody =
 
 export async function PATCH(
   request: NextRequest,
-  context: RouteContext<"/api/documents/[id]">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper"]);

@@ -170,6 +170,12 @@ export type StoredMembershipApplicationDocument = {
   uploadedAt: Date;
 };
 
+export type StoredChairmanApplicationDocument = StoredMembershipApplicationDocument & {
+  id: string;
+  applicationId: string;
+  storedFilePath: string;
+};
+
 export type ChairmanApplicationListQuery = {
   page: number;
   pageSize: number;

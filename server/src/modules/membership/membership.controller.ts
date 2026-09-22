@@ -4,7 +4,10 @@ import type { ZodType } from "zod";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
-import { protectedUploadRoot } from "../../storage/protected-storage";
+import {
+  normalizeProtectedStoragePath,
+  protectedUploadRoot,
+} from "../../storage/protected-storage";
 import {
   accountCreationSchema,
   activationSchema,
@@ -70,7 +73,7 @@ function uploadedDocuments(
   return (files ?? []).map((file, index) => ({
     documentType: types[index] ?? "Other cooperative requirement",
     originalFileName: file.originalname,
-    storedFilePath: file.path.replaceAll("\\", "/"),
+    storedFilePath: normalizeProtectedStoragePath(file.path),
     mimeType: file.mimetype,
     fileSizeBytes: file.size,
   }));
@@ -235,7 +238,7 @@ export function createMembershipController(service: MembershipService) {
             provider: String(request.body.provider ?? ""),
             referenceNumber: String(request.body.referenceNumber ?? ""),
             amount,
-            proofFilePath: proof.path.replaceAll("\\", "/"),
+            proofFilePath: normalizeProtectedStoragePath(proof.path),
             notes: request.body.notes ? String(request.body.notes) : undefined,
           },
         ),

@@ -1845,95 +1845,8 @@ WHERE NOT EXISTS (
 );
 
 -- ---------------------------------------------------------------------------
--- Landing-content records for Chairman content editors
+-- Landing website gallery and certification records
 -- ---------------------------------------------------------------------------
-
-INSERT INTO site_content_blocks (
-  page_slug,
-  section_key,
-  content_type,
-  title,
-  body,
-  value_text,
-  media_path,
-  display_order,
-  content_status,
-  updated_by,
-  published_at
-)
-VALUES
-  ('home', 'hero', 'Hero', 'Nasugbu Farmers and Fisherfolks Agriculture Cooperative', 'Seeded content block for local landing editor testing.', NULL, '/images/Hero Page/hero-1.jpg', 1, 'Published', @chairman_id, '2026-03-01 08:00:00'),
-  ('home', 'numbers', 'Statistic', 'Members Assisted', 'Seeded statistic for local landing editor testing.', '120+', NULL, 1, 'Published', @chairman_id, '2026-03-01 08:00:00')
-ON DUPLICATE KEY UPDATE
-  content_type = VALUES(content_type),
-  title = VALUES(title),
-  body = VALUES(body),
-  value_text = VALUES(value_text),
-  media_path = VALUES(media_path),
-  content_status = VALUES(content_status),
-  updated_by = VALUES(updated_by),
-  published_at = VALUES(published_at);
-
-INSERT INTO services (
-  service_code,
-  service_type,
-  title,
-  short_description,
-  full_description,
-  requirements_text,
-  image_path,
-  cta_label,
-  cta_url,
-  public_visibility,
-  service_status,
-  display_order,
-  created_by
-)
-VALUES
-  ('SVC-MEMBERSHIP-TEST', 'Membership', 'Membership Assistance', 'Support for cooperative membership applications and records.', 'Seeded service record for landing admin testing.', 'Valid contact details and cooperative application information.', '/images/services/membership.jpg', 'Start Inquiry', '/contact', 1, 'Active', 1, @chairman_id),
-  ('SVC-RENTAL-TEST', 'Rental', 'Farm Equipment Access', 'Shared equipment access for approved cooperative work.', 'Seeded rental service record for landing admin testing.', 'Approved schedule and confirmed availability.', '/images/services/rental.jpg', 'View Rentals', '/rental', 1, 'Active', 2, @chairman_id)
-ON DUPLICATE KEY UPDATE
-  service_type = VALUES(service_type),
-  title = VALUES(title),
-  short_description = VALUES(short_description),
-  full_description = VALUES(full_description),
-  requirements_text = VALUES(requirements_text),
-  image_path = VALUES(image_path),
-  cta_label = VALUES(cta_label),
-  cta_url = VALUES(cta_url),
-  public_visibility = VALUES(public_visibility),
-  service_status = VALUES(service_status),
-  display_order = VALUES(display_order),
-  created_by = VALUES(created_by);
-
-INSERT INTO programs_projects (
-  title,
-  category,
-  summary,
-  description,
-  start_date,
-  end_date,
-  location,
-  image_path,
-  public_visibility,
-  status,
-  display_order,
-  created_by
-)
-SELECT
-  'Seedling Nursery Support',
-  'Agriculture',
-  'Shared growing support for resilient crop cycles.',
-  'Seeded project record for landing project editor testing.',
-  '2026-02-01',
-  '2026-05-31',
-  'Nasugbu, Batangas',
-  '/images/projects/seedling-nursery.jpg',
-  1,
-  'Ongoing',
-  1,
-  @chairman_id
-WHERE NOT EXISTS (SELECT 1 FROM programs_projects WHERE title = 'Seedling Nursery Support');
 
 INSERT INTO partners_certifications (
   record_type,
@@ -1962,15 +1875,13 @@ SELECT
   @chairman_id
 WHERE NOT EXISTS (SELECT 1 FROM partners_certifications WHERE name = 'Seeded Certificate of Compliance');
 
-INSERT INTO gallery_items (
+INSERT INTO gallery_groups (
   title,
   caption,
   category,
-  image_path,
-  thumbnail_path,
   activity_date,
   location,
-  alt_text,
+  border_color,
   public_visibility,
   gallery_status,
   display_order,
@@ -1979,19 +1890,75 @@ INSERT INTO gallery_items (
 )
 SELECT
   'Seeded Cooperative Meeting',
-  'Seeded gallery item for local content testing.',
+  'Seeded gallery group for local content testing.',
   'Meeting',
-  '/images/announcement/post-1-1.jpg',
-  '/images/announcement/post-1-1.jpg',
   '2026-03-23',
   'Nasugbu, Batangas',
-  'Cooperative meeting with members and students',
+  '#D8B04C',
   1,
   'Published',
   1,
   @chairman_id,
   '2026-03-23 09:00:00'
-WHERE NOT EXISTS (SELECT 1 FROM gallery_items WHERE title = 'Seeded Cooperative Meeting');
+WHERE NOT EXISTS (SELECT 1 FROM gallery_groups WHERE title = 'Seeded Cooperative Meeting');
+
+SET @seed_gallery_group_id := (
+  SELECT gallery_group_id
+  FROM gallery_groups
+  WHERE title = 'Seeded Cooperative Meeting'
+  LIMIT 1
+);
+
+INSERT INTO gallery_images (
+  gallery_group_id,
+  image_path,
+  thumbnail_path,
+  alt_text,
+  sort_order,
+  is_cover,
+  public_visibility
+)
+SELECT
+  @seed_gallery_group_id,
+  '/images/announcement/post-1-1.jpg',
+  '/images/announcement/post-1-1.jpg',
+  'Cooperative meeting with members and students',
+  1,
+  1,
+  1
+WHERE @seed_gallery_group_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM gallery_images
+    WHERE gallery_group_id = @seed_gallery_group_id
+      AND image_path = '/images/announcement/post-1-1.jpg'
+  );
+
+INSERT INTO gallery_landing_slots (
+  slot_key,
+  gallery_group_id,
+  gallery_image_id,
+  display_order,
+  updated_by
+)
+SELECT
+  'gallery-feature-1',
+  @seed_gallery_group_id,
+  (
+    SELECT gallery_image_id
+    FROM gallery_images
+    WHERE gallery_group_id = @seed_gallery_group_id
+      AND image_path = '/images/announcement/post-1-1.jpg'
+    LIMIT 1
+  ),
+  1,
+  @chairman_id
+WHERE @seed_gallery_group_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM gallery_landing_slots
+    WHERE slot_key = 'gallery-feature-1'
+  );
 
 -- ---------------------------------------------------------------------------
 

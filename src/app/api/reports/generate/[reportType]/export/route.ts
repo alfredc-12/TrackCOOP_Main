@@ -39,7 +39,7 @@ const filterKeys: ReportFilterKey[] = [
 
 export async function GET(
   request: NextRequest,
-  context: RouteContext<"/api/reports/generate/[reportType]/export">,
+  context: { params: Promise<{ reportType: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper"]);

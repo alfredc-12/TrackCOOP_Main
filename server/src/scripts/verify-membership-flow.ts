@@ -129,7 +129,7 @@ async function main() {
       referenceNumber: `VERIFY-${runId}`,
       amount: 200,
       proofFilePath:
-        "storage/uploads/membership-payments/verification-only.pdf",
+        "public/uploads/membership-payments/verification-only.pdf",
       notes: "Automated end-to-end verification record.",
     },
   );

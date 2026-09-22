@@ -10,26 +10,36 @@ export async function POST(request: NextRequest) {
     if (response) return response;
 
     const formData = await request.formData();
-    const file = formData.get("image") as File | null;
+    const files = [
+      ...formData.getAll("images"),
+      ...formData.getAll("image"),
+    ].filter((file): file is File => file instanceof File && file.size > 0);
 
-    if (!file) {
-      return NextResponse.json({ error: "No image file provided" }, { status: 400 });
+    if (files.length === 0) {
+      return NextResponse.json({ error: "No image files provided" }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Save to public directory
     const publicDir = join(process.cwd(), "public", "uploads", "announcements");
     await mkdir(publicDir, { recursive: true });
 
-    const ext = file.name.split('.').pop() || 'jpg';
-    const filename = `${randomUUID()}.${ext}`;
-    const filePath = join(publicDir, filename);
+    const urls: string[] = [];
+    for (const file of files) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filename = `${randomUUID()}.${ext}`;
+      const filePath = join(publicDir, filename);
 
-    await writeFile(filePath, buffer);
+      await writeFile(filePath, buffer);
+      urls.push(`/uploads/announcements/${filename}`);
+    }
 
-    return NextResponse.json({ url: `/uploads/announcements/${filename}` });
+    return NextResponse.json({
+      success: true,
+      data: { url: urls[0], urls },
+      message: "Images uploaded",
+      meta: {},
+    });
   } catch (error) {
     console.error(`POST /api/announcements/upload-image error:`, error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

@@ -13,14 +13,22 @@ export default function ChairmanLandingGalleryPage() {
         title: "Cooperative activity",
         caption: "",
         category: "Community",
-        imagePath: "/images/Other%20Landing%20Page/About.jpg",
-        thumbnailPath: "",
         activityDate: null,
         location: "Nasugbu, Batangas",
-        altText: "Cooperative activity photo",
+        borderColor: "#D8B04C",
         publicVisibility: true,
-        galleryStatus: "Draft",
+        galleryStatus: "Published",
         displayOrder: 0,
+        images: [
+          {
+            imagePath: "/images/Other%20Landing%20Page/About.jpg",
+            thumbnailPath: "/images/Other%20Landing%20Page/About.jpg",
+            altText: "Cooperative activity photo",
+            sortOrder: 0,
+            isCover: true,
+            publicVisibility: true,
+          },
+        ],
       }}
     />
   );

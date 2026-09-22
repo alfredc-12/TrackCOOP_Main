@@ -11,7 +11,7 @@ export function normalizePhilippineMobile(value: string) {
 const optionalText = z.string().trim();
 const validIdDocumentSchema = z.object({
   originalFileName: z.string().trim().min(1).max(255),
-  storagePath: z.string().trim().startsWith("storage/uploads/rental-valid-ids/"),
+  storagePath: z.string().trim().startsWith("public/uploads/rental-valid-ids/"),
   mimeType: z.enum(["image/jpeg", "image/png", "application/pdf"]),
   fileSizeBytes: z.number().int().positive().max(5 * 1024 * 1024),
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),

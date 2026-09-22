@@ -1,9 +1,6 @@
 import { apiRequest } from "@/lib/api-client";
 
 export type LandingCollection =
-  | "content-blocks"
-  | "services"
-  | "programs"
   | "partners"
   | "gallery";
 
@@ -27,6 +24,40 @@ export async function createLandingRecord(collection: LandingCollection, input: 
 export async function updateLandingRecord(collection: LandingCollection, id: string, input: Record<string, unknown>) {
   return apiRequest<LandingRecord>(`/api/landing/${collection}/${id}`, {
     method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function uploadPartnerCertificationFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiRequest<{ url: string; originalName: string; mimeType: string }>("/api/landing/partners/upload", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function uploadGalleryImages(files: File[]) {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("images", file);
+  }
+  return apiRequest<{
+    url: string;
+    urls: string[];
+    files: Array<{ url: string; originalName: string; mimeType: string }>;
+  }>("/api/landing/gallery/upload", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function saveGalleryLandingSlot(
+  slotKey: string,
+  input: { galleryGroupId?: string | null; galleryImageId?: string | null; displayOrder: number },
+) {
+  return apiRequest<LandingRecord>(`/api/landing/gallery-slots/${encodeURIComponent(slotKey)}`, {
+    method: "PUT",
     body: JSON.stringify(input),
   });
 }

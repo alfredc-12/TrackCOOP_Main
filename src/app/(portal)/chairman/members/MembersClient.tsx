@@ -1,19 +1,28 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Archive,
+  Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   CreditCard,
   Download,
+  Eye,
   FilePlus2,
   FileText,
   Filter,
   History,
+  Leaf,
   Link2,
   Loader2,
+  Mail,
+  MapPin,
   Pencil,
+  Phone,
+  Play,
   Plus,
   Printer,
   RefreshCcw,
@@ -31,28 +40,30 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/portal/PageHeader";
 import {
   ConfirmDialog,
-  DataTable,
   EmptyState,
   ErrorState,
   FormDialog,
   LoadingSkeleton,
-  StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { Button } from "@/components/ui/Button";
+import { DatePicker } from "@/components/ui/DatePicker";
+import type { AuthUser } from "@/features/auth/types";
 import { ApiClientError } from "@/lib/api-client";
+import { getAuthenticatedUser } from "@/lib/auth-client";
 import {
   addApplicationBeneficiary,
   addApplicationRequirement,
+  applicationDocumentViewUrl,
   approveApplication,
   createChairmanApplication,
   deleteApplicationBeneficiary,
   deleteApplicationDocument,
+  deleteApplicationRequirement,
   downloadApplicationPdf,
   getChairmanApplication,
   getChairmanApplicationSummary,
@@ -229,6 +240,7 @@ type ApplicationFormState = ChairmanMembershipApplicationUpdateInput & {
 type DetailMap = Record<string, ChairmanApplicationDetail>;
 type TabKey = "applications" | "directory" | "history";
 type HistorySource = "All" | "Application" | "Member" | "Account";
+type HistoryQuery = { page: number; pageSize: number; search: string; sourceModule: HistorySource; date: string };
 type MemberFormState = {
   memberCode: string;
   fullName: string;
@@ -251,14 +263,8 @@ type MemberAccountAction =
 type ConfirmAction =
   | { type: "transition"; action: "start-review" | "request-information" | "reject" | "withdraw"; label: string }
   | { type: "delete-beneficiary"; beneficiaryId: string; label: string }
-  | { type: "delete-document"; documentId: string; label: string };
-
-function statusTone(status: MembershipApplicationStatus) {
-  if (status === "Approved") return "success";
-  if (status === "Needs Information" || status === "Submitted") return "warning";
-  if (status === "Rejected" || status === "Withdrawn") return "danger";
-  return "neutral";
-}
+  | { type: "delete-document"; documentId: string; label: string }
+  | { type: "delete-requirement"; requirementId: string; label: string };
 
 function requirementTone(status: RequirementStatus) {
   if (status === "Verified" || status === "Waived") return "success";
@@ -268,6 +274,7 @@ function requirementTone(status: RequirementStatus) {
 }
 
 export function MembersClient() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("applications");
   const [summary, setSummary] = useState<ChairmanApplicationSummary>(emptySummary);
   const [applications, setApplications] = useState<ChairmanApplicationListItem[]>([]);
@@ -275,8 +282,7 @@ export function MembersClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState<ChairmanApplicationListQuery>(defaultQuery);
   const [requirementCompletion, setRequirementCompletion] = useState("All");
-  const [submittedFrom, setSubmittedFrom] = useState("");
-  const [submittedTo, setSubmittedTo] = useState("");
+  const [applicationBarangays, setApplicationBarangays] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
   const [error, setError] = useState("");
@@ -296,17 +302,34 @@ export function MembersClient() {
   const [statusMember, setStatusMember] = useState<MemberDetail | null>(null);
   const [accountAction, setAccountAction] = useState<MemberAccountAction | null>(null);
   const [historyEntries, setHistoryEntries] = useState<UnifiedStatusHistoryEntry[]>([]);
-  const [historyQuery, setHistoryQuery] = useState<{ page: number; pageSize: number; search: string; sourceModule: HistorySource }>({
+  const [historyQuery, setHistoryQuery] = useState<HistoryQuery>({
     page: 1,
     pageSize: 10,
     search: "",
     sourceModule: "All",
+    date: "",
   });
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyError, setHistoryError] = useState("");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const selectedDetail = selectedId ? detailsById[selectedId] ?? null : null;
+
+  useEffect(() => {
+    let active = true;
+
+    getAuthenticatedUser()
+      .then((user) => {
+        if (active) setCurrentUser(user);
+      })
+      .catch(() => {
+        if (active) setCurrentUser(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadApplications = useCallback(async () => {
     setIsLoading(true);
@@ -340,6 +363,29 @@ export function MembersClient() {
       setIsLoading(false);
     }
   }, [query]);
+
+  const loadApplicationBarangays = useCallback(async () => {
+    try {
+      const barangays: Array<string | null | undefined> = [];
+      let page = 1;
+      let total = 0;
+
+      do {
+        const result = await listChairmanApplications({
+          ...defaultQuery,
+          page,
+          pageSize: 100,
+        });
+        barangays.push(...result.applications.map((application) => application.barangay));
+        total = result.total;
+        page += 1;
+      } while ((page - 1) * 100 < total);
+
+      setApplicationBarangays(groupBarangays(barangays));
+    } catch {
+      setApplicationBarangays([]);
+    }
+  }, []);
 
   const loadDirectory = useCallback(async () => {
     setIsMemberLoading(true);
@@ -384,6 +430,14 @@ export function MembersClient() {
   }, [loadApplications]);
 
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadApplicationBarangays();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadApplicationBarangays]);
+
+  useEffect(() => {
     if (activeTab !== "directory") return;
     const timeoutId = window.setTimeout(() => {
       void loadDirectory();
@@ -404,12 +458,6 @@ export function MembersClient() {
   const filteredApplications = useMemo(() => {
     return applications.filter((application) => {
       const detail = detailsById[application.id];
-      if (submittedFrom && new Date(application.submittedAt) < new Date(submittedFrom)) {
-        return false;
-      }
-      if (submittedTo && new Date(application.submittedAt) > new Date(`${submittedTo}T23:59:59`)) {
-        return false;
-      }
       if (requirementCompletion !== "All" && detail) {
         const completed = requirementProgress(detail).isComplete;
         if (requirementCompletion === "Complete" && !completed) return false;
@@ -417,7 +465,17 @@ export function MembersClient() {
       }
       return true;
     });
-  }, [applications, detailsById, requirementCompletion, submittedFrom, submittedTo]);
+  }, [applications, detailsById, requirementCompletion]);
+
+  const barangayOptions = useMemo(
+    () => groupBarangays([
+      ...applicationBarangays,
+      ...applications.map((application) => application.barangay),
+      ...Object.values(detailsById).map((detail) => detail.barangay),
+      ...members.map((member) => member.barangay),
+    ]),
+    [applicationBarangays, applications, detailsById, members],
+  );
 
   const refreshDetail = async (id: string) => {
     const detail = await getChairmanApplication(id);
@@ -474,6 +532,13 @@ export function MembersClient() {
       });
     }
 
+    if (confirmAction.type === "delete-requirement") {
+      void runMutation("Requirement removed.", async () => {
+        await deleteApplicationRequirement(confirmAction.requirementId);
+        await refreshDetail(selectedDetail.id);
+      });
+    }
+
     setConfirmAction(null);
   };
 
@@ -488,20 +553,25 @@ export function MembersClient() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader
-        eyebrow="People"
-        title="Members"
-        description="Membership applications, accepted-member records, and official status history."
-        actions={
-          <>
+      <div className="flex flex-col gap-5 border-b border-[#CAD8CB] pb-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.34em] text-[#D99A0B]">People</p>
+          <h1 className="mt-2 text-3xl font-black tracking-normal text-[#123D2A] sm:text-4xl">Members</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+            Membership applications, accepted-member records, and official status history.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {activeTab !== "history" ? (
             <Button
               type="button"
               onClick={() => activeTab === "directory" ? setMemberFormOpen(true) : setPaperOpen(true)}
-              className="h-11 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
+              className="h-11 rounded-md bg-[#123D2A] px-4 text-white shadow-[0_10px_24px_rgba(18,61,42,0.16)] hover:bg-[#1F6B43]"
             >
               {activeTab === "directory" ? <Plus className="size-4" aria-hidden="true" /> : <FilePlus2 className="size-4" aria-hidden="true" />}
               {activeTab === "directory" ? "Create Manual Member" : "Encode Paper Application"}
             </Button>
+          ) : null}
             <Button
               type="button"
               onClick={() => {
@@ -509,16 +579,15 @@ export function MembersClient() {
                 else if (activeTab === "history") void loadUnifiedHistory();
                 else void loadApplications();
               }}
-              className="h-11 border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]"
+              className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC]"
             >
               <RefreshCcw className="size-4" aria-hidden="true" />
               Refresh
             </Button>
-          </>
-        }
-      />
+        </div>
+      </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-[#CAD8CB]">
+      <div className="-mt-2 flex flex-wrap gap-8 border-b border-[#CAD8CB]">
         {[
           ["applications", "Applications"],
           ["directory", "Member Directory"],
@@ -528,7 +597,7 @@ export function MembersClient() {
             key={key}
             type="button"
             onClick={() => setActiveTab(key as TabKey)}
-            className={`border-b-2 px-4 py-3 text-sm font-bold transition ${
+            className={`border-b-2 px-0 py-3 text-sm font-black transition ${
               activeTab === key
                 ? "border-[#1F6B43] text-[#123D2A]"
                 : "border-transparent text-[#6C7A70] hover:text-[#123D2A]"
@@ -541,23 +610,20 @@ export function MembersClient() {
 
       {activeTab === "applications" ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-            <StatCard label="Submitted" value={String(summary.submitted)} icon={FileText} />
-            <StatCard label="Under Review" value={String(summary.underReview)} icon={ClipboardCheck} />
-            <StatCard label="Needs Info" value={String(summary.needsInformation)} icon={Send} />
-            <StatCard label="Approved" value={String(summary.approved)} icon={CheckCircle2} />
-            <StatCard label="Rejected" value={String(summary.rejected)} icon={X} />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <ApplicationMetricCard label="Submitted" value={summary.submitted} icon={FileText} />
+            <ApplicationMetricCard label="Under Review" value={summary.underReview} icon={ClipboardCheck} />
+            <ApplicationMetricCard label="Needs Info" value={summary.needsInformation} icon={Send} />
+            <ApplicationMetricCard label="Approved" value={summary.approved} icon={CheckCircle2} />
+            <ApplicationMetricCard label="Rejected" value={summary.rejected} icon={X} />
           </div>
 
           <ApplicationFilters
             query={query}
             requirementCompletion={requirementCompletion}
-            submittedFrom={submittedFrom}
-            submittedTo={submittedTo}
+            barangayOptions={barangayOptions}
             setQuery={setQuery}
             setRequirementCompletion={setRequirementCompletion}
-            setSubmittedFrom={setSubmittedFrom}
-            setSubmittedTo={setSubmittedTo}
           />
 
           {error ? <ErrorState message={error} /> : null}
@@ -575,10 +641,7 @@ export function MembersClient() {
                 applications={filteredApplications}
                 detailsById={detailsById}
                 onSelect={setSelectedId}
-              />
-              <Pagination
                 query={query}
-                shown={filteredApplications.length}
                 total={summary.total}
                 setQuery={setQuery}
               />
@@ -589,12 +652,12 @@ export function MembersClient() {
         <MemberDirectorySection
           summary={memberSummary}
           members={members}
+          barangayOptions={barangayOptions}
           query={memberQuery}
           total={memberTotal}
           isLoading={isMemberLoading}
           error={memberError}
           setQuery={setMemberQuery}
-          onCreate={() => setMemberFormOpen(true)}
           onOpen={async (memberId) => {
             try {
               const detail = await getMemberDetail(memberId);
@@ -619,11 +682,11 @@ export function MembersClient() {
         detail={selectedDetail}
         open={Boolean(selectedDetail)}
         isMutating={isMutating}
+        currentUser={currentUser}
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);
         }}
         onRefresh={() => selectedDetail ? refreshDetail(selectedDetail.id) : Promise.resolve(null)}
-        onEdit={() => setEditOpen(true)}
         onPrint={handlePrint}
         onConfirmAction={setConfirmAction}
         runMutation={runMutation}
@@ -742,34 +805,34 @@ export function MembersClient() {
 function MemberDirectorySection({
   summary,
   members,
+  barangayOptions,
   query,
   total,
   isLoading,
   error,
   setQuery,
-  onCreate,
   onOpen,
 }: {
   summary: DirectoryMemberSummary;
   members: MemberProfile[];
+  barangayOptions: string[];
   query: MemberListQuery;
   total: number;
   isLoading: boolean;
   error: string;
   setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
-  onCreate: () => void;
   onOpen: (memberId: string) => Promise<void>;
 }) {
   return (
     <div className="grid gap-5">
-      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <StatCard label="Members" value={String(summary.total)} icon={UsersRound} />
-        <StatCard label="Active" value={String(summary.active)} icon={UserCheck} />
-        <StatCard label="Associates" value={String(summary.associate)} icon={WalletCards} />
-        <StatCard label="True Members" value={String(summary.trueMember)} icon={ShieldCheck} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ApplicationMetricCard label="Members" value={summary.total} icon={UsersRound} />
+        <ApplicationMetricCard label="Active" value={summary.active} icon={UserCheck} />
+        <ApplicationMetricCard label="Associates" value={summary.associate} icon={WalletCards} />
+        <ApplicationMetricCard label="True Members" value={summary.trueMember} icon={ShieldCheck} />
       </div>
 
-      <MemberFilters query={query} setQuery={setQuery} onCreate={onCreate} />
+      <MemberFilters query={query} barangayOptions={barangayOptions} setQuery={setQuery} />
 
       {error ? <ErrorState message={error} /> : null}
       {isLoading ? (
@@ -782,15 +845,7 @@ function MemberDirectorySection({
         />
       ) : (
         <>
-          <MemberResponsiveList members={members} onOpen={onOpen} />
-          <SimplePagination
-            page={query.page ?? 1}
-            pageSize={query.pageSize ?? 10}
-            total={total}
-            shown={members.length}
-            noun="members"
-            setPage={(page) => setQuery((current) => ({ ...current, page }))}
-          />
+          <MemberResponsiveList members={members} query={query} total={total} setQuery={setQuery} onOpen={onOpen} />
         </>
       )}
     </div>
@@ -799,36 +854,30 @@ function MemberDirectorySection({
 
 function MemberFilters({
   query,
+  barangayOptions,
   setQuery,
-  onCreate,
 }: {
   query: MemberListQuery;
+  barangayOptions: string[];
   setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
-  onCreate: () => void;
 }) {
   const updateQuery = (patch: Partial<MemberListQuery>) => {
     setQuery((current) => ({ ...current, ...patch, page: 1 }));
   };
 
   return (
-    <section className="grid min-w-0 gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
-          <Filter className="size-4" aria-hidden="true" />
-          Member Directory Filters
-        </div>
-        <Button type="button" className="h-10 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={onCreate}>
-          <Plus className="size-4" aria-hidden="true" />
-          Create Manual Member
-        </Button>
+    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
+      <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
+        <Filter className="size-4" aria-hidden="true" />
+        Filters
       </div>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 2xl:grid-cols-6">
-        <label className="relative block min-w-0">
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[1.45fr_0.9fr_0.9fr_0.9fr_0.9fr]">
+        <label className="relative block">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
           <input
             value={query.search ?? ""}
             onChange={(event) => updateQuery({ search: event.target.value })}
-            className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
+            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-3 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:font-normal placeholder:text-[#7D8C82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
             placeholder="Search members"
             type="search"
           />
@@ -841,21 +890,13 @@ function MemberFilters({
           <option value="All">All member types</option>
           {membershipTypes.map((type) => <option key={type}>{type}</option>)}
         </Select>
-        <input
-          value={query.barangay ?? ""}
-          onChange={(event) => updateQuery({ barangay: event.target.value })}
-          className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
-          placeholder="Barangay"
-        />
-        <Select value={query.sortBy ?? "createdAt"} onChange={(value) => setQuery((current) => ({ ...current, sortBy: value as MemberListQuery["sortBy"] }))}>
-          <option value="createdAt">Sort by created</option>
-          <option value="fullName">Sort by name</option>
-          <option value="memberCode">Sort by code</option>
-          <option value="applicationDate">Sort by application date</option>
+        <Select value={query.barangay ?? "All"} onChange={(value) => updateQuery({ barangay: value === "All" ? undefined : value })}>
+          <option value="All">All barangays</option>
+          {barangayOptions.map((barangay) => <option key={barangay}>{barangay}</option>)}
         </Select>
-        <Select value={query.sortDirection ?? "desc"} onChange={(value) => setQuery((current) => ({ ...current, sortDirection: value as "asc" | "desc" }))}>
-          <option value="desc">Newest first</option>
-          <option value="asc">Oldest first</option>
+        <Select value={query.sortDirection ?? "desc"} onChange={(value) => setQuery((current) => ({ ...current, sortDirection: value as "asc" | "desc", page: 1 }))}>
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
         </Select>
       </div>
     </section>
@@ -864,45 +905,79 @@ function MemberFilters({
 
 function MemberResponsiveList({
   members,
+  query,
+  total,
+  setQuery,
   onOpen,
 }: {
   members: MemberProfile[];
+  query: MemberListQuery;
+  total: number;
+  setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
   onOpen: (memberId: string) => Promise<void>;
 }) {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 10;
+  const direction = query.sortDirection ?? "desc";
+  const maxPage = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min((page - 1) * pageSize + members.length, total);
+  const sortBy = (field: NonNullable<MemberListQuery["sortBy"]>) => {
+    setQuery((current) => ({
+      ...current,
+      sortBy: field,
+      sortDirection: current.sortBy === field && (current.sortDirection ?? "desc") === "desc" ? "asc" : "desc",
+      page: 1,
+    }));
+  };
+
   return (
-    <>
-      <div className="hidden 2xl:block w-full min-w-0 max-w-full overflow-hidden">
-        <DataTable>
-          <table className="min-w-full divide-y divide-[#E2E8E2] whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+    <section className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_16px_34px_rgba(18,61,42,0.06)]">
+      <div className="hidden lg:block">
+        <table className="min-w-full table-fixed divide-y divide-[#E2E8E2] text-left text-xs">
+            <thead className="bg-[#FBFCF8] text-[0.68rem] uppercase tracking-[0.12em] text-[#5D6D63]">
               <tr>
-                <th className="px-5 py-4">Member</th>
-                <th className="px-5 py-4">Contact</th>
-                <th className="px-5 py-4">Barangay</th>
-                <th className="px-5 py-4">Type</th>
-                <th className="px-5 py-4">Official Status</th>
-                <th className="px-5 py-4">Linked Account</th>
-                <th className="px-5 py-4">Application Date</th>
-                <th className="px-5 py-4">Actions</th>
+                <SortableHeader className="w-[26%]" label="Member" active={query.sortBy === "fullName"} direction={direction} onClick={() => sortBy("fullName")} />
+                <SortableHeader className="w-[12%]" label="Type" />
+                <SortableHeader className="w-[13%]" label="Barangay" />
+                <SortableHeader className="w-[14%]" label="Status" />
+                <SortableHeader className="w-[17%]" label="Account" />
+                <SortableHeader className="w-[11%]" label="Created" active={query.sortBy === "createdAt"} direction={direction} onClick={() => sortBy("createdAt")} />
+                <th className="w-[7%] px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
+            <tbody className="divide-y divide-[#EEF2EC] text-[#0F241A]">
               {members.map((member) => (
-                <tr key={member.id} className="hover:bg-[#F7F8F3]">
-                  <td className="px-5 py-4">
-                    <p className="font-bold text-[#123D2A]">{member.fullName}</p>
-                    <p className="mt-1 text-xs text-[#6C7A70]">{member.memberCode}</p>
+                <tr key={member.id} className="hover:bg-[#FBFCF8]">
+                  <td className="px-5 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-xs font-black text-[#123D2A]">
+                        {applicationInitials(member.fullName)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-[#123D2A]">{member.fullName}</p>
+                        <p className="mt-0.5 truncate text-[0.7rem] font-semibold text-[#6C7A70]">{member.memberCode}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-5 py-4">{member.email ?? member.contactNumber ?? "Not provided"}</td>
-                  <td className="px-5 py-4">{member.barangay ?? "Unspecified"}</td>
-                  <td className="px-5 py-4">{member.membershipType}</td>
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-3 text-sm font-semibold">{member.membershipType}</td>
+                  <td className="px-5 py-3 text-sm font-semibold">{member.barangay ?? "Unspecified"}</td>
+                  <td className="px-5 py-3">
                     <StatusBadge tone={memberStatusTone(member.officialMemberStatus)}>{member.officialMemberStatus}</StatusBadge>
                   </td>
-                  <td className="px-5 py-4">{member.linkedUserEmail ?? "Unlinked"}</td>
-                  <td className="px-5 py-4">{formatDate(member.applicationDate)}</td>
-                  <td className="px-5 py-4">
-                    <Button type="button" className="h-9 bg-[#123D2A] px-3 text-white hover:bg-[#1F6B43]" onClick={() => void onOpen(member.id)}>
+                  <td className="px-5 py-3">
+                    {member.linkedUserEmail ? (
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#123D2A]">{member.linkedUserEmail}</p>
+                        <p className="mt-0.5 truncate text-[0.7rem] font-semibold text-[#6C7A70]">{member.linkedUserUsername ?? member.linkedUserStatus ?? "Linked"}</p>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold text-[#6C7A70]">Unlinked</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-sm font-semibold leading-5">{formatSubmittedDate(member.createdAt)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <Button type="button" className="h-8 rounded-md bg-[#123D2A] px-3 text-xs font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)] hover:bg-[#1F6B43]" onClick={() => void onOpen(member.id)}>
                       View
                     </Button>
                   </td>
@@ -910,16 +985,20 @@ function MemberResponsiveList({
               ))}
             </tbody>
           </table>
-        </DataTable>
       </div>
 
-      <div className="grid gap-3 2xl:hidden">
+      <div className="grid divide-y divide-[#EEF2EC] lg:hidden">
         {members.map((member) => (
-          <article key={member.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
+          <article key={member.id} className="bg-white p-4">
             <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="break-words font-bold text-[#123D2A]">{member.fullName}</p>
-                <p className="mt-1 text-xs text-[#6C7A70]">{member.memberCode}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-sm font-black text-[#123D2A]">
+                  {applicationInitials(member.fullName)}
+                </span>
+                <div className="min-w-0">
+                  <p className="break-words font-black text-[#123D2A]">{member.fullName}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#6C7A70]">{member.memberCode}</p>
+                </div>
               </div>
               <StatusBadge tone={memberStatusTone(member.officialMemberStatus)}>
                 {member.officialMemberStatus}
@@ -937,7 +1016,37 @@ function MemberResponsiveList({
           </article>
         ))}
       </div>
-    </>
+
+      <div className="flex flex-col gap-3 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm font-semibold text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          Showing {start}-{end} of {total} members
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" disabled={page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: 1 }))} aria-label="First page">
+            <ChevronsLeft className="size-4" />
+          </Button>
+          <Button type="button" disabled={page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, (current.page ?? 1) - 1) }))} aria-label="Previous page">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]" aria-current="page">
+            {page}
+          </span>
+          <Button type="button" disabled={page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, (current.page ?? 1) + 1) }))} aria-label="Next page">
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button type="button" disabled={page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: maxPage }))} aria-label="Last page">
+            <ChevronsRight className="size-4" />
+          </Button>
+          <div className="w-40 shrink-0">
+            <Select value={String(pageSize)} onChange={(value) => setQuery((current) => ({ ...current, pageSize: Number(value), page: 1 }))}>
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="20">20 per page</option>
+            </Select>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -959,69 +1068,53 @@ function MemberDetailDialog({
   const [step, setStep] = useState<number>(1);
   if (!member) return null;
 
-  const capitalPercent = Math.min(100, Math.round((member.shareCapital.validatedTotal / member.shareCapital.fullRequirement) * 100));
+  const memberDetailSteps = ["Profile", "Status & Type", "Capital Progress", "Cooperative Activity"];
+  const capitalPercent = member.shareCapital.fullRequirement > 0
+    ? Math.min(100, Math.round((member.shareCapital.validatedTotal / member.shareCapital.fullRequirement) * 100))
+    : 0;
 
   return (
     <FormDialog
       open={Boolean(member)}
       onOpenChange={onOpenChange}
-      title={`${member.memberCode} - ${member.fullName}`}
+      title={
+        <span className="flex min-w-0 items-center gap-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#123D2A] text-white shadow-[0_12px_28px_rgba(18,61,42,0.22)]">
+            <Leaf className="size-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 truncate text-xl font-black sm:text-2xl">{member.memberCode} - {member.fullName}</span>
+        </span>
+      }
       description="Member profile, official status, linked account, share capital progress, and recent cooperative activity."
-      contentClassName="w-[min(72rem,calc(100vw-2rem))]"
+      contentClassName="w-[min(74rem,calc(100vw-2rem))] p-4 sm:p-5"
     >
-      <div className="mb-4 flex items-center justify-between border-b border-[#CAD8CB] pb-4">
-        <h2 className="text-lg font-bold text-[#123D2A]">
-          Step {step} of 4: {step === 1 ? "Profile" : step === 2 ? "Sales" : step === 3 ? "Rentals" : "System & History"}
-        </h2>
-      </div>
-      <div className="grid gap-4">
+      <MemberDetailStepper currentStep={step} steps={memberDetailSteps} onStepChange={setStep} />
+
+      <div className="grid gap-4 border-t border-[#CAD8CB] pt-4">
         {step === 1 && (
         <>
-        <div className="flex flex-wrap gap-2">
-          <ActionButton icon={Pencil} label="Edit" onClick={() => onEdit(member)} />
-          <ActionButton icon={ShieldCheck} label="Update Status / Type" onClick={() => onStatus(member)} />
-          {member.userId ? (
-            <ActionButton icon={Unlink} label="Unlink Account" danger onClick={() => onAccountAction({ type: "unlink", member })} />
-          ) : (
-            <ActionButton icon={Link2} label="Link Account" onClick={() => onAccountAction({ type: "link", member })} />
-          )}
-          <ActionButton icon={Printer} label="Print Profile" onClick={() => window.print()} />
-          <ActionButton icon={RefreshCcw} label="Refresh" onClick={() => void onRefresh(member.id)} />
-        </div>
-
-        <section className="grid gap-4 sm:grid-cols-3 md:grid-cols-6">
-          <Info label="Official Status" value={member.officialMemberStatus} />
-          <Info label="Membership Type" value={member.membershipType} />
-          <Info label="Approval" value={member.approvalStatus} />
-          <Info label="Email" value={member.email ?? "Not provided"} />
-          <Info label="Contact" value={member.contactNumber ?? "Not provided"} />
-          <Info label="Barangay" value={member.barangay ?? "Unspecified"} />
-          <Info label="Municipality" value={`${member.municipality}, ${member.province}`} />
-          <Info label="Sector" value={member.sector ?? "Not provided"} />
-          <Info label="Linked Account" value={member.linkedUserEmail ? `${member.linkedUserEmail} (${member.linkedUserStatus ?? "Unknown"})` : "Unlinked"} />
-        </section>
-
-        <Panel title="Share-Capital Progress">
-          <div className="grid gap-3 md:grid-cols-[1fr_260px] md:items-center">
-            <div>
-              <div className="h-3 overflow-hidden rounded-full bg-[#E2E8E2]">
-                <div className="h-full rounded-full bg-[#1F6B43]" style={{ width: `${capitalPercent}%` }} />
-              </div>
-              <p className="mt-2 text-sm font-semibold text-[#294B39]">
-                {formatCurrency(member.shareCapital.validatedTotal)} validated of {formatCurrency(member.shareCapital.fullRequirement)} required for True Member.
-              </p>
-            </div>
-            <div className="grid gap-2 text-sm">
-              <Info label="Pending" value={formatCurrency(member.shareCapital.pendingTotal)} />
-              <Info label="Allowed Remaining" value={formatCurrency(member.shareCapital.remainingAllowed)} />
-            </div>
-          </div>
-        </Panel>
+        <MemberActionBar
+          member={member}
+          onEdit={onEdit}
+          onStatus={onStatus}
+          onAccountAction={onAccountAction}
+          onRefresh={onRefresh}
+        />
+        <MemberOverviewSection member={member} />
+        <ShareCapitalProgressSection member={member} capitalPercent={capitalPercent} />
         </>
         )}
 
         {step === 2 && (
-        <section className="grid gap-4">
+        <>
+          <MemberStatusSummarySection member={member} />
+          <MemberStatusHistorySection member={member} />
+        </>
+        )}
+
+        {step === 3 && (
+        <>
+          <ShareCapitalProgressSection member={member} capitalPercent={capitalPercent} />
           <ActivityPanel
             title="Recent Payments"
             icon={CreditCard}
@@ -1034,6 +1127,11 @@ function MemberDetailDialog({
               date: formatDate(payment.submittedAt),
             }))}
           />
+        </>
+        )}
+
+        {step === 4 && (
+        <section className="grid gap-4 lg:grid-cols-2">
           <ActivityPanel
             title="Recent POS"
             icon={ShoppingCart}
@@ -1046,11 +1144,6 @@ function MemberDetailDialog({
               date: formatDate(sale.saleDate),
             }))}
           />
-        </section>
-        )}
-
-        {step === 3 && (
-        <section className="grid gap-4">
           <ActivityPanel
             title="Recent Rentals"
             icon={CalendarDays}
@@ -1065,62 +1158,297 @@ function MemberDetailDialog({
           />
         </section>
         )}
-
-        {step === 4 && (
-        <>
-        <Panel title="Latest Indicator">
-          {member.latestIndicator ? (
-            <div className="grid gap-3 md:grid-cols-3">
-              <Info label="Label" value={member.latestIndicator.statusLabel} />
-              <Info label="Score" value={String(member.latestIndicator.totalScore)} />
-              <Info label="Computed" value={formatDate(member.latestIndicator.computedAt)} />
-              <p className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3 text-sm text-[#294B39] md:col-span-3">
-                {member.latestIndicator.basisSummary ?? "No basis summary recorded."}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-[#5D6D63]">No indicator has been calculated for this member yet.</p>
-          )}
-        </Panel>
-
-        <Panel title="Member Status History">
-          <ol className="grid gap-3">
-            {member.statusHistory.length === 0 ? (
-              <li className="rounded-md border border-dashed border-[#CAD8CB] p-4 text-sm text-[#5D6D63]">No member status history yet.</li>
-            ) : (
-              member.statusHistory.map((entry) => (
-                <li key={entry.id} className="rounded-md border border-[#CAD8CB] p-3 text-sm">
-                  <p className="font-bold text-[#123D2A]">
-                    {entry.oldMembershipType ?? "New"} / {entry.oldOfficialStatus ?? "New"} to {entry.newMembershipType ?? "No type change"} / {entry.newOfficialStatus ?? "No status change"}
-                  </p>
-                  <p className="mt-1 text-[#5D6D63]">{formatDate(entry.changedAt)}</p>
-                  <p className="mt-1 text-[#294B39]">{entry.reason ?? "No reason recorded."}</p>
-                </li>
-              ))
-            )}
-          </ol>
-        </Panel>
-        </>
-        )}
       </div>
 
-      <div className="mt-6 flex justify-between border-t border-[#CAD8CB] pt-4">
-        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Close</Button>
-        <div className="flex gap-2">
+      <div className="mt-4 flex flex-col gap-3 border-t border-[#CAD8CB] pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <Button type="button" className="h-10 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm text-[#123D2A] shadow-[0_8px_18px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Close</Button>
+        <div className="flex justify-end gap-2">
           {step > 1 && (
-            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
+            <Button type="button" className="h-10 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm text-[#123D2A] shadow-[0_8px_18px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
               Back
             </Button>
           )}
           {step < 4 && (
-            <Button type="button" className="bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
+            <Button type="button" className="h-10 rounded-md bg-[#123D2A] px-5 text-sm text-white shadow-[0_12px_24px_rgba(18,61,42,0.22)] hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
               Next
+              <ChevronRight className="size-4" aria-hidden="true" />
             </Button>
           )}
         </div>
       </div>
     </FormDialog>
   );
+}
+
+function MemberDetailStepper({
+  currentStep,
+  steps,
+  onStepChange,
+}: {
+  currentStep: number;
+  steps: string[];
+  onStepChange: (step: number) => void;
+}) {
+  return (
+    <ol className="my-4 flex flex-col gap-2 lg:flex-row lg:items-center">
+      {steps.map((label, index) => {
+        const stepNumber = index + 1;
+        const isActive = currentStep === stepNumber;
+        const isComplete = currentStep > stepNumber;
+
+        return (
+          <li key={label} className="flex min-w-0 flex-1 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onStepChange(stepNumber)}
+              className="group flex min-w-0 items-center gap-2 rounded-md py-1 pr-2 text-left outline-none transition focus:ring-2 focus:ring-[#1F6B43]/20"
+            >
+              <span
+                className={`grid size-7 shrink-0 place-items-center rounded-full border text-xs font-black ${
+                  isActive || isComplete
+                    ? "border-[#123D2A] bg-[#123D2A] text-white"
+                    : "border-[#CAD8CB] bg-white text-[#5D6D63]"
+                }`}
+              >
+                {stepNumber}
+              </span>
+              <span className={`min-w-0 truncate text-xs font-black sm:text-sm ${isActive ? "text-[#123D2A]" : "text-[#5D6D63] group-hover:text-[#123D2A]"}`}>
+                {label}
+              </span>
+            </button>
+            {index < steps.length - 1 ? <span className="hidden h-px min-w-6 flex-1 bg-[#CAD8CB] lg:block" aria-hidden="true" /> : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function MemberActionBar({
+  member,
+  onEdit,
+  onStatus,
+  onAccountAction,
+  onRefresh,
+}: {
+  member: MemberDetail;
+  onEdit: (member: MemberDetail) => void;
+  onStatus: (member: MemberDetail) => void;
+  onAccountAction: (action: MemberAccountAction) => void;
+  onRefresh: (memberId: string) => Promise<void>;
+}) {
+  return (
+    <section className="rounded-lg border border-[#CAD8CB] bg-white p-2.5 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <MemberDialogActionButton icon={Pencil} label="Edit" primary onClick={() => onEdit(member)} />
+        <MemberDialogActionButton icon={ShieldCheck} label="Update Status / Type" onClick={() => onStatus(member)} />
+        <MemberDialogActionButton icon={Printer} label="Print Profile" onClick={() => window.print()} />
+        <MemberDialogActionButton icon={RefreshCcw} label="Refresh" onClick={() => void onRefresh(member.id)} />
+        {member.userId ? (
+          <MemberDialogActionButton icon={Unlink} label="Unlink Account" danger onClick={() => onAccountAction({ type: "unlink", member })} />
+        ) : (
+          <MemberDialogActionButton icon={Link2} label="Link Account" onClick={() => onAccountAction({ type: "link", member })} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MemberDialogActionButton({
+  icon: Icon,
+  label,
+  primary = false,
+  danger = false,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  primary?: boolean;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      onClick={onClick}
+      className={`h-11 justify-center rounded-md px-3 text-xs font-black shadow-[0_8px_18px_rgba(18,61,42,0.06)] ${
+        primary
+          ? "bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+          : danger
+            ? "border border-red-300 bg-white text-red-700 hover:bg-red-50"
+            : "border border-[#CAD8CB] bg-white text-[#123D2A] hover:bg-[#EEF2EC]"
+      }`}
+    >
+      <Icon className="size-4" aria-hidden="true" />
+      {label}
+    </Button>
+  );
+}
+
+function MemberDialogSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_12px_30px_rgba(18,61,42,0.05)] sm:p-4">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#EEF8EF] text-[#123D2A]">
+          <Icon className="size-4" aria-hidden="true" />
+        </span>
+        <h3 className="text-base font-black text-[#123D2A]">{title}</h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MemberOverviewSection({ member }: { member: MemberDetail }) {
+  return (
+    <MemberDialogSection title="Member Overview" icon={UserCheck}>
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+        <MemberInfoCard label="Official Status" value={member.officialMemberStatus} icon={ShieldCheck} />
+        <MemberInfoCard label="Membership Type" value={member.membershipType} icon={UsersRound} />
+        <MemberInfoCard label="Approval" value={member.approvalStatus} icon={CheckCircle2} />
+        <MemberInfoCard label="Contact" value={member.contactNumber ?? "Not provided"} icon={Phone} />
+        <MemberInfoCard label="Barangay" value={member.barangay ?? "Unspecified"} icon={MapPin} />
+        <MemberInfoCard label="Municipality" value={`${member.municipality}, ${member.province}`} icon={Building2} />
+        <MemberInfoCard label="Sector" value={member.sector ?? "Not provided"} icon={Leaf} />
+        <MemberInfoCard
+          label="Linked Account"
+          value={member.linkedUserEmail ? `${member.linkedUserEmail} (${member.linkedUserStatus ?? "Unknown"})` : "Unlinked"}
+          icon={Link2}
+          className="lg:col-span-2"
+        />
+        <MemberInfoCard label="Email" value={member.email ?? "Not provided"} icon={Mail} className="lg:col-span-2" />
+      </div>
+    </MemberDialogSection>
+  );
+}
+
+function ShareCapitalProgressSection({
+  member,
+  capitalPercent,
+}: {
+  member: MemberDetail;
+  capitalPercent: number;
+}) {
+  return (
+    <MemberDialogSection title="Share-Capital Progress" icon={WalletCards}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,28rem)] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex items-center gap-4">
+            <div className="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-[#DDE8D8]">
+              <div className="h-full rounded-full bg-[#1F6B43]" style={{ width: `${capitalPercent}%` }} />
+            </div>
+            <span className="shrink-0 text-base font-black text-[#123D2A]">{capitalPercent}%</span>
+          </div>
+          <p className="mt-3 text-sm font-semibold leading-6 text-[#365F4A]">
+            <strong className="text-[#123D2A]">{formatCurrency(member.shareCapital.validatedTotal)}</strong> validated of{" "}
+            <strong className="text-[#123D2A]">{formatCurrency(member.shareCapital.fullRequirement)}</strong> required for True Member.
+          </p>
+        </div>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <MemberInfoCard label="Pending" value={formatCurrency(member.shareCapital.pendingTotal)} icon={WalletCards} />
+          <MemberInfoCard label="Allowed Remaining" value={formatCurrency(member.shareCapital.remainingAllowed)} icon={WalletCards} />
+        </div>
+      </div>
+    </MemberDialogSection>
+  );
+}
+
+function MemberStatusSummarySection({ member }: { member: MemberDetail }) {
+  return (
+    <MemberDialogSection title="Status & Type" icon={ShieldCheck}>
+      <div className="grid gap-2.5 md:grid-cols-3">
+        <MemberInfoCard label="Official Status" value={member.officialMemberStatus} icon={ShieldCheck} />
+        <MemberInfoCard label="Membership Type" value={member.membershipType} icon={UsersRound} />
+        <MemberInfoCard label="Approval" value={member.approvalStatus} icon={CheckCircle2} />
+        {member.latestIndicator ? (
+          <>
+            <MemberInfoCard label="Latest Indicator" value={member.latestIndicator.statusLabel} icon={ClipboardCheck} />
+            <MemberInfoCard label="Score" value={String(member.latestIndicator.totalScore)} icon={History} />
+            <MemberInfoCard label="Computed" value={formatDate(member.latestIndicator.computedAt)} icon={CalendarDays} />
+            <p className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-4 text-sm leading-6 text-[#294B39] md:col-span-3">
+              {member.latestIndicator.basisSummary ?? "No basis summary recorded."}
+            </p>
+          </>
+        ) : (
+          <p className="rounded-md border border-dashed border-[#CAD8CB] bg-[#F7F8F3] p-4 text-sm text-[#5D6D63] md:col-span-3">
+            No indicator has been calculated for this member yet.
+          </p>
+        )}
+      </div>
+    </MemberDialogSection>
+  );
+}
+
+function MemberStatusHistorySection({ member }: { member: MemberDetail }) {
+  return (
+    <MemberDialogSection title="Member Status History" icon={History}>
+      <ol className="grid max-h-[24rem] gap-3 overflow-y-auto pr-1">
+        {member.statusHistory.length === 0 ? (
+          <li className="rounded-md border border-dashed border-[#CAD8CB] bg-[#F7F8F3] p-3 text-sm text-[#5D6D63]">
+            No member status history yet.
+          </li>
+        ) : (
+          member.statusHistory.map((entry) => (
+            <li key={entry.id} className="rounded-md border border-[#CAD8CB] bg-[#FBFCF8] p-3 text-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[#6C7A70]">Status Change</p>
+                  <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+                    <HistoryStatusPill status={formatMemberStatusSnapshot(entry.oldMembershipType, entry.oldOfficialStatus, "New")} />
+                    <ChevronRight className="size-4 shrink-0 text-[#1F6B43]" aria-hidden="true" />
+                    <HistoryStatusPill status={formatMemberStatusSnapshot(entry.newMembershipType, entry.newOfficialStatus, "No change")} />
+                  </div>
+                </div>
+                <p className="shrink-0 text-sm font-black text-[#123D2A]">{formatDate(entry.changedAt)}</p>
+              </div>
+              <p className="mt-3 break-words border-t border-[#E7EEE5] pt-3 leading-6 text-[#5D6D63]">
+                {entry.reason ?? "No reason recorded."}
+              </p>
+            </li>
+          ))
+        )}
+      </ol>
+    </MemberDialogSection>
+  );
+}
+
+function MemberInfoCard({
+  label,
+  value,
+  icon: Icon,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  icon: React.ComponentType<{ className?: string }>;
+  className?: string;
+}) {
+  return (
+    <div className={`relative min-w-0 rounded-md border border-[#CAD8CB] bg-[#FBFCF8] p-3 pr-12 ${className}`}>
+      <p className="text-[0.62rem] font-black uppercase tracking-[0.16em] text-[#5D6D63]">{label}</p>
+      <p className="mt-1.5 break-words text-sm font-black leading-5 text-[#123D2A]">{value}</p>
+      <span className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full border border-[#DDE8D8] bg-[#EEF8EF] text-[#123D2A]">
+        <Icon className="size-4" aria-hidden="true" />
+      </span>
+    </div>
+  );
+}
+
+function formatMemberStatusSnapshot(
+  membershipType: string | null | undefined,
+  officialStatus: string | null | undefined,
+  fallback: string,
+) {
+  const snapshot = [membershipType, officialStatus].filter(Boolean).join(" / ");
+  return snapshot || fallback;
 }
 
 function ActivityPanel({
@@ -1434,42 +1762,51 @@ function UnifiedHistorySection({
   setQuery,
 }: {
   entries: UnifiedStatusHistoryEntry[];
-  query: { page: number; pageSize: number; search: string; sourceModule: HistorySource };
+  query: HistoryQuery;
   total: number;
   isLoading: boolean;
   error: string;
-  setQuery: (updater: (current: { page: number; pageSize: number; search: string; sourceModule: HistorySource }) => { page: number; pageSize: number; search: string; sourceModule: HistorySource }) => void;
+  setQuery: (updater: (current: HistoryQuery) => HistoryQuery) => void;
 }) {
   const updateQuery = (patch: Partial<typeof query>) => {
     setQuery((current) => ({ ...current, ...patch, page: 1 }));
   };
-
   return (
     <div className="grid gap-5">
-      <section className="grid min-w-0 gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
-          <History className="size-4" aria-hidden="true" />
-          Unified Status History
+      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
+              <Filter className="size-4" aria-hidden="true" />
+              Filters
+            </div>
+          </div>
         </div>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-3">
           <label className="relative block min-w-0">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
             <input
               value={query.search}
               onChange={(event) => updateQuery({ search: event.target.value })}
-              className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
+              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-3 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:font-normal placeholder:text-[#7D8C82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
               placeholder="Search history"
               type="search"
             />
           </label>
           <Select value={query.sourceModule} onChange={(value) => updateQuery({ sourceModule: value as HistorySource })}>
-            {["All", "Application", "Member", "Account"].map((source) => <option key={source}>{source}</option>)}
+            <option value="All">All sources</option>
+            {["Application", "Member", "Account"].map((source) => <option key={source}>{source}</option>)}
           </Select>
-          <Select value={String(query.pageSize)} onChange={(value) => setQuery((current) => ({ ...current, pageSize: Number(value), page: 1 }))}>
-            <option value="10">10 per page</option>
-            <option value="20">20 per page</option>
-            <option value="50">50 per page</option>
-          </Select>
+          <DatePicker
+            label="Filter history by date"
+            value={query.date}
+            onChange={(date) => updateQuery({ date })}
+            placeholder="Filter by date"
+            hideLabel
+            triggerClassName="h-11 rounded-md border-[#CAD8CB] px-3 text-sm focus:ring-[#1F6B43]/10"
+            allowClear
+            clearLabel="Clear date filter"
+          />
         </div>
       </section>
 
@@ -1480,66 +1817,15 @@ function UnifiedHistorySection({
         <EmptyState icon={History} title="No status history found" description="Application, member, and linked account status changes will appear here." />
       ) : (
         <>
-          <div className="hidden 2xl:block w-full min-w-0 max-w-full overflow-hidden">
-            <DataTable>
-              <table className="min-w-full divide-y divide-[#E2E8E2] whitespace-nowrap text-left text-sm">
-                <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
-                  <tr>
-                    <th className="px-5 py-4">Date</th>
-                    <th className="px-5 py-4">Source</th>
-                    <th className="px-5 py-4">Person / Record</th>
-                    <th className="px-5 py-4">Old</th>
-                    <th className="px-5 py-4">New</th>
-                    <th className="px-5 py-4">Reason</th>
-                    <th className="px-5 py-4">Actor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-[#F7F8F3]">
-                      <td className="px-5 py-4">{formatDate(entry.changedAt)}</td>
-                      <td className="px-5 py-4">{entry.sourceModule}</td>
-                      <td className="px-5 py-4">
-                        <p className="font-bold text-[#123D2A]">{entry.subjectName}</p>
-                        <p className="mt-1 text-xs text-[#6C7A70]">{entry.subjectCode}</p>
-                      </td>
-                      <td className="px-5 py-4">{entry.oldStatus ?? "New"}</td>
-                      <td className="px-5 py-4">{entry.newStatus}</td>
-                      <td className="px-5 py-4">{entry.reason ?? "No reason recorded"}</td>
-                      <td className="px-5 py-4">{entry.actor ?? "System"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </DataTable>
-          </div>
-          <div className="grid gap-3 2xl:hidden">
-            {entries.map((entry) => (
-              <article key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="break-words font-bold text-[#123D2A]">{entry.subjectName}</p>
-                    <p className="mt-1 text-xs text-[#6C7A70]">{entry.subjectCode}</p>
-                  </div>
-                  <StatusBadge tone="neutral">{entry.sourceModule}</StatusBadge>
-                </div>
-                <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
-                  <Info label="Old" value={entry.oldStatus ?? "New"} />
-                  <Info label="New" value={entry.newStatus} />
-                  <Info label="Actor" value={entry.actor ?? "System"} />
-                  <Info label="Date" value={formatDate(entry.changedAt)} />
-                </dl>
-                <p className="mt-3 text-sm text-[#5D6D63]">{entry.reason ?? "No reason recorded"}</p>
-              </article>
-            ))}
-          </div>
+          <HistoryResponsiveList entries={entries} />
           <SimplePagination
             page={query.page}
             pageSize={query.pageSize}
             total={total}
-            shown={entries.length}
             noun="history records"
             setPage={(page) => setQuery((current) => ({ ...current, page }))}
+            pageSizeOptions={[10, 20, 50]}
+            onPageSizeChange={(pageSize) => setQuery((current) => ({ ...current, pageSize, page: 1 }))}
           />
         </>
       )}
@@ -1547,43 +1833,61 @@ function UnifiedHistorySection({
   );
 }
 
+function ApplicationMetricCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <article className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
+      <div className="flex min-w-0 items-center gap-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#EEF7ED] text-[#1F6B43]">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-[#6C7A70]">{label}</p>
+          <p className="mt-1 text-2xl font-black leading-none text-[#123D2A]">{value}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function ApplicationFilters({
   query,
   requirementCompletion,
-  submittedFrom,
-  submittedTo,
+  barangayOptions,
   setQuery,
   setRequirementCompletion,
-  setSubmittedFrom,
-  setSubmittedTo,
 }: {
   query: ChairmanApplicationListQuery;
   requirementCompletion: string;
-  submittedFrom: string;
-  submittedTo: string;
+  barangayOptions: string[];
   setQuery: (updater: (current: ChairmanApplicationListQuery) => ChairmanApplicationListQuery) => void;
   setRequirementCompletion: (value: string) => void;
-  setSubmittedFrom: (value: string) => void;
-  setSubmittedTo: (value: string) => void;
 }) {
   const updateQuery = (patch: Partial<ChairmanApplicationListQuery>) => {
     setQuery((current) => ({ ...current, ...patch, page: 1 }));
   };
 
   return (
-    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#6C7A70]">
+    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
+      <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
         <Filter className="size-4" aria-hidden="true" />
         Filters
       </div>
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[1.45fr_0.85fr_0.85fr_0.85fr_0.85fr_0.95fr]">
         <label className="relative block">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
           <input
             value={query.search ?? ""}
             onChange={(event) => updateQuery({ search: event.target.value })}
-            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
-            placeholder="Search applications"
+            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-3 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:font-normal placeholder:text-[#7D8C82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
+            placeholder="Search application"
             type="search"
           />
         </label>
@@ -1599,45 +1903,321 @@ function ApplicationFilters({
           <option value="All">All sources</option>
           {membershipApplicationSources.map((source) => <option key={source}>{source}</option>)}
         </Select>
-        <input
-          value={query.barangay ?? ""}
-          onChange={(event) => updateQuery({ barangay: event.target.value })}
-          className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
-          placeholder="Barangay"
-        />
+        <Select value={query.barangay ?? "All"} onChange={(value) => updateQuery({ barangay: value === "All" ? undefined : value })}>
+          <option value="All">All barangays</option>
+          {barangayOptions.map((barangay) => <option key={barangay}>{barangay}</option>)}
+        </Select>
         <Select value={requirementCompletion} onChange={setRequirementCompletion}>
           <option value="All">All requirements</option>
           <option value="Complete">Complete</option>
           <option value="Incomplete">Incomplete</option>
         </Select>
       </div>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <input
-          value={submittedFrom}
-          onChange={(event) => setSubmittedFrom(event.target.value)}
-          className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
-          type="date"
-          aria-label="Submitted from"
-        />
-        <input
-          value={submittedTo}
-          onChange={(event) => setSubmittedTo(event.target.value)}
-          className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none focus:border-[#1F6B43]"
-          type="date"
-          aria-label="Submitted to"
-        />
-        <Select value={query.sortBy} onChange={(value) => setQuery((current) => ({ ...current, sortBy: value as ChairmanApplicationListQuery["sortBy"] }))}>
-          <option value="submittedAt">Sort by submitted</option>
-          <option value="fullName">Sort by applicant</option>
-          <option value="applicationStatus">Sort by status</option>
-          <option value="requestedMembershipType">Sort by type</option>
-        </Select>
-        <Select value={query.sortDirection} onChange={(value) => setQuery((current) => ({ ...current, sortDirection: value as "asc" | "desc" }))}>
-          <option value="desc">Newest first</option>
-          <option value="asc">Oldest first</option>
-        </Select>
+    </section>
+  );
+}
+
+function SortableHeader({
+  label,
+  className = "",
+  onClick,
+  active = false,
+  direction = "desc",
+}: {
+  label: string;
+  className?: string;
+  onClick?: () => void;
+  active?: boolean;
+  direction?: "asc" | "desc";
+}) {
+  const content = (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <ChevronDown
+        className={`size-3.5 transition ${active && direction === "asc" ? "rotate-180" : ""}`}
+        aria-hidden="true"
+      />
+    </span>
+  );
+
+  return (
+    <th
+      className={`px-5 py-4 ${className}`}
+      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined}
+    >
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className={`text-left uppercase tracking-[0.12em] transition hover:text-[#123D2A] ${active ? "text-[#123D2A]" : ""}`}
+        >
+          {content}
+        </button>
+      ) : content}
+    </th>
+  );
+}
+
+function RequirementProgress({ progress }: { progress: ReturnType<typeof requirementProgress> | null }) {
+  const completed = progress?.completed ?? 0;
+  const total = progress?.total ?? 0;
+  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const complete = total > 0 && completed === total;
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-3">
+        <span className="w-9 shrink-0 text-xs font-semibold text-[#123D2A]">
+          {progress ? `${completed} / ${total}` : "..."}
+        </span>
+        <span className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-[#E8E8E5]">
+          <span
+            className={`block h-full rounded-full ${complete ? "bg-[#44B870]" : "bg-[#F6B21A]"}`}
+            style={{ width: `${percent}%` }}
+          />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HistoryResponsiveList({ entries }: { entries: UnifiedStatusHistoryEntry[] }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggleExpanded = (entryId: string) => {
+    setExpandedId((current) => current === entryId ? null : entryId);
+  };
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_16px_34px_rgba(18,61,42,0.06)]">
+      <div className="hidden lg:block">
+        <table className="min-w-full table-fixed divide-y divide-[#E2E8E2] text-left text-xs">
+          <thead className="bg-[#FBFCF8] text-[0.68rem] uppercase tracking-[0.12em] text-[#5D6D63]">
+            <tr>
+              <th className="w-[32%] px-5 py-4">Record</th>
+              <th className="w-[28%] px-5 py-4">Status Change</th>
+              <th className="w-[18%] px-5 py-4">Changed By</th>
+              <th className="w-[14%] px-5 py-4">Date</th>
+              <th className="w-[8%] px-5 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#EEF2EC] text-[#0F241A]">
+            {entries.map((entry) => (
+              <Fragment key={entry.id}>
+                <tr className="hover:bg-[#FBFCF8]">
+                  <td className="px-5 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <HistorySourceIconMark source={entry.sourceModule} />
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-black text-[#123D2A]">{entry.subjectName}</p>
+                          <StatusBadge tone="neutral">{entry.sourceModule}</StatusBadge>
+                        </div>
+                        <p className="mt-0.5 truncate text-[0.7rem] font-semibold text-[#6C7A70]">{entry.subjectCode}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <HistoryStatusChange oldStatus={entry.oldStatus ?? "New"} newStatus={entry.newStatus} />
+                  </td>
+                  <td className="px-5 py-3 text-sm font-semibold">{entry.actor ?? "System"}</td>
+                  <td className="px-5 py-3 text-sm font-semibold leading-5">{formatDate(entry.changedAt)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button
+                      type="button"
+                      aria-label={expandedId === entry.id ? "Collapse status details" : "Expand status details"}
+                      aria-expanded={expandedId === entry.id}
+                      className="ml-auto flex size-8 items-center justify-center rounded-md border border-transparent bg-transparent p-0 text-[#123D2A] transition hover:border-[#CAD8CB] hover:bg-[#EEF2EC]"
+                      onClick={() => toggleExpanded(entry.id)}
+                    >
+                      <ChevronDown className={`size-4 transition ${expandedId === entry.id ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                  </td>
+                </tr>
+                {expandedId === entry.id ? (
+                  <tr className="bg-[#FBFCF8]">
+                    <td colSpan={5} className="px-5 pb-4 pt-0">
+                      <div className="rounded-md border border-[#E2E8E2] bg-white p-4 text-sm leading-6 text-[#5D6D63]">
+                        <p className="mb-1 text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#5D6D63]">Reason</p>
+                        {entry.reason?.trim() || "No reason recorded."}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid gap-0 divide-y divide-[#EEF2EC] lg:hidden">
+        {entries.map((entry) => (
+          <HistoryEntryCard
+            key={entry.id}
+            entry={entry}
+            expanded={expandedId === entry.id}
+            onToggle={() => toggleExpanded(entry.id)}
+          />
+        ))}
       </div>
     </section>
+  );
+}
+
+function HistorySourceIconMark({ source }: { source: UnifiedStatusHistoryEntry["sourceModule"] }) {
+  const SourceIcon = getHistorySourceIcon(source);
+
+  return (
+    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-[#123D2A]">
+      <SourceIcon className="size-4" aria-hidden="true" />
+    </span>
+  );
+}
+
+function HistoryEntryCard({
+  entry,
+  expanded,
+  onToggle,
+}: {
+  entry: UnifiedStatusHistoryEntry;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const SourceIcon = getHistorySourceIcon(entry.sourceModule);
+  const actor = entry.actor ?? "System";
+  const reason = entry.reason?.trim() || "No reason recorded.";
+
+  return (
+    <article className="grid gap-4 bg-white p-4">
+      <div className="flex min-w-0 gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-[#123D2A]">
+          <SourceIcon className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="min-w-0 break-words text-base font-black tracking-normal text-[#003B2C]">{entry.subjectName}</h3>
+            <StatusBadge tone="neutral">{entry.sourceModule}</StatusBadge>
+          </div>
+          <p className="mt-1 break-words text-sm font-semibold text-[#5D6D63]">{entry.subjectCode}</p>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-[#DCE7D9] bg-[#FBFCF8] px-3 py-3">
+        <p className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[#6C7A70]">Status Change</p>
+        <HistoryStatusChange oldStatus={entry.oldStatus ?? "New"} newStatus={entry.newStatus} className="mt-2" />
+      </div>
+
+      <div className="grid gap-2 text-sm text-[#5D6D63]">
+        <span className="inline-flex items-center gap-2 font-bold text-[#123D2A]">
+          <CalendarDays className="size-4 text-[#1F6B43]" aria-hidden="true" />
+          {formatDate(entry.changedAt)}
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <UserCheck className="size-4 text-[#6C7A70]" aria-hidden="true" />
+          {actor}
+        </span>
+      </div>
+
+      <Button
+        type="button"
+        aria-expanded={expanded}
+        className="h-9 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-black text-[#123D2A] hover:bg-[#EEF2EC]"
+        onClick={onToggle}
+      >
+        Details
+        <ChevronDown className={`size-4 transition ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+      </Button>
+
+      {expanded ? (
+        <p className="break-words border-t border-[#EEF2EC] pt-3 text-sm leading-6 text-[#5D6D63]">{reason}</p>
+      ) : null}
+    </article>
+  );
+}
+
+function HistoryStatusChange({
+  oldStatus,
+  newStatus,
+  className = "",
+}: {
+  oldStatus: string;
+  newStatus: string;
+  className?: string;
+}) {
+  return (
+    <div className={`flex min-w-0 items-center gap-2 ${className}`}>
+      <HistoryStatusPill status={oldStatus} />
+      <ChevronRight className="size-4 shrink-0 text-[#1F6B43]" aria-hidden="true" />
+      <HistoryStatusPill status={newStatus} />
+    </div>
+  );
+}
+
+function HistoryStatusPill({ status }: { status: string }) {
+  return (
+    <span className={`inline-flex min-w-0 max-w-full items-center rounded-full px-3 py-1 text-xs font-black ${getHistoryStatusTone(status)}`}>
+      <span className="truncate">{status}</span>
+    </span>
+  );
+}
+
+function getHistorySourceIcon(source: UnifiedStatusHistoryEntry["sourceModule"]) {
+  if (source === "Application") return FileText;
+  if (source === "Member") return UsersRound;
+  return Link2;
+}
+
+function getHistoryStatusTone(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("approved") || normalized.includes("active") || normalized.includes("confirmed")) {
+    return "bg-[#D9F2D8] text-[#006B3F]";
+  }
+  if (normalized.includes("reject") || normalized.includes("inactive") || normalized.includes("cancel")) {
+    return "bg-[#FDE2DE] text-[#9F1D1D]";
+  }
+  if (normalized.includes("review") || normalized.includes("pending") || normalized.includes("need")) {
+    return "bg-[#FFEFC2] text-[#8A5C00]";
+  }
+  if (normalized.includes("submit") || normalized.includes("new")) {
+    return "bg-[#DDEEFF] text-[#14517A]";
+  }
+  return "bg-[#EEF2EC] text-[#294B39]";
+}
+
+function ApplicationStatusPill({ status }: { status: MembershipApplicationStatus }) {
+  const config =
+    status === "Approved"
+      ? { className: "bg-[#DDF4E4] text-[#1F6B43]", icon: CheckCircle2 }
+      : status === "Submitted"
+        ? { className: "bg-[#DDF0FF] text-[#1470A8]", icon: FileText }
+        : status === "Needs Information"
+          ? { className: "bg-[#FFF2CC] text-[#946600]", icon: Send }
+          : status === "Rejected" || status === "Withdrawn"
+            ? { className: "bg-[#FFE6E0] text-[#9A392A]", icon: X }
+            : { className: "bg-[#FFF0D7] text-[#A46400]", icon: ClipboardCheck };
+  const Icon = config.icon;
+
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.7rem] font-black ${config.className}`}>
+      <Icon className="size-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">{status}</span>
+    </span>
+  );
+}
+
+function applicationInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "?";
+  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+  return `${first}${second}`.toUpperCase();
+}
+
+function formatSubmittedDate(value: string) {
+  const date = new Date(value);
+  return (
+    <>
+      <span className="block">{new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(date)}</span>
+      <span className="block text-[0.7rem] font-medium text-[#5D6D63]">{new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit" }).format(date)}</span>
+    </>
   );
 }
 
@@ -1645,59 +2225,76 @@ function ApplicationsResponsiveList({
   applications,
   detailsById,
   onSelect,
+  query,
+  total,
+  setQuery,
 }: {
   applications: ChairmanApplicationListItem[];
   detailsById: DetailMap;
   onSelect: (id: string) => void;
+  query: ChairmanApplicationListQuery;
+  total: number;
+  setQuery: (updater: (current: ChairmanApplicationListQuery) => ChairmanApplicationListQuery) => void;
 }) {
+  const maxPage = Math.max(1, Math.ceil(total / query.pageSize));
+  const start = total === 0 ? 0 : (query.page - 1) * query.pageSize + 1;
+  const end = Math.min((query.page - 1) * query.pageSize + applications.length, total);
+
   return (
-    <>
-      <div className="hidden 2xl:block w-full min-w-0 max-w-full overflow-hidden">
-        <DataTable>
-          <table className="min-w-full divide-y divide-[#E2E8E2] whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+    <section className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_16px_34px_rgba(18,61,42,0.06)]">
+      <div className="hidden lg:block">
+        <table className="min-w-full table-fixed divide-y divide-[#E2E8E2] text-left text-xs">
+            <thead className="bg-[#FBFCF8] text-[0.68rem] uppercase tracking-[0.12em] text-[#5D6D63]">
               <tr>
-                <th className="px-5 py-4">Application</th>
-                <th className="px-5 py-4">Applicant</th>
-                <th className="px-5 py-4">Type</th>
-                <th className="px-5 py-4">Barangay</th>
-                <th className="px-5 py-4">Contact</th>
-                <th className="px-5 py-4">Submitted</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Requirements</th>
-                <th className="px-5 py-4">Reviewer</th>
-                <th className="px-5 py-4">Actions</th>
+                <SortableHeader className="w-[24%]" label="Applicant" />
+                <SortableHeader className="w-[11%]" label="Type" />
+                <SortableHeader className="w-[12%]" label="Barangay" />
+                <SortableHeader
+                  className="w-[13%]"
+                  label="Submitted"
+                  active={query.sortBy === "submittedAt"}
+                  direction={query.sortDirection}
+                  onClick={() => setQuery((current) => ({
+                    ...current,
+                    sortBy: "submittedAt",
+                    sortDirection: current.sortBy === "submittedAt" && current.sortDirection === "desc" ? "asc" : "desc",
+                    page: 1,
+                  }))}
+                />
+                <SortableHeader className="w-[15%]" label="Requirements" />
+                <SortableHeader className="w-[15%]" label="Status" />
+                <th className="w-[10%] px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
+            <tbody className="divide-y divide-[#EEF2EC] text-[#0F241A]">
               {applications.map((application) => {
                 const detail = detailsById[application.id];
                 const progress = detail ? requirementProgress(detail) : null;
                 return (
-                  <tr key={application.id} className="hover:bg-[#F7F8F3]">
-                    <td className="px-5 py-4">
-                      <p className="font-bold text-[#123D2A]">{application.applicationCode}</p>
-                      <p className="mt-1 text-xs text-[#6C7A70]">{application.applicationSource}</p>
+                  <tr key={application.id} className="hover:bg-[#FBFCF8]">
+                    <td className="px-5 py-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-xs font-black text-[#123D2A]">
+                          {applicationInitials(application.fullName)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-[#123D2A]">{application.fullName}</p>
+                          <p className="mt-0.5 truncate text-[0.7rem] font-semibold text-[#6C7A70]">{application.applicationCode}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-5 py-4">{application.fullName}</td>
-                    <td className="px-5 py-4">{application.requestedMembershipType}</td>
-                    <td className="px-5 py-4">{application.barangay ?? "Unspecified"}</td>
-                    <td className="px-5 py-4">{application.contactNumber}</td>
-                    <td className="px-5 py-4">{formatDate(application.submittedAt)}</td>
-                    <td className="px-5 py-4">
-                      <StatusBadge tone={statusTone(application.applicationStatus)}>
-                        {application.applicationStatus}
-                      </StatusBadge>
+                    <td className="px-5 py-3 text-sm font-semibold">{application.requestedMembershipType}</td>
+                    <td className="px-5 py-3 text-sm font-semibold">{application.barangay ?? "Unspecified"}</td>
+                    <td className="px-5 py-3 text-sm font-semibold leading-5">{formatSubmittedDate(application.submittedAt)}</td>
+                    <td className="px-5 py-3">
+                      <RequirementProgress progress={progress} />
                     </td>
-                    <td className="px-5 py-4">
-                      {progress ? `${progress.completed}/${progress.total}` : "Loading"}
-                    </td>
-                    <td className="px-5 py-4">{detail?.reviewedBy ?? "Unassigned"}</td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-3"><ApplicationStatusPill status={application.applicationStatus} /></td>
+                    <td className="px-5 py-3 text-right">
                       <Button
                         type="button"
                         onClick={() => onSelect(application.id)}
-                        className="h-9 bg-[#123D2A] px-3 text-white hover:bg-[#1F6B43]"
+                        className="h-8 rounded-md bg-[#123D2A] px-3 text-xs font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)] hover:bg-[#1F6B43]"
                       >
                         Review
                       </Button>
@@ -1707,34 +2304,39 @@ function ApplicationsResponsiveList({
               })}
             </tbody>
           </table>
-        </DataTable>
       </div>
 
-      <div className="grid gap-3 2xl:hidden">
+      <div className="grid divide-y divide-[#EEF2EC] lg:hidden">
         {applications.map((application) => {
           const detail = detailsById[application.id];
           const progress = detail ? requirementProgress(detail) : null;
           return (
-            <article key={application.id} className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm">
+            <article key={application.id} className="bg-white p-4">
               <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="break-words font-bold text-[#123D2A]">{application.fullName}</p>
-                  <p className="mt-1 text-xs text-[#6C7A70]">{application.applicationCode}</p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-sm font-black text-[#123D2A]">
+                    {applicationInitials(application.fullName)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="break-words font-black text-[#123D2A]">{application.fullName}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#6C7A70]">{application.applicationCode}</p>
+                  </div>
                 </div>
-                <StatusBadge tone={statusTone(application.applicationStatus)}>
-                  {application.applicationStatus}
-                </StatusBadge>
+                <ApplicationStatusPill status={application.applicationStatus} />
               </div>
               <dl className="mt-4 grid min-w-0 grid-cols-2 gap-3 text-sm text-[#294B39]">
                 <Info label="Type" value={application.requestedMembershipType} />
                 <Info label="Barangay" value={application.barangay ?? "Unspecified"} />
                 <Info label="Submitted" value={formatDate(application.submittedAt)} />
-                <Info label="Requirements" value={progress ? `${progress.completed}/${progress.total}` : "Loading"} />
+                <div className="min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6C7A70]">Requirements</p>
+                  <div className="mt-2"><RequirementProgress progress={progress} /></div>
+                </div>
               </dl>
               <Button
                 type="button"
                 onClick={() => onSelect(application.id)}
-                className="mt-4 h-10 w-full bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+                className="mt-4 h-10 w-full rounded-md bg-[#123D2A] text-white hover:bg-[#1F6B43]"
               >
                 Review Application
               </Button>
@@ -1742,7 +2344,37 @@ function ApplicationsResponsiveList({
           );
         })}
       </div>
-    </>
+
+      <div className="flex flex-col gap-3 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm font-semibold text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          Showing {start}-{end} of {total} applications
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" disabled={query.page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: 1 }))} aria-label="First page">
+            <ChevronsLeft className="size-4" />
+          </Button>
+          <Button type="button" disabled={query.page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, current.page - 1) }))} aria-label="Previous page">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]" aria-current="page">
+            {query.page}
+          </span>
+          <Button type="button" disabled={query.page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, current.page + 1) }))} aria-label="Next page">
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button type="button" disabled={query.page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: maxPage }))} aria-label="Last page">
+            <ChevronsRight className="size-4" />
+          </Button>
+          <div className="w-40 shrink-0">
+            <Select value={String(query.pageSize)} onChange={(value) => setQuery((current) => ({ ...current, pageSize: Number(value), page: 1 }))}>
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="20">20 per page</option>
+            </Select>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1750,9 +2382,9 @@ function ApplicationDetailDialog({
   detail,
   open,
   isMutating,
+  currentUser,
   onOpenChange,
   onRefresh,
-  onEdit,
   onPrint,
   onConfirmAction,
   runMutation,
@@ -1761,9 +2393,9 @@ function ApplicationDetailDialog({
   detail: ChairmanApplicationDetail | null;
   open: boolean;
   isMutating: boolean;
+  currentUser: AuthUser | null;
   onOpenChange: (open: boolean) => void;
   onRefresh: () => Promise<ChairmanApplicationDetail | null>;
-  onEdit: () => void;
   onPrint: (detail: ChairmanApplicationDetail) => Promise<void>;
   onConfirmAction: (action: ConfirmAction) => void;
   runMutation: (successMessage: string, action: () => Promise<unknown>) => Promise<void>;
@@ -1780,84 +2412,94 @@ function ApplicationDetailDialog({
     remarks: "",
   });
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false);
-  const [approvalDraft, setApprovalDraft] = useState<ApprovalInput>({
-    boardMeetingDate: new Date().toISOString().slice(0, 10),
-    secretaryName: "",
+  const [approvalDecisionDraft, setApprovalDecisionDraft] = useState<{ applicationId: string | null; decisionReason: string }>({
+    applicationId: null,
     decisionReason: "",
-    createMemberPortalAccount: false,
-    accountEmail: "",
-    username: "",
   });
   const [documentType, setDocumentType] = useState<MembershipDocumentType>("Valid ID");
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<ChairmanApplicationDetail["documents"][number] | null>(null);
   const [step, setStep] = useState<number>(1);
 
   if (!detail) return null;
 
   const progress = requirementProgress(detail);
+  const canStartReview = detail.applicationStatus === "Submitted";
+  const startReviewLabel = detail.applicationStatus === "Under Review" ? "Under Review" : "Start Review";
+  const documentById = new Map(detail.documents.map((document) => [document.id, document]));
+  const addedRequirementTypes = new Set(detail.requirements.map((requirement) => requirement.requirementType));
+  const availableRequirementTypes = requirementTypes.filter((type) => !addedRequirementTypes.has(type));
+  const addRequirementType = availableRequirementTypes.includes(requirementDraft.requirementType)
+    ? requirementDraft.requirementType
+    : availableRequirementTypes[0] ?? "Other";
+  const approvalDate = getTodayInputDate();
+  const approvedBy = currentUser?.displayName ?? "Current chairman";
+  const accountEmail = detail.email ?? null;
+  const approvalDecisionReason = approvalDecisionDraft.applicationId === detail.id
+    ? approvalDecisionDraft.decisionReason
+    : detail.decisionReason ?? "";
+  const openDocument = (document: ChairmanApplicationDetail["documents"][number]) => {
+    setPreviewDocument(document);
+  };
 
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={`${detail.applicationCode} - ${detail.fullName}`}
-      description="Review application details, requirements, documents, timeline, and conversion actions."
-      contentClassName="w-[min(72rem,calc(100vw-2rem))]"
+      title={
+        <div className="flex w-full min-w-0 flex-col gap-4 pr-2 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="break-words text-3xl font-black leading-tight text-[#123D2A]">{detail.applicationCode}</p>
+            <p className="mt-2 break-words text-xl font-semibold text-[#0F241A]">{detail.fullName}</p>
+            <p className="mt-2 text-sm font-medium leading-6 text-[#5D6D63]">
+              Review application details, requirements, and decision actions.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-start gap-3 pt-1 lg:items-end">
+            <ApplicationStatusPill status={detail.applicationStatus} />
+            <RequirementProgressBadge progress={progress} />
+          </div>
+        </div>
+      }
+      contentClassName="w-[min(68rem,calc(100vw-2rem))] p-5 sm:p-8"
     >
-      <div className="mb-2 flex items-center justify-between border-b border-[#CAD8CB] pb-2">
-        <h2 className="text-lg font-bold text-[#123D2A]">
-          Step {step} of 4: {step === 1 ? "Requirements" : step === 2 ? "Beneficiaries" : step === 3 ? "Documents" : "Timeline & Approval"}
-        </h2>
-      </div>
-      <div className="grid min-w-0 gap-2">
+      <div className="grid min-w-0 gap-5 border-t border-[#CAD8CB] pt-5">
         {step === 1 && (
         <>
-        <div className="flex min-w-0 flex-wrap gap-2">
-          <ActionButton icon={Pencil} label="Edit" onClick={onEdit} />
-          <ActionButton icon={ClipboardCheck} label="Start Review" onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })} />
+        <div className="flex min-w-0 flex-wrap gap-3">
+          <ActionButton
+            icon={Play}
+            label={startReviewLabel}
+            primary={canStartReview}
+            disabled={!canStartReview}
+            onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })}
+          />
           <ActionButton icon={Send} label="Request Info" onClick={() => onConfirmAction({ type: "transition", action: "request-information", label: "Request information" })} />
           <ActionButton icon={X} label="Reject" danger onClick={() => onConfirmAction({ type: "transition", action: "reject", label: "Reject application" })} />
           <ActionButton icon={Archive} label="Withdraw" danger onClick={() => onConfirmAction({ type: "transition", action: "withdraw", label: "Withdraw application" })} />
           <ActionButton icon={Download} label="Print PDF" onClick={() => void onPrint(detail)} />
         </div>
 
-        <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <StatusBadge tone={statusTone(detail.applicationStatus)}>{detail.applicationStatus}</StatusBadge>
-            <p className="text-sm font-bold text-[#123D2A]">
-              Requirements: {progress.completed}/{progress.total}
-            </p>
-          </div>
-          <p className="mt-3 text-sm leading-6 text-[#5D6D63]">
-            Duplicate review: compare full name, contact number, email, and birth date
-            before final approval. The backend does not expose a persisted duplicate flag
-            on this detail response.
-          </p>
-        </section>
-
-        <section className="grid min-w-0 gap-4 sm:grid-cols-3 md:grid-cols-6">
-          <Info label="Source" value={detail.applicationSource} />
-          <Info label="Requested type" value={detail.requestedMembershipType} />
-          <Info label="Email" value={detail.email ?? "Not provided"} />
-          <Info label="Contact" value={detail.contactNumber} />
-          <Info label="Civil status" value={detail.civilStatus ?? "Not provided"} />
-          <Info label="Birth" value={[detail.placeOfBirth, detail.dateOfBirth].filter(Boolean).join(" / ") || "Not provided"} />
-          <Info label="Address" value={detail.currentAddress} />
-          <Info label="Barangay" value={detail.barangay ?? "Unspecified"} />
-          <Info label="Parents" value={[detail.fatherName, detail.motherName].filter(Boolean).join(" / ") || "Not provided"} />
-          <Info label="Spouse / occupation" value={[detail.spouseName, detail.occupation].filter(Boolean).join(" / ") || "Not provided"} />
-          <Info label="Signature" value={`${detail.applicantSignatureName} at ${detail.signedPlace}`} />
-          <Info label="Signed at" value={formatDate(detail.signedAt)} />
-        </section>
+        <ApplicantSummary detail={detail} />
 
         <Commitments detail={detail} />
 
-        <Panel title="Requirements">
-          <div className="grid gap-2">
+        <ReviewSection index={3} title="Requirements Review">
+          <div className="hidden grid-cols-[minmax(12rem,1fr)_12rem_minmax(14rem,1fr)_8rem] border-b border-[#E7EEE5] px-4 pb-3 text-xs font-black text-[#6C7A70] md:grid">
+            <span>Requirement</span>
+            <span>Status</span>
+            <span>Remarks</span>
+            <span className="text-center">Action</span>
+          </div>
+          <div className="grid">
             {detail.requirements.map((requirement) => (
               <RequirementRow
                 key={requirement.id}
                 requirement={requirement}
+                canDelete={!isProtectedRequirement(detail, requirement.requirementType)}
+                linkedDocument={requirement.documentId ? documentById.get(requirement.documentId) ?? null : null}
+                onDelete={() => onConfirmAction({ type: "delete-requirement", requirementId: requirement.id, label: "Remove requirement" })}
+                onViewDocument={openDocument}
                 onSave={(requirementStatus, remarks) =>
                   runMutation("Requirement updated.", async () => {
                     await updateApplicationRequirement(requirement.id, { requirementStatus, remarks });
@@ -1866,17 +2508,20 @@ function ApplicationDetailDialog({
                 }
               />
             ))}
-            <div className="grid gap-2 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-[220px_1fr_auto]">
-              <Select value={requirementDraft.requirementType} onChange={(value) => setRequirementDraft((current) => ({ ...current, requirementType: value as RequirementType }))}>
-                {requirementTypes.map((type) => <option key={type}>{type}</option>)}
+            <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-[minmax(12rem,1fr)_minmax(14rem,1fr)_5rem]">
+              <Select value={addRequirementType} onChange={(value) => setRequirementDraft((current) => ({ ...current, requirementType: value as RequirementType }))}>
+                {availableRequirementTypes.length > 0
+                  ? availableRequirementTypes.map((type) => <option key={type}>{type}</option>)
+                  : <option value={addRequirementType}>All requirements added</option>}
               </Select>
               <input className={inputClass} placeholder="Remarks" value={requirementDraft.remarks} onChange={(event) => setRequirementDraft((current) => ({ ...current, remarks: event.target.value }))} />
               <Button
                 type="button"
-                className="h-11 bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+                disabled={availableRequirementTypes.length === 0}
+                className="h-11 rounded-md bg-[#123D2A] text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
                 onClick={() => void runMutation("Requirement added.", async () => {
                   await addApplicationRequirement(detail.id, {
-                    requirementType: requirementDraft.requirementType,
+                    requirementType: addRequirementType,
                     requirementStatus: "Pending",
                     remarks: requirementDraft.remarks || null,
                   });
@@ -1888,7 +2533,7 @@ function ApplicationDetailDialog({
               </Button>
             </div>
           </div>
-        </Panel>
+        </ReviewSection>
         </>
         )}
 
@@ -1950,9 +2595,20 @@ function ApplicationDetailDialog({
           <div className="grid gap-2">
             {detail.documents.map((document) => (
               <div key={document.id} className="flex flex-col gap-2 rounded-md border border-[#CAD8CB] p-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-[#294B39]">
-                  <strong>{document.documentType}</strong> - {document.originalFileName}
-                </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <Button
+                    type="button"
+                    aria-label={`View ${document.documentType}`}
+                    title={`View ${document.documentType}`}
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC]"
+                    onClick={() => openDocument(document)}
+                  >
+                    <Eye className="size-4" />
+                  </Button>
+                  <p className="min-w-0 break-words text-sm text-[#294B39]">
+                    <strong>{document.documentType}</strong> - {document.originalFileName}
+                  </p>
+                </div>
                 <Button
                   type="button"
                   className="h-9 border border-red-200 bg-white px-3 text-red-700 hover:bg-red-50"
@@ -1993,7 +2649,7 @@ function ApplicationDetailDialog({
         {step === 4 && (
         <>
         <Panel title="Status Timeline">
-          <ol className="grid gap-3">
+          <ol className="grid max-h-[22rem] gap-3 overflow-y-auto pr-2">
             {detail.history.map((entry) => (
               <li key={entry.id} className="rounded-md border border-[#CAD8CB] p-3 text-sm">
                 <p className="font-bold text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p>
@@ -2005,21 +2661,11 @@ function ApplicationDetailDialog({
           </ol>
         </Panel>
 
-        <Panel title="Payment Links and Approval">
-          <div className="grid gap-3 md:grid-cols-2">
-            <input className={inputClass} type="date" aria-label="Board meeting date" value={approvalDraft.boardMeetingDate} onChange={(event) => setApprovalDraft((current) => ({ ...current, boardMeetingDate: event.target.value }))} />
-            <input className={inputClass} placeholder="Secretary name" value={approvalDraft.secretaryName} onChange={(event) => setApprovalDraft((current) => ({ ...current, secretaryName: event.target.value }))} />
-            <input className={inputClass} placeholder="Decision reason" value={approvalDraft.decisionReason} onChange={(event) => setApprovalDraft((current) => ({ ...current, decisionReason: event.target.value }))} />
-            <input className={inputClass} placeholder="Account email" value={approvalDraft.accountEmail ?? ""} onChange={(event) => setApprovalDraft((current) => ({ ...current, accountEmail: event.target.value }))} />
-            <label className="flex items-center gap-2 text-sm font-semibold text-[#294B39]">
-              <input type="checkbox" checked={approvalDraft.createMemberPortalAccount} onChange={(event) => setApprovalDraft((current) => ({ ...current, createMemberPortalAccount: event.target.checked }))} />
-              Create member portal account
-            </label>
-          </div>
+        <Panel title="Final Approval">
           <Button
             type="button"
             disabled={isMutating}
-            className="mt-4 h-11 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
+            className="h-11 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
             onClick={() => setApprovalConfirmOpen(true)}
           >
             <UserCheck className="size-4" />
@@ -2046,21 +2692,135 @@ function ApplicationDetailDialog({
         </div>
       </div>
 
-      <ConfirmDialog
+      <ApprovalConfirmDialog
         open={approvalConfirmOpen}
         onOpenChange={setApprovalConfirmOpen}
-        title="Approve and convert application"
-        description="This will create or link the member record, finalize the application, and generate the activation URL if requested."
-        confirmLabel={isMutating ? "Working..." : "Approve"}
+        isMutating={isMutating}
+        approvalDate={approvalDate}
+        approvedBy={approvedBy}
+        accountEmail={accountEmail}
+        decisionReason={approvalDecisionReason}
+        onDecisionReasonChange={(value) => setApprovalDecisionDraft({ applicationId: detail.id, decisionReason: value })}
         onConfirm={() => {
           setApprovalConfirmOpen(false);
           void runMutation("Application approved and converted.", async () => {
-            const result = await approveApplication(detail.id, approvalDraft);
+            const result = await approveApplication(
+              detail.id,
+              buildApprovalInput({
+                boardMeetingDate: approvalDate,
+                secretaryName: approvedBy,
+                decisionReason: approvalDecisionReason,
+                accountEmail,
+              }),
+            );
             setActivationResult(result);
             await onRefresh();
           });
         }}
       />
+      <FormDialog
+        open={Boolean(previewDocument)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPreviewDocument(null);
+        }}
+        title={previewDocument?.documentType ?? "Document"}
+        description={previewDocument?.originalFileName}
+        contentClassName="w-[min(58rem,calc(100vw-2rem))] p-4 sm:p-5"
+      >
+        {previewDocument ? (
+          <div className="grid gap-3">
+            <div className="h-[min(70vh,42rem)] overflow-hidden rounded-md border border-[#CAD8CB] bg-[#F7F8F3]">
+              <iframe
+                title={`${previewDocument.documentType} preview`}
+                src={applicationDocumentViewUrl(previewDocument.id)}
+                className="h-full w-full bg-white"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                className="h-10 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-black text-[#123D2A] hover:bg-[#EEF2EC]"
+                onClick={() => window.open(applicationDocumentViewUrl(previewDocument.id), "_blank", "noopener,noreferrer")}
+              >
+                Open in new tab
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </FormDialog>
+    </FormDialog>
+  );
+}
+
+function ApprovalConfirmDialog({
+  open,
+  onOpenChange,
+  isMutating,
+  approvalDate,
+  approvedBy,
+  accountEmail,
+  decisionReason,
+  onDecisionReasonChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isMutating: boolean;
+  approvalDate: string;
+  approvedBy: string;
+  accountEmail: string | null;
+  decisionReason: string;
+  onDecisionReasonChange: (value: string) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Approve and Convert"
+      description="TrackCOOP will finalize the application using these generated approval details."
+      contentClassName="w-[min(34rem,calc(100vw-2rem))]"
+    >
+      <div className="grid gap-4 border-t border-[#CAD8CB] pt-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Info label="Approval Date" value={formatLongDate(approvalDate)} />
+          <Info label="Approved By" value={approvedBy} />
+          <Info
+            label="Account Email"
+            value={accountEmail ?? "No portal account will be created"}
+          />
+        </div>
+
+        <label className="grid gap-2 text-sm font-bold text-[#294B39]">
+          Decision note optional
+          <textarea
+            value={decisionReason}
+            onChange={(event) => onDecisionReasonChange(event.target.value)}
+            placeholder="Add an approval note if needed"
+            rows={4}
+            className="min-h-28 w-full resize-y rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 py-3 text-sm font-medium text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+          />
+        </label>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-[#E7EEE5] pt-4 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            className="h-11 border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={isMutating}
+            className="h-11 bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
+            onClick={onConfirm}
+          >
+            <UserCheck className="size-4" />
+            {isMutating ? "Approving..." : "Approve and Convert"}
+          </Button>
+        </div>
+      </div>
     </FormDialog>
   );
 }
@@ -2254,29 +3014,62 @@ function ApplicationFormDialog({
 
 function RequirementRow({
   requirement,
+  canDelete,
+  linkedDocument,
   onSave,
+  onDelete,
+  onViewDocument,
 }: {
   requirement: ChairmanApplicationDetail["requirements"][number];
+  canDelete: boolean;
+  linkedDocument?: ChairmanApplicationDetail["documents"][number] | null;
   onSave: (status: RequirementStatus, remarks: string | null) => Promise<void>;
+  onDelete: () => void;
+  onViewDocument: (document: ChairmanApplicationDetail["documents"][number]) => void;
 }) {
   const [status, setStatus] = useState<RequirementStatus>(requirement.requirementStatus);
   const [remarks, setRemarks] = useState(requirement.remarks ?? "");
 
   return (
-    <div className="grid gap-2 rounded-md border border-[#CAD8CB] p-3 md:grid-cols-[1fr_160px_1fr_auto] md:items-center">
-      <div>
-        <p className="font-bold text-[#123D2A]">{requirement.requirementType}</p>
-        <StatusBadge tone={requirementTone(requirement.requirementStatus)}>
-          {requirement.requirementStatus}
-        </StatusBadge>
+    <div className="grid gap-3 border-b border-[#E7EEE5] px-4 py-3 last:border-b-0 md:grid-cols-[minmax(12rem,1fr)_12rem_minmax(14rem,1fr)_8rem] md:items-center">
+      <div className="min-w-0">
+        <p className="break-words text-sm font-black text-[#0F241A]">{requirement.requirementType}</p>
+        <div className="mt-1 md:hidden">
+          <RequirementStatusMini status={requirement.requirementStatus} />
+        </div>
       </div>
-      <Select value={status} onChange={(value) => setStatus(value as RequirementStatus)}>
-        {requirementStatuses.map((nextStatus) => <option key={nextStatus}>{nextStatus}</option>)}
-      </Select>
+      <div className="flex min-w-0 items-center gap-2">
+        {linkedDocument ? (
+          <Button
+            type="button"
+            aria-label={`View ${linkedDocument.documentType}`}
+            title={`View ${linkedDocument.documentType}`}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC]"
+            onClick={() => onViewDocument(linkedDocument)}
+          >
+            <Eye className="size-4" />
+          </Button>
+        ) : null}
+        <Select value={status} onChange={(value) => setStatus(value as RequirementStatus)}>
+          {requirementStatuses.map((nextStatus) => <option key={nextStatus}>{nextStatus}</option>)}
+        </Select>
+      </div>
       <input className={inputClass} value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Remarks" />
-      <Button type="button" className="h-10 bg-[#123D2A] px-3 text-white hover:bg-[#1F6B43]" onClick={() => void onSave(status, remarks || null)}>
-        Save
-      </Button>
+      <div className="flex gap-2">
+        <Button type="button" className="h-10 flex-1 rounded-md border border-[#1F6B43] bg-white px-3 text-sm font-black text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => void onSave(status, remarks || null)}>
+          Save
+        </Button>
+        {canDelete ? (
+          <Button
+            type="button"
+            aria-label={`Remove ${requirement.requirementType}`}
+            className="h-10 rounded-md border border-red-200 bg-white px-3 text-sm font-black text-red-700 hover:bg-red-50"
+            onClick={onDelete}
+          >
+            <X className="size-4" />
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -2326,88 +3119,149 @@ function SimplePagination({
   page,
   pageSize,
   total,
-  shown,
   noun,
   setPage,
+  pageSizeOptions,
+  onPageSizeChange,
 }: {
   page: number;
   pageSize: number;
   total: number;
-  shown: number;
   noun: string;
   setPage: (page: number) => void;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (pageSize: number) => void;
 }) {
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min((page - 1) * pageSize + pageSize, total);
+
   return (
-    <div className="flex items-center justify-center rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1">
-          <Button type="button" disabled={page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(1)}>
-            <ChevronsLeft className="size-4" />
-          </Button>
-          <Button type="button" disabled={page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(Math.max(1, page - 1))}>
-            <ChevronLeft className="size-4" />
-          </Button>
-        </div>
-        <span className="text-sm font-bold text-[#123D2A]">
-          Page {page} of {maxPage} &middot; {total} {noun}
+    <div className="flex flex-col gap-4 rounded-lg border border-[#CAD8CB] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <p className="text-sm font-black text-[#365F4A]">
+        Showing {start}-{end} of {total} {noun}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" disabled={page <= 1} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(1)}>
+          <ChevronsLeft className="size-4" />
+        </Button>
+        <Button type="button" disabled={page <= 1} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(Math.max(1, page - 1))}>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <span className="grid size-10 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]">
+          {page}
         </span>
-        <div className="flex items-center gap-1">
-          <Button type="button" disabled={page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(Math.min(maxPage, page + 1))}>
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button type="button" disabled={page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setPage(maxPage)}>
-            <ChevronsRight className="size-4" />
-          </Button>
-        </div>
+        <Button type="button" disabled={page >= maxPage} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(Math.min(maxPage, page + 1))}>
+          <ChevronRight className="size-4" />
+        </Button>
+        <Button type="button" disabled={page >= maxPage} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(maxPage)}>
+          <ChevronsRight className="size-4" />
+        </Button>
+        {onPageSizeChange && pageSizeOptions ? (
+          <div className="ml-1 w-44">
+            <Select value={String(pageSize)} onChange={(value) => onPageSizeChange(Number(value))}>
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>{option} per page</option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function Pagination({
-  query,
-  shown,
-  total,
-  setQuery,
-}: {
-  query: ChairmanApplicationListQuery;
-  shown: number;
-  total: number;
-  setQuery: (updater: (current: ChairmanApplicationListQuery) => ChairmanApplicationListQuery) => void;
-}) {
-  const maxPage = Math.max(1, Math.ceil(total / query.pageSize));
+function ApplicantSummary({ detail }: { detail: ChairmanApplicationDetail }) {
   return (
-    <div className="flex items-center justify-center rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1">
-          <Button type="button" disabled={query.page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: 1 }))}>
-            <ChevronsLeft className="size-4" />
-          </Button>
-          <Button type="button" disabled={query.page <= 1} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}>
-            <ChevronLeft className="size-4" />
-          </Button>
+    <ReviewSection index={1} title="Applicant Summary">
+      <div className="grid divide-y divide-[#E7EEE5]">
+        <div className="grid gap-4 py-4 first:pt-0 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
+          <SummaryCell label="Source" value={detail.applicationSource} />
+          <SummaryCell label="Requested Type" value={detail.requestedMembershipType} />
+          <SummaryCell label="Email" value={detail.email ?? "Not provided"} />
         </div>
-        <span className="text-sm font-bold text-[#123D2A]">
-          Page {query.page} of {maxPage} &middot; {total} applications
-        </span>
-        <div className="flex items-center gap-1">
-          <Button type="button" disabled={query.page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, current.page + 1) }))}>
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button type="button" disabled={query.page >= maxPage} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50" onClick={() => setQuery((current) => ({ ...current, page: maxPage }))}>
-            <ChevronsRight className="size-4" />
-          </Button>
+        <div className="grid gap-4 py-4 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
+          <SummaryCell label="Contact" value={detail.contactNumber} />
+          <SummaryCell label="Civil Status" value={detail.civilStatus ?? "Not provided"} />
+          <SummaryCell label="Birth" value={[detail.placeOfBirth, detail.dateOfBirth].filter(Boolean).join(" / ") || "Not provided"} />
+        </div>
+        <div className="grid gap-4 py-4 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
+          <SummaryCell label="Address" value={detail.currentAddress} />
+          <SummaryCell label="Barangay" value={detail.barangay ?? "Unspecified"} />
+          <SummaryCell label="Parents" value={[detail.fatherName, detail.motherName].filter(Boolean).join(" / ") || "Not provided"} />
+        </div>
+        <div className="grid gap-4 py-4 last:pb-0 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
+          <SummaryCell label="Spouse / Occupation" value={[detail.spouseName, detail.occupation].filter(Boolean).join(" / ") || "Not provided"} />
+          <SummaryCell label="Signature" value={`${detail.applicantSignatureName} at ${detail.signedPlace}`} />
+          <SummaryCell label="Signed At" value={formatDate(detail.signedAt)} />
         </div>
       </div>
+    </ReviewSection>
+  );
+}
+
+function SummaryCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 md:px-5 first:md:pl-0 last:md:pr-0">
+      <p className="text-xs font-semibold text-[#6C7A70]">{label}</p>
+      <p className="mt-1 break-words text-sm font-black leading-6 text-[#0F241A]">{value}</p>
     </div>
   );
+}
+
+function ReviewSection({
+  index,
+  title,
+  children,
+}: {
+  index: number;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <h3 className="text-lg font-black uppercase tracking-normal text-[#123D2A]">
+        {index}. {title}
+      </h3>
+      <div className="mt-4 border-t border-[#E7EEE5] pt-4">{children}</div>
+    </section>
+  );
+}
+
+function RequirementProgressBadge({ progress }: { progress: ReturnType<typeof requirementProgress> }) {
+  const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
+
+  return (
+    <span className="inline-flex items-center gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 py-2 text-sm font-bold text-[#123D2A]">
+      Requirements {progress.completed}/{progress.total}
+      <span
+        className="grid size-6 place-items-center rounded-full"
+        style={{ background: `conic-gradient(#44B870 ${percent}%, #E7EEE5 0)` }}
+        aria-hidden="true"
+      >
+        <span className="size-4 rounded-full bg-white" />
+      </span>
+    </span>
+  );
+}
+
+function RequirementStatusMini({ status }: { status: RequirementStatus }) {
+  const toneClass =
+    requirementTone(status) === "success"
+      ? "bg-[#DDF4E4] text-[#1F6B43]"
+      : requirementTone(status) === "warning"
+        ? "bg-[#FFF2CC] text-[#946600]"
+        : requirementTone(status) === "danger"
+          ? "bg-[#FFE6E0] text-[#9A392A]"
+          : "bg-[#EEF2EC] text-[#365F4A]";
+
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[0.7rem] font-bold ${toneClass}`}>{status}</span>;
 }
 
 function Commitments({ detail }: { detail: ChairmanApplicationDetail }) {
   return (
-    <Panel title="Commitments">
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+    <ReviewSection index={2} title="Commitments">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {[
           ["Orientation", detail.orientationCommitmentAccepted],
           ["Membership fee", detail.membershipFeeCommitmentAccepted],
@@ -2416,15 +3270,18 @@ function Commitments({ detail }: { detail: ChairmanApplicationDetail }) {
           ["Bylaws", detail.bylawsAgreementAccepted],
           ["Privacy consent", detail.privacyConsentAccepted],
         ].map(([label, accepted]) => (
-          <div key={String(label)} className="flex items-center justify-between rounded-md border border-[#CAD8CB] p-3 text-sm">
-            <span>{label}</span>
-            <StatusBadge tone={accepted ? "success" : "danger"}>
-              {accepted ? "Accepted" : "Missing"}
-            </StatusBadge>
+          <div key={String(label)} className="flex min-w-0 items-center gap-3 rounded-md border border-[#CAD8CB] bg-white p-3 text-sm">
+            <CheckCircle2 className={`size-5 shrink-0 ${accepted ? "text-[#1F6B43]" : "text-[#9A392A]"}`} aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-xs font-bold text-[#0F241A]">{label}</p>
+              <p className={`mt-1 text-[0.68rem] font-black ${accepted ? "text-[#1F6B43]" : "text-[#9A392A]"}`}>
+                {accepted ? "Accepted" : "Missing"}
+              </p>
+            </div>
           </div>
         ))}
       </div>
-    </Panel>
+    </ReviewSection>
   );
 }
 
@@ -2440,22 +3297,29 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function ActionButton({
   icon: Icon,
   label,
+  primary = false,
   danger = false,
+  disabled = false,
   onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+  primary?: boolean;
   danger?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <Button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className={`h-10 px-3 ${
-        danger
-          ? "border border-red-200 bg-white text-red-700 hover:bg-red-50"
-          : "border border-[#CAD8CB] bg-white text-[#123D2A] hover:bg-[#EEF2EC]"
+      className={`h-11 rounded-md px-4 text-sm font-black disabled:cursor-not-allowed disabled:border-[#D9E2D8] disabled:bg-[#EEF2EC] disabled:text-[#8A9A91] disabled:shadow-none disabled:hover:bg-[#EEF2EC] ${
+        primary
+          ? "bg-[#123D2A] text-white shadow-[0_10px_22px_rgba(18,61,42,0.18)] hover:bg-[#1F6B43]"
+          : danger
+            ? "border border-red-200 bg-white text-red-700 hover:bg-red-50"
+            : "border border-[#CAD8CB] bg-white text-[#123D2A] hover:bg-[#EEF2EC]"
       }`}
     >
       <Icon className="size-4" />
@@ -2473,15 +3337,73 @@ function Select({
   onChange: (value: string) => void;
   children: React.ReactNode;
 }) {
+  const options = Children.toArray(children).flatMap((child) => {
+    if (!isValidElement(child)) return [];
+
+    const props = child.props as {
+      value?: string | number;
+      children?: React.ReactNode;
+      disabled?: boolean;
+    };
+    const label = extractOptionLabel(props.children);
+
+    return [{
+      value: props.value === undefined ? label : String(props.value),
+      label,
+      disabled: Boolean(props.disabled),
+    }];
+  });
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-11 w-full min-w-0 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm text-[#123D2A] outline-none focus:border-[#1F6B43]"
-    >
-      {children}
-    </select>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="group inline-flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43]/55 hover:bg-[#FBFCF8] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={options.length === 0}
+        >
+          <span className="min-w-0 truncate">{selectedOption?.label ?? "Select"}</span>
+          <ChevronDown className="size-4 shrink-0 text-[#365F4A] transition group-data-[state=open]:rotate-180" aria-hidden="true" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={8}
+          className="z-[80] max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-[#DDE8D8] bg-white p-2 shadow-2xl shadow-[#123D2A]/14"
+        >
+          {options.map((option) => (
+            <DropdownMenu.Item
+              key={option.value}
+              disabled={option.disabled}
+              onSelect={(event) => {
+                event.preventDefault();
+                if (!option.disabled) onChange(option.value);
+              }}
+              className={`flex cursor-pointer select-none items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition ${
+                option.value === value
+                  ? "bg-[#EAF3E8] text-[#123D2A]"
+                  : "text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A] focus:bg-[#EAF3E8] focus:text-[#123D2A]"
+              } data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50`}
+            >
+              <span className="min-w-0 break-words">{option.label}</span>
+              {option.value === value ? <span className="size-1.5 shrink-0 rounded-full bg-[#1F6B43]" aria-hidden="true" /> : null}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
+}
+
+function extractOptionLabel(value: React.ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(extractOptionLabel).join("");
+  if (isValidElement(value)) {
+    return extractOptionLabel((value.props as { children?: React.ReactNode }).children);
+  }
+  return "";
 }
 
 function TextInput({
@@ -2522,12 +3444,72 @@ function requirementProgress(detail: ChairmanApplicationDetail) {
   return { completed, total, isComplete: total > 0 && completed === total };
 }
 
+function isProtectedRequirement(detail: ChairmanApplicationDetail, requirementType: RequirementType) {
+  if (["Orientation/Seminar", "Associate Membership Fee", "Signed Application"].includes(requirementType)) {
+    return true;
+  }
+  return detail.requestedMembershipType === "True Member" && requirementType === "Initial Share Capital";
+}
+
+function groupBarangays(values: Array<string | null | undefined>) {
+  const grouped = new Map<string, string>();
+
+  values.forEach((value) => {
+    const barangay = value?.trim();
+    if (!barangay) return;
+    const key = barangay.toLocaleLowerCase("en-PH");
+    if (!grouped.has(key)) grouped.set(key, barangay);
+  });
+
+  return Array.from(grouped.values()).sort((first, second) =>
+    first.localeCompare(second, "en-PH", { sensitivity: "base" }),
+  );
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not set";
   return new Intl.DateTimeFormat("en-PH", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatLongDate(value: string | null | undefined) {
+  if (!value) return "Not set";
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00`));
+}
+
+function getTodayInputDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildApprovalInput({
+  boardMeetingDate,
+  secretaryName,
+  decisionReason,
+  accountEmail,
+}: {
+  boardMeetingDate: string;
+  secretaryName: string;
+  decisionReason: string;
+  accountEmail: string | null;
+}): ApprovalInput {
+  return {
+    boardMeetingDate,
+    secretaryName,
+    decisionReason: decisionReason.trim() || "Approved and converted.",
+    createMemberPortalAccount: Boolean(accountEmail),
+    accountEmail,
+    username: null,
+  };
 }
 
 function formatCurrency(value: number) {

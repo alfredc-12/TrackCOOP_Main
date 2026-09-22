@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
-export async function processAndSaveImage(base64Str: string): Promise<string> {
+export async function processAndSaveImage(base64Str: string, category = "inventory"): Promise<string> {
   if (!base64Str || !base64Str.startsWith('data:image/')) {
     return base64Str; // Return as-is if it's already a URL or empty
   }
@@ -16,7 +16,7 @@ export async function processAndSaveImage(base64Str: string): Promise<string> {
   const buffer = Buffer.from(base64Data, 'base64');
   
   const filename = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', category);
   
   // Ensure the directory exists
   await fs.mkdir(uploadDir, { recursive: true });
@@ -24,5 +24,5 @@ export async function processAndSaveImage(base64Str: string): Promise<string> {
   const filePath = path.join(uploadDir, filename);
   await fs.writeFile(filePath, buffer);
   
-  return `/uploads/${filename}`;
+  return `/uploads/${category}/${filename}`;
 }

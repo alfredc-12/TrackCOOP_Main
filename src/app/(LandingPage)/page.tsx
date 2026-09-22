@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TouchEvent } from "react";
+import type { MouseEvent, TouchEvent } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRight,
@@ -14,6 +14,9 @@ import {
   Menu,
   Phone,
   Sprout,
+  Store,
+  Tractor,
+  UserRoundPlus,
   UsersRound,
   Waves,
   Wheat,
@@ -29,8 +32,7 @@ import SiteHeader from "@/components/layout/SiteHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import {
   mapPublishedCertifications,
-  mapPublishedProjects,
-  mapPublishedServices,
+  mapPublishedGallery,
   usePublishedLandingContent,
 } from "@/features/landing-public/usePublishedLandingContent";
 
@@ -98,32 +100,28 @@ const heroSlides = [
 
 const services = [
   {
-    title: "Membership Assistance",
-    description: "Help for applications, member records, portal access, and cooperative support requests.",
-    cta: "Apply now",
+    eyebrow: "Membership",
+    title: "Membership Application",
+    description: "Apply online and track your review status.",
+    cta: "Become a Member",
     href: "/membership/apply",
     icon: UsersRound,
   },
   {
-    title: "Farm and Fishery Programs",
-    description: "Production coordination, livelihood visibility, training, and seasonal program tracking.",
-    cta: "View programs",
-    href: "#projects",
-    icon: Wheat,
+    eyebrow: "Rental",
+    title: "Equipment Rental",
+    description: "Request cooperative equipment for review.",
+    cta: "View Rentals",
+    href: "/rental",
+    icon: Tractor,
   },
   {
-    title: "Cooperative Documents",
-    description: "A simple reference area for permits, registrations, and member confidence documents.",
-    cta: "See records",
-    href: "#certifications",
-    icon: FileCheck2,
-  },
-  {
-    title: "Member Inquiry / Portal",
-    description: "Quick access for member concerns, balances, service requests, and account follow-up.",
-    cta: "Open portal",
-    href: "/login",
-    icon: Phone,
+    eyebrow: "Store",
+    title: "Cooperative Store",
+    description: "Order available supplies and products.",
+    cta: "Open Store",
+    href: "/store",
+    icon: Store,
   },
 ];
 
@@ -221,18 +219,17 @@ const fadeUp = {
 
 export default function Home() {
   const published = usePublishedLandingContent();
-  const publishedServices = mapPublishedServices(published.services);
-  const publishedProjects = mapPublishedProjects(published.programs, projectAreaClasses);
+  const publishedGallery = mapPublishedGallery(published.gallery, projectAreaClasses);
   const publishedCertifications = mapPublishedCertifications(published.partners);
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#F8F1E5] text-[#1E1E1E]">
       <SiteHeader initialActive="home" />
       <Hero />
-      <ServicesSection items={publishedServices.length ? publishedServices : services} />
+      <ServicesSection items={services} />
       <AboutSection />
       <StatsParallaxSection />
-      <ProjectsSection items={publishedProjects.length ? publishedProjects : projects} />
+      <ProjectsSection items={publishedGallery.length ? publishedGallery : projects} />
       <CertificationsSection slides={publishedCertifications.length ? publishedCertifications : certifications} />
       <ContactSection />
       <SiteFooter />
@@ -327,7 +324,7 @@ function Header() {
             active={activeNav === "services"}
             onActivate={() => setActiveNav("services")}
             items={[
-              { label: "Membership Assistance", href: "#services" },
+              { label: "Become a Member", href: "/membership/apply" },
               { label: "Equipment Rental", href: "/rental" },
               { label: "Cooperative Store", href: "/store" },
             ]}
@@ -440,72 +437,98 @@ function Hero() {
   return (
     <section
       id="home"
-      className="relative min-h-[100dvh] overflow-hidden bg-[#0B2118] px-0 pb-0 pt-16 text-white"
+      className="relative h-[100svh] min-h-0 overflow-hidden bg-[#0B2118] px-0 pb-0 pt-16 text-white"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(79,157,105,0.34),transparent_34%),linear-gradient(135deg,#0B2118_0%,#123D2A_55%,#1F6B43_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,#071912_0%,#123D2A_44%,#1F6B43_100%)]" />
+      <div className="absolute inset-x-0 top-0 h-44 bg-[linear-gradient(180deg,rgba(255,250,242,0.12),transparent)]" />
 
       <motion.div
         initial={{ opacity: 0, y: 26 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.75, ease: "easeOut" }}
-        className="relative z-10 grid min-h-[calc(100dvh-4rem)] w-full gap-0 lg:grid-cols-[2fr_1fr]"
+        className="relative z-10 h-[calc(100svh-4rem)] min-h-0 w-full overflow-hidden"
       >
-        <div className="relative min-h-[430px] overflow-hidden border-y border-white/12 bg-white/8 shadow-2xl shadow-black/25 sm:min-h-[520px] lg:min-h-[calc(100dvh-4rem)]">
-          {heroSlides.map((item, index) => (
-            <Image
-              key={item.image}
-              src={item.image}
-              alt={item.headline}
-              fill
-              priority={index === 0}
-              unoptimized
-              sizes="(max-width: 1024px) 100vw, 67vw"
-              className={`object-cover transition duration-1000 ease-out ${
-                index === currentSlide
-                  ? "scale-100 opacity-100"
-                  : "scale-105 opacity-0"
-              }`}
-            />
-          ))}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#052F22]/90 via-[#052F22]/42 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#052F22]/85 to-transparent" />
+        {heroSlides.map((item, index) => (
+          <Image
+            key={item.image}
+            src={item.image}
+            alt={item.headline}
+            fill
+            priority={index === 0}
+            unoptimized
+            sizes="100vw"
+            className={`object-cover transition duration-1000 ease-out ${
+              index === currentSlide
+                ? "scale-100 opacity-100"
+                : "scale-105 opacity-0"
+            }`}
+          />
+        ))}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,41,29,0.96)_0%,rgba(3,41,29,0.80)_34%,rgba(3,41,29,0.40)_54%,rgba(247,238,220,0.70)_78%,rgba(247,238,220,0.94)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-3/5 bg-[linear-gradient(0deg,rgba(3,41,29,0.94)_0%,rgba(3,41,29,0.58)_48%,transparent_100%)]" />
+        <div className="absolute inset-y-0 right-0 w-1/2 bg-[linear-gradient(270deg,rgba(255,250,242,0.90)_0%,rgba(255,250,242,0.62)_38%,transparent_100%)]" />
+        <div className="absolute left-0 top-24 h-px w-2/5 bg-[linear-gradient(90deg,rgba(242,201,76,0.80),transparent)]" />
 
-          <div className="relative z-10 flex min-h-[430px] flex-col justify-between p-6 sm:min-h-[520px] sm:p-8 lg:min-h-[calc(100dvh-4rem)] lg:p-10">
-            <div className="flex items-start justify-between gap-4">
-              <div />
-              <div className="flex gap-2">
-                {heroSlides.map((item, index) => (
-                  <button
-                    key={item.title}
-                    type="button"
-                    aria-label={`Show ${item.title}`}
-                    aria-current={currentSlide === index ? "true" : undefined}
-                    onClick={() => setCurrentSlide(index)}
-                    className={`h-2.5 rounded-full transition ${
-                      currentSlide === index ? "w-8 bg-white" : "w-2.5 bg-white/45"
-                    }`}
-                  />
-                ))}
-              </div>
+        <div className="relative z-10 grid h-full min-h-0 w-full grid-rows-[minmax(0,0.53fr)_minmax(300px,0.47fr)] gap-0 md:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] md:grid-rows-1 lg:grid-cols-[minmax(0,1.18fr)_minmax(460px,0.82fr)] xl:grid-cols-[minmax(0,1.26fr)_minmax(520px,0.74fr)]">
+          <div className="relative flex min-h-0 flex-col justify-end px-6 pb-5 pt-10 sm:px-8 sm:pb-8 md:h-full md:pb-20 lg:px-10 lg:pb-24 xl:px-14 xl:pb-28 [@media(max-height:560px)]:pb-4 [@media(max-height:560px)]:pt-6">
+            <div className="absolute right-6 top-8 flex items-center gap-2 rounded-full bg-[#FFFAF2]/12 px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur-md sm:right-8 sm:top-10 md:right-6 md:top-10 lg:right-10 lg:top-8 xl:right-12">
+              {heroSlides.map((item, index) => (
+                <button
+                  key={item.title}
+                  type="button"
+                  aria-label={`Show ${item.title}`}
+                  aria-current={currentSlide === index ? "true" : undefined}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`h-2 rounded-full transition ${
+                    currentSlide === index
+                      ? "w-9 bg-[#F2C94C]"
+                      : "w-2 bg-white/55 hover:bg-white"
+                  }`}
+                />
+              ))}
             </div>
 
             <div className="max-w-5xl">
-              <h1 className="text-3xl font-bold uppercase leading-[1.04] tracking-normal text-white drop-shadow-2xl sm:text-5xl lg:text-6xl xl:text-7xl">
+              <h1 className="max-w-4xl text-balance text-4xl font-black leading-[0.98] tracking-normal text-white drop-shadow-[0_18px_45px_rgba(0,0,0,0.45)] sm:max-w-3xl sm:text-5xl md:text-[3.35rem] lg:max-w-3xl lg:text-6xl xl:max-w-4xl xl:text-7xl 2xl:text-[5.3rem] [@media(max-height:620px)]:text-3xl [@media(max-height:430px)]:text-2xl">
                 {cooperativeName}
               </h1>
-              <Link
-                href="/membership/apply"
-                className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-[#123D2A] shadow-sm transition hover:bg-[#F8F1E5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-              >
-                Become a Member
-              </Link>
+              <div className="mt-4 max-w-2xl border-l border-[#F2C94C]/70 pl-4 sm:pl-5 lg:mt-4 xl:mt-5 [@media(max-height:620px)]:mt-3 [@media(max-height:430px)]:hidden">
+                <p className="text-sm font-semibold leading-6 text-[#FFFAF2] sm:text-lg xl:text-xl">
+                  {heroSlides[currentSlide].headline}
+                </p>
+                <p className="mt-2 line-clamp-3 max-w-xl text-sm leading-6 text-[#EAF3E8]/88 sm:text-base lg:text-sm xl:text-base [@media(max-height:620px)]:hidden">
+                  {heroSlides[currentSlide].description}
+                </p>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3 lg:mt-5 xl:mt-7 [@media(max-height:620px)]:mt-3 [@media(max-height:430px)]:mt-2">
+                <Link
+                  href="/membership/apply"
+                  aria-label="Become a member"
+                  className="group inline-flex min-h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#F2C94C] text-[#123D2A] shadow-[0_16px_36px_rgba(0,0,0,0.22)] transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] hover:w-[12.25rem] hover:-translate-y-0.5 hover:bg-[#FFDD75] focus-visible:w-[12.25rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F2C94C] sm:min-h-12 sm:w-12 sm:hover:w-[13rem] sm:focus-visible:w-[13rem] [@media(max-height:430px)]:min-h-10 [@media(max-height:430px)]:w-10"
+                >
+                  <UserRoundPlus className="size-5 shrink-0 transition-transform duration-500 group-hover:scale-95 group-focus-visible:scale-95" />
+                  <span className="ml-0 max-w-0 translate-x-2 whitespace-nowrap text-xs font-bold opacity-0 transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] group-hover:ml-2.5 group-hover:max-w-36 group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:ml-2.5 group-focus-visible:max-w-36 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 sm:text-sm">
+                    Become a Member
+                  </span>
+                </Link>
+                <Link
+                  href="#services"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#FFFAF2]/35 bg-[#FFFAF2]/10 px-5 text-xs font-bold text-white shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-[#FFFAF2] hover:text-[#123D2A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:min-h-12 sm:px-6 sm:text-sm [@media(max-height:430px)]:min-h-10"
+                >
+                  Explore Services
+                  <ArrowRight className="size-4" />
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
 
-        <aside id="announcements" className="border-y border-[#DDE8D8] shadow-2xl shadow-black/18 lg:min-h-[calc(100dvh-4rem)]">
-          <AnnouncementsSection />
-        </aside>
+          <aside
+            id="announcements"
+            className="relative z-30 mb-5 ml-14 mr-2 h-[95%] min-h-0 self-center overflow-hidden rounded-[22px] bg-[#FFFAF2]/96 shadow-[0_34px_100px_rgba(18,61,42,0.28)] ring-1 ring-white/70 backdrop-blur-sm sm:mb-7 sm:ml-[5.5rem] sm:mr-2 md:mb-0 md:ml-16 md:mr-2 md:h-[calc(95%_-_2rem)] md:max-h-[665px] md:rounded-[28px] lg:ml-[5.5rem] lg:mr-2 lg:h-[calc(95%_-_2.25rem)] lg:max-h-[694px] xl:ml-[6.5rem] xl:mr-2"
+          >
+            <AnnouncementsSection />
+          </aside>
+        </div>
       </motion.div>
 
       <HeroBottomDecor />
@@ -642,20 +665,46 @@ function ServicesSection({ items }: { items: Service[] }) {
   return (
     <section
       id="services"
-      className="relative overflow-hidden bg-[#F8F1E5] px-5 pb-12 pt-[118px] sm:px-8 sm:pt-[138px] lg:pb-14 lg:pt-[150px]"
+      className="relative isolate scroll-mt-20 overflow-hidden bg-[#F8F1E5] px-5 pb-10 pt-[96px] sm:scroll-mt-24 sm:px-8 sm:pt-[112px] lg:pb-12 lg:pt-[124px]"
     >
+      <SectionBlend className="bottom-0 h-24 bg-gradient-to-b from-transparent via-[#FFFAF2]/80 to-[#FFFAF2]" />
+      <Image
+        src="/images/decorative/farm-watermark.png"
+        alt=""
+        width={760}
+        height={430}
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[-14rem] top-28 z-0 h-auto w-[430px] select-none opacity-[0.12] sm:right-[-9rem] sm:top-24 sm:w-[560px] sm:opacity-[0.20] lg:right-[-5rem] lg:top-[8.5rem] lg:w-[clamp(430px,45vw,760px)] lg:opacity-[0.32]"
+      />
       <FieldDivider />
       <div className="relative z-10 mx-auto max-w-7xl">
-        <motion.div {...fadeUp}>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-            Services
-          </p>
-          <h2 className="max-w-5xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl lg:text-8xl">
-            Support made easy to find.
-          </h2>
+        <motion.div
+          {...fadeUp}
+          className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(300px,0.55fr)] lg:items-end"
+        >
+          <div>
+            <div className="mb-6">
+              <p className="text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
+                Services
+              </p>
+              <span className="mt-4 block h-[2px] w-14 bg-[#1F6B43]" aria-hidden="true" />
+            </div>
+            <h2 className="max-w-5xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] sm:text-6xl md:text-7xl lg:text-8xl">
+              Cooperative services, ready to use.
+            </h2>
+          </div>
+          <div className="relative z-10 flex max-w-lg items-center gap-5 lg:pb-10">
+            <span className="hidden h-20 w-px bg-[#B8CEA9] sm:block" aria-hidden="true" />
+            <span className="grid size-16 shrink-0 place-items-center rounded-full bg-[#DDEFC4] text-[#1F6B43] shadow-[0_12px_30px_rgba(18,61,42,0.08)]">
+              <Sprout className="size-8" aria-hidden="true" />
+            </span>
+            <p className="max-w-sm text-lg leading-7 text-[#2F4E3E]">
+              Apply, rent, or order from one public service area.
+            </p>
+          </div>
         </motion.div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-7 grid gap-5 lg:grid-cols-3">
           {items.map((service, index) => (
             <ServiceCard key={service.title} service={service} index={index} />
           ))}
@@ -663,26 +712,34 @@ function ServicesSection({ items }: { items: Service[] }) {
 
         <motion.div
           {...fadeUp}
-          className="mt-6 flex flex-col gap-4 border border-[#DDE8D8] bg-[#123D2A] p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          className="relative isolate mt-5 flex flex-col gap-4 overflow-hidden rounded-[18px] border border-[#DDE8D8] bg-[#123D2A] p-5 text-white shadow-[0_14px_34px_rgba(18,61,42,0.16)] sm:flex-row sm:items-center sm:justify-between"
         >
-          <div>
+          <Image
+            src="/images/decorative/leaf-overlay.png"
+            alt=""
+            width={760}
+            height={1015}
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-[-5rem] left-[-4rem] z-0 h-auto w-[210px] select-none opacity-[0.36] sm:bottom-[-5.5rem] sm:left-[-2.5rem] sm:w-[250px] sm:opacity-[0.52] lg:bottom-[-6.4rem] lg:left-[-1.75rem] lg:w-[320px] lg:opacity-[0.72]"
+          />
+          <div className="relative z-10">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#F2C94C]">
-              Membership
+              Need your application status?
             </p>
-            <h3 className="mt-2 text-2xl font-black tracking-normal">
-              Ready to apply as a cooperative member?
+            <h3 className="mt-2 text-2xl font-black leading-tight tracking-normal">
+              Already applied? Check your status.
             </h3>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative z-10 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/membership/apply"
-              className="inline-flex h-11 items-center justify-center bg-white px-5 text-sm font-bold text-[#123D2A] transition hover:bg-[#EAF3E8]"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-bold text-[#123D2A] transition hover:bg-[#EAF3E8]"
             >
               Become a Member
             </Link>
             <Link
               href="/membership/application-status"
-              className="inline-flex h-11 items-center justify-center border border-white/30 px-5 text-sm font-bold text-white transition hover:bg-white/10"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-white/30 px-5 text-sm font-bold text-white transition hover:bg-white/10"
             >
               Check Status
             </Link>
@@ -694,6 +751,7 @@ function ServicesSection({ items }: { items: Service[] }) {
 }
 
 type Service = {
+  eyebrow: string;
   title: string;
   description: string;
   cta: string;
@@ -706,24 +764,27 @@ function ServiceCard({ service, index }: { service: Service; index: number }) {
     <motion.article
       {...fadeUp}
       transition={{ duration: 0.55, delay: index * 0.07, ease: "easeOut" }}
-      className="group flex min-h-[300px] flex-col justify-between rounded-[24px] border border-[#DDE8D8] bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-[#123D2A]/10"
+      className="group flex min-h-[280px] flex-col justify-between rounded-[18px] border border-[#DDE8D8] bg-white p-6 shadow-[0_10px_26px_rgba(18,61,42,0.07)] transition hover:-translate-y-1 hover:shadow-xl hover:shadow-[#123D2A]/12"
     >
       <div>
-        <div className="mb-8 grid size-13 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] transition group-hover:bg-[#123D2A] group-hover:text-white">
-          <service.icon className="size-6" />
+        <div className="grid size-16 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] shadow-[0_10px_20px_rgba(18,61,42,0.07)] transition group-hover:bg-[#123D2A] group-hover:text-white">
+          <service.icon className="size-7" aria-hidden="true" />
         </div>
-        <h3 className="text-2xl font-bold leading-tight text-[#123D2A]">
-          {service.title}
-        </h3>
-        <p className="mt-4 leading-7 text-[#6B7280]">{service.description}</p>
+        <div className="mt-7">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-[#D99A0B]">{service.eyebrow}</p>
+          <h3 className="mt-3 text-2xl font-black leading-tight tracking-normal text-[#123D2A]">
+            {service.title}
+          </h3>
+          <p className="mt-3 leading-7 text-[#5D6D63]">{service.description}</p>
+        </div>
       </div>
 
       <Link
         href={service.href}
-        className="mt-8 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.12em] text-[#1F6B43] transition group-hover:text-[#123D2A]"
+        className="mt-6 inline-flex h-11 items-center justify-between gap-3 rounded-md border border-[#CAD8CB] px-4 text-sm font-black uppercase tracking-[0.12em] text-[#123D2A] transition hover:border-[#123D2A] hover:bg-[#EAF3E8]"
       >
         {service.cta}
-        <ArrowRight className="size-4" />
+        <ArrowRight className="size-4 shrink-0" />
       </Link>
     </motion.article>
   );
@@ -738,11 +799,13 @@ function StatsBand() {
             key={stat.label}
             {...fadeUp}
             transition={{ duration: 0.55, delay: index * 0.07, ease: "easeOut" }}
-            className="rounded-[24px] border border-[#E5E7EB] bg-white p-6 shadow-sm"
+            className="rounded-[26px] border border-[#E3EAD6] bg-white p-6 text-center shadow-sm"
           >
-            <stat.icon className="mb-8 size-7 text-[#1F6B43]" />
-            <p className="text-4xl font-bold text-[#123D2A]">{stat.value}</p>
-            <p className="mt-2 font-medium text-[#6B7280]">{stat.label}</p>
+            <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
+              <stat.icon className="size-6" />
+            </div>
+            <p className="text-4xl font-black text-[#073f2b]">{stat.value}</p>
+            <p className="mt-2 text-sm font-semibold text-[#6B7280]">{stat.label}</p>
           </motion.div>
         ))}
       </div>
@@ -752,27 +815,72 @@ function StatsBand() {
 
 function AboutSection() {
   return (
-    <section id="about" className="bg-[#FFFAF2] px-5 py-12 sm:px-8 lg:py-16">
-      <div className="mx-auto grid max-w-7xl items-stretch gap-12 lg:grid-cols-[0.92fr_1.08fr]">
+    <section
+      id="about"
+      className="relative isolate scroll-mt-24 overflow-hidden bg-[#FFFAF2] px-5 py-14 sm:px-8 lg:scroll-mt-20 lg:py-20"
+    >
+      <SectionBlend className="top-0 h-20 bg-gradient-to-b from-[#F8F1E5] via-[#FFFAF2]/80 to-transparent" />
+      <SectionBlend className="bottom-0 h-24 bg-gradient-to-b from-transparent via-[#FFFAF2]/72 to-[#F8F1E5]" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-28 -left-28 z-0 h-[430px] w-[330px] overflow-hidden opacity-[0.18] mix-blend-multiply sm:-left-24 sm:h-[500px] sm:w-[380px] sm:opacity-[0.22] lg:-bottom-32 lg:-left-20 lg:h-[610px] lg:w-[450px] lg:opacity-[0.28]"
+        style={{
+          WebkitMaskImage:
+            "radial-gradient(ellipse at 38% 58%, black 0%, black 38%, transparent 74%)",
+          maskImage:
+            "radial-gradient(ellipse at 38% 58%, black 0%, black 38%, transparent 74%)",
+        }}
+      >
+        <Image
+          src="/images/decorative/leaf-overlay.png"
+          alt=""
+          fill
+          sizes="410px"
+          className="select-none object-cover object-center"
+        />
+      </div>
+      <Image
+        src="/images/decorative/about-corner-lines.svg"
+        alt=""
+        aria-hidden="true"
+        width={360}
+        height={220}
+        className="pointer-events-none absolute -right-10 -top-4 z-0 w-[180px] select-none opacity-40 sm:w-[230px] sm:opacity-55 lg:w-[340px] lg:opacity-80"
+      />
+      <Image
+        src="/images/decorative/about-corner-lines.svg"
+        alt=""
+        aria-hidden="true"
+        width={360}
+        height={220}
+        className="pointer-events-none absolute -bottom-6 -right-10 z-0 w-[180px] rotate-180 select-none opacity-35 sm:w-[230px] sm:opacity-50 lg:w-[340px] lg:opacity-75"
+      />
+
+      <div className="relative z-10 mx-auto grid max-w-[1320px] items-center gap-10 lg:grid-cols-[minmax(320px,0.95fr)_minmax(420px,1.05fr)] lg:gap-14">
         <motion.div
           {...fadeUp}
-          className="relative min-h-[360px] overflow-hidden rounded-[28px] border border-[#DDE8D8] bg-white shadow-sm lg:min-h-0"
+          className="relative overflow-hidden rounded-[30px] bg-white p-2.5 shadow-[0_18px_40px_rgba(18,61,42,0.13)]"
         >
           <Image
             src="/images/Other%20Landing%20Page/About.jpg"
-            alt="Nasugbu Farmers and Fisherfolks Federation logo"
-            fill
-            unoptimized
-            sizes="(max-width: 1024px) 100vw, 42vw"
-            className="object-cover"
+            alt="Nasugbu Farmers and Fisherfolks Agriculture Cooperative group photo"
+            width={920}
+            height={1040}
+            sizes="(max-width: 1024px) 100vw, 47vw"
+            className="block aspect-[0.92] w-full rounded-[24px] object-cover"
           />
         </motion.div>
 
-        <motion.div {...fadeUp} transition={{ duration: 0.65, delay: 0.08, ease: "easeOut" }}>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-            About
+        <motion.div
+          {...fadeUp}
+          transition={{ duration: 0.65, delay: 0.08, ease: "easeOut" }}
+          className="relative"
+        >
+          <p className="text-xs font-black uppercase tracking-[0.45em] text-[#f4b62a]">
+            ABOUT
           </p>
-          <h2 className="text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl">
+          <div className="mt-3 h-1 w-14 rounded-full bg-[#D99A0B]" aria-hidden="true" />
+          <h2 className="mt-5 max-w-[9ch] text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] sm:text-6xl md:text-7xl lg:text-8xl">
             Rooted in Nasugbu agriculture.
           </h2>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-[#4b5563]">
@@ -780,7 +888,7 @@ function AboutSection() {
             services, farm coordination, fishery livelihood tracking, and
             accessible community information.
           </p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="mt-9 grid gap-5 sm:grid-cols-2">
             <MiniPanel
               icon={Wheat}
               title="Farm Programs"
@@ -804,10 +912,12 @@ function ProjectsSection({ items }: { items: Project[] }) {
       id="projects"
       className="relative overflow-hidden bg-[#eaf3e8] py-12 text-[#073f2b] lg:py-16"
     >
-      <div className="mx-auto max-w-[1680px] px-6 lg:px-20">
+      <SectionBlend className="top-0 h-20 bg-gradient-to-b from-[#F8F1E5] via-[#eaf3e8]/82 to-transparent" />
+      <SectionBlend className="bottom-0 h-24 bg-gradient-to-b from-transparent via-[#eaf3e8]/70 to-[#F8F1E5]" />
+      <div className="relative z-10 mx-auto max-w-[1680px] px-6 lg:px-20">
         <motion.div {...fadeUp}>
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-            Projects
+            Gallery
           </p>
           <h2 className="max-w-6xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl lg:text-8xl">
             Work moving through the field.
@@ -815,7 +925,7 @@ function ProjectsSection({ items }: { items: Project[] }) {
         </motion.div>
       </div>
 
-      <div className="relative left-1/2 mt-10 w-screen -translate-x-1/2 overflow-hidden px-6 lg:mt-12 lg:px-8">
+      <div className="relative left-1/2 z-10 mt-10 w-screen -translate-x-1/2 overflow-hidden px-6 lg:mt-12 lg:px-8">
         <div className="projects-mosaic grid h-auto grid-cols-1 gap-4 md:grid-cols-2 lg:h-[720px] lg:grid-cols-12 lg:grid-rows-6 lg:gap-4">
           {items.map((project, index) => (
             <ProjectCard
@@ -889,8 +999,10 @@ function ProjectCard({
 
 function CertificationsSection({ slides }: { slides: CertificationSlide[] }) {
   return (
-    <section id="certifications" className="bg-[#F8F1E5] py-12 lg:py-16">
-      <div className="px-5 sm:px-8">
+    <section id="certifications" className="relative overflow-hidden bg-[#F8F1E5] py-12 lg:py-16">
+      <SectionBlend className="top-0 h-20 bg-gradient-to-b from-[#eaf3e8] via-[#F8F1E5]/84 to-transparent" />
+      <SectionBlend className="bottom-0 h-24 bg-gradient-to-b from-transparent via-[#F8F1E5]/78 to-[#FFFAF2]" />
+      <div className="relative z-10 px-5 sm:px-8">
         <motion.div {...fadeUp} className="mx-auto max-w-7xl">
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
             Documents
@@ -910,9 +1022,75 @@ type CertificationSlide = {
   title: string;
   tag: string;
   image: string;
+  fileType?: "image" | "pdf";
   aspectRatio: number;
   maxWidth: number;
 };
+
+function CertificationMedia({ slide, className = "" }: { slide: CertificationSlide; className?: string }) {
+  if (slide.fileType === "pdf") {
+    return (
+      <div className={`grid h-full w-full place-items-center bg-[#123D2A] text-white ${className}`}>
+        <div className="grid max-w-xs justify-items-center gap-5 px-8 text-center">
+          <span className="grid size-24 place-items-center rounded-3xl bg-white/12 text-[#F2C94C]">
+            <FileCheck2 className="size-12" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-2xl font-black leading-tight">{slide.title}</p>
+            <p className="mt-3 rounded-full border border-white/20 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-white/72">
+              PDF Document
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={slide.image}
+      alt={slide.title}
+      fill
+      unoptimized
+      sizes="(max-width: 768px) 82vw, 760px"
+      className={`bg-white object-contain ${className}`}
+    />
+  );
+}
+
+function CertificationModalMedia({ slide }: { slide: CertificationSlide }) {
+  const motionProps = {
+    initial: { opacity: 0, y: 18, scale: 0.94 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: 10, scale: 0.96 },
+    transition: { duration: 0.26, ease: "easeOut" as const },
+    onClick: (event: MouseEvent) => event.stopPropagation(),
+  };
+
+  if (slide.fileType === "pdf") {
+    return (
+      <motion.div
+        className="relative h-[calc(100dvh-6.5rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg sm:h-[calc(100dvh-7.5rem)] sm:max-w-[calc(100vw-3rem)]"
+        style={{
+          aspectRatio: slide.aspectRatio,
+          width: `min(calc((100dvh - 7.5rem) * ${slide.aspectRatio}), calc(100vw - 1.5rem))`,
+        }}
+        {...motionProps}
+      >
+        <CertificationMedia slide={slide} className="drop-shadow-2xl" />
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.img
+      src={slide.image}
+      alt={slide.title}
+      className="block h-[calc(100dvh-6.5rem)] w-auto max-w-[calc(100vw-1.5rem)] object-contain drop-shadow-2xl sm:h-[calc(100dvh-7.5rem)] sm:max-w-[calc(100vw-3rem)]"
+      {...motionProps}
+    />
+  );
+}
 
 function CertificationCarousel({ slides }: { slides: CertificationSlide[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -1009,11 +1187,11 @@ function CertificationCarousel({ slides }: { slides: CertificationSlide[] }) {
   return (
     <>
       <div
-        className="relative left-1/2 mt-8 w-screen -translate-x-1/2 overflow-hidden px-4 py-6 sm:px-8"
+        className="relative left-1/2 mt-8 w-screen -translate-x-1/2 overflow-x-clip overflow-y-visible px-4 py-6 pb-10 sm:px-8 sm:pb-12"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="relative h-[640px] perspective-[1200px] sm:h-[760px]">
+        <div className="relative h-[640px] perspective-[1200px] sm:h-[820px] lg:h-[860px]">
         {slides.map((slide, index) => {
           const position = getSlidePosition(index);
           const isActive = position === "active";
@@ -1032,14 +1210,7 @@ function CertificationCarousel({ slides }: { slides: CertificationSlide[] }) {
                 aspectRatio: slide.aspectRatio,
               }}
             >
-              <Image
-                src={slide.image}
-                alt={slide.title}
-                fill
-                unoptimized
-                sizes="(max-width: 768px) 82vw, 760px"
-                className="object-cover"
-              />
+              <CertificationMedia slide={slide} />
               <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-[#03291d]/55 to-transparent p-4 text-white">
                 <span className="inline-flex max-w-[calc(100%-2rem)] items-center gap-2 truncate rounded-full bg-white/18 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] shadow-sm ring-1 ring-white/20 backdrop-blur-md sm:text-xs">
                   <FileCheck2 className="size-3.5" />
@@ -1126,27 +1297,7 @@ function CertificationCarousel({ slides }: { slides: CertificationSlide[] }) {
                     <FileCheck2 className="size-3.5 shrink-0" />
                     <span className="truncate">{openCertificate.tag}</span>
                   </motion.div>
-                  <motion.div
-                    className="relative max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden sm:max-h-[calc(100dvh-3rem)] sm:max-w-[calc(100vw-3rem)]"
-                    style={{
-                      aspectRatio: openCertificate.aspectRatio,
-                      width: `min(calc((100dvh - 2rem) * ${openCertificate.aspectRatio}), calc(100vw - 1.5rem))`,
-                    }}
-                    initial={{ opacity: 0, y: 18, scale: 0.94 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.96 }}
-                    transition={{ duration: 0.26, ease: "easeOut" }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <Image
-                      src={openCertificate.image}
-                      alt={openCertificate.title}
-                      fill
-                      unoptimized
-                      sizes="94vw"
-                      className="object-contain drop-shadow-2xl"
-                    />
-                  </motion.div>
+                  <CertificationModalMedia slide={openCertificate} />
                 </motion.div>
               ) : null}
             </AnimatePresence>,
@@ -1162,8 +1313,9 @@ function ContactSection() {
     "https://maps.google.com/maps?q=14.058886759350967,120.63832068540415&z=16&output=embed";
 
   return (
-    <section id="contact" className="bg-[#FFFAF2] px-5 py-12 sm:px-8 lg:py-16">
-      <div className="mx-auto max-w-7xl">
+    <section id="contact" className="relative overflow-hidden bg-[#FFFAF2] px-5 py-12 sm:px-8 lg:py-16">
+      <SectionBlend className="top-0 h-20 bg-gradient-to-b from-[#F8F1E5] via-[#FFFAF2]/84 to-transparent" />
+      <div className="relative z-10 mx-auto max-w-7xl">
         <motion.div {...fadeUp} className="mb-8">          <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
             Contact
           </p>
@@ -1217,6 +1369,15 @@ function ContactSection() {
   );
 }
 
+function SectionBlend({ className }: { className: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-0 z-[1] ${className}`}
+    />
+  );
+}
+
 function Footer() {
   return (
     <footer className="border-t border-[#1F6B43]/20 bg-[#123D2A] px-5 py-10 text-white sm:px-8">
@@ -1245,12 +1406,16 @@ function MiniPanel({
   copy: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#E5E7EB] bg-white p-6 shadow-sm">
-      <div className="mb-7 grid size-12 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
-        <Icon className="size-6" />
+    <div className="rounded-[24px] border border-[#E3EAD6] bg-white p-6 shadow-[0_12px_28px_rgba(18,61,42,0.09)]">
+      <div className="mb-5 grid size-16 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
+        <Icon className="size-7" aria-hidden="true" />
       </div>
-      <h3 className="text-xl font-bold text-[#123D2A]">{title}</h3>
-      <p className="mt-3 leading-7 text-[#6B7280]">{copy}</p>
+      <h3 className="text-2xl font-black leading-tight tracking-normal text-[#123D2A]">{title}</h3>
+      <div className="mt-3 h-0.5 w-16 rounded-full bg-[#D99A0B]" aria-hidden="true" />
+      <p className="mt-3 leading-7 text-[#5D6D63]">{copy}</p>
+      <span className="mt-5 grid size-11 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
+        <ArrowRight className="size-5" aria-hidden="true" />
+      </span>
     </div>
   );
 }

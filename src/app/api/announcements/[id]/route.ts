@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiUser } from "@/lib/next-api-auth";
-import { randomUUID } from "node:crypto";
+import {
+  hasAnnouncementImagePayload,
+  normalizeAnnouncementImages,
+  replaceAnnouncementImages,
+} from "../announcement-images";
+import {
+  getAudienceValueForTargets,
+  normalizeAnnouncementAudienceTargets,
+  replaceAnnouncementAudienceTargets,
+} from "../announcement-audience-targets";
 
 export async function PATCH(
   request: NextRequest,
@@ -13,6 +22,13 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
+    const shouldUpdateImages = hasAnnouncementImagePayload(body);
+    const images = shouldUpdateImages ? normalizeAnnouncementImages(body) : [];
+    const shouldUpdateTargets =
+      Object.prototype.hasOwnProperty.call(body, "audienceTargets") ||
+      Object.prototype.hasOwnProperty.call(body, "audienceValues") ||
+      Object.prototype.hasOwnProperty.call(body, "audienceType");
+    const audienceTargets = shouldUpdateTargets ? normalizeAnnouncementAudienceTargets(body) : [];
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -33,33 +49,42 @@ export async function PATCH(
       updates.push("audience_type = ?");
       values.push(body.audienceType);
     }
-    if (body.audienceValue !== undefined) {
+    if (body.audienceValue !== undefined || shouldUpdateTargets) {
       updates.push("audience_value = ?");
-      values.push(body.audienceValue || null);
+      values.push(getAudienceValueForTargets(body, audienceTargets));
     }
     if (body.announcementStatus !== undefined) {
       updates.push("announcement_status = ?");
       values.push(body.announcementStatus);
     }
-    if (body.featuredImagePath !== undefined) {
+    if (shouldUpdateImages) {
       updates.push("featured_image_path = ?");
-      values.push(body.featuredImagePath || null);
+      values.push(images[0] ?? null);
     }
 
     if (updates.length > 0) {
       values.push(id);
       await db.query(
-        `UPDATE announcements SET ${updates.join(", ")} WHERE id = ?`,
+        `UPDATE announcements SET ${updates.join(", ")} WHERE announcement_id = ?`,
         values
       );
     }
 
-    if (body.recipientUserIds && body.audienceType === "Selected Users") {
+    if (shouldUpdateImages) {
+      await replaceAnnouncementImages(id, images, body.title);
+    }
+
+    if (shouldUpdateTargets) {
+      await replaceAnnouncementAudienceTargets(id, audienceTargets);
+    }
+
+    if (body.recipientUserIds || (body.audienceType && body.audienceType !== "Selected Users")) {
       await db.query(`DELETE FROM announcement_recipients WHERE announcement_id = ?`, [id]);
-      for (const userId of body.recipientUserIds) {
+      const recipientUserIds = body.audienceType === "Selected Users" ? body.recipientUserIds ?? [] : [];
+      for (const userId of recipientUserIds) {
         await db.query(
-          `INSERT INTO announcement_recipients (id, announcement_id, user_id) VALUES (?, ?, ?)`,
-          [randomUUID(), id, userId]
+          `INSERT IGNORE INTO announcement_recipients (announcement_id, user_id) VALUES (?, ?)`,
+          [id, userId]
         );
       }
     }

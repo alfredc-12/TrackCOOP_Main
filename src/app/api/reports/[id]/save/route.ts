@@ -9,7 +9,7 @@ import type { DocumentAccessLevel } from "@/features/records/records-types";
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/reports/[id]/save">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper"]);

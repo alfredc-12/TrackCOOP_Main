@@ -632,6 +632,7 @@ export function updateMemberStatus(
 export async function listUnifiedStatusHistory(query: {
   search?: string;
   sourceModule?: "All" | "Application" | "Member" | "Account";
+  date?: string;
   page?: number;
   pageSize?: number;
 } = {}): Promise<UnifiedStatusHistoryResult> {
@@ -641,6 +642,7 @@ export async function listUnifiedStatusHistory(query: {
     sourceModule: query.sourceModule ?? "All",
   });
   if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.date?.trim()) params.set("date", query.date.trim());
 
   const result = await apiRequestWithMeta<UnifiedStatusHistoryEntry[]>(`/api/members/status-history?${params}`);
   return {

@@ -6,7 +6,6 @@ import {
   ClipboardList,
   FileText,
   Gauge,
-  Globe2,
   History,
   Inbox,
   Landmark,
@@ -176,24 +175,6 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
     {
       title: "Public Website",
       items: [
-        {
-          label: "Page Content",
-          href: "/portal/chairman/landing/content",
-          icon: Globe2,
-          summary: "Manage published landing page content blocks.",
-        },
-        {
-          label: "Services",
-          href: "/portal/chairman/landing/services",
-          icon: ClipboardList,
-          summary: "Maintain public cooperative service information.",
-        },
-        {
-          label: "Programs and Projects",
-          href: "/portal/chairman/landing/programs",
-          icon: Tractor,
-          summary: "Maintain public programs and project highlights.",
-        },
         {
           label: "Partners and Certifications",
           href: "/portal/chairman/landing/partners",

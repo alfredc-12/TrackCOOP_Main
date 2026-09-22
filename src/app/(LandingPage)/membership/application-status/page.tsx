@@ -54,7 +54,7 @@ export default function MembershipApplicationStatusPage() {
 
 function StatusFallback() {
   return (
-    <div className="grid min-h-[380px] place-items-center rounded-[2rem] border border-white/80 bg-white/95 p-8 text-center shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8]">
+    <div className="grid min-h-[380px] place-items-center rounded-[18px] border border-white/80 bg-white/95 p-8 text-center shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8]">
       <p className="text-sm font-bold text-[#365F4A]">Loading status form...</p>
     </div>
   );

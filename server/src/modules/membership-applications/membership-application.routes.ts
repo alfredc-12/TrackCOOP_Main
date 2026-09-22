@@ -174,6 +174,11 @@ export function createMembershipApplicationRouter(
     ...chairmanOnly,
     controller.deleteDocument,
   );
+  router.get(
+    "/membership-application-documents/:id/view",
+    ...chairmanOnly,
+    controller.viewDocument,
+  );
   router.post(
     "/membership-applications/:id/requirements",
     ...chairmanOnly,
@@ -183,6 +188,11 @@ export function createMembershipApplicationRouter(
     "/membership-application-requirements/:id",
     ...chairmanOnly,
     controller.updateRequirement,
+  );
+  router.delete(
+    "/membership-application-requirements/:id",
+    ...chairmanOnly,
+    controller.deleteRequirement,
   );
   router.get("/membership-applications/:id/history", ...chairmanOnly, controller.history);
   router.post(

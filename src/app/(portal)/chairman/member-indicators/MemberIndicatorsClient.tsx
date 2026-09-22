@@ -6,6 +6,7 @@ import {
   Download,
   Eye,
   FileText,
+  Filter,
   Gauge,
   Printer,
   RefreshCcw,
@@ -129,6 +130,15 @@ function scoreLabel(sortBy: NonNullable<MemberIndicatorListQuery["sortBy"]>) {
   return labels[sortBy];
 }
 
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 export function MemberIndicatorsClient() {
   const [indicators, setIndicators] = useState<MemberIndicator[]>([]);
   const [summary, setSummary] = useState<MemberIndicatorSummary>(emptySummary);
@@ -140,7 +150,7 @@ export function MemberIndicatorsClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [basisMonths, setBasisMonths] = useState(12);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -270,9 +280,11 @@ export function MemberIndicatorsClient() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(total, page * pageSize);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-5">
       <PageHeader
         eyebrow="People"
         title="Member Indicators"
@@ -282,7 +294,7 @@ export function MemberIndicatorsClient() {
             <button
               type="button"
               onClick={() => void loadIndicators()}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-black text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] transition hover:bg-[#EEF2EC]"
             >
               <RefreshCcw className="size-4" aria-hidden="true" />
               Refresh
@@ -290,7 +302,7 @@ export function MemberIndicatorsClient() {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-black text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] transition hover:bg-[#EEF2EC]"
             >
               <Printer className="size-4" aria-hidden="true" />
               Print
@@ -298,7 +310,7 @@ export function MemberIndicatorsClient() {
             <button
               type="button"
               onClick={exportCsv}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-black text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] transition hover:bg-[#EEF2EC]"
             >
               <Download className="size-4" aria-hidden="true" />
               CSV
@@ -307,7 +319,7 @@ export function MemberIndicatorsClient() {
               type="button"
               onClick={() => void handleRecalculate()}
               disabled={isRecalculating}
-              className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(18,61,42,0.18)] transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RotateCw
                 className={isRecalculating ? "size-4 animate-spin" : "size-4"}
@@ -319,11 +331,12 @@ export function MemberIndicatorsClient() {
         }
       />
 
-      <div className="rounded-lg border border-[#F0D48A] bg-[#FFF8E7] p-4 text-sm font-semibold text-[#765000]">
-        Member indicators are descriptive decision-support signals and do not automatically change official membership status.
+      <div className="flex items-start gap-3 rounded-lg border border-[#F0D48A] bg-[#FFF8E7] p-4 text-sm font-semibold leading-6 text-[#765000] shadow-[0_10px_24px_rgba(138,98,0,0.06)]">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>Member indicators are descriptive decision-support signals and do not automatically change official membership status.</span>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-4">
         <StatCard label="Tracked" value={String(summary.totalTracked)} icon={Gauge} />
         <StatCard label="Active" value={String(summary.active)} icon={Activity} />
         <StatCard
@@ -338,8 +351,12 @@ export function MemberIndicatorsClient() {
         />
       </div>
 
-      <section className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-        <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_auto_auto_auto_auto] lg:items-center">
+      <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+        <div className="mb-4 flex items-center gap-2">
+          <Filter className="size-4 text-[#123D2A]" aria-hidden="true" />
+          <h2 className="text-base font-black text-[#123D2A]">Filters</h2>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_12rem_13rem_13rem_12rem] lg:items-end">
           <label className="relative block">
             <Search
               className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]"
@@ -351,7 +368,7 @@ export function MemberIndicatorsClient() {
                 setSearch(event.target.value);
                 setPage(1);
               }}
-              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-4 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:text-[#7B8D82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
               placeholder="Search indicators"
               type="search"
             />
@@ -394,29 +411,29 @@ export function MemberIndicatorsClient() {
         </div>
       </section>
 
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#123D2A]">
-            Status Distribution
+          <h2 className="text-base font-black text-[#123D2A]">
+            Indicator Distribution
           </h2>
-          <span className="text-xs font-semibold text-[#6C7A70]">{total} latest records</span>
+          <StatusBadge tone="neutral">{total} records</StatusBadge>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {summary.distribution.map((item) => (
-            <div key={item.statusLabel} className="rounded-md border border-[#E2E8E2] p-4">
+            <div key={item.statusLabel} className="rounded-md border border-[#CAD8CB] bg-[#FBFCF8] p-4">
               <div className="flex items-center justify-between gap-3">
                 <StatusBadge tone={indicatorTone(item.statusLabel)}>
                   {item.statusLabel}
                 </StatusBadge>
-                <span className="text-sm font-black text-[#123D2A]">{item.total}</span>
+                <span className="text-xl font-black text-[#123D2A]">{item.total}</span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EEF2EC]">
+              <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#DDE8D8]">
                 <div
                   className="h-full rounded-full bg-[#1F6B43]"
-                  style={{ width: `${item.percentage}%` }}
+                  style={{ width: `${Math.min(100, item.percentage)}%` }}
                 />
               </div>
-              <p className="mt-2 text-xs font-semibold text-[#6C7A70]">{item.percentage}%</p>
+              <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-[#6C7A70]">{item.percentage}%</p>
             </div>
           ))}
         </div>
@@ -433,15 +450,15 @@ export function MemberIndicatorsClient() {
         />
       ) : (
         <DataTable>
-          <table className="min-w-[72rem] divide-y divide-[#E2E8E2] text-left text-sm">
-            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+          <table className="min-w-[68rem] divide-y divide-[#E2E8E2] text-left text-sm">
+            <thead className="bg-[#F7F8F3] text-xs font-black uppercase tracking-[0.16em] text-[#5D6D63]">
               <tr>
                 <th className="px-5 py-4">Member</th>
-                <th className="px-5 py-4">Label</th>
-                <th className="px-5 py-4">Raw Metrics</th>
-                <th className="px-5 py-4">Scores</th>
-                <th className="px-5 py-4">Total</th>
-                <th className="px-5 py-4">Basis</th>
+                <th className="px-5 py-4">Indicator</th>
+                <th className="px-5 py-4">Activity Metrics</th>
+                <th className="px-5 py-4">Score Breakdown</th>
+                <th className="px-5 py-4">Total Score</th>
+                <th className="px-5 py-4">Basis Period</th>
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -449,29 +466,38 @@ export function MemberIndicatorsClient() {
               {indicators.map((indicator) => {
                 const basis = parseBasisSummary(indicator.basisSummary);
                 return (
-                  <tr key={indicator.id} className="hover:bg-[#F7F8F3]">
+                  <tr key={indicator.id} className="bg-white transition hover:bg-[#F7F8F3]">
                     <td className="px-5 py-4">
-                      <p className="font-bold text-[#123D2A]">{indicator.fullName}</p>
-                      <p className="mt-1 text-xs text-[#6C7A70]">{indicator.memberCode}</p>
+                      <div className="flex items-center gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-sm font-black text-[#123D2A]">
+                          {initials(indicator.fullName)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-black text-[#123D2A]">{indicator.fullName}</p>
+                          <p className="mt-1 text-xs font-semibold text-[#6C7A70]">{indicator.memberCode}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <StatusBadge tone={indicatorTone(indicator.statusLabel)}>
                         {indicator.statusLabel}
                       </StatusBadge>
                     </td>
-                    <td className="px-5 py-4 text-xs tabular-nums">
-                      <p>Recency: {basis?.rawMetrics.recencyDays ?? "No activity"} days</p>
-                      <p>Frequency: {basis?.rawMetrics.frequencyCount ?? 0}</p>
-                      <p>Contribution: {formatCurrency(basis?.rawMetrics.contributionAmount ?? 0)}</p>
+                    <td className="px-5 py-4 text-xs font-semibold leading-5 tabular-nums text-[#365F4A]">
+                      <p><span className="font-black text-[#123D2A]">Recency:</span> {basis?.rawMetrics.recencyDays ?? "No activity"} days</p>
+                      <p><span className="font-black text-[#123D2A]">Frequency:</span> {basis?.rawMetrics.frequencyCount ?? 0}</p>
+                      <p><span className="font-black text-[#123D2A]">Contribution:</span> {formatCurrency(basis?.rawMetrics.contributionAmount ?? 0)}</p>
                     </td>
-                    <td className="px-5 py-4 tabular-nums">
+                    <td className="px-5 py-4 text-xs font-semibold leading-5 tabular-nums text-[#365F4A]">
                       {indicator.recencyScore} / {indicator.frequencyScore} /{" "}
                       {indicator.contributionScore}
                     </td>
-                    <td className="px-5 py-4 font-black text-[#123D2A]">
-                      {indicator.totalScore}
+                    <td className="px-5 py-4">
+                      <span className="grid size-11 place-items-center rounded-md bg-[#EEF8EF] text-lg font-black text-[#123D2A]">
+                        {indicator.totalScore}
+                      </span>
                     </td>
-                    <td className="px-5 py-4 text-xs">
+                    <td className="px-5 py-4 text-xs font-semibold leading-5 text-[#365F4A]">
                       <p>{formatDate(indicator.basisPeriodStart)}</p>
                       <p>{formatDate(indicator.basisPeriodEnd)}</p>
                     </td>
@@ -480,7 +506,7 @@ export function MemberIndicatorsClient() {
                         <button
                           type="button"
                           onClick={() => void openDetail(indicator)}
-                          className="inline-flex h-9 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-xs font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+                          className="inline-flex h-9 items-center gap-2 rounded-md bg-[#123D2A] px-3 text-xs font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)] transition hover:bg-[#1F6B43]"
                         >
                           <Eye className="size-4" aria-hidden="true" />
                           View
@@ -489,7 +515,7 @@ export function MemberIndicatorsClient() {
                           type="button"
                           onClick={() => void handleRecalculate(indicator.memberId)}
                           disabled={isRecalculating}
-                          className="inline-flex h-9 items-center gap-2 rounded-md bg-[#123D2A] px-3 text-xs font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-9 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-xs font-black text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <RotateCw className="size-4" aria-hidden="true" />
                           Recalculate
@@ -504,46 +530,63 @@ export function MemberIndicatorsClient() {
         </DataTable>
       )}
 
-      <div className="flex items-center justify-center border-t border-[#CAD8CB] bg-white py-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={page <= 1}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
-              onClick={() => setPage(1)}
-            >
-              <ChevronsLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              disabled={page <= 1}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-          </div>
-          <span className="text-sm font-bold text-[#123D2A]">
-            Page {page} of {totalPages} &middot; {total} indicators
+      <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white px-5 py-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-black text-[#365F4A]">
+          Showing {start}-{end} of {total} indicators
+        </p>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            disabled={page <= 1}
+            className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60"
+            onClick={() => setPage(1)}
+            aria-label="First page"
+          >
+            <ChevronsLeft className="size-4" />
+          </button>
+          <button
+            type="button"
+            disabled={page <= 1}
+            className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <span className="grid size-10 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]">
+            {page}
           </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60"
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            aria-label="Next page"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60"
+            onClick={() => setPage(totalPages)}
+            aria-label="Last page"
+          >
+            <ChevronsRight className="size-4" />
+          </button>
+          <div className="w-44 shrink-0">
+            <select
+              value={String(pageSize)}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setPage(1);
+              }}
+              className="h-10 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-black text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
             >
-              <ChevronRight className="size-4" />
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#5D6D63] hover:bg-[#EEF2EC] disabled:opacity-50"
-              onClick={() => setPage(totalPages)}
-            >
-              <ChevronsRight className="size-4" />
-            </button>
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="25">25 per page</option>
+            </select>
           </div>
         </div>
       </div>
@@ -570,12 +613,12 @@ function Select({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.14em] text-[#5D6D63]">
+    <label className="grid gap-1 text-xs font-black uppercase tracking-[0.14em] text-[#5D6D63]">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-semibold normal-case tracking-normal text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+        className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-black normal-case tracking-normal text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>
@@ -609,15 +652,20 @@ function IndicatorDetailDialog({
     <Dialog.Root open={Boolean(indicator)} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] max-h-[85vh] w-[calc(100vw-3rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] max-h-[88vh] w-[calc(100vw-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_24px_70px_rgba(18,61,42,0.22)] focus:outline-none">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <Dialog.Title className="text-xl font-black text-[#123D2A]">
-                {indicator?.fullName ?? "Indicator Detail"}
-              </Dialog.Title>
-              <Dialog.Description className="mt-2 text-sm text-[#5D6D63]">
-                {indicator?.memberCode}
-              </Dialog.Description>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-sm font-black text-[#123D2A]">
+                {indicator ? initials(indicator.fullName) : "MI"}
+              </span>
+              <div className="min-w-0">
+                <Dialog.Title className="truncate text-xl font-black text-[#123D2A]">
+                  {indicator?.fullName ?? "Indicator Detail"}
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm font-semibold text-[#5D6D63]">
+                  {indicator?.memberCode}
+                </Dialog.Description>
+              </div>
             </div>
             <Dialog.Close className="grid size-9 shrink-0 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC]">
               <X className="size-4" aria-hidden="true" />
@@ -625,15 +673,44 @@ function IndicatorDetailDialog({
           </div>
 
           {indicator ? (
-            <div className="mt-6 grid gap-5">
+            <div className="mt-5 grid gap-4 border-t border-[#CAD8CB] pt-4">
+              <div className="grid gap-2 sm:grid-cols-3">
+                {["Overview", "Sources", "History"].map((label, index) => {
+                  const pageNumber = index + 1;
+                  const active = activePage === pageNumber;
+
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setActivePage(pageNumber)}
+                      className={`flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-xs font-black transition ${
+                        active
+                          ? "border-[#1F6B43] bg-[#EEF8EF] text-[#123D2A]"
+                          : "border-[#CAD8CB] bg-white text-[#5D6D63] hover:bg-[#EEF2EC]"
+                      }`}
+                    >
+                      <span
+                        className={`grid size-6 place-items-center rounded-full border text-[0.68rem] ${
+                          active ? "border-[#123D2A] bg-[#123D2A] text-white" : "border-[#CAD8CB] bg-white"
+                        }`}
+                      >
+                        {pageNumber}
+                      </span>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {activePage === 1 && (
                 <>
-                  <section className="rounded-lg border border-[#CAD8CB] p-4">
+                  <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <StatusBadge tone={indicatorTone(indicator.statusLabel)}>
                     {indicator.statusLabel}
                   </StatusBadge>
-                  <span className="text-2xl font-black text-[#123D2A]">
+                  <span className="grid size-12 place-items-center rounded-md bg-[#EEF8EF] text-2xl font-black text-[#123D2A]">
                     {indicator.totalScore}
                   </span>
                 </div>
@@ -644,8 +721,8 @@ function IndicatorDetailDialog({
                 </div>
               </section>
 
-              <section className="rounded-lg border border-[#CAD8CB] p-4">
-                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-[#123D2A]">
+              <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)]">
+                <h3 className="text-base font-black text-[#123D2A]">
                   Calculation Basis
                 </h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -656,7 +733,7 @@ function IndicatorDetailDialog({
                   <Metric label="Contribution" value={formatCurrency(basis?.rawMetrics.contributionAmount ?? 0)} />
                   <Metric label="Scoring Method" value={basis?.scoring.method ?? "Not recorded"} />
                 </div>
-                <p className="mt-4 text-sm leading-6 text-[#5D6D63]">
+                <p className="mt-4 rounded-md border border-[#E2E8E2] bg-[#FBFCF8] p-3 text-sm leading-6 text-[#5D6D63]">
                   {basis?.scoring.explanation ?? "No calculation explanation was recorded."}
                 </p>
               </section>
@@ -664,8 +741,8 @@ function IndicatorDetailDialog({
               )}
 
               {activePage === 2 && (
-              <section className="rounded-lg border border-[#CAD8CB] p-4">
-                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-[#123D2A]">
+              <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)]">
+                <h3 className="text-base font-black text-[#123D2A]">
                   Included Sources
                 </h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -679,10 +756,10 @@ function IndicatorDetailDialog({
               )}
 
               {activePage === 3 && (
-              <section className="rounded-lg border border-[#CAD8CB] p-4">
+              <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)]">
                 <div className="flex items-center gap-2">
                   <FileText className="size-4 text-[#1F6B43]" aria-hidden="true" />
-                  <h3 className="text-sm font-black uppercase tracking-[0.16em] text-[#123D2A]">
+                  <h3 className="text-base font-black text-[#123D2A]">
                     History
                   </h3>
                 </div>
@@ -691,7 +768,7 @@ function IndicatorDetailDialog({
                 ) : (
                   <div className="mt-4 grid gap-3">
                     {history.map((entry) => (
-                      <div key={entry.id} className="rounded-md border border-[#E2E8E2] p-3">
+                      <div key={entry.id} className="rounded-md border border-[#CAD8CB] bg-[#FBFCF8] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <StatusBadge tone={indicatorTone(entry.statusLabel)}>
                             {entry.statusLabel}
@@ -713,14 +790,14 @@ function IndicatorDetailDialog({
               </section>
               )}
 
-              <div className="mt-2 flex items-center justify-between border-t border-[#CAD8CB] pt-4">
+              <div className="mt-1 flex items-center justify-between border-t border-[#CAD8CB] pt-4">
                 <button
                   type="button"
                   onClick={() => {
                     if (activePage === 1) onClose();
                     else setActivePage((p) => Math.max(1, p - 1));
                   }}
-                  className="rounded-md border border-[#CAD8CB] bg-white px-6 py-2 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] transition"
+                  className="h-10 rounded-md border border-[#CAD8CB] bg-white px-5 text-sm font-black text-[#123D2A] shadow-[0_8px_18px_rgba(18,61,42,0.06)] transition hover:bg-[#EEF2EC]"
                 >
                   {activePage === 1 ? "Cancel" : "Previous"}
                 </button>
@@ -730,7 +807,7 @@ function IndicatorDetailDialog({
                     if (activePage === 3) onClose();
                     else setActivePage((p) => Math.min(3, p + 1));
                   }}
-                  className="rounded-md bg-[#123D2A] px-8 py-2 text-sm font-bold text-white hover:bg-[#061B11] transition"
+                  className="h-10 rounded-md bg-[#123D2A] px-6 text-sm font-black text-white shadow-[0_12px_24px_rgba(18,61,42,0.18)] transition hover:bg-[#1F6B43]"
                 >
                   {activePage === 3 ? "Close" : "Next"}
                 </button>

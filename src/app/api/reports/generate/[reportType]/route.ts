@@ -11,7 +11,7 @@ type GenerateBody = { filters?: ReportFilters };
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/reports/generate/[reportType]">,
+  context: { params: Promise<{ reportType: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper"]);

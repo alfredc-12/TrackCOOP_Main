@@ -47,11 +47,8 @@ function createLandingService() {
     async publicLanding() {
       calls.push({ method: "publicLanding" });
       return {
-        contentBlocks: [],
-        services: [{ id: "svc-1", title: "Membership Assistance" }],
-        programs: [],
         partners: [],
-        gallery: [],
+        gallery: [{ id: "gallery-1", title: "Harvest Day" }],
       };
     },
     async list(_collection, query) {
@@ -65,6 +62,10 @@ function createLandingService() {
     async update(collection, id, input, auth) {
       calls.push({ method: `update:${collection}:${id}`, authRole: auth.user.role, input });
       return { id, ...input };
+    },
+    async updateGallerySlot(slotKey, input, auth) {
+      calls.push({ method: `updateGallerySlot:${slotKey}`, authRole: auth.user.role, input });
+      return { id: slotKey, slotKey, ...input };
     },
     async listSettings(query) {
       calls.push({ method: "listSettings" });
@@ -105,39 +106,44 @@ test("GET /api/public/landing is available without a session", async () => {
   const response = await request(app).get("/api/public/landing");
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.data.services[0].title, "Membership Assistance");
+  assert.equal(response.body.data.gallery[0].title, "Harvest Day");
   assert.equal(calls[0].method, "publicLanding");
 });
 
-test("POST /api/landing/services allows chairman landing edits", async () => {
+test("POST /api/landing/gallery allows chairman landing edits", async () => {
   const { app, calls } = createApp("chairman");
 
   const response = await request(app)
-    .post("/api/landing/services")
+    .post("/api/landing/gallery")
     .set("Cookie", "trackcoop_session=opaque-cookie-value")
     .send({
-      serviceCode: "MEMBERSHIP",
-      serviceType: "Membership",
-      title: "Membership Assistance",
-      serviceStatus: "Active",
+      title: "Harvest Day",
+      galleryStatus: "Published",
+      images: [
+        {
+          imagePath: "/uploads/gallery/harvest-day.jpg",
+          altText: "Harvest Day",
+          sortOrder: 0,
+          isCover: true,
+        },
+      ],
     });
 
   assert.equal(response.status, 201);
-  assert.equal(response.body.data.title, "Membership Assistance");
-  assert.equal(calls[0].method, "create:services");
+  assert.equal(response.body.data.title, "Harvest Day");
+  assert.equal(calls[0].method, "create:gallery");
   assert.equal(calls[0].authRole, "chairman");
 });
 
-test("POST /api/landing/services rejects invalid payloads before persistence", async () => {
+test("POST /api/landing/gallery rejects invalid payloads before persistence", async () => {
   const { app, calls } = createApp("chairman");
 
   const response = await request(app)
-    .post("/api/landing/services")
+    .post("/api/landing/gallery")
     .set("Cookie", "trackcoop_session=opaque-cookie-value")
     .send({
-      serviceCode: "MEMBERSHIP",
-      serviceType: "Unsupported",
       title: "",
+      images: [],
     });
 
   assert.equal(response.status, 400);

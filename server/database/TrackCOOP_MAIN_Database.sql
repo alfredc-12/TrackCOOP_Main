@@ -39,15 +39,15 @@ DROP TABLE IF EXISTS `user_activation_tokens`;
 
 DROP TABLE IF EXISTS `system_settings`;
 
+DROP TABLE IF EXISTS `gallery_landing_slots`;
+
+DROP TABLE IF EXISTS `gallery_images`;
+
+DROP TABLE IF EXISTS `gallery_groups`;
+
 DROP TABLE IF EXISTS `gallery_items`;
 
 DROP TABLE IF EXISTS `partners_certifications`;
-
-DROP TABLE IF EXISTS `programs_projects`;
-
-DROP TABLE IF EXISTS `services`;
-
-DROP TABLE IF EXISTS `site_content_blocks`;
 
 DROP TABLE IF EXISTS `notifications`;
 
@@ -56,6 +56,10 @@ DROP TABLE IF EXISTS `member_status_indicators`;
 DROP TABLE IF EXISTS `request_status_history`;
 
 DROP TABLE IF EXISTS `announcement_acknowledgments`;
+
+DROP TABLE IF EXISTS `announcement_images`;
+
+DROP TABLE IF EXISTS `announcement_audience_targets`;
 
 DROP TABLE IF EXISTS `requests_inquiries`;
 
@@ -245,7 +249,13 @@ CREATE TABLE member_profiles (
     barangay VARCHAR(120) NULL,
     municipality VARCHAR(120) NOT NULL DEFAULT 'Nasugbu',
     province VARCHAR(120) NOT NULL DEFAULT 'Batangas',
-    sector VARCHAR(100) NULL,
+    sector ENUM(
+        'Rice',
+        'Corn',
+        'Fishery',
+        'Livestock',
+        'High-value crops (gulayan)'
+    ) NULL,
     membership_type ENUM('Associate', 'True Member') NOT NULL DEFAULT 'Associate',
     approval_status ENUM(
         'Pending',
@@ -277,6 +287,8 @@ CREATE TABLE member_profiles (
 CREATE INDEX `idx_members_name` ON `member_profiles` (full_name);
 
 CREATE INDEX `idx_members_barangay` ON `member_profiles` (barangay);
+
+CREATE INDEX `idx_members_sector` ON `member_profiles` (sector);
 
 CREATE INDEX `idx_members_type_status` ON `member_profiles` (
     membership_type,
@@ -1469,8 +1481,8 @@ CREATE TABLE announcements (
         'All Members',
         'Associate Members',
         'True Members',
-        'Role',
         'Barangay',
+        'Sector',
         'Selected Users'
     ) NOT NULL DEFAULT 'Public',
     audience_value VARCHAR(190) NULL,
@@ -1498,6 +1510,52 @@ CREATE INDEX `idx_announcements_publication` ON `announcements` (
 );
 
 CREATE INDEX `idx_announcements_title` ON `announcements` (title);
+
+CREATE TABLE announcement_audience_targets (
+    announcement_target_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    announcement_id BIGINT UNSIGNED NOT NULL,
+    target_type ENUM(
+        'Barangay',
+        'Sector'
+    ) NOT NULL,
+    target_value VARCHAR(190) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_announcement_target UNIQUE (
+        announcement_id,
+        target_type,
+        target_value
+    ),
+    CONSTRAINT fk_announcement_targets_announcement FOREIGN KEY (announcement_id) REFERENCES announcements (announcement_id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_announcement_targets_lookup` ON `announcement_audience_targets` (
+    target_type,
+    target_value,
+    announcement_id
+);
+
+CREATE INDEX `idx_announcement_targets_announcement` ON `announcement_audience_targets` (
+    announcement_id,
+    target_type
+);
+
+CREATE TABLE announcement_images (
+    announcement_image_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    announcement_id BIGINT UNSIGNED NOT NULL,
+    image_path VARCHAR(500) NOT NULL,
+    alt_text VARCHAR(255) NULL,
+    sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_featured TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_announcement_image_path UNIQUE (announcement_id, image_path),
+    CONSTRAINT fk_announcement_images_announcement FOREIGN KEY (announcement_id) REFERENCES announcements (announcement_id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_announcement_images_order` ON `announcement_images` (
+    announcement_id,
+    sort_order,
+    announcement_image_id
+);
 
 CREATE TABLE announcement_recipients (
     announcement_recipient_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1706,119 +1764,6 @@ CREATE INDEX `idx_notifications_user_read` ON `notifications` (user_id, is_read,
 -- 11. PUBLIC LANDING WEBSITE CONTENT
 -- ============================================================================
 
-CREATE TABLE site_content_blocks (
-    site_content_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    page_slug VARCHAR(120) NOT NULL,
-    section_key VARCHAR(120) NOT NULL,
-    content_type ENUM(
-        'Hero',
-        'Heading',
-        'Rich Text',
-        'Statistic',
-        'Call to Action',
-        'Contact Information',
-        'Other'
-    ) NOT NULL,
-    title VARCHAR(255) NULL,
-    body LONGTEXT NULL,
-    value_text VARCHAR(255) NULL,
-    link_label VARCHAR(120) NULL,
-    link_url VARCHAR(500) NULL,
-    media_path VARCHAR(500) NULL,
-    display_order INT NOT NULL DEFAULT 0,
-    content_status ENUM(
-        'Draft',
-        'Published',
-        'Archived'
-    ) NOT NULL DEFAULT 'Draft',
-    updated_by BIGINT UNSIGNED NOT NULL,
-    published_at DATETIME NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT uq_site_content_section UNIQUE (
-        page_slug,
-        section_key,
-        display_order
-    ),
-    CONSTRAINT fk_site_content_updated_by FOREIGN KEY (updated_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE = InnoDB;
-
-CREATE INDEX `idx_site_content_page_status` ON `site_content_blocks` (
-    page_slug,
-    content_status,
-    display_order
-);
-
-CREATE TABLE services (
-    service_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    service_code VARCHAR(80) NOT NULL,
-    service_type ENUM(
-        'Membership',
-        'Rental',
-        'Product/POS',
-        'Program',
-        'Document',
-        'Other'
-    ) NOT NULL,
-    title VARCHAR(190) NOT NULL,
-    short_description VARCHAR(500) NULL,
-    full_description LONGTEXT NULL,
-    requirements_text LONGTEXT NULL,
-    image_path VARCHAR(500) NULL,
-    cta_label VARCHAR(120) NULL,
-    cta_url VARCHAR(500) NULL,
-    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
-    service_status ENUM(
-        'Draft',
-        'Active',
-        'Inactive',
-        'Archived'
-    ) NOT NULL DEFAULT 'Draft',
-    display_order INT NOT NULL DEFAULT 0,
-    created_by BIGINT UNSIGNED NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT uq_services_code UNIQUE (service_code),
-    CONSTRAINT fk_services_created_by FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE = InnoDB;
-
-CREATE INDEX `idx_services_public` ON `services` (
-    service_status,
-    public_visibility,
-    display_order
-);
-
-CREATE TABLE programs_projects (
-    program_project_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    category VARCHAR(120) NULL,
-    summary VARCHAR(700) NULL,
-    description LONGTEXT NULL,
-    start_date DATE NULL,
-    end_date DATE NULL,
-    location VARCHAR(255) NULL,
-    image_path VARCHAR(500) NULL,
-    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
-    status ENUM(
-        'Draft',
-        'Upcoming',
-        'Ongoing',
-        'Completed',
-        'Archived'
-    ) NOT NULL DEFAULT 'Draft',
-    display_order INT NOT NULL DEFAULT 0,
-    created_by BIGINT UNSIGNED NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_programs_projects_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE = InnoDB;
-
-CREATE INDEX `idx_programs_projects_status` ON `programs_projects` (
-    status,
-    public_visibility,
-    display_order
-);
-
 CREATE TABLE partners_certifications (
     partner_certification_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     record_type ENUM(
@@ -1854,16 +1799,14 @@ CREATE INDEX `idx_partners_certifications_status` ON `partners_certifications` (
     display_order
 );
 
-CREATE TABLE gallery_items (
-    gallery_item_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE gallery_groups (
+    gallery_group_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     caption TEXT NULL,
     category VARCHAR(120) NULL,
-    image_path VARCHAR(500) NOT NULL,
-    thumbnail_path VARCHAR(500) NULL,
     activity_date DATE NULL,
     location VARCHAR(255) NULL,
-    alt_text VARCHAR(255) NULL,
+    border_color VARCHAR(20) NULL,
     public_visibility TINYINT(1) NOT NULL DEFAULT 1,
     gallery_status ENUM(
         'Draft',
@@ -1875,14 +1818,65 @@ CREATE TABLE gallery_items (
     published_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_gallery_items_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
+    CONSTRAINT fk_gallery_groups_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 
-CREATE INDEX `idx_gallery_public` ON `gallery_items` (
+CREATE INDEX `idx_gallery_groups_public` ON `gallery_groups` (
     gallery_status,
     public_visibility,
     activity_date,
     display_order
+);
+
+CREATE INDEX `idx_gallery_groups_created` ON `gallery_groups` (
+    created_at,
+    display_order
+);
+
+CREATE TABLE gallery_images (
+    gallery_image_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    gallery_group_id BIGINT UNSIGNED NOT NULL,
+    image_path VARCHAR(500) NOT NULL,
+    thumbnail_path VARCHAR(500) NULL,
+    alt_text VARCHAR(255) NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_cover TINYINT(1) NOT NULL DEFAULT 0,
+    public_visibility TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_gallery_images_group FOREIGN KEY (gallery_group_id) REFERENCES gallery_groups (gallery_group_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT uq_gallery_images_path UNIQUE (gallery_group_id, image_path)
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_gallery_images_order` ON `gallery_images` (
+    gallery_group_id,
+    sort_order,
+    gallery_image_id
+);
+
+CREATE INDEX `idx_gallery_images_cover` ON `gallery_images` (
+    gallery_group_id,
+    is_cover
+);
+
+CREATE TABLE gallery_landing_slots (
+    slot_key VARCHAR(80) PRIMARY KEY,
+    gallery_group_id BIGINT UNSIGNED NULL,
+    gallery_image_id BIGINT UNSIGNED NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    updated_by BIGINT UNSIGNED NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_gallery_landing_slots_group FOREIGN KEY (gallery_group_id) REFERENCES gallery_groups (gallery_group_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_gallery_landing_slots_image FOREIGN KEY (gallery_image_id) REFERENCES gallery_images (gallery_image_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_gallery_landing_slots_updated_by FOREIGN KEY (updated_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_gallery_landing_slots_group` ON `gallery_landing_slots` (
+    gallery_group_id
+);
+
+CREATE INDEX `idx_gallery_landing_slots_image` ON `gallery_landing_slots` (
+    gallery_image_id
 );
 -- ============================================================================
 -- 12. CONFIGURATION AND AUDIT
@@ -2614,42 +2608,6 @@ SELECT
             )
     ) AS open_requests
 FROM financial_records;
-
--- ============================================================================
--- 15. ANNOUNCEMENTS MODULE
--- ============================================================================
-CREATE TABLE IF NOT EXISTS `announcements` (
-  `id` varchar(36) NOT NULL,
-  `title` varchar(255) NOT NULL,
-  `message` text NOT NULL,
-  `excerpt` varchar(500) DEFAULT NULL,
-  `audience_type` varchar(50) NOT NULL DEFAULT 'Public',
-  `audience_value` varchar(255) DEFAULT NULL,
-  `announcement_status` varchar(50) NOT NULL DEFAULT 'Published',
-  `featured_image_path` varchar(1000) DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `announcement_recipients` (
-  `id` varchar(36) NOT NULL,
-  `announcement_id` varchar(36) NOT NULL,
-  `user_id` varchar(36) NOT NULL,
-  PRIMARY KEY (`id`),
-  CONSTRAINT `fk_recipient_announcement` FOREIGN KEY (`announcement_id`) REFERENCES `announcements` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `announcement_acknowledgments` (
-  `id` varchar(36) NOT NULL,
-  `announcement_id` varchar(36) NOT NULL,
-  `user_id` varchar(36) NOT NULL,
-  `full_name` varchar(255) NOT NULL,
-  `acknowledged_at` datetime NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_announcement_user` (`announcement_id`, `user_id`),
-  CONSTRAINT `fk_ack_announcement` FOREIGN KEY (`announcement_id`) REFERENCES `announcements` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
 -- 15. APPLICATION-LEVEL VALIDATION NOTICE

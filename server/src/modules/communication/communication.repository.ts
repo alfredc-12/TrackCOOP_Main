@@ -1,4 +1,4 @@
-import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { limitOffsetSql } from "../../db/pagination";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -93,6 +93,9 @@ export type CreateAnnouncementInput = {
   audienceValue?: string | null;
   announcementStatus: string;
   featuredImagePath?: string | null;
+  images?: string[];
+  audienceTargets?: string[];
+  audienceValues?: string[];
   publishAt?: string | null;
   expiresAt?: string | null;
   recipientUserIds?: string[];
@@ -151,6 +154,12 @@ export type ListNotificationsQuery = {
 
 type CountRow = RowDataPacket & { total: number };
 type MemberIdRow = RowDataPacket & { memberId: string };
+type MemberAnnouncementProfileRow = RowDataPacket & {
+  memberId: string;
+  membershipType: string | null;
+  barangay: string | null;
+  sector: string | null;
+};
 
 type DocumentRow = RowDataPacket & {
   id: string;
@@ -429,9 +438,185 @@ function mapReport(row: ReportRow): ReportRecord {
   return { ...row, filters };
 }
 
-function mapAnnouncement(row: any): AnnouncementRecord {
+function normalizeAnnouncementImages(input: Pick<CreateAnnouncementInput, "featuredImagePath" | "images">) {
+  const featured =
+    typeof input.featuredImagePath === "string" && input.featuredImagePath.trim()
+      ? input.featuredImagePath.trim()
+      : null;
+  const images = (input.images ?? [])
+    .filter((image): image is string => typeof image === "string")
+    .map((image) => image.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(featured ? [featured, ...images] : images));
+}
+
+function hasAnnouncementImageInput(input: UpdateAnnouncementInput) {
+  return (
+    Object.prototype.hasOwnProperty.call(input, "images") ||
+    Object.prototype.hasOwnProperty.call(input, "featuredImagePath")
+  );
+}
+
+type AnnouncementAudienceTarget = {
+  targetType: "Barangay" | "Sector";
+  targetValue: string;
+};
+
+function isAnnouncementTargetAudience(type: unknown): type is AnnouncementAudienceTarget["targetType"] {
+  return type === "Barangay" || type === "Sector";
+}
+
+function normalizeAnnouncementAudienceTargets(input: CreateAnnouncementInput | UpdateAnnouncementInput) {
+  if (!isAnnouncementTargetAudience(input.audienceType)) return [];
+
+  const rawTargets = Array.isArray(input.audienceTargets)
+    ? input.audienceTargets
+    : Array.isArray(input.audienceValues)
+      ? input.audienceValues
+      : typeof input.audienceValue === "string" && input.audienceValue.trim()
+        ? input.audienceValue.split(",")
+        : [];
+
+  return Array.from(new Set(
+    rawTargets
+      .map((target) => String(target ?? "").trim())
+      .filter(Boolean),
+  )).map((targetValue) => ({
+    targetType: input.audienceType as AnnouncementAudienceTarget["targetType"],
+    targetValue,
+  }));
+}
+
+function hasAnnouncementAudienceTargetInput(input: UpdateAnnouncementInput) {
+  return (
+    Object.prototype.hasOwnProperty.call(input, "audienceTargets") ||
+    Object.prototype.hasOwnProperty.call(input, "audienceValues") ||
+    Object.prototype.hasOwnProperty.call(input, "audienceType")
+  );
+}
+
+function announcementAudienceValue(input: CreateAnnouncementInput | UpdateAnnouncementInput, targets: AnnouncementAudienceTarget[]) {
+  if (targets.length > 0) {
+    const joined = targets.map((target) => target.targetValue).join(", ");
+    return joined.length <= 190 ? joined : `${targets.length} ${targets[0].targetType.toLowerCase()} targets`;
+  }
+  return typeof input.audienceValue === "string" && input.audienceValue.trim()
+    ? input.audienceValue.trim()
+    : null;
+}
+
+async function replaceAnnouncementAudienceTargets(
+  connection: PoolConnection,
+  announcementId: string,
+  targets: AnnouncementAudienceTarget[],
+) {
+  await connection.execute(`DELETE FROM announcement_audience_targets WHERE announcement_id = ?`, [announcementId]);
+
+  for (const target of targets) {
+    await connection.execute(
+      `INSERT IGNORE INTO announcement_audience_targets (announcement_id, target_type, target_value)
+       VALUES (?, ?, ?)`,
+      [announcementId, target.targetType, target.targetValue],
+    );
+  }
+}
+
+async function replaceAnnouncementImages(
+  connection: PoolConnection,
+  announcementId: string,
+  imagePaths: string[],
+  altText?: string | null,
+) {
+  await connection.execute(`DELETE FROM announcement_images WHERE announcement_id = ?`, [announcementId]);
+
+  for (const [index, imagePath] of imagePaths.entries()) {
+    await connection.execute(
+      `INSERT IGNORE INTO announcement_images
+         (announcement_id, image_path, alt_text, sort_order, is_featured)
+       VALUES (?, ?, ?, ?, ?)`,
+      [announcementId, imagePath, altText ?? null, index, index === 0 ? 1 : 0],
+    );
+  }
+}
+
+async function loadAnnouncementImages(
+  executor: Pool | PoolConnection,
+  announcementIds: string[],
+) {
+  const ids = Array.from(new Set(announcementIds.filter(Boolean)));
+  if (ids.length === 0) return new Map<string, string[]>();
+
+  const placeholders = ids.map(() => "?").join(", ");
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT CAST(announcement_id AS CHAR) AS announcementId,
+            image_path AS imagePath
+       FROM announcement_images
+      WHERE announcement_id IN (${placeholders})
+      ORDER BY announcement_id, sort_order, announcement_image_id`,
+    ids,
+  );
+
+  const imagesByAnnouncement = new Map<string, string[]>();
+  for (const row of rows) {
+    const key = String(row.announcementId);
+    const images = imagesByAnnouncement.get(key) ?? [];
+    images.push(row.imagePath);
+    imagesByAnnouncement.set(key, images);
+  }
+
+  return imagesByAnnouncement;
+}
+
+async function loadAnnouncementAudienceTargets(
+  executor: Pool | PoolConnection,
+  announcementIds: string[],
+) {
+  const ids = Array.from(new Set(announcementIds.filter(Boolean)));
+  if (ids.length === 0) return new Map<string, AnnouncementAudienceTarget[]>();
+
+  const placeholders = ids.map(() => "?").join(", ");
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT CAST(announcement_id AS CHAR) AS announcementId,
+            target_type AS targetType,
+            target_value AS targetValue
+       FROM announcement_audience_targets
+      WHERE announcement_id IN (${placeholders})
+      ORDER BY announcement_id, target_type, target_value`,
+    ids,
+  );
+
+  const targetsByAnnouncement = new Map<string, AnnouncementAudienceTarget[]>();
+  for (const row of rows) {
+    const key = String(row.announcementId);
+    const targets = targetsByAnnouncement.get(key) ?? [];
+    if (isAnnouncementTargetAudience(row.targetType)) {
+      targets.push({
+        targetType: row.targetType,
+        targetValue: row.targetValue,
+      });
+    }
+    targetsByAnnouncement.set(key, targets);
+  }
+
+  return targetsByAnnouncement;
+}
+
+function mapAnnouncement(row: any, imagePaths?: string[], audienceTargets?: AnnouncementAudienceTarget[]): AnnouncementRecord {
+  const { imagePaths: rowImagePaths, ...announcement } = row;
+  const images =
+    imagePaths && imagePaths.length > 0
+      ? imagePaths
+      : typeof rowImagePaths === "string" && rowImagePaths.length > 0
+        ? rowImagePaths.split("\n").filter(Boolean)
+      : announcement.featuredImagePath
+        ? [announcement.featuredImagePath]
+        : [];
+
   return {
-    ...row,
+    ...announcement,
+    audienceTargets: audienceTargets ?? [],
+    images,
     isAcknowledged: row.isAcknowledged ? Boolean(Number(row.isAcknowledged)) : false,
     acknowledgmentCount: row.acknowledgmentCount ? Number(row.acknowledgmentCount) : 0
   };
@@ -472,6 +657,20 @@ async function getMemberIdForUser(pool: Pool, userId: string) {
   return rows[0]?.memberId ?? null;
 }
 
+async function getAnnouncementProfileForUser(pool: Pool, userId: string) {
+  const [rows] = await pool.execute<MemberAnnouncementProfileRow[]>(
+    `SELECT CAST(member_id AS CHAR) AS memberId,
+            membership_type AS membershipType,
+            barangay,
+            sector
+       FROM member_profiles
+      WHERE user_id = ?
+      LIMIT 1`,
+    [userId],
+  );
+  return rows[0] ?? null;
+}
+
 function applyDocumentAccess(
   where: string[],
   values: Array<string | number>,
@@ -502,7 +701,7 @@ function applyAnnouncementAccess(
   where: string[],
   values: Array<string | number>,
   auth: AuthContext,
-  memberId: string | null,
+  memberProfile: MemberAnnouncementProfileRow | null,
 ) {
   if (auth.user.role === "chairman") return;
 
@@ -510,19 +709,57 @@ function applyAnnouncementAccess(
   where.push("(a.expires_at IS NULL OR a.expires_at >= NOW())");
 
   if (auth.user.role === "bookkeeper") {
-    where.push("(a.audience_type IN ('Public', 'Role') AND (a.audience_value IS NULL OR a.audience_value IN ('bookkeeper', 'Bookkeeper')))");
+    where.push(`(
+      a.audience_type = 'Public'
+      OR (a.audience_type = 'Selected Users' AND EXISTS (
+        SELECT 1 FROM announcement_recipients ar
+         WHERE ar.announcement_id = a.announcement_id AND ar.user_id = ?
+      ))
+    )`);
+    values.push(auth.user.id);
     return;
   }
 
   where.push(`(
-    a.audience_type IN ('Public', 'All Members')
+    a.audience_type = 'Public'
+    OR (a.audience_type = 'All Members' AND ? <> '0')
+    OR (a.audience_type = 'Associate Members' AND ? = 'Associate')
+    OR (a.audience_type = 'True Members' AND ? = 'True Member')
+    OR (a.audience_type = 'Barangay' AND ? <> '' AND (
+      a.audience_value = ?
+      OR EXISTS (
+        SELECT 1 FROM announcement_audience_targets aat
+         WHERE aat.announcement_id = a.announcement_id
+           AND aat.target_type = 'Barangay'
+           AND aat.target_value = ?
+      )
+    ))
+    OR (a.audience_type = 'Sector' AND ? <> '' AND (
+      a.audience_value = ?
+      OR EXISTS (
+        SELECT 1 FROM announcement_audience_targets aat
+         WHERE aat.announcement_id = a.announcement_id
+           AND aat.target_type = 'Sector'
+           AND aat.target_value = ?
+      )
+    ))
     OR (a.audience_type = 'Selected Users' AND EXISTS (
       SELECT 1 FROM announcement_recipients ar
        WHERE ar.announcement_id = a.announcement_id AND ar.user_id = ?
     ))
-    OR (a.audience_type IN ('Associate Members', 'True Members') AND ? <> '0')
   )`);
-  values.push(auth.user.id, memberId ?? "0");
+  values.push(
+    memberProfile?.memberId ?? "0",
+    memberProfile?.membershipType ?? "",
+    memberProfile?.membershipType ?? "",
+    memberProfile?.barangay ?? "",
+    memberProfile?.barangay ?? "",
+    memberProfile?.barangay ?? "",
+    memberProfile?.sector ?? "",
+    memberProfile?.sector ?? "",
+    memberProfile?.sector ?? "",
+    auth.user.id,
+  );
 }
 
 function applyRequestAccess(
@@ -585,7 +822,11 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       `${announcementSelect()} WHERE a.announcement_id = ? LIMIT 1`,
       [id],
     );
-    return rows[0] ? mapAnnouncement(rows[0]) : null;
+    if (!rows[0]) return null;
+
+    const imagesByAnnouncement = await loadAnnouncementImages(databasePool(), [id]);
+    const targetsByAnnouncement = await loadAnnouncementAudienceTargets(databasePool(), [id]);
+    return mapAnnouncement(rows[0], imagesByAnnouncement.get(id), targetsByAnnouncement.get(id));
   }
 
   async function findRequest(id: string) {
@@ -864,8 +1105,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
     async listAnnouncements(query, auth) {
       const where: string[] = [];
       const values: Array<string | number> = [];
-      const memberId = await getMemberIdForUser(databasePool(), auth.user.id);
-      applyAnnouncementAccess(where, values, auth, memberId);
+      const memberProfile = await getAnnouncementProfileForUser(databasePool(), auth.user.id);
+      applyAnnouncementAccess(where, values, auth, memberProfile);
       if (query.search) {
         where.push("(a.title LIKE ? OR a.excerpt LIKE ? OR a.message LIKE ?)");
         const search = `%${query.search}%`;
@@ -902,11 +1143,27 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         countSql("announcements a", "JOIN users u ON u.user_id = a.posted_by", whereSql),
         values,
       );
-      return { records: rows.map(mapAnnouncement), total: Number(counts[0]?.total ?? 0), page: query.page, pageSize: query.pageSize };
+      const imagesByAnnouncement = await loadAnnouncementImages(
+        databasePool(),
+        rows.map((row) => row.id),
+      );
+      const targetsByAnnouncement = await loadAnnouncementAudienceTargets(
+        databasePool(),
+        rows.map((row) => row.id),
+      );
+      return {
+        records: rows.map((row) => mapAnnouncement(row, imagesByAnnouncement.get(row.id), targetsByAnnouncement.get(row.id))),
+        total: Number(counts[0]?.total ?? 0),
+        page: query.page,
+        pageSize: query.pageSize,
+      };
     },
 
     async createAnnouncement(input, auth) {
       return withTransaction(async (connection) => {
+        const imagePaths = normalizeAnnouncementImages(input);
+        const audienceTargets = normalizeAnnouncementAudienceTargets(input);
+        const audienceValue = announcementAudienceValue(input, audienceTargets);
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO announcements
              (posted_by, title, slug, message, excerpt, audience_type, audience_value,
@@ -919,16 +1176,18 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
             input.message,
             input.excerpt ?? null,
             input.audienceType,
-            input.audienceValue ?? null,
+            audienceValue,
             input.announcementStatus,
-            input.featuredImagePath ?? null,
+            imagePaths[0] ?? null,
             input.publishAt ?? null,
             input.expiresAt ?? null,
             input.announcementStatus,
           ],
         );
         const id = String(result.insertId);
-        for (const userId of input.recipientUserIds ?? []) {
+        await replaceAnnouncementImages(connection, id, imagePaths, input.title);
+        await replaceAnnouncementAudienceTargets(connection, id, audienceTargets);
+        for (const userId of input.audienceType === "Selected Users" ? input.recipientUserIds ?? [] : []) {
           await connection.execute(
             `INSERT IGNORE INTO announcement_recipients (announcement_id, user_id)
              VALUES (?, ?)`,
@@ -946,7 +1205,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           [id],
         );
         if (!rows[0]) throw new AppError("Announcement was not found", 404, "ANNOUNCEMENT_NOT_FOUND");
-        return mapAnnouncement(rows[0]);
+        return mapAnnouncement(rows[0], imagePaths, audienceTargets);
       }, databasePool());
     },
 
@@ -954,6 +1213,10 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       return withTransaction(async (connection) => {
         const existing = await findAnnouncement(id);
         if (!existing) throw new AppError("Announcement was not found", 404, "ANNOUNCEMENT_NOT_FOUND");
+        const shouldUpdateImages = hasAnnouncementImageInput(input);
+        const shouldUpdateTargets = hasAnnouncementAudienceTargetInput(input);
+        const imagePaths = shouldUpdateImages ? normalizeAnnouncementImages(input) : [];
+        const audienceTargets = shouldUpdateTargets ? normalizeAnnouncementAudienceTargets(input) : [];
         await connection.execute(
           `UPDATE announcements
               SET title = COALESCE(?, title),
@@ -973,23 +1236,31 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
             input.message ?? null,
             Object.prototype.hasOwnProperty.call(input, "excerpt") ? input.excerpt ?? null : existing.excerpt,
             input.audienceType ?? null,
-            Object.prototype.hasOwnProperty.call(input, "audienceValue") ? input.audienceValue ?? null : existing.audienceValue,
+            Object.prototype.hasOwnProperty.call(input, "audienceValue") || shouldUpdateTargets
+              ? announcementAudienceValue(input, audienceTargets)
+              : existing.audienceValue,
             input.announcementStatus ?? null,
-            Object.prototype.hasOwnProperty.call(input, "featuredImagePath") ? input.featuredImagePath ?? null : existing.featuredImagePath,
+            shouldUpdateImages ? imagePaths[0] ?? null : existing.featuredImagePath,
             Object.prototype.hasOwnProperty.call(input, "publishAt") ? input.publishAt ?? null : existing.publishAt,
             Object.prototype.hasOwnProperty.call(input, "expiresAt") ? input.expiresAt ?? null : existing.expiresAt,
             id,
           ],
         );
-        if (input.recipientUserIds) {
+        if (shouldUpdateTargets) {
+          await replaceAnnouncementAudienceTargets(connection, id, audienceTargets);
+        }
+        if (input.recipientUserIds || (input.audienceType && input.audienceType !== "Selected Users")) {
           await connection.execute(`DELETE FROM announcement_recipients WHERE announcement_id = ?`, [id]);
-          for (const userId of input.recipientUserIds) {
+          for (const userId of input.audienceType === "Selected Users" ? input.recipientUserIds ?? [] : []) {
             await connection.execute(
               `INSERT IGNORE INTO announcement_recipients (announcement_id, user_id)
                VALUES (?, ?)`,
               [id, userId],
             );
           }
+        }
+        if (shouldUpdateImages) {
+          await replaceAnnouncementImages(connection, id, imagePaths, input.title ?? existing.title);
         }
         await connection.execute(
           `INSERT INTO audit_logs
@@ -1002,7 +1273,13 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           [id],
         );
         if (!rows[0]) throw new AppError("Announcement was not found", 404, "ANNOUNCEMENT_NOT_FOUND");
-        return mapAnnouncement(rows[0]);
+        const currentImages = shouldUpdateImages
+          ? imagePaths
+          : (await loadAnnouncementImages(connection, [id])).get(id);
+        const currentTargets = shouldUpdateTargets
+          ? audienceTargets
+          : (await loadAnnouncementAudienceTargets(connection, [id])).get(id);
+        return mapAnnouncement(rows[0], currentImages, currentTargets);
       }, databasePool());
     },
 
@@ -1026,7 +1303,8 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           [id],
         );
         if (!rows[0]) throw new AppError("Announcement was not found", 404, "ANNOUNCEMENT_NOT_FOUND");
-        return mapAnnouncement(rows[0]);
+        const imagesByAnnouncement = await loadAnnouncementImages(connection, [id]);
+        return mapAnnouncement(rows[0], imagesByAnnouncement.get(id));
       }, databasePool());
     },
 

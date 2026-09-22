@@ -45,6 +45,16 @@ a {
   color: #17211c;
 }
 
+@keyframes announcement-photo-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @media print {
   body * {
     visibility: hidden !important;

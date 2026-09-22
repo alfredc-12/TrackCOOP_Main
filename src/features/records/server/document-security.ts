@@ -138,7 +138,7 @@ export async function storeProtectedDocument(
 
 export function resolveProtectedDocumentPath(storagePath: string) {
   const normalized = normalizeProtectedStoragePath(storagePath);
-  const relativePath = normalized.slice("storage/uploads/".length);
+  const relativePath = normalized.slice("public/uploads/".length);
   const absolutePath = path.resolve(
     /* turbopackIgnore: true */ protectedUploadRoot,
     relativePath,

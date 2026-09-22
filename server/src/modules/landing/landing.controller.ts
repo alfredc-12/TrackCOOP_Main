@@ -3,34 +3,23 @@ import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
 import {
-  contentBlockSchema,
   gallerySchema,
+  gallerySlotSchema,
   listLandingQuerySchema,
   partnerSchema,
-  programSchema,
-  serviceSchema,
   settingSchema,
-  updateContentBlockSchema,
   updateGallerySchema,
   updatePartnerSchema,
-  updateProgramSchema,
-  updateServiceSchema,
 } from "./landing.schema";
 import type { LandingService } from "./landing.service";
 import type { LandingCollection } from "./landing.types";
 
 const createSchemas: Record<LandingCollection, ZodType<Record<string, unknown>>> = {
-  "content-blocks": contentBlockSchema,
-  services: serviceSchema,
-  programs: programSchema,
   partners: partnerSchema,
   gallery: gallerySchema,
 };
 
 const updateSchemas: Record<LandingCollection, ZodType<Record<string, unknown>>> = {
-  "content-blocks": updateContentBlockSchema,
-  services: updateServiceSchema,
-  programs: updateProgramSchema,
   partners: updatePartnerSchema,
   gallery: updateGallerySchema,
 };
@@ -68,7 +57,7 @@ function requireParam(value: string | string[] | undefined, name: string) {
 
 function requireCollection(value: string | string[] | undefined): LandingCollection {
   const collection = requireParam(value, "collection");
-  if (!["content-blocks", "services", "programs", "partners", "gallery"].includes(collection)) {
+  if (!["partners", "gallery"].includes(collection)) {
     throw new AppError("Landing collection was not found", 404, "LANDING_COLLECTION_NOT_FOUND");
   }
   return collection as LandingCollection;
@@ -111,6 +100,17 @@ export function createLandingController(service: LandingService) {
           requireAuth(request.auth),
         ),
         { message: "Landing record updated" },
+      );
+    }),
+    updateGallerySlot: asyncHandler(async (request, response) => {
+      return sendSuccess(
+        response,
+        await service.updateGallerySlot(
+          requireParam(request.params.slotKey, "slotKey"),
+          parse(gallerySlotSchema, request.body),
+          requireAuth(request.auth),
+        ),
+        { message: "Gallery placement updated" },
       );
     }),
     listSettings: asyncHandler(async (request, response) => {

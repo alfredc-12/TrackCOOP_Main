@@ -36,6 +36,23 @@ function formatDate(date?: string) {
   }).format(new Date(date));
 }
 
+function resolveArchiveImagePath(image: string) {
+  let path = image;
+  try {
+    if (path.startsWith("[")) {
+      const parsed = JSON.parse(path) as unknown;
+      if (Array.isArray(parsed) && typeof parsed[0] === "string") {
+        path = parsed[0];
+      }
+    }
+  } catch {
+    path = image;
+  }
+
+  if (path.startsWith("http") || path.startsWith("/images/")) return path;
+  return path.startsWith("/") ? `${env.apiUrl}${path}` : `${env.apiUrl}/${path}`;
+}
+
 export default function AnnouncementsArchiveSection() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,7 +62,12 @@ export default function AnnouncementsArchiveSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
   
-  const modalImages = selectedAnnouncement?.featuredImagePath ? [selectedAnnouncement.featuredImagePath] : [];
+  const modalImages: string[] =
+    selectedAnnouncement?.images && selectedAnnouncement.images.length > 0
+      ? selectedAnnouncement.images
+      : selectedAnnouncement?.featuredImagePath
+        ? [selectedAnnouncement.featuredImagePath]
+        : [];
 
   useEffect(() => {
     fetch("/api/announcements")
@@ -207,7 +229,13 @@ export default function AnnouncementsArchiveSection() {
               return (
                 <>
                   {paginatedAnnouncements.map((announcement: any, i) => {
-                    const coverImage = announcement.featuredImagePath;
+                    const images =
+                      announcement.images && announcement.images.length > 0
+                        ? announcement.images
+                        : announcement.featuredImagePath
+                          ? [announcement.featuredImagePath]
+                          : [];
+                    const coverImage = images[0];
 
                     return (
                       <button
@@ -354,7 +382,7 @@ export default function AnnouncementsArchiveSection() {
                       <div className="flex flex-col">
                         <div className="relative h-64 sm:h-96 md:h-[450px] bg-[#123D2A] shrink-0">
                           {modalImages.length > 0 ? (
-                            modalImages.map((image, index) => (
+                            modalImages.map((image: string, index: number) => (
                               <div
                                 key={`modal-${selectedAnnouncement.id}-${image}`}
                                 className={`absolute inset-0 transition duration-500 ${
@@ -363,30 +391,11 @@ export default function AnnouncementsArchiveSection() {
                                     : "opacity-0"
                                 }`}
                               >
-                                {selectedAnnouncement.featuredImagePath ? (
-                                  <div className="relative h-full w-full">
-                                    <img
-                                      src={
-                                        (() => {
-                                          let path = image;
-                                          try {
-                                            if (path.startsWith('[')) {
-                                              const parsed = JSON.parse(path);
-                                              if (parsed.length > 0) path = parsed[0];
-                                            }
-                                          } catch (e) {}
-                                          return path.startsWith('/') ? path : `${env.apiUrl}${path}`;
-                                        })()
-                                      }
-                                      alt={selectedAnnouncement.title || ""}
-                                      className="absolute inset-0 h-full w-full object-cover"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]">
-                                    <Megaphone className="size-12 text-[#1F6B43]/20" />
-                                  </div>
-                                )}
+                                <img
+                                  src={resolveArchiveImagePath(image)}
+                                  alt={selectedAnnouncement.title || ""}
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                />
                               </div>
                             ))
                           ) : (
@@ -414,7 +423,7 @@ export default function AnnouncementsArchiveSection() {
                                 <ArrowRight className="size-4" />
                               </button>
                               <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-[#123D2A]/40 px-3 py-2 backdrop-blur">
-                                {modalImages.map((image, index) => (
+                                {modalImages.map((image: string, index: number) => (
                                   <button
                                     key={image}
                                     type="button"

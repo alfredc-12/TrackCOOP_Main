@@ -52,5 +52,7 @@ graphify-out/
 *.graphify-
 *.graphify-cache
 .codex/hooks.json
+.claude/
+.cursor/
 docs/graphify.md
 .gitattributes

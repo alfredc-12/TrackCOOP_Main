@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { ZodError, type ZodType } from "zod";
+import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
@@ -235,6 +236,19 @@ export function createMembershipApplicationController(
       return sendSuccess(response, { deleted: true });
     }),
 
+    viewDocument: asyncHandler(async (request, response) => {
+      const params = parse(idParamsSchema, request.params);
+      const document = await service.viewDocument(params.id, authContext(request));
+      response.removeHeader("X-Frame-Options");
+      response.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${env.FRONTEND_URL}`);
+      response.setHeader("Content-Type", document.mimeType);
+      response.setHeader(
+        "Content-Disposition",
+        `inline; filename="${document.originalFileName.replace(/["\r\n]/g, "")}"`,
+      );
+      return response.sendFile(document.absolutePath);
+    }),
+
     createRequirement: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(requirementCreateSchema, request.body);
@@ -255,6 +269,12 @@ export function createMembershipApplicationController(
         response,
         await service.updateRequirement(params.id, input, authContext(request)),
       );
+    }),
+
+    deleteRequirement: asyncHandler(async (request, response) => {
+      const params = parse(idParamsSchema, request.params);
+      await service.deleteRequirement(params.id, authContext(request));
+      return sendSuccess(response, { deleted: true });
     }),
 
     history: asyncHandler(async (request, response) => {

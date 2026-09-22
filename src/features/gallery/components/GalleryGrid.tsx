@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Images, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -36,20 +36,41 @@ const photosPerPage = 9;
 export default function GalleryGrid() {
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [failedPhotos, setFailedPhotos] = useState<Set<string>>(new Set());
   const published = usePublishedLandingContent();
   const galleryPhotos = useMemo(() => {
     const publishedPhotos = published.gallery
       .map((item) => (typeof item.imagePath === "string" ? item.imagePath : ""))
       .filter(Boolean);
-    return publishedPhotos.length ? publishedPhotos : photos;
-  }, [published.gallery]);
-  const totalPages = Math.max(1, Math.ceil(galleryPhotos.length / photosPerPage));
+    const mergedPhotos = publishedPhotos.length
+      ? [
+          ...publishedPhotos,
+          ...photos.filter((photo) => !publishedPhotos.includes(photo)),
+        ]
+      : photos;
+
+    return mergedPhotos.filter((photo) => !failedPhotos.has(photo));
+  }, [failedPhotos, published.gallery]);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(galleryPhotos.length / photosPerPage),
+  );
   const safeCurrentPage = Math.min(currentPage, totalPages - 1);
 
   const visiblePhotos = useMemo(() => {
     const start = safeCurrentPage * photosPerPage;
     return galleryPhotos.slice(start, start + photosPerPage);
   }, [safeCurrentPage, galleryPhotos]);
+
+  function handlePhotoError(photo: string) {
+    setFailedPhotos((current) => {
+      if (current.has(photo)) return current;
+      const next = new Set(current);
+      next.add(photo);
+      return next;
+    });
+    if (selectedPhoto === photo) setSelectedPhoto(null);
+  }
 
   function nextPage() {
     setCurrentPage((page) => (page + 1) % totalPages);
@@ -81,30 +102,41 @@ export default function GalleryGrid() {
 
   return (
     <>
-      <section className="bg-[#FFFAF2] px-5 py-12 text-[#123D2A] sm:px-8 lg:py-16">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-                Gallery
-              </p>
-              <h1 className="max-w-5xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl lg:text-8xl">
-                Cooperative moments.
-              </h1>
-            </div>
-            <div className="grid size-14 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] ring-1 ring-[#1F6B43]/15">
-              <Images className="size-7" />
-            </div>
-          </div>
+      <section className="relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-10 pt-24 text-white sm:px-8 lg:min-h-[26rem] lg:pb-12 lg:pt-28">
+        <Image
+          src="/images/Hero%20Page/Main%20Photo%203.jpg"
+          alt="Cooperative gallery activity"
+          fill
+          priority
+          unoptimized
+          sizes="100vw"
+          className="object-cover object-center opacity-45"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#052F22]/95 via-[#052F22]/82 to-[#052F22]/45" />
+        <div className="relative z-10 mx-auto max-w-7xl">
+          <p className="mb-6 text-xs font-black uppercase tracking-[0.48em] text-[#F2C94C]">
+            Gallery
+          </p>
+          <h1 className="max-w-6xl text-5xl font-black leading-[0.95] tracking-normal md:text-7xl lg:text-8xl">
+            Cooperative moments
+          </h1>
+          <p className="mt-7 max-w-3xl text-lg leading-8 text-white/88 md:text-xl md:leading-9">
+            Browse field activities, member gatherings, assistance programs,
+            and cooperative milestones captured for public viewing.
+          </p>
+        </div>
+      </section>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="border-y border-[#E0EADC] bg-[#F8F1E5] px-5 py-12 text-[#123D2A] sm:px-8 lg:py-16">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visiblePhotos.map((photo, index) => (
               <button
                 key={photo}
                 type="button"
                 aria-label={`Open gallery photo ${safeCurrentPage * photosPerPage + index + 1}`}
                 onClick={() => setSelectedPhoto(photo)}
-                className="group relative aspect-square overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_18px_52px_rgba(31,107,67,0.12)] transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(31,107,67,0.22)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
+                className="group relative aspect-square overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_28px_76px_rgba(18,61,42,0.24)] transition hover:-translate-y-1 hover:shadow-[0_34px_92px_rgba(18,61,42,0.34)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
               >
                 <Image
                   src={photo}
@@ -112,6 +144,7 @@ export default function GalleryGrid() {
                   fill
                   unoptimized
                   sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                  onError={() => handlePhotoError(photo)}
                   className="object-cover transition duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/35 via-transparent to-transparent opacity-70 transition group-hover:opacity-40" />
@@ -202,10 +235,12 @@ export default function GalleryGrid() {
                     transition={{ duration: 0.26, ease: "easeOut" }}
                     onClick={(event) => event.stopPropagation()}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedPhoto}
                       alt="Selected cooperative gallery photo"
-                      className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-1.5rem)] object-contain drop-shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:max-w-[calc(100vw-3rem)]"
+                      onError={() => handlePhotoError(selectedPhoto)}
+                      className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-1.5rem)] rounded-[16px] object-contain drop-shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:max-w-[calc(100vw-3rem)]"
                     />
                   </motion.div>
                 </motion.div>

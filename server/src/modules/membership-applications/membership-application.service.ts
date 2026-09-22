@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { hash } from "bcryptjs";
 import PDFDocument from "pdfkit";
@@ -144,7 +144,20 @@ function storageExtension(documentType: string) {
 }
 
 function protectedStorageRoot() {
-  return path.resolve(process.cwd(), "storage", "protected", "membership-applications");
+  return path.resolve(process.cwd(), "public", "uploads", "membership-applications");
+}
+
+function resolveStoredDocumentPath(storedFilePath: string) {
+  const root = protectedStorageRoot();
+  const absolutePath = path.resolve(process.cwd(), storedFilePath);
+  if (!absolutePath.startsWith(`${root}${path.sep}`)) {
+    throw new AppError(
+      "Stored document path is invalid",
+      500,
+      "MEMBERSHIP_DOCUMENT_PATH_INVALID",
+    );
+  }
+  return absolutePath;
 }
 
 async function storeDocumentBuffer(
@@ -158,7 +171,7 @@ async function storeDocumentBuffer(
   const storedFilePath = path.join(applicationDirectory, storedFileName);
   await writeFile(storedFilePath, document.buffer, { flag: "wx" });
 
-  return path.relative(process.cwd(), storedFilePath);
+  return path.relative(process.cwd(), storedFilePath).replaceAll("\\", "/");
 }
 
 function normalizeChairmanApplication(input: ChairmanMembershipApplicationInput) {
@@ -297,6 +310,11 @@ export interface MembershipApplicationService {
     auth: AuthContext,
   ): Promise<ChairmanApplicationDocument>;
   deleteDocument(documentId: string, auth: AuthContext): Promise<void>;
+  viewDocument(documentId: string, auth: AuthContext): Promise<{
+    absolutePath: string;
+    originalFileName: string;
+    mimeType: string;
+  }>;
   createRequirement(
     applicationId: string,
     input: RequirementInput,
@@ -307,6 +325,7 @@ export interface MembershipApplicationService {
     input: RequirementUpdateInput,
     auth: AuthContext,
   ): Promise<ChairmanApplicationRequirement>;
+  deleteRequirement(requirementId: string, auth: AuthContext): Promise<void>;
   history(applicationId: string, auth: AuthContext): Promise<ChairmanApplicationHistoryEntry[]>;
   startReview(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
   requestInformation(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
@@ -500,12 +519,42 @@ export function createMembershipApplicationService(
       await unlink(path.resolve(process.cwd(), storedFilePath)).catch(() => undefined);
     },
 
+    async viewDocument(documentId) {
+      const document = await repository.findStoredDocument(documentId);
+      if (!document) {
+        throw new AppError(
+          "Document was not found",
+          404,
+          "MEMBERSHIP_DOCUMENT_NOT_FOUND",
+        );
+      }
+
+      const absolutePath = resolveStoredDocumentPath(document.storedFilePath);
+      await access(absolutePath).catch(() => {
+        throw new AppError(
+          "Document file was not found",
+          404,
+          "MEMBERSHIP_DOCUMENT_FILE_NOT_FOUND",
+        );
+      });
+
+      return {
+        absolutePath,
+        originalFileName: document.originalFileName,
+        mimeType: document.mimeType,
+      };
+    },
+
     createRequirement(applicationId, input, auth) {
       return repository.createRequirement(applicationId, input, auth);
     },
 
     updateRequirement(requirementId, input, auth) {
       return repository.updateRequirement(requirementId, input, auth);
+    },
+
+    deleteRequirement(requirementId, auth) {
+      return repository.deleteRequirement(requirementId, auth);
     },
 
     history(applicationId) {

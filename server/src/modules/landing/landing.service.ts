@@ -3,13 +3,14 @@ import {
   createLandingRepository,
   type LandingRepository,
 } from "./landing.repository";
-import type { LandingCollection, LandingListQuery } from "./landing.types";
+import type { GallerySlotInput, LandingCollection, LandingListQuery } from "./landing.types";
 
 export interface LandingService {
   publicLanding(): ReturnType<LandingRepository["publicLanding"]>;
   list(collection: LandingCollection, query: LandingListQuery): ReturnType<LandingRepository["list"]>;
   create(collection: LandingCollection, input: Record<string, unknown>, auth: AuthContext): ReturnType<LandingRepository["create"]>;
   update(collection: LandingCollection, id: string, input: Record<string, unknown>, auth: AuthContext): ReturnType<LandingRepository["update"]>;
+  updateGallerySlot(slotKey: string, input: GallerySlotInput, auth: AuthContext): ReturnType<LandingRepository["updateGallerySlot"]>;
   listSettings(query: LandingListQuery): ReturnType<LandingRepository["listSettings"]>;
   upsertSetting(input: Record<string, unknown>, auth: AuthContext): ReturnType<LandingRepository["upsertSetting"]>;
   listAuditLogs(query: LandingListQuery): ReturnType<LandingRepository["listAuditLogs"]>;
@@ -30,6 +31,9 @@ export function createLandingService(
     },
     update(collection, id, input, auth) {
       return repository.update(collection, id, input, auth);
+    },
+    updateGallerySlot(slotKey, input, auth) {
+      return repository.updateGallerySlot(slotKey, input, auth);
     },
     listSettings(query) {
       return repository.listSettings(query);

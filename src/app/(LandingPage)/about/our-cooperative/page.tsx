@@ -29,10 +29,10 @@ const classifications = [
 
 export default function OurCooperativePage() {
   return (
-    <main className="min-h-screen bg-[#FFFAF2] pt-16 text-[#123D2A]">
+    <main className="min-h-screen bg-[#FFFAF2] text-[#123D2A]">
       <SiteHeader initialActive="about" />
 
-      <section className="relative overflow-hidden bg-[#123D2A] px-5 py-20 text-white sm:px-8 lg:py-24">
+      <section className="relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-10 pt-24 text-white sm:px-8 lg:min-h-[26rem] lg:pb-12 lg:pt-28">
         <Image
           src="/images/Hero%20Page/Main%20Photo%204.jpg"
           alt="Cooperative members and agriculture activity"
@@ -44,7 +44,7 @@ export default function OurCooperativePage() {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#052F22]/95 via-[#052F22]/78 to-[#052F22]/35" />
         <div className="relative z-10 mx-auto max-w-7xl">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#F2C94C]">
+          <p className="mb-6 text-xs font-black uppercase tracking-[0.48em] text-[#F2C94C]">
             About
           </p>
           <h1 className="max-w-5xl text-5xl font-black leading-[0.98] tracking-normal md:text-7xl lg:text-8xl">

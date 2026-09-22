@@ -14,7 +14,7 @@ const DATA_FILE = path.join(
   "data",
   "announcements.json",
 );
-const IMAGE_DIR = path.join(ROOT, "public", "images", "announcements");
+const IMAGE_DIR = path.join(ROOT, "public", "uploads", "announcements");
 
 const POST_URLS = [
   "https://www.facebook.com/tdrjonson/posts/pfbid02D36puPoUjtzG2imXFW8STczkr69b35jJEu51X2r8Yw7yUytPEnGnmzYPGWAKdp4Pl?rdid=EAIflv1sJTPeY07T#",
@@ -104,7 +104,7 @@ async function downloadImage(url: string, announcementId: string, index: number)
   const extension = imageExtension(response.headers.get("content-type"), url);
   const filename = `${announcementId}-${index + 1}.${extension}`;
   const diskPath = path.join(IMAGE_DIR, filename);
-  const publicPath = `/images/announcements/${filename}`;
+  const publicPath = `/uploads/announcements/${filename}`;
   const buffer = Buffer.from(await response.arrayBuffer());
 
   await writeFile(diskPath, buffer);

@@ -8,7 +8,7 @@ import {
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext<"/api/reports/[id]/activity">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper"]);

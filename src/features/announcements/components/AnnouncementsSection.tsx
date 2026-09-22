@@ -1,11 +1,35 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, ExternalLink, Megaphone, X, Share2, Copy, Check } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Copy,
+  ExternalLink,
+  Megaphone,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useState, useEffect, useCallback } from "react";
 import { env } from "@/config/env";
+
+const PHOTO_PROGRESS_DURATION_MS = 5500;
+
+type PublicAnnouncement = {
+  id: string | number;
+  title?: string;
+  message?: string;
+  content?: string;
+  createdAt?: string;
+  postedAt?: string;
+  featuredImagePath?: string | null;
+  images?: string[];
+  sourceUrl?: string | null;
+  audienceType?: string;
+  announcementStatus?: string;
+};
 
 function formatDate(date?: string) {
   if (!date) return "Recent";
@@ -17,51 +41,99 @@ function formatDate(date?: string) {
   }).format(new Date(date));
 }
 
-function getPreview(content?: string | null) {
-  if (!content) return "";
-  const tmp = typeof document !== "undefined" ? document.createElement("DIV") : null;
-  if (tmp) {
-    tmp.innerHTML = content;
-    content = tmp.textContent || tmp.innerText || "";
+function stripHtml(content: string) {
+  if (typeof document === "undefined") {
+    return content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   }
-  if (content.length <= 140) return content;
-  return `${content.slice(0, 140).trim()}...`;
+
+  const tmp = document.createElement("div");
+  tmp.innerHTML = content;
+  return (tmp.textContent || tmp.innerText || "").replace(/\s+/g, " ").trim();
+}
+
+function getPreview(content: string) {
+  const text = stripHtml(content);
+  if (text.length <= 140) return text;
+  return `${text.slice(0, 140).trim()}...`;
+}
+
+function getAnnouncementContent(announcement?: PublicAnnouncement) {
+  return announcement?.message ?? announcement?.content ?? "";
+}
+
+function getAnnouncementDate(announcement?: PublicAnnouncement) {
+  return announcement?.createdAt ?? announcement?.postedAt;
+}
+
+function resolveImagePath(path?: string | null) {
+  if (!path) return null;
+  if (path.startsWith("http") || path.startsWith("/images/")) return path;
+  return `${env.apiUrl}${path}`;
 }
 
 export default function AnnouncementsSection() {
-  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [announcements, setAnnouncements] =
+    useState<PublicAnnouncement[]>([]);
   const [currentAnnouncement, setCurrentAnnouncement] = useState(0);
   const [currentImage, setCurrentImage] = useState(0);
+  const [progressReplayKey, setProgressReplayKey] = useState(0);
   const [readMoreOpen, setReadMoreOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
-    if (readMoreOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [readMoreOpen]);
+    let cancelled = false;
 
-  useEffect(() => {
     fetch("/api/announcements")
       .then((res) => res.json())
       .then((json) => {
-        if (json.success) {
-          const publicAnns = json.data.filter((a: any) => a.audienceType === "Public" && a.announcementStatus !== "Archived") || [];
-          setAnnouncements(publicAnns.slice(0, 3));
-        }
+        if (!json.success || cancelled) return;
+
+        const publicAnnouncements = (json.data ?? []).filter(
+          (item: PublicAnnouncement) =>
+            item.audienceType === "Public" &&
+            item.announcementStatus !== "Archived",
+        );
+
+        setAnnouncements(
+          publicAnnouncements.length ? publicAnnouncements.slice(0, 4) : [],
+        );
+        setCurrentAnnouncement(0);
+        setCurrentImage(0);
       })
-      .catch(console.error);
+      .catch(() => {
+        if (!cancelled) setAnnouncements([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  useEffect(() => {
+    if (!readMoreOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [readMoreOpen]);
+
   const announcement = announcements[currentAnnouncement];
-  const images = announcement?.featuredImagePath ? [announcement.featuredImagePath] : [];
+  const content = getAnnouncementContent(announcement);
+  const rawImages =
+    announcement?.images && announcement.images.length > 0
+      ? announcement.images
+      : announcement?.featuredImagePath
+        ? [announcement.featuredImagePath]
+        : [];
+  const images = rawImages
+    .map((image) => resolveImagePath(image))
+    .filter((image): image is string => Boolean(image));
   const hasImages = images.length > 0;
+  const hasMultipleImages = images.length > 1;
 
   const nextAnnouncement = useCallback(() => {
     setCurrentImage(0);
@@ -75,38 +147,68 @@ export default function AnnouncementsSection() {
     );
   }
 
-  function nextImage() {
-    setCurrentImage((index) => (index + 1) % images.length);
-  }
+  useEffect(() => {
+    if (!hasMultipleImages || readMoreOpen) return;
 
-  function prevImage() {
-    setCurrentImage((index) => (index - 1 + images.length) % images.length);
-  }
+    const timeout = window.setTimeout(() => {
+      if (currentImage >= images.length - 1) {
+        nextAnnouncement();
+      } else {
+        setCurrentImage((index) => Math.min(index + 1, images.length - 1));
+      }
+    }, PHOTO_PROGRESS_DURATION_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    currentAnnouncement,
+    currentImage,
+    hasMultipleImages,
+    images.length,
+    nextAnnouncement,
+    progressReplayKey,
+    readMoreOpen,
+  ]);
 
   useEffect(() => {
-    if (isHovered || readMoreOpen || announcements.length <= 1) return;
-    const interval = setInterval(nextAnnouncement, 5000);
-    return () => clearInterval(interval);
-  }, [isHovered, readMoreOpen, announcements.length, nextAnnouncement]);
+    if (
+      isHovered ||
+      readMoreOpen ||
+      hasMultipleImages ||
+      announcements.length <= 1
+    ) {
+      return;
+    }
+
+    const interval = window.setInterval(nextAnnouncement, 5000);
+    return () => window.clearInterval(interval);
+  }, [
+    announcements.length,
+    hasMultipleImages,
+    isHovered,
+    nextAnnouncement,
+    readMoreOpen,
+  ]);
 
   if (!announcement) return null;
 
   return (
-    <section className="h-full bg-[#FFFAF2] p-5 text-[#123D2A] sm:p-6">
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="inline-flex items-center gap-3 text-2xl font-semibold tracking-tight text-[#123D2A]">
-            Latest Cooperative Updates
-            <span className="grid size-10 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] ring-1 ring-[#1F6B43]/15">
-              <Megaphone className="size-5" />
+    <section className="relative h-full overflow-hidden bg-[#123D2A] text-white">
+      <div className="relative h-full min-h-0">
+        <div className="absolute left-3 right-3 top-3 z-20 flex min-h-10 items-center justify-between gap-3 rounded-full border border-white/70 bg-[#FFFAF2]/92 px-2 py-2 text-[#123D2A] shadow-[0_18px_42px_rgba(3,41,29,0.22)] backdrop-blur-md sm:left-4 sm:right-4 sm:top-4 sm:px-2.5 [@media(max-height:430px)]:left-2.5 [@media(max-height:430px)]:right-2.5 [@media(max-height:430px)]:top-2.5 [@media(max-height:430px)]:py-1.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] shadow-[0_8px_20px_rgba(31,107,67,0.10)] ring-1 ring-[#1F6B43]/15 sm:size-9 md:size-10 [@media(max-height:430px)]:size-8">
+              <Megaphone className="size-4 md:size-5 [@media(max-height:430px)]:size-4" />
             </span>
-          </h2>
-          <div className="flex gap-2">
+            <h2 className="truncate text-base font-extrabold leading-none text-[#123D2A] sm:text-lg md:text-xl">
+              Announcements
+            </h2>
+          </div>
+          <div className="flex shrink-0 gap-1.5">
             <button
               type="button"
               aria-label="Previous announcement"
               onClick={prevAnnouncement}
-              className="grid size-10 place-items-center rounded-full border border-[#1F6B43]/15 bg-[#EAF3E8] text-[#123D2A] shadow-[0_8px_20px_rgba(18,61,42,0.08)] transition hover:-translate-y-0.5 hover:bg-[#123D2A] hover:text-white"
+              className="grid size-8 shrink-0 place-items-center rounded-full border border-[#1F6B43]/15 bg-[#EAF3E8] text-[#123D2A] shadow-[0_8px_20px_rgba(18,61,42,0.10)] transition hover:-translate-y-0.5 hover:bg-[#123D2A] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] sm:size-9 md:size-10 [@media(max-height:430px)]:size-8"
             >
               <ArrowLeft className="size-4" />
             </button>
@@ -114,142 +216,126 @@ export default function AnnouncementsSection() {
               type="button"
               aria-label="Next announcement"
               onClick={nextAnnouncement}
-              className="grid size-10 place-items-center rounded-full border border-[#1F6B43]/15 bg-[#EAF3E8] text-[#123D2A] shadow-[0_8px_20px_rgba(18,61,42,0.08)] transition hover:-translate-y-0.5 hover:bg-[#123D2A] hover:text-white"
+              className="grid size-8 shrink-0 place-items-center rounded-full border border-[#1F6B43]/15 bg-[#EAF3E8] text-[#123D2A] shadow-[0_8px_20px_rgba(18,61,42,0.10)] transition hover:-translate-y-0.5 hover:bg-[#123D2A] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] sm:size-9 md:size-10 [@media(max-height:430px)]:size-8"
             >
               <ArrowRight className="size-4" />
             </button>
           </div>
         </div>
 
-        <article 
-          className="relative mt-5 flex min-h-[430px] flex-1 overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] shadow-[0_28px_80px_rgba(31,107,67,0.42)]"
+        <article
+          className="group absolute inset-0 cursor-pointer overflow-hidden bg-[#123D2A] shadow-[0_28px_76px_rgba(18,61,42,0.24)]"
+          onClick={() => setReadMoreOpen(true)}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(242,201,76,0.28),transparent_34%),linear-gradient(135deg,#EAF3E8,#FFFAF2)]">
-            <AnimatePresence mode="wait">
-              <motion.div 
-                key={currentAnnouncement}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.6 }}
-                className="absolute inset-0"
-              >
-                {hasImages ? (
-                  images.map((image, index) => (
-                    <Image
-                      key={`${announcement.id}-${image}`}
-                      src={`${env.apiUrl}${image}`}
-                      alt={announcement.title}
-                      fill
-                      unoptimized
-                      sizes="(max-width: 1024px) 100vw, 33vw"
-                      className={`object-cover transition duration-700 ${
-                        index === currentImage ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                  ))
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-30">
-                    <Megaphone className="size-40 text-[#1F6B43]" />
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${announcement.id}-${currentImage}`}
+              className="absolute inset-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.45 }}
+            >
+              {hasImages ? (
+                <Image
+                  src={images[currentImage]}
+                  alt={announcement.title ?? "Announcement photo"}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 767px) 90vw, (max-width: 1024px) 42vw, 38vw"
+                  className="object-cover brightness-110 contrast-105 transition duration-700 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#123D2A] opacity-40">
+                  <Megaphone className="size-40 text-[#EAF3E8]" />
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
 
-          <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/92 via-[#03291d]/32 to-transparent pointer-events-none" />
-          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#03291d]/42 to-transparent pointer-events-none" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(3,41,29,0.02)_0%,rgba(3,41,29,0.04)_34%,rgba(3,41,29,0.46)_100%)]" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-[radial-gradient(circle_at_18%_78%,rgba(242,201,76,0.18),transparent_30%),linear-gradient(0deg,rgba(3,41,29,0.96)_0%,rgba(3,41,29,0.78)_52%,transparent_100%)]" />
 
-          {images.length > 1 ? (
-            <>
-              <div className="absolute left-4 top-4 flex gap-2">
-                <button
-                  type="button"
-                  aria-label="Previous announcement photo"
-                  onClick={prevImage}
-                  className="grid size-10 place-items-center rounded-full border border-white/20 bg-[#123D2A]/34 text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:text-[#123D2A]"
-                >
-                  <ArrowLeft className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next announcement photo"
-                  onClick={nextImage}
-                  className="grid size-10 place-items-center rounded-full border border-white/20 bg-[#123D2A]/34 text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:text-[#123D2A]"
-                >
-                  <ArrowRight className="size-4" />
-                </button>
-              </div>
-              <div className="absolute left-1/2 top-5 flex -translate-x-1/2 gap-2 rounded-full bg-[#123D2A]/32 px-3 py-2 backdrop-blur">
+          {hasMultipleImages ? (
+            <div className="absolute left-4 right-4 top-[5rem] z-10 flex gap-1.5 rounded-full bg-[#123D2A]/38 px-2 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.16)] backdrop-blur-md sm:top-[5.5rem] [@media(max-height:430px)]:left-3 [@media(max-height:430px)]:right-3 [@media(max-height:430px)]:top-[4.5rem]">
                 {images.map((image, index) => (
                   <button
-                    key={image}
+                    key={`${image}-${index}`}
                     type="button"
-                    aria-label={`Show image ${index + 1}`}
+                    aria-label={`Show announcement photo ${index + 1} of ${images.length}`}
                     aria-current={currentImage === index ? "true" : undefined}
-                    onClick={() => setCurrentImage(index)}
-                    className={`size-2.5 rounded-full transition ${
-                      currentImage === index ? "bg-[#F2C94C]" : "bg-white/70"
-                    }`}
-                  />
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setProgressReplayKey((key) => key + 1);
+                      setCurrentImage(index);
+                    }}
+                    className="group/progress flex h-5 min-w-0 flex-1 items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  >
+                    <span className="block h-1 w-full overflow-hidden rounded-full bg-white/38 shadow-[0_1px_6px_rgba(0,0,0,0.18)] transition group-hover/progress:bg-white/52">
+                      <span
+                        key={
+                          index === currentImage
+                            ? `${announcement.id}-${currentImage}-${progressReplayKey}`
+                            : `${announcement.id}-${index}`
+                        }
+                        className={`block h-full w-full rounded-full ${
+                          index === currentImage
+                            ? "bg-[#F2C94C]"
+                            : "bg-white"
+                        }`}
+                        style={{
+                          animation:
+                            index === currentImage
+                              ? `announcement-photo-progress ${PHOTO_PROGRESS_DURATION_MS}ms linear forwards`
+                              : undefined,
+                          transform:
+                            index < currentImage ? "scaleX(1)" : "scaleX(0)",
+                          transformOrigin: "left",
+                          width: "100%",
+                        }}
+                      />
+                    </span>
+                  </button>
                 ))}
               </div>
-            </>
           ) : null}
 
-          <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6 pointer-events-none">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentAnnouncement}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -20, opacity: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="mb-3 flex items-center justify-between gap-4 pointer-events-auto">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#F2C94C]">
-                    {formatDate(announcement.createdAt)}
-                  </p>
-                  {announcement.sourceUrl && (
-                    <a
-                      href={announcement.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="View original announcement post"
-                      className="grid size-10 shrink-0 place-items-center rounded-full border border-white/20 bg-white/14 text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:text-[#123D2A]"
-                    >
-                      <ExternalLink className="size-4" />
-                    </a>
-                  )}
-                </div>
-                <p className="text-sm leading-6 text-white/88 pointer-events-auto">
-                  {getPreview(announcement.message)}
-                  <button
-                    onClick={() => setReadMoreOpen(true)}
-                    className="ml-2 font-bold text-[#F2C94C] hover:underline whitespace-nowrap"
-                  >
-                    Read more
-                  </button>
-                </p>
-              </motion.div>
-            </AnimatePresence>
+          <div className="absolute inset-x-0 bottom-0 p-4 pr-16 text-white sm:p-6 sm:pr-20 lg:p-6 lg:pr-20 xl:p-7 xl:pr-20 [@media(max-height:620px)]:p-5 [@media(max-height:620px)]:pr-16 [@media(max-height:430px)]:p-4 [@media(max-height:430px)]:pr-14">
+            <div className="mb-5 [@media(max-height:620px)]:mb-3 [@media(max-height:430px)]:mb-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.28em] text-[#F2C94C] drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)] sm:text-xs">
+                {formatDate(getAnnouncementDate(announcement))}
+              </p>
+            </div>
+            <p className="line-clamp-3 text-sm font-semibold leading-6 text-white drop-shadow-[0_3px_14px_rgba(0,0,0,0.50)] sm:text-base sm:leading-7 [@media(max-height:620px)]:text-sm [@media(max-height:620px)]:leading-6">
+              {announcement.title ?? getPreview(content)}
+              {content ? (
+                <span className="font-medium text-white/88">
+                  {" "}
+                  {getPreview(content)}
+                </span>
+              ) : null}
+            </p>
+            <a
+              href={announcement.sourceUrl ?? "/announcements"}
+              target={announcement.sourceUrl ? "_blank" : undefined}
+              rel={announcement.sourceUrl ? "noreferrer" : undefined}
+              aria-label={
+                announcement.sourceUrl
+                  ? "View original announcement post"
+                  : "View all announcements"
+              }
+              onClick={(event) => event.stopPropagation()}
+              className="absolute bottom-4 right-4 grid size-11 place-items-center rounded-full border border-white/18 bg-white/20 text-white shadow-[0_14px_34px_rgba(0,0,0,0.20)] backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white hover:text-[#123D2A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:bottom-6 sm:right-6 [@media(max-height:620px)]:bottom-5 [@media(max-height:620px)]:right-5 [@media(max-height:430px)]:bottom-4 [@media(max-height:430px)]:right-4 [@media(max-height:430px)]:size-10"
+            >
+              <ExternalLink className="size-4" />
+            </a>
           </div>
         </article>
-        
-        <div className="mt-6">
-          <a
-            href="/announcements"
-            className="inline-flex w-full items-center justify-center rounded-full bg-[#1F6B43] px-6 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]"
-          >
-            View All Announcements
-            <ArrowRight className="ml-2 size-4" />
-          </a>
-        </div>
       </div>
 
-      {typeof document !== "undefined" && readMoreOpen
+      {typeof document !== "undefined"
         ? createPortal(
             <AnimatePresence>
               {readMoreOpen ? (
@@ -272,84 +358,70 @@ export default function AnnouncementsSection() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 14, scale: 0.97 }}
                       transition={{ duration: 0.26, ease: "easeOut" }}
-                      onClick={(event: React.MouseEvent) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-                        <motion.button
+                        <button
                           type="button"
                           aria-label="Copy announcement text"
-                          onClick={(event: React.MouseEvent) => {
+                          onClick={(event) => {
                             event.stopPropagation();
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = announcement.message;
-                            const plainMessage = tempDiv.textContent || tempDiv.innerText || '';
-                            navigator.clipboard.writeText(plainMessage.trim());
+                            void navigator.clipboard.writeText(stripHtml(content));
                             setIsCopied(true);
-                            setTimeout(() => setIsCopied(false), 2000);
+                            window.setTimeout(() => setIsCopied(false), 2000);
                           }}
                           className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.18, ease: "easeOut", delay: 0.05 }}
                         >
-                          {isCopied ? <Check className="size-5 text-green-400" /> : <Copy className="size-5" />}
-                        </motion.button>
-
-                        <motion.button
+                          {isCopied ? (
+                            <Check className="size-5 text-green-400" />
+                          ) : (
+                            <Copy className="size-5" />
+                          )}
+                        </button>
+                        <button
                           type="button"
                           aria-label="Close announcement"
-                          onClick={(event: React.MouseEvent) => {
+                          onClick={(event) => {
                             event.stopPropagation();
                             setReadMoreOpen(false);
                           }}
                           className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ duration: 0.18, ease: "easeOut" }}
                         >
                           <X className="size-5" />
-                        </motion.button>
+                        </button>
                       </div>
 
                       <div className="flex flex-col">
-                        <div className="relative h-64 sm:h-80 bg-[#123D2A] shrink-0">
-                          {images.length > 0 ? (
-                            images.map((image, index) => (
-                              <Image
-                                key={`modal-${announcement.id}-${image}`}
-                                src={`${env.apiUrl}${image}`}
-                                alt=""
-                                fill
-                                unoptimized
-                                sizes="(max-width: 1024px) 100vw, 58vw"
-                                className={`object-cover transition duration-500 opacity-100`}
-                              />
-                            ))
+                        <div className="relative h-64 shrink-0 bg-[#123D2A] sm:h-80">
+                          {hasImages ? (
+                            <Image
+                              src={images[currentImage]}
+                              alt={announcement.title ?? "Announcement photo"}
+                              fill
+                              unoptimized
+                              sizes="(max-width: 1024px) 100vw, 58vw"
+                              className="object-cover"
+                            />
                           ) : (
-                            <div className="absolute inset-0 bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] flex items-center justify-center">
-                               <Megaphone className="size-20 text-[#1F6B43]/20" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]">
+                              <Megaphone className="size-20 text-[#1F6B43]/20" />
                             </div>
                           )}
-                          
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/90 via-[#03291d]/40 to-transparent pointer-events-none" />
-                          <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex items-end justify-between gap-6 pointer-events-none">
-                            {announcement.title && (
-                              <h2 className="text-2xl font-black text-white sm:text-3xl leading-tight drop-shadow-md line-clamp-3">
-                                {announcement.title}
-                              </h2>
-                            )}
-                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#F2C94C] shrink-0 drop-shadow-md text-right">
-                              {formatDate(announcement.createdAt)}
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#03291d]/90 via-[#03291d]/40 to-transparent" />
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-6 p-6 sm:p-8">
+                            <h2 className="line-clamp-3 text-2xl font-black leading-tight text-white drop-shadow-md sm:text-3xl">
+                              {announcement.title ?? "Announcement"}
+                            </h2>
+                            <p className="shrink-0 text-right text-xs font-bold uppercase tracking-[0.24em] text-[#F2C94C] drop-shadow-md">
+                              {formatDate(getAnnouncementDate(announcement))}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex flex-col p-6 sm:p-8 max-h-[60vh] overflow-y-auto">
-                          <div 
-                            className="whitespace-pre-line text-base leading-relaxed text-[#123D2A] quill-content"
-                            dangerouslySetInnerHTML={{ __html: announcement.message || "" }}
+                        <div className="max-h-[60vh] overflow-y-auto p-6 sm:p-8">
+                          <div
+                            className="quill-content whitespace-pre-line text-base leading-relaxed text-[#123D2A]"
+                            dangerouslySetInnerHTML={{ __html: content }}
                           />
                         </div>
                       </div>
@@ -358,7 +430,7 @@ export default function AnnouncementsSection() {
                 </motion.div>
               ) : null}
             </AnimatePresence>,
-            document.body
+            document.body,
           )
         : null}
     </section>

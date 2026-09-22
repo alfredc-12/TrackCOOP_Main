@@ -295,7 +295,7 @@ function rentalValidIdDocument(meta: JsonRecord): RentalValidIdDocument | undefi
   if (
     !VALID_ID_TYPES.includes(type as ValidIdType) ||
     !originalFileName ||
-    !storagePath.startsWith("storage/uploads/rental-valid-ids/") ||
+    !storagePath.startsWith("public/uploads/rental-valid-ids/") ||
     !["image/jpeg", "image/png", "application/pdf"].includes(mimeType) ||
     fileSizeBytes <= 0 ||
     !/^[a-f0-9]{64}$/.test(checksumSha256)

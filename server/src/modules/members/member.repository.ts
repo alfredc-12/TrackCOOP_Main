@@ -97,7 +97,7 @@ export interface MemberRepository {
   updateApproval(memberId: string, approvalStatus: ApprovalStatus, reason: string | null | undefined, auth: AuthContext): Promise<MemberProfile>;
   updateStatus(memberId: string, input: UpdateMemberStatusInput, auth: AuthContext): Promise<MemberProfile>;
   history(memberId: string): Promise<MemberStatusHistoryEntry[]>;
-  unifiedStatusHistory(query: { search?: string; sourceModule?: string; page: number; pageSize: number }): Promise<{ entries: UnifiedStatusHistoryEntry[]; total: number; page: number; pageSize: number }>;
+  unifiedStatusHistory(query: { search?: string; sourceModule?: string; date?: string; page: number; pageSize: number }): Promise<{ entries: UnifiedStatusHistoryEntry[]; total: number; page: number; pageSize: number }>;
   summary(): Promise<MemberSummary>;
   barangayDistribution(): Promise<BarangayDistribution[]>;
   shareCapitalProgress(memberId: string): Promise<ShareCapitalProgress>;
@@ -565,22 +565,26 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
     },
 
     async unifiedStatusHistory(query) {
+      const filters: string[] = [];
       const searchValues: string[] = [];
-      let outerWhere = "";
 
       if (query.search) {
-        outerWhere = `WHERE subjectName LIKE ? OR subjectCode LIKE ? OR newStatus LIKE ? OR oldStatus LIKE ?`;
+        filters.push("(subjectName LIKE ? OR subjectCode LIKE ? OR newStatus LIKE ? OR oldStatus LIKE ? OR actor LIKE ? OR reason LIKE ?)");
         const search = `%${query.search}%`;
-        searchValues.push(search, search, search, search);
+        searchValues.push(search, search, search, search, search, search);
       }
 
       if (query.sourceModule && query.sourceModule !== "All") {
-        outerWhere = outerWhere
-          ? `${outerWhere} AND sourceModule = ?`
-          : "WHERE sourceModule = ?";
+        filters.push("sourceModule = ?");
         searchValues.push(query.sourceModule);
       }
 
+      if (query.date) {
+        filters.push("DATE(changedAt) = ?");
+        searchValues.push(query.date);
+      }
+
+      const outerWhere = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
       const unionSql = `
         SELECT CONCAT('application-', h.membership_application_status_history_id) AS id,
                'Application' AS sourceModule,

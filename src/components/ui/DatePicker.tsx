@@ -3,9 +3,6 @@
 import {
   CalendarDays,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  X,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +16,10 @@ type DatePickerProps = {
   placeholder?: string;
   error?: string;
   className?: string;
+  hideLabel?: boolean;
+  triggerClassName?: string;
+  allowClear?: boolean;
+  clearLabel?: string;
 };
 
 const monthNames = [
@@ -35,8 +36,6 @@ const monthNames = [
   "November",
   "December",
 ];
-
-const shortMonthNames = monthNames.map((month) => month.slice(0, 3));
 
 const weekdayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -92,6 +91,10 @@ export function DatePicker({
   placeholder = "Select date",
   error,
   className,
+  hideLabel = false,
+  triggerClassName,
+  allowClear = false,
+  clearLabel = "Clear",
 }: DatePickerProps) {
   const labelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -105,6 +108,7 @@ export function DatePicker({
   const [viewYear, setViewYear] = useState(
     selectedDate?.getFullYear() ?? maxDate.getFullYear(),
   );
+  const [pendingDateKey, setPendingDateKey] = useState(value);
   const [openDirection, setOpenDirection] = useState<"down" | "up">("down");
 
   useEffect(() => {
@@ -163,17 +167,11 @@ export function DatePicker({
         dateKey,
         isCurrentMonth: date.getMonth() === viewMonth,
         isDisabled: isOutsideRange(dateKey, min, max),
-        isSelected: value === dateKey,
+        isSelected: pendingDateKey === dateKey,
         isToday: todayKey() === dateKey,
       };
     });
-  }, [max, min, value, viewMonth, viewYear]);
-
-  function moveMonth(offset: number) {
-    const nextDate = new Date(viewYear, viewMonth + offset, 1);
-    setViewMonth(nextDate.getMonth());
-    setViewYear(nextDate.getFullYear());
-  }
+  }, [max, min, pendingDateKey, viewMonth, viewYear]);
 
   function togglePicker() {
     if (!isOpen) {
@@ -181,13 +179,14 @@ export function DatePicker({
       const fieldRect = rootRef.current?.getBoundingClientRect();
       setViewMonth(anchorDate.getMonth());
       setViewYear(anchorDate.getFullYear());
+      setPendingDateKey(value);
 
       if (fieldRect) {
-        const estimatedPickerHeight = 336;
+        const estimatedPickerHeight = 252;
         const spaceBelow = window.innerHeight - fieldRect.bottom;
         const spaceAbove = fieldRect.top;
         setOpenDirection(
-          spaceBelow < estimatedPickerHeight && spaceAbove > spaceBelow
+          spaceBelow < estimatedPickerHeight && spaceAbove > 180
             ? "up"
             : "down",
         );
@@ -199,8 +198,7 @@ export function DatePicker({
 
   function selectDate(dateKey: string) {
     if (isOutsideRange(dateKey, min, max)) return;
-    onChange(dateKey);
-    setIsOpen(false);
+    setPendingDateKey(dateKey);
   }
 
   const displayValue = formatDate(value);
@@ -209,7 +207,10 @@ export function DatePicker({
     <div ref={rootRef} className={cn("relative", className)}>
       <label
         id={labelId}
-        className="block text-sm font-bold text-[#365F4A]"
+        className={cn(
+          "block text-sm font-bold text-[#365F4A]",
+          hideLabel && "sr-only",
+        )}
       >
         {label}
       </label>
@@ -220,7 +221,11 @@ export function DatePicker({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={togglePicker}
-        className="mt-2 flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        className={cn(
+          "mt-2 flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20",
+          hideLabel && "mt-0",
+          triggerClassName,
+        )}
       >
         <span
           className={cn(
@@ -247,65 +252,45 @@ export function DatePicker({
           aria-modal="false"
           aria-labelledby={labelId}
           className={cn(
-            "absolute left-0 z-50 w-full max-w-80 rounded-[1.25rem] border border-[#DDE8D8] bg-white p-3 shadow-[0_18px_48px_rgba(18,61,42,0.16)] ring-1 ring-[#F8F1E5]",
+            "absolute left-1/2 z-50 w-[19rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[1rem] border border-[#DDE8D8] bg-white p-3 shadow-[0_18px_48px_rgba(18,61,42,0.14)] ring-1 ring-[#F8F1E5]",
             openDirection === "up" ? "bottom-full mb-2" : "top-full mt-2",
           )}
         >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => moveMonth(-1)}
-              className="grid size-9 shrink-0 place-items-center rounded-full border border-[#DDE8D8] text-[#123D2A] transition hover:bg-[#EAF3E8] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
-              aria-label="Previous month"
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              aria-label="Month"
+              value={viewMonth}
+              onChange={(event) => setViewMonth(Number(event.target.value))}
+              className="h-7 min-w-0 rounded-lg border border-[#EEF2EC] bg-[#FBFBFA] px-3 text-[0.68rem] font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
             >
-              <ChevronLeft className="size-4" />
-            </button>
+              {monthNames.map((month, index) => (
+                <option key={month} value={index}>
+                  {month}
+                </option>
+              ))}
+            </select>
 
-            <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-              <select
-                aria-label="Month"
-                value={viewMonth}
-                onChange={(event) => setViewMonth(Number(event.target.value))}
-                className="h-9 min-w-0 rounded-xl border border-[#DDE8D8] bg-[#FBF8EF] px-3 text-sm font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-              >
-                {shortMonthNames.map((month, index) => (
-                  <option key={monthNames[index]} value={index}>
-                    {month}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                aria-label="Year"
-                value={viewYear}
-                onChange={(event) => setViewYear(Number(event.target.value))}
-                className="h-9 min-w-0 rounded-xl border border-[#DDE8D8] bg-[#FBF8EF] px-3 text-sm font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => moveMonth(1)}
-              className="grid size-9 shrink-0 place-items-center rounded-full border border-[#DDE8D8] text-[#123D2A] transition hover:bg-[#EAF3E8] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
-              aria-label="Next month"
+            <select
+              aria-label="Year"
+              value={viewYear}
+              onChange={(event) => setViewYear(Number(event.target.value))}
+              className="h-7 min-w-0 rounded-lg border border-[#EEF2EC] bg-[#FBFBFA] px-3 text-[0.68rem] font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
             >
-              <ChevronRight className="size-4" />
-            </button>
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[0.62rem] font-black uppercase tracking-[0.14em] text-[#6B8174]">
+          <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[0.5rem] font-black uppercase tracking-[0.05em] text-[#5D6D63]">
             {weekdayNames.map((weekday) => (
-              <div key={weekday}>{weekday}</div>
+              <div key={weekday}>{weekday.slice(0, 1)}</div>
             ))}
           </div>
 
-          <div className="mt-2 grid grid-cols-7 gap-x-1 gap-y-0.5">
+          <div className="mt-1 grid grid-cols-7 gap-x-1.5 gap-y-0.5">
             {days.map((day) => (
               <button
                 key={day.dateKey}
@@ -313,16 +298,16 @@ export function DatePicker({
                 disabled={day.isDisabled}
                 onClick={() => selectDate(day.dateKey)}
                 className={cn(
-                  "mx-auto grid size-8 place-items-center rounded-lg text-xs font-bold outline-none transition focus:ring-2 focus:ring-[#1F6B43]/25",
+                  "mx-auto grid size-6 place-items-center rounded-full text-[0.62rem] font-black leading-none outline-none transition focus:ring-2 focus:ring-[#1F6B43]/25",
                   day.isSelected
-                    ? "bg-[#123D2A] text-white shadow-sm"
-                    : "text-[#123D2A] hover:bg-[#EAF3E8]",
-                  !day.isCurrentMonth && "text-[#9AAC9F]",
+                    ? "bg-[#1F6B43] text-white shadow-sm"
+                    : "text-[#28372F] hover:bg-[#EAF3E8]",
+                  !day.isCurrentMonth && "text-[#AAB6AD]",
                   day.isToday &&
                     !day.isSelected &&
                     "ring-1 ring-inset ring-[#F4B62A]",
                   day.isDisabled &&
-                    "cursor-not-allowed text-[#C2CEC4] opacity-50 hover:bg-transparent",
+                    "cursor-not-allowed text-[#D5DDD7] opacity-60 hover:bg-transparent",
                 )}
               >
                 {day.date.getDate()}
@@ -330,26 +315,48 @@ export function DatePicker({
             ))}
           </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-[#E8EFE5] pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setIsOpen(false);
-              }}
-              className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-sm font-black text-[#9A251B] transition hover:bg-[#FFF1EE] focus:outline-none focus:ring-2 focus:ring-[#9A251B]/15"
-            >
-              <X className="size-4" />
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => selectDate(todayKey())}
-              disabled={isOutsideRange(todayKey(), min, max)}
-              className="h-9 rounded-full bg-[#F8F1E5] px-4 text-sm font-black text-[#775200] transition hover:bg-[#FFF3C9] focus:outline-none focus:ring-2 focus:ring-[#F4B62A]/30 disabled:pointer-events-none disabled:opacity-50"
-            >
-              Today
-            </button>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            {allowClear ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingDateKey("");
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                disabled={!value}
+                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#1F6B43] transition hover:text-[#123D2A] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:text-[#AAB6AD] disabled:opacity-60"
+              >
+                {clearLabel}
+              </button>
+            ) : (
+              <span aria-hidden="true" />
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingDateKey(value);
+                  setIsOpen(false);
+                }}
+                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#9AAC9F] transition hover:text-[#5D6D63] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingDateKey && !isOutsideRange(pendingDateKey, min, max)) {
+                    onChange(pendingDateKey);
+                  }
+                  setIsOpen(false);
+                }}
+                disabled={!pendingDateKey || isOutsideRange(pendingDateKey, min, max)}
+                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#1F6B43] transition hover:text-[#123D2A] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:opacity-50"
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -37,6 +37,7 @@ import type {
   RequestedMembershipType,
   StatusTransitionInput,
   StoredMembershipApplicationDocument,
+  StoredChairmanApplicationDocument,
 } from "./membership-application.types";
 
 type SettingRow = RowDataPacket & {
@@ -179,6 +180,20 @@ const allowedTransitions: Record<MembershipApplicationStatus, MembershipApplicat
   Rejected: [],
   Withdrawn: [],
 };
+
+const protectedRequirementTypes = new Set<RequirementType>([
+  "Orientation/Seminar",
+  "Associate Membership Fee",
+  "Signed Application",
+]);
+
+function isProtectedRequirementType(
+  requestedMembershipType: RequestedMembershipType,
+  requirementType: RequirementType,
+) {
+  return protectedRequirementTypes.has(requirementType)
+    || (requestedMembershipType === "True Member" && requirementType === "Initial Share Capital");
+}
 
 function mysqlDateTime(value: string | Date) {
   const date = value instanceof Date ? value : new Date(value);
@@ -617,6 +632,7 @@ export interface MembershipApplicationRepository {
     auth: AuthContext;
   }): Promise<ChairmanApplicationDocument>;
   deleteDocument(documentId: string, auth: AuthContext): Promise<string>;
+  findStoredDocument(documentId: string): Promise<StoredChairmanApplicationDocument | null>;
   createRequirement(
     applicationId: string,
     input: RequirementInput,
@@ -627,6 +643,7 @@ export interface MembershipApplicationRepository {
     input: RequirementUpdateInput,
     auth: AuthContext,
   ): Promise<ChairmanApplicationRequirement>;
+  deleteRequirement(requirementId: string, auth: AuthContext): Promise<void>;
   history(applicationId: string): Promise<ChairmanApplicationHistoryEntry[]>;
   transitionStatus(
     applicationId: string,
@@ -1384,6 +1401,38 @@ export function createMembershipApplicationRepository(
       }, databasePool());
     },
 
+    async findStoredDocument(documentId) {
+      const [rows] = await databasePool().execute<DocumentRow[]>(
+        `SELECT CAST(d.membership_application_document_id AS CHAR) AS id,
+                CAST(d.membership_application_id AS CHAR) AS applicationId,
+                d.document_type AS documentType,
+                d.original_file_name AS originalFileName,
+                d.stored_file_path AS storedFilePath,
+                d.mime_type AS mimeType,
+                d.file_size_bytes AS fileSizeBytes,
+                d.checksum_sha256 AS checksumSha256,
+                CAST(d.uploaded_by_user_id AS CHAR) AS uploadedByUserId,
+                d.uploaded_at AS uploadedAt
+           FROM membership_application_documents d
+          WHERE d.membership_application_document_id = ?
+          LIMIT 1`,
+        [documentId],
+      );
+      const document = rows[0];
+      if (!document?.storedFilePath) return null;
+      return {
+        id: document.id,
+        applicationId: document.applicationId,
+        documentType: document.documentType,
+        originalFileName: document.originalFileName,
+        mimeType: document.mimeType,
+        fileSizeBytes: document.fileSizeBytes,
+        checksumSha256: document.checksumSha256 ?? "",
+        uploadedAt: document.uploadedAt,
+        storedFilePath: document.storedFilePath,
+      };
+    },
+
     async createRequirement(applicationId, input, auth) {
       return withTransaction(async (connection) => {
         const [appRows] = await connection.execute<ExistingIdRow[]>(
@@ -1394,6 +1443,22 @@ export function createMembershipApplicationRepository(
           [applicationId],
         );
         if (!appRows[0]) throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
+
+        const [duplicateRows] = await connection.execute<ExistingIdRow[]>(
+          `SELECT CAST(membership_application_requirement_id AS CHAR) AS id
+             FROM membership_application_requirements
+            WHERE membership_application_id = ?
+              AND requirement_type = ?
+            LIMIT 1`,
+          [applicationId, input.requirementType],
+        );
+        if (duplicateRows[0]) {
+          throw new AppError(
+            "This requirement has already been added to the application",
+            409,
+            "MEMBERSHIP_REQUIREMENT_DUPLICATE",
+          );
+        }
 
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO membership_application_requirements
@@ -1491,6 +1556,59 @@ export function createMembershipApplicationRepository(
         );
         const requirements = await selectRequirements(connection, existing.applicationId);
         return requirements.find((requirement) => requirement.id === requirementId)!;
+      }, databasePool());
+    },
+
+    async deleteRequirement(requirementId, auth) {
+      return withTransaction(async (connection) => {
+        const [existingRows] = await connection.execute<(RowDataPacket & {
+          applicationId: string;
+          requirementType: RequirementType;
+          requirementStatus: RequirementStatus;
+          requestedMembershipType: RequestedMembershipType;
+        })[]>(
+          `SELECT CAST(r.membership_application_id AS CHAR) AS applicationId,
+                  requirement_type AS requirementType,
+                  requirement_status AS requirementStatus,
+                  requested_membership_type AS requestedMembershipType
+             FROM membership_application_requirements r
+             JOIN membership_applications a ON a.membership_application_id = r.membership_application_id
+            WHERE r.membership_application_requirement_id = ?
+            LIMIT 1
+            FOR UPDATE`,
+          [requirementId],
+        );
+        const existing = existingRows[0];
+        if (!existing) throw new AppError("Requirement was not found", 404, "MEMBERSHIP_REQUIREMENT_NOT_FOUND");
+        if (isProtectedRequirementType(existing.requestedMembershipType, existing.requirementType)) {
+          throw new AppError(
+            "Required membership checklist items cannot be deleted",
+            409,
+            "MEMBERSHIP_REQUIREMENT_PROTECTED",
+          );
+        }
+
+        await connection.execute(
+          `DELETE FROM membership_application_requirements
+            WHERE membership_application_requirement_id = ?`,
+          [requirementId],
+        );
+        await connection.execute(
+          `INSERT INTO audit_logs
+             (user_id, action, entity_table, record_id, description, old_values)
+           VALUES (?, 'membership_application.requirement_deleted',
+                   'membership_application_requirements', ?,
+                   'A membership application requirement was deleted.', ?)`,
+          [
+            auth.user.id,
+            requirementId,
+            JSON.stringify({
+              applicationId: existing.applicationId,
+              requirementType: existing.requirementType,
+              requirementStatus: existing.requirementStatus,
+            }),
+          ],
+        );
       }, databasePool());
     },
 

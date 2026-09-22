@@ -130,6 +130,185 @@ const NASUGBU_BARANGAYS = [
   "Bagong Silang", "Balaytigui", "Banilad", "Bilaran", "Biga", "Bucana", "Bulihan", "Bundulan", "Calayo", "Catandaan", "Cogunan", "Dayap", "Gabihan", "Gelerang Kawayan", "Nansangaan", "Panilao", "Papaya", "Pooc", "Reparo", "Salaban", "Talangan", "Tumalim", "Utod", "Wawa", "Poblacion", "Lumbangan", "Malapad na Bato",
 ].sort();
 
+const USE_PRESENTATION_DASHBOARD_DATA = true;
+
+function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashboardData {
+  const generatedAt = new Date().toISOString();
+  const demographics = [
+    { barangay: "Poblacion", totalMembers: 58, activeMembers: 49, needsMonitoring: 6, inactiveMembers: 3 },
+    { barangay: "Wawa", totalMembers: 42, activeMembers: 36, needsMonitoring: 4, inactiveMembers: 2 },
+    { barangay: "Bucana", totalMembers: 35, activeMembers: 29, needsMonitoring: 5, inactiveMembers: 1 },
+    { barangay: "Calayo", totalMembers: 31, activeMembers: 25, needsMonitoring: 4, inactiveMembers: 2 },
+    { barangay: "Banilad", totalMembers: 27, activeMembers: 21, needsMonitoring: 4, inactiveMembers: 2 },
+    { barangay: "Lumbangan", totalMembers: 23, activeMembers: 19, needsMonitoring: 3, inactiveMembers: 1 },
+    { barangay: "Tumalim", totalMembers: 19, activeMembers: 15, needsMonitoring: 3, inactiveMembers: 1 },
+    { barangay: "Papaya", totalMembers: 14, activeMembers: 11, needsMonitoring: 2, inactiveMembers: 1 },
+  ];
+
+  return {
+    generatedAt,
+    filters: {
+      period: filters.period ?? "year",
+      barangay: filters.barangay ?? null,
+      memberStatus: filters.memberStatus ?? null,
+      memberType: null,
+    },
+    metrics: {
+      totalMembers: 249,
+      newMembersThisPeriod: 18,
+      totalMembersGrowth: 7.8,
+      totalShareCapital: 3125000,
+      shareCapitalThisPeriod: 284000,
+      totalShareCapitalGrowth: 9.4,
+      pendingApprovals: 12,
+      pendingActionsCount: 17,
+      totalPosSales: 428750,
+      totalPosSalesGrowth: 12.5,
+      totalRentalIncome: 183500,
+      totalIncome: 612250,
+      totalExpenses: 218900,
+      netSurplus: 393350,
+      posTransactions: 386,
+    },
+    memberHealth: {
+      active: 204,
+      needsMonitoring: 32,
+      inactive: 13,
+    },
+    shareCapitalProgress: {
+      total: 3125000,
+      thisPeriod: 284000,
+      contributingMembers: 221,
+      reachedMinimum: 187,
+      reachedMaximum: 64,
+      belowMinimum: 62,
+      totalMembers: 249,
+    },
+    revenueTrend: [
+      { month: "Jan", income: 248000, expenses: 116000 },
+      { month: "Feb", income: 276000, expenses: 128500 },
+      { month: "Mar", income: 301500, expenses: 137800 },
+      { month: "Apr", income: 329000, expenses: 146200 },
+      { month: "May", income: 374000, expenses: 158900 },
+      { month: "Jun", income: 396500, expenses: 171000 },
+      { month: "Jul", income: 438250, expenses: 184750 },
+      { month: "Aug", income: 462800, expenses: 191300 },
+      { month: "Sep", income: 612250, expenses: 218900 },
+    ],
+    membershipTrend: [
+      { month: "Jan", members: 198 },
+      { month: "Feb", members: 205 },
+      { month: "Mar", members: 213 },
+      { month: "Apr", members: 219 },
+      { month: "May", members: 226 },
+      { month: "Jun", members: 232 },
+      { month: "Jul", members: 239 },
+      { month: "Aug", members: 244 },
+      { month: "Sep", members: 249 },
+    ],
+    incomeSources: [
+      { source: "Product / POS Sales", amount: 428750, pct: 70 },
+      { source: "Equipment Rental", amount: 183500, pct: 30 },
+    ],
+    demographics,
+    operationsSnapshot: {
+      pos: { totalSales: 428750, transactions: 386 },
+      rental: { totalIncome: 183500, completed: 41, pending: 9, upcoming: 14 },
+      inventory: {
+        lowStock: 7,
+        outOfStock: 2,
+        alerts: [
+          { productId: "PRD-001", productName: "Rice 25kg", stock: 8 },
+          { productId: "PRD-018", productName: "Corn Seeds 50kg", stock: 5 },
+        ],
+      },
+    },
+    inventoryAlerts: [
+      { productId: "PRD-001", productName: "Rice 25kg", stock: 8 },
+      { productId: "PRD-018", productName: "Corn Seeds 50kg", stock: 5 },
+    ],
+    recentTransactions: [
+      { id: "TX-1024", memberName: "Maria Santos", amount: 15000, date: generatedAt, reference: "Share Capital" },
+      { id: "TX-1025", memberName: "Juan Dela Cruz", amount: 2850, date: generatedAt, reference: "POS Sale" },
+      { id: "TX-1026", memberName: "Rafael Mendoza", amount: 9000, date: generatedAt, reference: "Rental" },
+    ],
+    actionItems: [
+      {
+        id: "pending-applications",
+        type: "Approval",
+        title: "12 membership applications pending",
+        description: "Review submitted requirements and approve qualified applicants.",
+        date: generatedAt,
+        module: "Members",
+        href: "/portal/chairman/members/applications",
+        severity: "warning",
+      },
+      {
+        id: "low-stock-products",
+        type: "Notification",
+        title: "7 products need restocking",
+        description: "Inventory has several products below the reorder level.",
+        date: generatedAt,
+        module: "Inventory",
+        href: "/portal/chairman/inventory",
+        severity: "warning",
+      },
+      {
+        id: "upcoming-rentals",
+        type: "Notification",
+        title: "14 upcoming equipment bookings",
+        description: "Check schedules and availability before confirming new rental requests.",
+        date: generatedAt,
+        module: "Rentals",
+        href: "/portal/chairman/rentals/bookings",
+        severity: "info",
+      },
+    ],
+    recentActivity: [
+      {
+        type: "membership",
+        title: "submitted a membership application",
+        actor: "Marlo Condicion",
+        reference: "APP-2026-041",
+        activityDate: generatedAt,
+        href: "/portal/chairman/members/applications",
+      },
+      {
+        type: "share_capital",
+        title: "paid share capital",
+        actor: "Maria Santos",
+        reference: "SC-2026-118",
+        activityDate: generatedAt,
+        href: "/portal/chairman/share-capital",
+      },
+      {
+        type: "rental",
+        title: "reserved equipment rental",
+        actor: "Rafael Mendoza",
+        reference: "RNT-2026-029",
+        activityDate: generatedAt,
+        href: "/portal/chairman/rentals/bookings",
+      },
+      {
+        type: "pos",
+        title: "completed a product purchase",
+        actor: "Ana Reyes",
+        reference: "POS-2026-5541",
+        activityDate: generatedAt,
+        href: "/portal/chairman/pos",
+      },
+      {
+        type: "inventory",
+        title: "updated low-stock inventory",
+        actor: "Bookkeeper",
+        reference: "INV-2026-017",
+        activityDate: generatedAt,
+        href: "/portal/chairman/inventory",
+      },
+    ],
+  };
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 export function DashboardClient() {
   const [data, setData] = useState<ChairmanDashboardData | null>(null);
@@ -166,6 +345,10 @@ export function DashboardClient() {
       if (barangay) filters.barangay = barangay;
       if (memberStatus) filters.memberStatus = memberStatus;
       if (incomeSource) filters.incomeSource = incomeSource;
+      if (USE_PRESENTATION_DASHBOARD_DATA) {
+        setData(getPresentationDashboardData(filters));
+        return;
+      }
       const result = await getChairmanDashboard(filters);
       setData(result);
     } catch (err: unknown) {

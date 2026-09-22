@@ -8,7 +8,7 @@ import {
 
 export async function GET(
   request: NextRequest,
-  context: RouteContext<"/api/documents/[id]/file">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await context.params;

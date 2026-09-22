@@ -70,4 +70,5 @@ export const listUnifiedStatusHistoryQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   search: z.string().trim().min(1).max(190).optional(),
   sourceModule: z.enum(["All", "Application", "Member", "Account"]).default("All"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });

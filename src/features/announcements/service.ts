@@ -4,7 +4,7 @@ import type { RowDataPacket } from "mysql2/promise";
 export async function getAnnouncements() {
   const [rows] = await db.query<RowDataPacket[]>(
     `SELECT 
-      id, title, message, excerpt, audience_type as audienceType,
+      announcement_id as id, title, message, excerpt, audience_type as audienceType,
       audience_value as audienceValue, announcement_status as announcementStatus,
       featured_image_path as featuredImagePath, created_at as createdAt
      FROM announcements

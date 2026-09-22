@@ -8,7 +8,7 @@ import {
 
 export async function PATCH(
   request: NextRequest,
-  context: RouteContext<"/api/reports/[id]">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireApiUser(["chairman", "bookkeeper"]);

@@ -1,7 +1,4 @@
 export type LandingCollection =
-  | "content-blocks"
-  | "services"
-  | "programs"
   | "partners"
   | "gallery";
 
@@ -23,10 +20,13 @@ export type LandingRow = Record<string, unknown> & {
   id: string;
 };
 
+export type GallerySlotInput = {
+  galleryGroupId?: string | null;
+  galleryImageId?: string | null;
+  displayOrder: number;
+};
+
 export type PublicLandingPayload = {
-  contentBlocks: LandingRow[];
-  services: LandingRow[];
-  programs: LandingRow[];
   partners: LandingRow[];
   gallery: LandingRow[];
 };

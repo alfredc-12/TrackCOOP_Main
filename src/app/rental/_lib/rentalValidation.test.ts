@@ -183,7 +183,7 @@ test("requires protected valid ID metadata for persisted rental submissions", ()
       ...validInquiry,
       validIdDocument: {
         originalFileName: "national-id.pdf",
-        storagePath: "storage/uploads/rental-valid-ids/2099/id.pdf",
+        storagePath: "public/uploads/rental-valid-ids/2099/id.pdf",
         mimeType: "application/pdf",
         fileSizeBytes: 512,
         checksumSha256: "a".repeat(64),

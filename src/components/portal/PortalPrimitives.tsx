@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +20,31 @@ export function StatCard({
   label,
   value,
   icon: Icon,
+  variant = "default",
   className,
 }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
+  variant?: "default" | "compact";
   className?: string;
 }) {
+  if (variant === "compact") {
+    return (
+      <article className={cn("min-w-0 rounded-lg border border-[#D9E2D8] bg-white p-4 shadow-[0_12px_28px_rgba(18,61,42,0.05)]", className)}>
+        <div className="flex items-center gap-4">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EEF6EC] text-[#1F6B43]">
+            <Icon className="size-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium text-[#6C7A70]">{label}</p>
+            <p className="text-2xl font-black leading-none text-[#123D2A]">{value}</p>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <div className={cn("min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]", className)}>
       <div className="flex items-center justify-between gap-3">
@@ -138,7 +157,7 @@ export function FormDialog({
 }: {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  title: string;
+  title: ReactNode;
   description?: string;
   trigger?: ReactNode;
   contentClassName?: string;
@@ -160,7 +179,7 @@ export function FormDialog({
               )}
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <Dialog.Title className="break-words text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
                   {description ? (
                     <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
@@ -188,6 +207,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
+  variant = "warning",
   onConfirm,
   trigger,
   children,
@@ -198,10 +218,14 @@ export function ConfirmDialog({
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: "warning" | "danger";
   onConfirm: () => void;
   trigger?: ReactNode;
   children?: ReactNode;
 }) {
+  const isDanger = variant === "danger";
+  const Icon = isDanger ? Trash2 : AlertCircle;
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
@@ -210,26 +234,56 @@ export function ConfirmDialog({
         <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto custom-scrollbar bg-transparent focus:outline-none">
           <div className="relative flex min-h-full items-center justify-center p-4 py-12">
             <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
-            <div className="relative z-10 w-[min(26rem,calc(100vw-2rem))] rounded-lg border border-[#CAD8CB] bg-white p-6 text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]">
-              <span className="mx-auto grid size-12 place-items-center rounded-lg bg-[#FFF4D7] text-[#8A6200]">
-                <AlertCircle className="size-6" aria-hidden="true" />
+            <div
+              className={cn(
+                "relative z-10 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border bg-white text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
+                isDanger ? "border-[#E7B8A8]" : "border-[#CAD8CB]",
+              )}
+            >
+              <div
+                className={cn(
+                  "absolute inset-x-0 top-0 h-24",
+                  isDanger
+                    ? "bg-[linear-gradient(180deg,rgba(255,244,236,0.95),rgba(255,255,255,0))]"
+                    : "bg-[linear-gradient(180deg,rgba(255,244,215,0.85),rgba(255,255,255,0))]",
+                )}
+                aria-hidden="true"
+              />
+              <div className="relative p-6 sm:p-7">
+              <span
+                className={cn(
+                  "mx-auto grid size-14 place-items-center rounded-2xl border shadow-[0_12px_30px_rgba(18,61,42,0.10)]",
+                  isDanger
+                    ? "border-[#E7B8A8] bg-[#FFF4EC] text-[#9A392A]"
+                    : "border-[#F2D89A] bg-[#FFF4D7] text-[#8A6200]",
+                )}
+              >
+                <Icon className="size-6" aria-hidden="true" />
               </span>
-              <Dialog.Title className="mt-4 text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
-              <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
+              <Dialog.Title className="mx-auto mt-5 max-w-[18rem] text-balance text-2xl font-black leading-tight text-[#123D2A]">
+                {title}
+              </Dialog.Title>
+              <Dialog.Description className="mx-auto mt-3 max-w-[22rem] text-sm leading-6 text-[#5D6D63]">
                 {description}
               </Dialog.Description>
               {children ? <div className="mt-4 text-left">{children}</div> : null}
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <Dialog.Close className="rounded-md border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-bold text-[#294B39] transition hover:bg-[#EEF2EC]">
+                <Dialog.Close className="min-h-12 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-black text-[#294B39] transition hover:border-[#9FB7A4] hover:bg-[#EEF2EC] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20">
                   {cancelLabel}
                 </Dialog.Close>
                 <button
                   type="button"
                   onClick={onConfirm}
-                  className="rounded-md bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
+                  className={cn(
+                    "min-h-12 rounded-lg px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_24px_rgba(18,61,42,0.18)] transition focus:outline-none focus:ring-2",
+                    isDanger
+                      ? "bg-[#8F2F25] hover:bg-[#73251D] focus:ring-[#E7B8A8]"
+                      : "bg-[#123D2A] hover:bg-[#1F6B43] focus:ring-[#1F6B43]/25",
+                  )}
                 >
                   {confirmLabel}
                 </button>
+              </div>
               </div>
             </div>
           </div>

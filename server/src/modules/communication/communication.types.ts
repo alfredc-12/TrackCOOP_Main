@@ -45,8 +45,8 @@ export const announcementAudiences = [
   "All Members",
   "Associate Members",
   "True Members",
-  "Role",
   "Barangay",
+  "Sector",
   "Selected Users",
 ] as const;
 
@@ -160,8 +160,13 @@ export type AnnouncementRecord = {
   excerpt: string | null;
   audienceType: AnnouncementAudience;
   audienceValue: string | null;
+  audienceTargets?: Array<{
+    targetType: "Barangay" | "Sector";
+    targetValue: string;
+  }>;
   announcementStatus: AnnouncementStatus;
   featuredImagePath: string | null;
+  images: string[];
   publishAt: Date | null;
   expiresAt: Date | null;
   postedAt: Date | null;

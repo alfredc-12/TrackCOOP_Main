@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Menu, UserRoundPlus, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -19,6 +19,7 @@ export default function SiteHeader({
 }: SiteHeaderProps) {
   const [activeNav, setActiveNav] = useState(initialActive);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [heroPassed, setHeroPassed] = useState(initialActive !== "home");
 
   useEffect(() => {
     if (!enableScrollSpy) return;
@@ -44,6 +45,28 @@ export default function SiteHeader({
     window.addEventListener("scroll", updateActiveSection, { passive: true });
     return () => window.removeEventListener("scroll", updateActiveSection);
   }, [enableScrollSpy, initialActive]);
+
+  useEffect(() => {
+    function updateHeroProgress() {
+      const hero = document.getElementById("home");
+      if (!hero) {
+        setHeroPassed(true);
+        return;
+      }
+
+      const threshold = hero.offsetTop + hero.offsetHeight - 96;
+
+      setHeroPassed(window.scrollY >= threshold);
+    }
+
+    updateHeroProgress();
+    window.addEventListener("scroll", updateHeroProgress, { passive: true });
+    window.addEventListener("resize", updateHeroProgress);
+    return () => {
+      window.removeEventListener("scroll", updateHeroProgress);
+      window.removeEventListener("resize", updateHeroProgress);
+    };
+  }, []);
 
   const activateNav = (id: string) => {
     if (enableScrollSpy) setActiveNav(id);
@@ -108,7 +131,6 @@ export default function SiteHeader({
             active={currentNav === "services"}
             onActivate={() => activateNav("services")}
             items={[
-              { label: "Membership Assistance", href: "/#services" },
               { label: "Become a Member", href: "/membership/apply" },
               { label: "Equipment Rental", href: "/rental" },
               { label: "Cooperative Store", href: "/store" },
@@ -147,11 +169,23 @@ export default function SiteHeader({
           >
             Helpdesk: (043) 000-0000
           </a>
-          <Link 
-            href="/membership/apply" 
-            className="hidden md:inline-flex h-10 items-center justify-center rounded-full border border-[#DDE8D8] bg-[#F8F1E5] px-5 text-sm font-semibold text-[#123D2A] transition hover:bg-[#EAF3E8]"
+          <Link
+            href="/membership/apply"
+            aria-label="Become a member"
+            aria-hidden={!heroPassed}
+            tabIndex={heroPassed ? undefined : -1}
+            className={`group hidden h-10 shrink-0 place-items-center overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] md:grid ${
+              heroPassed
+                ? "w-10 rounded-full border border-[#E4B83F] bg-[#F2C94C] text-[#123D2A] shadow-sm hover:bg-[#FFDD75] hover:text-[#0B3A29] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]"
+                : "pointer-events-none w-px rounded-none border-transparent bg-[#F2C94C] text-transparent"
+            }`}
           >
-            Become a Member
+            <UserRoundPlus
+              className={`size-5 transition duration-300 ${
+                heroPassed ? "scale-100 opacity-100" : "scale-50 opacity-0"
+              }`}
+              aria-hidden="true"
+            />
           </Link>
           <Link 
             href="/login" 
