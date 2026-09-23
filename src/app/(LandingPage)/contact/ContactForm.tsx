@@ -4,9 +4,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Send, Loader2 } from "lucide-react";
 import { createPublicRequest } from "@/features/communication/communication-api";
-import type { RequestType } from "@/features/communication/communication-types";
+import type { RequestType, RequestPriority } from "@/features/communication/communication-types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 
 import { Modal } from "@/components/ui/Modal";
 
@@ -30,6 +31,7 @@ export function ContactForm() {
     requesterPhone: "", // Store only the digits after +63
     requesterBarangay: "", // Store only the name/number after Brgy. 
     requestType: "General" as RequestType,
+    priority: "Normal" as RequestPriority,
     subject: "",
     message: "",
   });
@@ -130,6 +132,7 @@ export function ContactForm() {
         requesterPhone: "",
         requesterBarangay: "",
         requestType: "General",
+        priority: "Normal",
         subject: "",
         message: "",
       });
@@ -142,8 +145,10 @@ export function ContactForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-5">
-      <div className="grid gap-5 sm:grid-cols-2">
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="relative pb-5"><label className="grid gap-1.5 text-sm font-bold text-[#123D2A]"><span>Priority</span><StyledSelect value={formData.priority} options={["Low", "Normal", "High", "Urgent"]} onChange={(value) => setFormData((current) => ({ ...current, priority: value as RequestPriority }))} disabled={isSubmitting} prefix="Priority" /></label><p className="mt-1 text-xs text-[#789181]">Choose Urgent only when immediate attention is needed.</p></div>
+
         <div className="relative pb-5">
           <div className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
             <span>Full Name <span className="text-red-500">*</span></span>
@@ -217,23 +222,17 @@ export function ContactForm() {
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="relative pb-5">
           <label className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
             <span>Category <span className="text-red-500">*</span></span>
-            <select
-              name="requestType"
+            <StyledSelect
               value={formData.requestType}
-              onChange={handleChange}
+              options={REQUEST_CATEGORIES}
+              onChange={(value) => setFormData((current) => ({ ...current, requestType: value as RequestType }))}
               disabled={isSubmitting}
-              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
-            >
-              {REQUEST_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
+              prefix="Category"
+            />
           </label>
         </div>
 

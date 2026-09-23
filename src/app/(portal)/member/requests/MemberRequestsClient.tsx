@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Inbox, Plus, RefreshCcw, Send, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
@@ -14,6 +14,7 @@ import {
 } from "@/components/portal/PortalPrimitives";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { ApiClientError } from "@/lib/api-client";
 import {
   listRequests,
@@ -28,6 +29,7 @@ import type {
   RequestRecord,
   RequestStatus,
   RequestType,
+  RequestPriority,
 } from "@/features/communication/communication-types";
 
 const defaultQuery: ListRequestsQuery = {
@@ -72,6 +74,7 @@ export function MemberRequestsClient() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     requestType: "General" as RequestType,
+    priority: "Normal" as RequestPriority,
     subject: "",
     message: "",
   });
@@ -79,9 +82,17 @@ export function MemberRequestsClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [selectedRequestHistory, setSelectedRequestHistory] = useState<any[]>([]);
+  const threadScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (modalMode === "thread" && selectedRequestHistory.length > 0) {
+      requestAnimationFrame(() => { if (threadScrollRef.current) threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight; });
+    }
+  }, [modalMode, selectedRequestHistory]);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [memberReply, setMemberReply] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     setIsLoading(true);
@@ -141,6 +152,24 @@ export function MemberRequestsClient() {
     }
   };
 
+  const handleCancelInquiry = async () => {
+    if (!selectedId || isCancelling) return;
+    setIsCancelConfirmOpen(false);
+    setIsCancelling(true);
+    try {
+      const detail = await addRequestReply(selectedId, "The member would like to cancel this inquiry.");
+      setSelectedRequest(detail.request);
+      setSelectedRequestHistory(detail.history || []);
+      toast.success("Cancellation request sent to the Chairman.");
+    } catch {
+      toast.error("Unable to send the cancellation request.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const canCancelInquiry = Boolean(selectedRequest && !["Resolved", "Closed", "Cancelled"].includes(selectedRequest.requestStatus));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
@@ -165,13 +194,14 @@ export function MemberRequestsClient() {
     try {
       await createAuthenticatedRequest({
         requestType: formData.requestType,
+        priority: formData.priority,
         subject: formData.subject || undefined,
         message: formData.message,
       });
 
       toast.success("Request submitted successfully!");
       setIsFormOpen(false);
-      setFormData({ requestType: "General", subject: "", message: "" });
+      setFormData({ requestType: "General", priority: "Normal", subject: "", message: "" });
       setErrors({});
       void fetchRequests();
     } catch (caught) {
@@ -184,9 +214,9 @@ export function MemberRequestsClient() {
   return (
     <div className="grid gap-6">
       <PageHeader
-        eyebrow="Services"
-        title="My Requests"
-        description="Submit inquiries, track statuses, and communicate with the administration."
+        eyebrow="Communication"
+        title="My Requests & Inquiries"
+        description="Ask questions, track updates, and continue your conversation with the cooperative team."
         actions={
           <div className="flex gap-3">
             <Button
@@ -324,7 +354,7 @@ export function MemberRequestsClient() {
         description="Fill out the form below to submit a new inquiry or request to the administration."
         contentClassName="max-w-2xl"
       >
-        <form onSubmit={handleSubmit} className="grid gap-6 mt-4">
+        <form onSubmit={handleSubmit} className="grid gap-4 mt-3">
           <div className="grid gap-2">
             <label htmlFor="requestType" className="text-sm font-bold text-[#123D2A]">
               Category
@@ -341,6 +371,8 @@ export function MemberRequestsClient() {
               ))}
             </select>
           </div>
+
+          <div className="grid gap-2"><label htmlFor="requestPriority" className="text-sm font-bold text-[#123D2A]">Priority</label><StyledSelect value={formData.priority} options={["Low", "Normal", "High", "Urgent"]} onChange={(value) => setFormData({ ...formData, priority: value as RequestPriority })} disabled={isSubmitting} prefix="Priority" /><p className="text-xs text-[#789181]">Choose Urgent only when immediate attention is needed.</p></div>
 
           <div className="grid gap-2 relative">
             <label htmlFor="subject" className="text-sm font-bold text-[#123D2A] flex items-center gap-1">
@@ -404,7 +436,7 @@ export function MemberRequestsClient() {
           }
         }}
         title={`Request Details - ${selectedRequest?.referenceCode ?? ""}`}
-        contentClassName="max-w-2xl w-full"
+        contentClassName="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100vh-1rem)] overflow-hidden sm:w-full"
       >
         {isDetailLoading || !selectedRequest ? (
           <div className="py-12 flex justify-center text-[#6C7A70]">Loading details...</div>
@@ -456,12 +488,17 @@ export function MemberRequestsClient() {
               <>
             <div>
               <p className="text-sm font-bold text-[#123D2A] mb-4 border-b border-[#CAD8CB] pb-2">Conversation</p>
-              <div className="grid gap-4 relative max-h-[240px] overflow-y-auto pr-2 custom-scrollbar">
+              <div ref={threadScrollRef} className="grid gap-4 relative max-h-[240px] overflow-y-auto pr-2 custom-scrollbar">
                 {/* Timeline Line */}
                 <div className="absolute left-3.5 top-2 bottom-2 w-0.5 bg-[#CAD8CB]" />
                 
+                {/* Original inquiry first; replies are chronological so the latest stays last. */}
+                <div className="relative pl-10"><div className="absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm bg-slate-400" /><div className="rounded-lg border p-4 text-sm leading-relaxed bg-white border-slate-200 text-slate-800"><div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100"><span className="font-bold text-[#123D2A]">You</span><span className="text-xs opacity-75">{new Date(selectedRequest.submittedAt).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</span></div>{selectedRequest.subject && <strong className="block mb-2">{selectedRequest.subject}</strong>}<div className="whitespace-pre-wrap">{selectedRequest.message}</div></div></div>
+
                 {selectedRequestHistory
                   .filter(h => h.userVisibleMessage)
+                  .slice()
+                  .sort((a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime())
                   .map((historyItem, idx) => {
                     const isOwnReply = Boolean(user && historyItem.changedBy === user.id);
                     const isStaffReply = !isOwnReply;
@@ -470,7 +507,7 @@ export function MemberRequestsClient() {
                     if (senderLabel === "Test Chairman") senderLabel = "Chairman";
 
                     return (
-                      <div key={historyItem.id || idx} className="relative pl-10">
+                    <div key={historyItem.id || idx} className={`relative pl-10 ${idx === selectedRequestHistory.length - 1 ? "rounded-xl ring-2 ring-[#82E6A7]/40 ring-offset-2" : ""}`}>
                         {/* Timeline Dot */}
                         <div className={`absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm ${isOwnReply ? 'bg-[#1F6B43]' : 'bg-[#CAD8CB]'}`} />
                         
@@ -496,40 +533,19 @@ export function MemberRequestsClient() {
                     );
                   })}
 
-                {/* Original Message (Oldest, at bottom) */}
-                <div className="relative pl-10">
-                  <div className="absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm bg-slate-400" />
-                  <div className="rounded-lg border p-4 text-sm leading-relaxed bg-white border-slate-200 text-slate-800">
-                    <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-                      <span className="font-bold text-[#123D2A]">
-                        You
-                      </span>
-                      <span className="text-xs opacity-75">
-                        {new Date(selectedRequest.submittedAt).toLocaleString("en-PH", {
-                          timeZone: "Asia/Manila",
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    {selectedRequest.subject && <strong className="block mb-2">{selectedRequest.subject}</strong>}
-                    <div className="whitespace-pre-wrap">{selectedRequest.message}</div>
-                  </div>
-                </div>
               </div>
             </div>
                 <div className="mt-2">
                   <textarea
                     className="w-full rounded-md border border-[#CAD8CB] p-2.5 text-sm outline-none transition focus:border-[#1F6B43] custom-scrollbar"
                     rows={2}
+                    maxLength={1000}
                     placeholder="Type a reply here..."
                     value={memberReply}
                     onChange={(e) => setMemberReply(e.target.value)}
                     disabled={isSendingReply}
                   />
+                  <p className="mt-1 text-right text-xs text-[#789181]">{memberReply.length}/1000</p>
                 </div>
               </>
             )}
@@ -539,14 +555,32 @@ export function MemberRequestsClient() {
                 Close
               </Button>
               {modalMode === 'thread' && (
-                <Button onClick={handleSendReply} disabled={isSendingReply || !memberReply.trim()}>
-                  {isSendingReply ? "Sending..." : "Send Reply"}
-                </Button>
+                <>
+                  <Button onClick={() => setIsCancelConfirmOpen(true)} disabled={isSendingReply || isCancelling || !canCancelInquiry} className="min-w-[142px] border-[#D64545] bg-[#D64545] text-white hover:bg-[#B93636]">
+                    Cancel Inquiry
+                  </Button>
+                  <Button onClick={handleSendReply} disabled={isSendingReply || !memberReply.trim()} className="min-w-[142px]">
+                    {isSendingReply ? "Sending..." : "Send Reply"}
+                  </Button>
+                </>
               )}
             </div>
           </div>
         )}
       </FormDialog>
+      {isCancelConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#123D2A]/45 px-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-[#D7E5D8] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.25)]">
+            <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-[#FDE7E4] text-[#D64545]">!</div>
+            <h2 className="text-xl font-black text-[#123D2A]">Cancel this inquiry?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#5E7467]">A cancellation request will be sent to the Chairman for review.</p>
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={() => setIsCancelConfirmOpen(false)} className="h-11 flex-1 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#365F4A] hover:bg-[#F4F8F3]">Keep Inquiry</button>
+              <button type="button" onClick={handleCancelInquiry} className="h-11 flex-1 rounded-md bg-[#D64545] px-4 text-sm font-bold text-white hover:bg-[#B93636]">Confirm Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
