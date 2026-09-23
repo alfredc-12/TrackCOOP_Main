@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink } from "lucide-react";
+import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ type InventoryItem = {
     id: number;
     name: string;
     category: string;
+    description?: string;
     unit: string;
     price: number;
     stock: number;
@@ -28,6 +29,12 @@ interface CartItem {
     img: string;
     category: string;
     unit: string;
+}
+
+function MemberThemedSelect({ value, onChange, options, ariaLabel }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; ariaLabel: string }) {
+    const [open, setOpen] = useState(false);
+    const selected = options.find((option) => option.value === value)?.label ?? value;
+    return <div className="relative"><button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex min-w-[190px] items-center justify-between gap-4 rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"><span>{selected}</span><ChevronDown className={`size-4 text-[#52705D] transition ${open ? "rotate-180" : ""}`} /></button>{open && <div role="listbox" className="absolute left-0 top-full z-[80] mt-2 min-w-full overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button type="button" role="option" aria-selected={value === option.value} key={option.value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center justify-between whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm transition ${value === option.value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>{option.label}{value === option.value && <span className="text-lg text-[#1F6B43]">✓</span>}</button>)}</div>}</div>;
 }
 
 function formatQuantityUnit(quantity: number | string, unit?: string) {
@@ -124,6 +131,8 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [sortBy, setSortBy] = useState("name-asc");
+    const [productPage, setProductPage] = useState(1);
+    const productsPerPage = 8;
 
     const fetchInventory = useCallback(async () => {
         try {
@@ -237,6 +246,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 case "name-asc": default: return a.name.localeCompare(b.name);
             }
         });
+
+    const productPageCount = Math.max(1, Math.ceil(filteredAndSortedInventory.length / productsPerPage));
+    const paginatedInventory = filteredAndSortedInventory.slice((productPage - 1) * productsPerPage, productPage * productsPerPage);
 
     const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalCartPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -385,12 +397,15 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     };
 
     return (
-        <div className="flex-1 overflow-y-auto bg-white sm:p-8 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[calc(100vh-6rem)] relative">
+        <div className="-mx-4 -my-6 min-h-screen flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
             {/* Header */}
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
+                <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
+                <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-[#1e293b]">Cooperative Shop</h2>
-                    <p className="text-sm text-[#64748b] mt-1">Order agricultural supplies directly from the cooperative.</p>
+                    <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative marketplace</div>
+                    <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Cooperative Shop</h2>
+                    <p className="mt-2 text-sm leading-6 text-white/75">Order agricultural supplies directly from the cooperative.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     {!isPublicView && (
@@ -399,7 +414,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                 fetchHistory();
                                 setIsHistoryOpen(true);
                             }}
-                            className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-sm hover:bg-gray-50 transition relative"
+                            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-white/20 relative"
                         >
                             <History className="size-4" />
                             Order History
@@ -419,7 +434,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             )}
                         </button>
                     )}
-                </div>
+                </div></div>
             </div>
 
             {isPublicView && (
@@ -440,31 +455,20 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             )}
 
             {/* Toolbar */}
-            <div className="flex flex-col gap-4 mb-6 border-b border-gray-100 pb-6 mt-4">
+            <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="relative w-full max-w-md">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => { setSearchQuery(e.target.value); setProductPage(1); }}
                             placeholder="Search Products..."
                             className="w-full rounded-full border border-gray-200 bg-[#f8fafc] py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                         />
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className="appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                            >
-                                <option value="name-asc">Sort by: Name (A-Z)</option>
-                                <option value="price-asc">Sort by: Price (Low to High)</option>
-                                <option value="price-desc">Sort by: Price (High to Low)</option>
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        </div>
+                        <MemberThemedSelect value={sortBy} onChange={(value) => { setSortBy(value); setProductPage(1); }} ariaLabel="Sort products" options={[{ value: "name-asc", label: "Sort by: Name (A–Z)" }, { value: "price-asc", label: "Sort by: Price (Low to High)" }, { value: "price-desc", label: "Sort by: Price (High to Low)" }]} />
                     </div>
                 </div>
 
@@ -473,7 +477,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                     {categoryTabs.map(cat => (
                         <button
                             key={cat}
-                            onClick={() => setSelectedCategory(cat)}
+                            onClick={() => { setSelectedCategory(cat); setProductPage(1); }}
                             className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${selectedCategory === cat
                                 ? "bg-[#123D2A] text-white shadow-sm"
                                 : "bg-gray-50 text-gray-600 hover:bg-gray-100"
@@ -483,18 +487,23 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                         </button>
                     ))}
                 </div>
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {filteredAndSortedInventory.length} available product{filteredAndSortedInventory.length === 1 ? "" : "s"}</span>{searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setProductPage(1); }} className="font-bold text-[#1F6B43] hover:underline">Clear search</button>}</div>
             </div>
+
+            {isPublicView && checkoutStep === "cart" && (
+                <div className="mb-5 rounded-xl border border-[#D8E5DB] bg-[#EEF8F0] px-4 py-3 text-sm text-[#52705D]"><span className="font-bold text-[#123D2A]">Guest checkout:</span> Add items to your cart, then provide your contact details before secure payment.</div>
+            )}
 
             {/* Product Grid */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-12">
                 {filteredAndSortedInventory.length > 0 ? (
-                    filteredAndSortedInventory.map(item => {
+                    paginatedInventory.map(item => {
                         const cartItem = cart.find(c => c.id === item.id);
 
                         return (
-                            <div key={item.id} className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-gray-100 transition hover:shadow-lg">
+                            <div key={item.id} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(18,61,42,0.14)]">
                                 <div className="relative h-48 bg-[#f4f7f9] p-4 flex items-center justify-center rounded-t-2xl overflow-hidden">
-                                    <span className={`absolute left-4 top-4 rounded-md px-2.5 py-1 text-xs font-semibold text-white z-10 ${item.status === 'Available' ? 'bg-[#22c55e]' : 'bg-[#ef4444]'}`}>
+                                    <span className={`absolute left-4 top-4 rounded-lg px-2.5 py-1 text-xs font-bold text-white z-10 shadow-sm ${item.status === 'Available' ? 'bg-[#16B864]' : 'bg-[#EF4444]'}`}>
                                         {item.status}
                                     </span>
                                     {item.img ? (
@@ -505,15 +514,17 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
                                 </div>
                                 <div className="flex flex-col p-5 flex-1">
-                                    <h3 className="font-bold text-[#1e293b] mb-6 truncate leading-tight text-base">{item.name}</h3>
+                                    <div className="mb-4"><h3 className="font-black text-[#123D2A] truncate leading-tight text-base transition group-hover:text-[#1F6B43]">{item.name}</h3><p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#789181]">{item.category}</p></div>
+                                    <p className="mb-4 min-h-10 line-clamp-2 text-xs leading-5 text-[#607A6B]">{item.description || "Cooperative agricultural supply."}</p>
 
                                     <div className="flex justify-between items-center text-sm mb-3">
                                         <span className="text-[#94a3b8]">Quantity</span>
                                         <div className="flex flex-col items-end">
                                             <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
                                             {item.pending_qty ? (
-                                                <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
+                                                <span className="text-[10px] font-semibold uppercase tracking-wide text-orange-500">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
                                             ) : null}
+                                            {(item.stock - (item.pending_qty || 0)) <= 5 && <span className="text-[10px] font-bold uppercase tracking-wide text-orange-600">Only {formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)} left</span>}
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center text-sm mb-5">
@@ -551,8 +562,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                                     if (!cartItem) addToCart(item);
                                                     setActiveAdjustItemId(item.id);
                                                 }}
-                                                className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition shadow-sm ${cartItem ? 'bg-white border border-[#123D2A] text-[#123D2A] hover:bg-gray-50' : 'bg-[#123D2A] text-white hover:bg-[#123D2A]/90'}`}>
-                                                {cartItem ? `${formatQuantityUnit(cartItem.quantity, cartItem.unit)} In Cart - Edit` : 'Add to Cart'}
+                                                disabled={item.status !== 'Available' || (item.stock - (item.pending_qty || 0)) <= 0}
+                                                className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition shadow-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 ${cartItem ? 'bg-white border border-[#123D2A] text-[#123D2A] hover:bg-gray-50' : 'bg-[#123D2A] text-white hover:bg-[#123D2A]/90'}`}>
+                                                {item.status !== 'Available' || (item.stock - (item.pending_qty || 0)) <= 0 ? 'Unavailable' : cartItem ? `${formatQuantityUnit(cartItem.quantity, cartItem.unit)} In Cart - Edit` : 'Add to Cart'}
                                             </button>
                                         )}
                                     </div>
@@ -569,6 +581,23 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 )}
             </div>
 
+            {filteredAndSortedInventory.length > 0 && (
+                <div className="mb-12 flex flex-wrap items-center justify-center gap-2 border-t border-[#DDE9E0] pt-5">
+                    <button type="button" onClick={() => setProductPage(1)} disabled={productPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="First page" aria-label="First product page"><ChevronsLeft className="size-4" /></button>
+                    <button type="button" onClick={() => setProductPage((page) => Math.max(1, page - 1))} disabled={productPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Previous page" aria-label="Previous product page"><ChevronLeft className="size-4" /></button>
+                    <span className="px-2 text-sm font-bold text-[#123D2A]">Page {productPage} of {productPageCount} · Showing {filteredAndSortedInventory.length} products</span>
+                    <button type="button" onClick={() => setProductPage((page) => Math.min(productPageCount, page + 1))} disabled={productPage === productPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Next page" aria-label="Next product page"><ChevronRight className="size-4" /></button>
+                    <button type="button" onClick={() => setProductPage(productPageCount)} disabled={productPage === productPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Last page" aria-label="Last product page"><ChevronsRight className="size-4" /></button>
+                </div>
+            )}
+
+            {totalCartItems > 0 && (
+                <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-2xl border border-[#BBD7C1] bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(18,61,42,0.2)] backdrop-blur-md sm:hidden">
+                    <div><p className="text-xs font-bold text-[#789181]">{totalCartItems} item{totalCartItems === 1 ? "" : "s"} in cart</p><p className="font-black text-[#123D2A]">₱ {finalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p></div>
+                    <button type="button" onClick={openCart} className="rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white">View cart</button>
+                </div>
+            )}
+
             {/* Shopping Cart Sidebar */}
             {isCartOpen && (
                 <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
@@ -584,6 +613,11 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             >
                                 <X className="size-5" />
                             </button>
+                        </div>
+                        <div className="flex items-center gap-2 border-b border-[#DDE9E0] bg-white px-6 py-3 text-xs font-bold">
+                            <span className={`rounded-full px-3 py-1 ${checkoutStep === "cart" ? "bg-[#123D2A] text-white" : "bg-[#EAF5EC] text-[#52705D]"}`}>1. Cart</span>
+                            <span className="h-px flex-1 bg-[#DDE9E0]" />
+                            <span className={`rounded-full px-3 py-1 ${checkoutStep === "payment" ? "bg-[#123D2A] text-white" : "bg-[#F1F5F2] text-[#789181]"}`}>2. Customer & Payment</span>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 bg-white custom-scrollbar">

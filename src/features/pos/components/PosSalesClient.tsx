@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Loader2 } from "lucide-react";
+import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Loader2, RefreshCw, CalendarDays, CircleDollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 type PosOrderItem = {
@@ -28,15 +28,28 @@ type PosOrder = {
   items?: PosOrderItem[];
 };
 
+function PosThemedSelect({ value, onChange, options, ariaLabel }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; ariaLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value)?.label ?? value;
+  return <div className="relative">
+    <button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex min-w-[150px] items-center justify-between gap-4 rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"><span>{selected}</span><ChevronDown className={`size-4 text-[#52705D] transition ${open ? "rotate-180" : ""}`} /></button>
+    {open && <div role="listbox" className="absolute left-0 top-full z-[80] mt-2 min-w-full overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button type="button" role="option" aria-selected={value === option.value} key={option.value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center justify-between whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm transition ${value === option.value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>{option.label}{value === option.value && <span className="text-lg text-[#1F6B43]">✓</span>}</button>)}</div>}
+  </div>;
+}
+
 function formatMoney(value: number | string) {
-  return `P ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+  return `₱ ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 }
 
 export default function PosSalesClient() {
   const [orders, setOrders] = useState<PosOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState("All time");
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
@@ -57,18 +70,25 @@ export default function PosSalesClient() {
     try {
       const response = await fetch("/api/pos/orders", { cache: "no-store" });
       if (!response.ok) {
-        setOrders([]);
-        return;
+        throw new Error("Unable to load POS sales.");
       }
 
       setOrders((await response.json()) as PosOrder[]);
+      setLoadError("");
+      setLastUpdated(new Date());
     } catch (error) {
       console.error("Failed to fetch POS orders", error);
-      setOrders([]);
+      setLoadError("POS sales could not be loaded. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const refreshOrders = async () => {
+    setIsRefreshing(true);
+    await fetchOrders();
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -96,21 +116,23 @@ export default function PosSalesClient() {
 
   const filteredOrders = useMemo(() => {
     const query = searchQuery.toLowerCase();
+    const now = new Date();
 
     return orders.filter((order) => {
       const matchesStatus = statusFilter === "All" || order.sale_status === statusFilter;
+      const saleDate = new Date(order.sale_date);
+      const matchesDate = dateFilter === "All time"
+        || (dateFilter === "Today" && saleDate.toDateString() === now.toDateString())
+        || (dateFilter === "This week" && now.getTime() - saleDate.getTime() <= 7 * 24 * 60 * 60 * 1000)
+        || (dateFilter === "This month" && saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear());
       const matchesSearch =
         order.sale_number.toLowerCase().includes(query) ||
         (order.customer_name ?? "").toLowerCase().includes(query) ||
         (order.customer_contact ?? "").toLowerCase().includes(query);
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesDate && matchesSearch;
     });
-  }, [orders, searchQuery, statusFilter]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
+  }, [orders, searchQuery, statusFilter, dateFilter]);
 
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -124,6 +146,8 @@ export default function PosSalesClient() {
   const totalSales = orders
     .filter((order) => order.sale_status === "Paid")
     .reduce((sum, order) => sum + Number(order.total_amount), 0);
+  const cashSales = orders.filter((order) => order.sale_status === "Paid" && !order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
+  const gcashSales = orders.filter((order) => order.sale_status === "Paid" && order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
 
   const confirmPayment = (orderId: number) => {
     setOrderToConfirmId(orderId);
@@ -237,49 +261,62 @@ export default function PosSalesClient() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[#f8faf5] p-6 sm:p-8">
+    <main className="-mx-4 -my-6 flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 border-b border-[#d8e4d6] pb-6">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#c78800]">Operations</p>
-          <h1 className="text-4xl font-black tracking-tight text-[#09351f]">POS Sales</h1>
-          <p className="mt-3 max-w-3xl text-sm text-[#365944]">
-            Review cooperative store orders, verify payments, and finalize sales. Stock is managed from Inventory.
-          </p>
-        </div>
-
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-[#d8e4d6] bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-[#607a6b]">Pending Orders</p>
-            <p className="mt-2 text-3xl font-black text-[#123D2A]">{pendingCount}</p>
-          </div>
-          <div className="rounded-xl border border-[#d8e4d6] bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-[#607a6b]">Paid Sales</p>
-            <p className="mt-2 text-3xl font-black text-[#123D2A]">{paidCount}</p>
-          </div>
-          <div className="rounded-xl border border-[#d8e4d6] bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-[#607a6b]">Validated Sales</p>
-            <p className="mt-2 text-3xl font-black text-[#123D2A]">{formatMoney(totalSales)}</p>
+        <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
+          <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative operations</div>
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">POS Sales Command Center</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">Review orders, verify payments, and keep cooperative sales moving.</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#CDE8D4]/20 bg-[#D8F0DE]/10 px-4 py-3">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><CircleDollarSign className="size-5" /></div>
+              <div><p className="text-xs font-semibold text-white/60">Sales health</p><p className="font-bold">{pendingCount ? `${pendingCount} order${pendingCount > 1 ? "s" : ""} pending` : "All payments validated"}</p></div>
+            </div>
           </div>
         </div>
 
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full max-w-md">
+        <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            ["Pending Orders", String(pendingCount), "Orders awaiting review"],
+            ["Paid Sales", String(paidCount), "Validated transactions"],
+            ["Validated Sales", formatMoney(totalSales), "All paid orders"],
+            ["Cash Sales", formatMoney(cashSales), "Paid POS orders"],
+            ["GCash Sales", formatMoney(gcashSales), "Paid online orders"],
+          ].map(([label, value, hint], index) => (
+            <div key={label} className="flex min-h-[118px] items-center gap-3 rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+              <div className="shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">{index === 0 ? <AlertCircle className="size-5" /> : index === 1 ? <CheckCircle className="size-5" /> : index === 4 ? <Smartphone className="size-5" /> : <Banknote className="size-5" />}</div>
+              <div className="min-w-0"><p className="text-xs font-bold text-gray-500">{label}</p><p className="text-[10px] leading-4 text-gray-400">{hint}</p><p className="break-words text-lg font-black leading-7 text-[#123D2A]">{value}</p></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#7d9a89]" />
             <input
               type="search"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }}
               placeholder="Search order or customer..."
               className="w-full rounded-xl border border-[#d8e4d6] bg-white py-3 pl-12 pr-4 text-sm text-[#123D2A] outline-none transition focus:border-[#0f7a46] focus:ring-2 focus:ring-[#0f7a46]/15"
             />
           </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {["All", "Pending Payment", "Paid", "Cancelled"].map((status) => (
+          <div className="flex items-center gap-2">
+            <CalendarDays className="hidden size-4 text-[#52705D] sm:block" />
+            <PosThemedSelect value={dateFilter} onChange={(value) => { setDateFilter(value); setCurrentPage(1); }} ariaLabel="Filter sales by date" options={['All time', 'Today', 'This week', 'This month'].map((date) => ({ value: date, label: date }))} />
+            <button type="button" onClick={() => void refreshOrders()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60"><RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Refresh</span></button>
+          </div>
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {["All", "Pending Payment", "Paid", "Rejected"].map((status) => (
               <button
                 key={status}
                 type="button"
-                onClick={() => setStatusFilter(status)}
+                onClick={() => { setStatusFilter(status); setCurrentPage(1); }}
                 className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition ${
                   statusFilter === status
                     ? "bg-[#123D2A] text-white shadow-sm"
@@ -290,17 +327,29 @@ export default function PosSalesClient() {
               </button>
             ))}
           </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-[#789181]">
+            <span>Showing {filteredOrders.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length} orders</span>
+            {lastUpdated && <span>Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+          </div>
         </div>
 
         {isLoading ? (
-          <div className="rounded-xl border border-[#d8e4d6] bg-white p-12 text-center text-sm font-semibold text-[#607a6b]">
-            Loading POS sales...
+          <div className="rounded-2xl border border-[#d8e4d6] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3 text-sm font-semibold text-[#607a6b]"><Loader2 className="size-5 animate-spin text-[#1F6B43]" /> Loading POS sales...</div>
+            <div className="space-y-3">{[1, 2, 3].map((row) => <div key={row} className="h-14 animate-pulse rounded-xl bg-[#EEF5EF]" />)}</div>
+          </div>
+        ) : loadError ? (
+          <div className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
+            <AlertCircle className="mx-auto mb-3 size-10 text-red-500" />
+            <h2 className="text-lg font-bold text-[#123D2A]">Unable to load sales</h2>
+            <p className="mt-1 text-sm text-[#607a6b]">{loadError}</p>
+            <button type="button" onClick={() => void refreshOrders()} className="mt-5 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white hover:bg-[#1F6B43]">Try again</button>
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#b9cdbc] bg-white p-12 text-center">
             <ShoppingBag className="mx-auto mb-3 size-10 text-[#9bb4a4]" />
             <h2 className="text-lg font-bold text-[#123D2A]">No POS sales found</h2>
-            <p className="mt-1 text-sm text-[#607a6b]">Orders from the member shop and public store will appear here.</p>
+            <p className="mt-1 text-sm text-[#607a6b]">{searchQuery || statusFilter !== "All" || dateFilter !== "All time" ? "Try changing your search or filters." : "Orders from the member shop and public store will appear here."}</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-[#d8e4d6] bg-white shadow-sm">
@@ -328,6 +377,8 @@ export default function PosSalesClient() {
                           ? "bg-[#fff0d8] text-[#9a5a00]"
                           : order.sale_status === "Paid"
                             ? "bg-[#e1f6e7] text-[#126b37]"
+                            : order.sale_status === "Rejected"
+                              ? "bg-[#fff1f1] text-[#b42318]"
                             : "bg-[#eef1f0] text-[#607a6b]"
                       }`}>
                         {order.sale_status}

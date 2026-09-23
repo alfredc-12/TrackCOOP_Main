@@ -186,14 +186,52 @@ function CategoryCombobox({ label, value, onChange, categories, placeholder = "S
     );
 }
 
+function ThemedSelect({
+    value,
+    onChange,
+    options,
+    ariaLabel,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+    ariaLabel: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const selected = options.find((option) => option.value === value)?.label ?? value;
+
+    return (
+        <div className="relative">
+            <button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex w-full items-center justify-between rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-medium text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
+                <span>{selected}</span>
+                <ChevronDown className={`size-4 text-[#52705D] transition ${open ? "rotate-180" : ""}`} />
+            </button>
+            {open && (
+                <div className="absolute left-0 right-0 top-full z-[90] mt-2 overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]" role="listbox" aria-label={ariaLabel}>
+                    {options.map((option) => (
+                        <button key={option.value} type="button" role="option" aria-selected={value === option.value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${value === option.value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>
+                            {option.label}{value === option.value && <span className="text-[#1F6B43]">✓</span>}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function ChairmanPosInventoryClient() {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
     const [orders, setOrders] = useState<PosOrder[]>([]);
     const [orderSearchQuery, setOrderSearchQuery] = useState("");
+    const [orderStatusFilter, setOrderStatusFilter] = useState("All");
     const [ordersCurrentPage, setOrdersCurrentPage] = useState(1);
+    const [inventoryPage, setInventoryPage] = useState(1);
 
     const fetchInventory = useCallback(async () => {
         try {
@@ -201,6 +239,7 @@ export default function ChairmanPosInventoryClient() {
             if (res.ok) {
                 const data = await res.json();
                 setInventory(data as InventoryItem[]);
+                setLastUpdated(new Date());
             }
         } catch (error) {
             console.error("Failed to fetch inventory", error);
@@ -218,6 +257,13 @@ export default function ChairmanPosInventoryClient() {
             console.error(error);
         }
     }, []);
+
+    const refreshInventory = async () => {
+        setIsRefreshing(true);
+        await Promise.all([fetchInventory(), fetchOrdersQuietly()]);
+        setIsRefreshing(false);
+        toast.success("Inventory is up to date.");
+    };
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
@@ -245,6 +291,9 @@ export default function ChairmanPosInventoryClient() {
 
     const [isGlobalHistoryModalOpen, setIsGlobalHistoryModalOpen] = useState(false);
     const [globalHistory, setGlobalHistory] = useState<StockActivityLog[]>([]);
+    const [activitySearchQuery, setActivitySearchQuery] = useState("");
+    const [activityTypeFilter, setActivityTypeFilter] = useState<"All" | "add" | "deduct">("All");
+    const [activityCurrentPage, setActivityCurrentPage] = useState(1);
     const [pendingAction, setPendingAction] = useState<"add" | "edit" | "stock" | null>(null);
     const [stockErrorMsg, setStockErrorMsg] = useState<string | null>(null);
     const fetchGlobalHistory = async () => {
@@ -253,6 +302,7 @@ export default function ChairmanPosInventoryClient() {
             if (res.ok) {
                 const data = await res.json();
                 setGlobalHistory(data as StockActivityLog[]);
+                setActivityCurrentPage(1);
                 setIsGlobalHistoryModalOpen(true);
             }
         } catch (error) {
@@ -267,6 +317,7 @@ export default function ChairmanPosInventoryClient() {
                 const data = await res.json();
                 setOrders(data as PosOrder[]);
                 setOrderSearchQuery(""); // Reset search on open
+                setOrderStatusFilter("All");
                 setIsOrdersModalOpen(true);
             }
         } catch (error) {
@@ -680,76 +731,130 @@ export default function ChairmanPosInventoryClient() {
         return item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
     }).length;
 
+    const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== "All";
+    const clearFilters = () => {
+        setSearchQuery("");
+        setSelectedCategory("All");
+        setInventoryPage(1);
+    };
+
+    const inventoryPageSize = 8;
+    const inventoryPageCount = Math.max(1, Math.ceil(filteredAndSortedInventory.length / inventoryPageSize));
+    const paginatedInventory = filteredAndSortedInventory.slice((inventoryPage - 1) * inventoryPageSize, inventoryPage * inventoryPageSize);
+
+    const filteredActivityLogs = globalHistory.filter((log) => {
+        const name = log.inventoryItem?.name?.toLowerCase() ?? "";
+        return name.includes(activitySearchQuery.toLowerCase()) && (activityTypeFilter === "All" || log.type === activityTypeFilter);
+    });
+    const activityPageSize = 5;
+    const activityPageCount = Math.max(1, Math.ceil(filteredActivityLogs.length / activityPageSize));
+    const paginatedActivityLogs = filteredActivityLogs.slice((activityCurrentPage - 1) * activityPageSize, activityCurrentPage * activityPageSize);
+
     if (!isMounted) {
         return null; // Prevent hydration mismatches from browser extensions (e.g., password managers adding fdprocessedid)
     }
 
     return (
-        <div className="flex-1 overflow-y-auto bg-white sm:p-8 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[calc(100vh-6rem)]">
+      <div className="-mx-4 -my-6 w-auto overflow-x-hidden bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+            {/* Branded overview banner */}
+            <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
+                <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
+                <div className="absolute -bottom-24 right-28 size-44 rounded-full bg-[#F6D354]/15 blur-2xl" />
+                <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]">
+                            <span className="h-2 w-2 rounded-full bg-[#F6D354] shadow-[0_0_0_5px_rgba(246,211,84,0.18)]" />
+                            Cooperative operations
+                        </div>
+                        <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Inventory Command Center</h2>
+                        <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">Keep products available, monitor stock movement, and respond quickly to orders across the cooperative.</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#CDE8D4]/20 bg-[#D8F0DE]/10 px-4 py-3 backdrop-blur-sm">
+                        <div className="flex size-10 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D] shadow-sm">
+                            <Sprout className="size-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-white/60">Catalog health</p>
+                            <p className="font-bold">{lowStockCount > 0 ? `${lowStockCount} item${lowStockCount > 1 ? "s" : ""} need attention` : "All stock levels healthy"}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-8">
-                <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
-                    <div className="p-3 mr-4 text-[#123D2A] bg-[#F8F1E5] rounded-xl">
+            <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43] shadow-sm">
                         <Wheat className="w-6 h-6" />
                     </div>
-                    <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Total Products</p>
-                        <p className="text-2xl font-bold text-gray-900">{inventory.length}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="mb-0.5 text-xs font-bold text-gray-500">Total Products</p>
+                        <p className="text-[10px] leading-4 text-gray-400">Active catalog items</p>
+                        <p className="break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 text-[#123D2A]">{inventory.length}</p>
                     </div>
                 </div>
 
-                <div className={`flex items-center p-5 bg-white border rounded-2xl shadow-sm transition hover:shadow-md ${lowStockCount > 0 ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
-                    <div className={`p-3 mr-4 rounded-xl ${lowStockCount > 0 ? 'text-red-600 bg-red-100 animate-pulse' : 'text-gray-400 bg-gray-50'}`}>
+                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                    <div className={`mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]`}>
                         <AlertCircle className="w-6 h-6" />
                     </div>
-                    <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Low Stock Alerts</p>
-                        <p className={`text-2xl font-bold ${lowStockCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{lowStockCount}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="mb-0.5 text-xs font-bold text-gray-500">Low Stock Alerts</p>
+                        <p className="text-[10px] leading-4 text-gray-400">At or below reorder level</p>
+                        <p className={`break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 ${lowStockCount > 0 ? 'text-red-600' : 'text-[#123D2A]'}`}>{lowStockCount}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
-                    <div className="p-3 mr-4 text-emerald-600 bg-emerald-50 rounded-xl">
+                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
                         <Sprout className="w-6 h-6" />
                     </div>
-                    <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Total Stock Value</p>
-                        <p className="text-2xl font-bold text-gray-900">₱ {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="mb-0.5 text-xs font-bold text-gray-500">Total Stock Value</p>
+                        <p className="text-[10px] leading-4 text-gray-400">Based on selling price</p>
+                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
-                    <div className="p-3 mr-4 text-green-600 bg-green-50 rounded-xl">
+                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
                         <Banknote className="w-6 h-6" />
                     </div>
-                    <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Total Cash Sales</p>
-                        <p className="text-2xl font-bold text-gray-900">₱ {totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="mb-0.5 text-xs font-bold text-gray-500">Cash Sales</p>
+                        <p className="text-[10px] leading-4 text-gray-400">Paid POS orders</p>
+                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center p-5 bg-white border border-gray-100 rounded-2xl shadow-sm transition hover:shadow-md">
-                    <div className="p-3 mr-4 text-blue-600 bg-blue-50 rounded-xl">
+                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
                         <Smartphone className="w-6 h-6" />
                     </div>
-                    <div>
-                        <p className="mb-1 text-sm font-medium text-gray-500">Total GCash Sales</p>
-                        <p className="text-2xl font-bold text-gray-900">₱ {totalGCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="mb-0.5 text-xs font-bold text-gray-500">GCash Sales</p>
+                        <p className="text-[10px] leading-4 text-gray-400">Paid online orders</p>
+                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalGCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
             </div>
 
             {/* Header */}
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white/75 p-5 shadow-sm backdrop-blur-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-[#1e293b]">All Inventory Items</h2>
-                    <p className="text-sm text-[#64748b] mt-1">Manage all inventory across warehouses in real-time.</p>
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-[#F2C94C] shadow-[0_0_0_4px_rgba(242,201,76,0.18)]" />
+                        <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B8A76]">Operations / Products</span>
+                    </div>
+                    <h2 className="text-3xl font-bold text-[#123D2A]">All Inventory Items</h2>
+                    <p className="text-sm text-[#64748b] mt-1">Manage products, stock levels, and reorder alerts.</p>
+                    <p className="mt-2 text-xs font-medium text-[#789181]">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading inventory…"}</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={fetchOrders}
-                        className="relative flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 hover:border-gray-300 active:translate-y-0 active:scale-95 transition-all duration-300 group"
+                        className="relative flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
                         <ShoppingBag className="size-4 text-gray-500 group-hover:text-[#123D2A] transition-colors" /> Orders & Payments
                         {orders.filter(o => o.sale_status === 'Pending Payment').length > 0 && (
@@ -760,9 +865,18 @@ export default function ChairmanPosInventoryClient() {
                     </button>
                     <button
                         onClick={fetchGlobalHistory}
-                        className="flex items-center gap-2 rounded-xl bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-[#1e293b] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 hover:border-gray-300 active:translate-y-0 active:scale-95 transition-all duration-300 group"
+                        className="flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
                         <Activity className="size-4 text-gray-500 group-hover:text-blue-600 transition-colors" /> Activity Log
+                    </button>
+                    <button
+                        onClick={refreshInventory}
+                        disabled={isRefreshing}
+                        className="flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-3 py-2 text-sm font-semibold text-[#123D2A] shadow-sm transition hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] disabled:cursor-wait disabled:opacity-60"
+                        aria-label="Refresh inventory"
+                    >
+                        <Loader2 className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                        <span className="hidden sm:inline">Refresh</span>
                     </button>
                     <button
                         onClick={() => setIsAddModalOpen(true)}
@@ -774,62 +888,88 @@ export default function ChairmanPosInventoryClient() {
             </div>
 
             {/* Toolbar */}
-            <div className="flex flex-col gap-4 mb-6 border-b border-gray-100 pb-6 mt-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="relative w-full max-w-md">
+            <div className="mb-6 mt-4 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3">
+                    <div className="flex w-full items-center justify-between gap-4">
+                    <div className="relative min-w-0 flex-1 max-w-[720px]">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search Products..."
-                            className="w-full rounded-full border border-gray-200 bg-[#f8fafc] py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                            onChange={(e) => { setSearchQuery(e.target.value); setInventoryPage(1); }}
+                            placeholder="Search products by name..."
+                            aria-label="Search inventory products"
+                            className="w-full rounded-xl border border-[#D8E5DB] bg-[#F8FBF8] py-3 pl-12 pr-11 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-4 focus:ring-[#0F9D58]/10"
                         />
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className="appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-3 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-[#789181] transition hover:bg-[#EAF5EC] hover:text-[#123D2A]"
+                                aria-label="Clear product search"
                             >
-                                <option value="name-asc">Sort by: Name (A-Z)</option>
-                                <option value="price-asc">Sort by: Price (Low to High)</option>
-                                <option value="price-desc">Sort by: Price (High to Low)</option>
-                                <option value="stock-asc">Sort by: Stock (Low to High)</option>
-                                <option value="stock-desc">Sort by: Stock (High to Low)</option>
-                            </select>
+                                <X className="size-4" />
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                        <div className="relative">
+                            <button type="button" onClick={() => setIsSortMenuOpen((value) => !value)} aria-haspopup="listbox" aria-expanded={isSortMenuOpen} className="flex min-w-[210px] items-center justify-between rounded-xl border border-[#BBD7C1] bg-white px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#0F9D58]/10">
+                                <span>{({ "name-asc": "Name (A–Z)", "price-asc": "Price (low to high)", "price-desc": "Price (high to low)", "stock-asc": "Stock (low to high)", "stock-desc": "Stock (high to low)" } as Record<string, string>)[sortBy]}</span>
+                                <ChevronDown className={`size-4 text-[#52705D] transition ${isSortMenuOpen ? "rotate-180" : ""}`} />
+                            </button>
+                            {isSortMenuOpen && (
+                                <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-[210px] overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]" role="listbox" aria-label="Sort inventory products">
+                                    {[["name-asc", "Name (A–Z)"], ["price-asc", "Price (low to high)"], ["price-desc", "Price (high to low)"], ["stock-asc", "Stock (low to high)"], ["stock-desc", "Stock (high to low)"]].map(([value, label]) => (
+                                        <button key={value} type="button" role="option" aria-selected={sortBy === value} onClick={() => { setSortBy(value); setIsSortMenuOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${sortBy === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>
+                                            {label}{sortBy === value && <span className="text-[#1F6B43]">✓</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         </div>
                     </div>
                 </div>
 
                 {/* Category Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                </div>
+
+                <div className="mt-2 flex w-full items-center justify-between gap-4">
+                <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-3 overflow-x-auto pb-2 custom-scrollbar">
                     {categoryTabs.map(cat => (
                         <button
                             key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${selectedCategory === cat
+                            onClick={() => { setSelectedCategory(cat); setInventoryPage(1); }}
+                            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${selectedCategory === cat
                                 ? "bg-[#123D2A] text-white shadow-sm"
-                                : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                                : "border border-transparent bg-[#F3F7F3] text-[#52705D] hover:border-[#BBD7C1] hover:bg-[#EAF5EC]"
                                 }`}
                         >
                             {cat}
                         </button>
                     ))}
                 </div>
+                <p className="shrink-0 whitespace-nowrap text-right text-xs font-medium text-[#789181]" aria-live="polite">
+                    Showing {filteredAndSortedInventory.length === 0 ? 0 : ((inventoryPage - 1) * inventoryPageSize) + 1}–{Math.min(inventoryPage * inventoryPageSize, filteredAndSortedInventory.length)} of {filteredAndSortedInventory.length} product{filteredAndSortedInventory.length === 1 ? "" : "s"}
+                </p>
+                {hasActiveFilters && (
+                    <button type="button" onClick={clearFilters} className="mt-1 shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-[#1F6B43] transition hover:bg-[#EAF5EC]" aria-label="Clear inventory filters">
+                        Clear filters
+                    </button>
+                )}
+                </div>
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-12">
-                {filteredAndSortedInventory.length > 0 ? (
-                    filteredAndSortedInventory.map(item => {
+            <div className="grid grid-cols-1 gap-6 pb-6 sm:grid-cols-2 lg:grid-cols-4">
+                {paginatedInventory.length > 0 ? (
+                    paginatedInventory.map(item => {
                         const availableStock = item.stock - (item.pending_qty || 0);
                         const isLowStock = item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
                         return (
-                            <div key={item.id} className={`flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.04)] border transition hover:shadow-lg ${isLowStock ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-100'}`}>
-                                <div className="relative h-48 bg-[#f4f7f9] p-4 flex items-center justify-center rounded-t-2xl overflow-hidden">
+                            <div key={item.id} style={{ animationDelay: `${Math.min(filteredAndSortedInventory.indexOf(item) * 55, 440)}ms` }} className={`group flex h-full min-h-[320px] animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_16px_rgba(18,61,42,0.07)] border transition duration-300 hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(18,61,42,0.14)] ${isLowStock ? 'border-red-400 ring-1 ring-red-400' : 'border-[#DCE9DE]'}`}>
+                                <div className={`relative h-48 p-4 flex items-center justify-center rounded-t-2xl overflow-hidden ${item.category?.toLowerCase().includes('seed') ? 'bg-gradient-to-br from-[#FFF8E8] via-[#F8F1E5] to-[#E7F2E8]' : item.category?.toLowerCase().includes('fertil') ? 'bg-gradient-to-br from-[#EEF7FF] via-[#EAF5F0] to-[#DCEFE2]' : 'bg-gradient-to-br from-[#E8F8F0] via-[#F4FAF5] to-[#E5F0FF]'}`}>
                                     <div className="absolute left-4 top-4 flex gap-2 z-10">
                                         <span className={`rounded-md px-2.5 py-1 text-xs font-semibold text-white ${item.status === 'Available' ? 'bg-[#22c55e]' : 'bg-[#ef4444]'
                                             }`}>
@@ -844,22 +984,48 @@ export default function ChairmanPosInventoryClient() {
                                     <button
                                         onClick={() => setHistoryItem(item)}
                                         className="absolute right-4 top-4 z-10 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm text-gray-600 hover:text-blue-600 hover:bg-white transition"
-                                        title="View History"
+                                        title="View stock history"
+                                        aria-label={`View stock history for ${item.name}`}
                                     >
                                         <History className="size-4" />
                                     </button>
                                     {item.img ? (
-                                        <img src={item.img} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition duration-300 hover:scale-105" />
+                                        <>
+                                            <img
+                                                src={item.img}
+                                                alt={item.name}
+                                                onError={(event) => {
+                                                    event.currentTarget.style.display = "none";
+                                                    event.currentTarget.nextElementSibling?.classList.remove("hidden");
+                                                }}
+                                                className="absolute inset-0 z-[1] w-full h-full object-cover transition duration-300 hover:scale-105"
+                                            />
+                                            <div className="hidden flex-col items-center gap-2 text-center text-[#6B8A76]" aria-label="Product image unavailable">
+                                                <div className="flex size-16 items-center justify-center rounded-2xl bg-white/75 text-2xl font-black text-[#1F6B43] shadow-sm">
+                                                    {item.name.slice(0, 1).toUpperCase()}
+                                                </div>
+                                                <span className="text-xs font-semibold">Image unavailable</span>
+                                            </div>
+                                        </>
                                     ) : (
-                                        <ImageIcon className="size-16 text-gray-300 z-0" />
+                                        <div className="flex flex-col items-center gap-2 text-center text-[#6B8A76]" aria-label="No product image">
+                                            <div className="flex size-16 items-center justify-center rounded-2xl bg-white/75 text-2xl font-black text-[#1F6B43] shadow-sm">
+                                                {item.name.slice(0, 1).toUpperCase()}
+                                            </div>
+                                            <span className="text-xs font-semibold">No product image</span>
+                                        </div>
                                     )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+                                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#123D2A]/35 via-transparent to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100"></div>
+                                    <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 translate-y-2 rounded-full bg-[#123D2A]/85 px-3 py-1 text-[10px] font-bold text-white opacity-0 shadow-sm transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">Product image</div>
                                 </div>
-                                <div className="flex flex-col p-5">
-                                    <h3 className="font-bold text-[#1e293b] mb-6 truncate leading-tight text-base">{item.name}</h3>
+                                <div className="flex flex-col p-4">
+                                    <div className="mb-3 min-h-[50px] min-w-0">
+                                        <h3 className="font-bold text-[#1e293b] truncate leading-tight text-base" title={item.name}>{item.name}</h3>
+                                        <span className="mt-2 inline-flex w-fit items-center rounded-full bg-[#EAF5EC] px-2.5 py-1 text-[11px] font-bold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{item.category || "Uncategorized"}</span>
+                                    </div>
 
-                                    <div className="flex justify-between items-center text-sm mb-3">
-                                        <span className="text-[#94a3b8]">Quantity</span>
+                                    <div className="mb-1 flex min-h-[42px] items-center justify-between text-sm">
+                                        <span className="text-[#64748b]">Available stock</span>
                                         <div className="flex flex-col items-end">
                                             <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
                                             {item.pending_qty ? (
@@ -867,28 +1033,32 @@ export default function ChairmanPosInventoryClient() {
                                             ) : null}
                                         </div>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm mb-5">
-                                        <span className="text-[#94a3b8]">Price</span>
+                                    <div className="mb-2 flex min-h-[18px] items-center justify-between text-xs">
+                                        <span className="text-[#94a3b8]">Reorder level</span>
+                                        <span className="font-semibold text-[#52705D]">{item.reorder_level ? formatQuantityUnit(item.reorder_level, item.unit) : "Not set"}</span>
+                                    </div>
+                                    <div className="mb-3 flex min-h-[24px] items-center justify-between text-sm">
+                                        <span className="text-[#64748b]">Selling price</span>
                                         <span className="font-bold text-[#1e293b]">₱ {item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
 
-                                    <div className="flex gap-2">
+                                    <div className="mt-auto flex gap-2">
                                         <button
                                             onClick={() => {
                                                 const margin = item.cost_price && item.price ? (((item.price - item.cost_price) / item.cost_price) * 100).toFixed(1) : "";
                                                 setEditingItem({ ...item, margin });
                                             }}
-                                            className="flex-1 rounded-xl bg-[#f8fafc] py-2 text-xs font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] border border-gray-100">
+                                            className="flex-1 rounded-xl border border-[#D8E5DB] bg-[#F5F9F5] py-2 text-xs font-bold text-[#52705D] transition hover:border-[#A9CBAF] hover:bg-[#EAF5EC]">
                                             Edit
                                         </button>
                                         <button
                                             onClick={() => { setStockActionType("add"); setAddingStockItem(item); }}
-                                            className="flex-1 rounded-xl bg-[#123D2A] py-2 text-xs font-semibold text-white transition hover:bg-[#123D2A]/90 shadow-sm">
+                                            className="flex-1 rounded-xl bg-[#123D2A] py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1F6B43] hover:shadow-md">
                                             + Stock
                                         </button>
                                         <button
                                             onClick={() => { setStockActionType("deduct"); setAddingStockItem(item); }}
-                                            className="flex-1 rounded-xl bg-orange-100 text-orange-700 py-2 text-xs font-semibold transition hover:bg-orange-200 shadow-sm">
+                                            className="flex-1 rounded-xl bg-[#FFF1D8] py-2 text-xs font-bold text-[#A76500] shadow-sm transition hover:bg-[#FFE5B5]">
                                             - Take
                                         </button>
                                     </div>
@@ -904,6 +1074,13 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                 )}
             </div>
+            {inventoryPageCount > 1 && (
+                <div className="mb-8 flex items-center justify-center gap-3 rounded-2xl border border-[#DCE9DE] bg-white p-3 shadow-sm">
+                    <button type="button" onClick={() => setInventoryPage((page) => Math.max(1, page - 1))} disabled={inventoryPage === 1} className="rounded-xl border border-[#D8E5DB] px-4 py-2 text-sm font-bold text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                    <span className="text-sm font-bold text-[#123D2A]">Page {inventoryPage} of {inventoryPageCount}</span>
+                    <button type="button" onClick={() => setInventoryPage((page) => Math.min(inventoryPageCount, page + 1))} disabled={inventoryPage === inventoryPageCount} className="rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                </div>
+            )}
 
             {/* Add Modal */}
             {isAddModalOpen && (
@@ -966,18 +1143,7 @@ export default function ChairmanPosInventoryClient() {
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Unit</label>
-                                    <select
-                                        value={newItemUnit}
-                                        onChange={(e) => {
-                                            setNewItemUnit(e.target.value);
-                                            if (newItemErrors.unit) setNewItemErrors({ ...newItemErrors, unit: "" });
-                                        }}
-                                        className={`w-full rounded-xl border ${newItemErrors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
-                                    >
-                                        {STOCK_UNIT_OPTIONS.map((unit) => (
-                                            <option key={unit} value={unit}>{unit}</option>
-                                        ))}
-                                    </select>
+                                    <ThemedSelect value={newItemUnit} onChange={(value) => { setNewItemUnit(value); if (newItemErrors.unit) setNewItemErrors({ ...newItemErrors, unit: "" }); }} ariaLabel="Unit" options={STOCK_UNIT_OPTIONS.map((unit) => ({ value: unit, label: unit }))} />
                                     {newItemErrors.unit && <p className="mt-1 text-xs text-red-500">{newItemErrors.unit}</p>}
                                 </div>
                             </div>
@@ -1004,6 +1170,7 @@ export default function ChairmanPosInventoryClient() {
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Low Stock Threshold</label>
+                                    <p className="mb-2 text-xs text-[#789181]">The alert appears when available stock reaches this level.</p>
                                     <input
                                         type="number"
                                         min="0"
@@ -1103,14 +1270,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Status</label>
-                                    <select
-                                        value={newItemStatus}
-                                        onChange={(e) => setNewItemStatus(e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                                    >
-                                        <option>Available</option>
-                                        <option>Unavailable</option>
-                                    </select>
+                                    <ThemedSelect value={newItemStatus} onChange={setNewItemStatus} ariaLabel="Item status" options={[{ value: "Available", label: "Available" }, { value: "Unavailable", label: "Unavailable" }]} />
                                 </div>
                             </div>
 
@@ -1213,18 +1373,7 @@ export default function ChairmanPosInventoryClient() {
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Unit</label>
-                                    <select
-                                        value={editingItem.unit || "piece"}
-                                        onChange={(e) => {
-                                            handleEditChange("unit", e.target.value);
-                                            if (editItemErrors.unit) setEditItemErrors({ ...editItemErrors, unit: "" });
-                                        }}
-                                        className={`w-full rounded-xl border ${editItemErrors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]'} bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:ring-1`}
-                                    >
-                                        {STOCK_UNIT_OPTIONS.map((unit) => (
-                                            <option key={unit} value={unit}>{unit}</option>
-                                        ))}
-                                    </select>
+                                    <ThemedSelect value={editingItem.unit || "piece"} onChange={(value) => { handleEditChange("unit", value); if (editItemErrors.unit) setEditItemErrors({ ...editItemErrors, unit: "" }); }} ariaLabel="Edit unit" options={STOCK_UNIT_OPTIONS.map((unit) => ({ value: unit, label: unit }))} />
                                     {editItemErrors.unit && <p className="mt-1 text-xs text-red-500">{editItemErrors.unit}</p>}
                                 </div>
                             </div>
@@ -1251,7 +1400,7 @@ export default function ChairmanPosInventoryClient() {
                                         value={editingItem.reorder_level || ""}
                                         onChange={(e) => handleEditChange('reorder_level', e.target.value.replace(/[^0-9]/g, ''))}
                                         placeholder="e.g. 5"
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
+                                        className="w-full rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-sm font-medium text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 [&>option]:bg-white [&>option]:text-[#123D2A]"
                                     />
                                 </div>
                             </div>
@@ -1337,14 +1486,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Status</label>
-                                    <select
-                                        value={editingItem.status}
-                                        onChange={(e) => handleEditChange('status', e.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-[#1e293b] outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
-                                    >
-                                        <option>Available</option>
-                                        <option>Unavailable</option>
-                                    </select>
+                                    <ThemedSelect value={editingItem.status} onChange={(value) => handleEditChange("status", value)} ariaLabel="Edit item status" options={[{ value: "Available", label: "Available" }, { value: "Unavailable", label: "Unavailable" }]} />
                                 </div>
                             </div>
 
@@ -1536,9 +1678,32 @@ export default function ChairmanPosInventoryClient() {
                                 <X className="size-5" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-gray-50/50">
-                            {globalHistory.length > 0 ? (
-                                globalHistory.map((log) => (
+                        <div className="border-b border-gray-100 bg-white p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        value={activitySearchQuery}
+                                        onChange={(event) => { setActivitySearchQuery(event.target.value); setActivityCurrentPage(1); }}
+                                        placeholder="Search product activity..."
+                                        aria-label="Search stock activity"
+                                        className="w-full rounded-xl border border-[#D8E5DB] bg-[#F8FBF8] py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#0F9D58] focus:ring-2 focus:ring-[#0F9D58]/10"
+                                    />
+                                </div>
+                                <div className="min-w-[170px]">
+                                    <ThemedSelect
+                                        value={activityTypeFilter}
+                                        onChange={(value) => { setActivityTypeFilter(value as "All" | "add" | "deduct"); setActivityCurrentPage(1); }}
+                                        ariaLabel="Filter activity type"
+                                        options={[{ value: "All", label: "All activity" }, { value: "add", label: "Stock added" }, { value: "deduct", label: "Stock deducted" }]}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto space-y-4 bg-gray-50/50 p-6 custom-scrollbar">
+                            {filteredActivityLogs.length > 0 ? (
+                                <>
+                                {paginatedActivityLogs.map((log) => (
                                     <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
                                         {log.inventoryItem?.img ? (
                                             <img src={log.inventoryItem.img} alt="item" className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
@@ -1560,7 +1725,25 @@ export default function ChairmanPosInventoryClient() {
                                             </span>
                                         </div>
                                     </div>
-                                ))
+                                ))}
+                                {activityPageCount > 1 && (
+                                    <div className="flex items-center justify-center gap-2 border-t border-[#DDE9E0] pt-4">
+                                        <button type="button" onClick={() => setActivityCurrentPage(1)} disabled={activityCurrentPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="First Page" aria-label="First activity page">
+                                            <ChevronsLeft className="size-4" />
+                                        </button>
+                                        <button type="button" onClick={() => setActivityCurrentPage((page) => Math.max(1, page - 1))} disabled={activityCurrentPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Previous Page" aria-label="Previous activity page">
+                                            <ChevronLeft className="size-4" />
+                                        </button>
+                                        <span className="px-2 text-sm font-bold text-[#123D2A]">Page {activityCurrentPage} of {activityPageCount} &bull; {filteredActivityLogs.length} activities</span>
+                                        <button type="button" onClick={() => setActivityCurrentPage((page) => Math.min(activityPageCount, page + 1))} disabled={activityCurrentPage === activityPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Next Page" aria-label="Next activity page">
+                                            <ChevronRight className="size-4" />
+                                        </button>
+                                        <button type="button" onClick={() => setActivityCurrentPage(activityPageCount)} disabled={activityCurrentPage === activityPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Last Page" aria-label="Last activity page">
+                                            <ChevronsRight className="size-4" />
+                                        </button>
+                                    </div>
+                                )}
+                                </>
                             ) : (
                                 <div className="py-12 text-center text-gray-500">
                                     <Activity className="size-12 text-gray-300 mx-auto mb-3" />
@@ -1666,7 +1849,35 @@ export default function ChairmanPosInventoryClient() {
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto bg-gray-50 p-6 custom-scrollbar">
+                            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                {[
+                                    ["All", orders.length, "bg-white"],
+                                    ["Pending Payment", orders.filter((order) => order.sale_status === "Pending Payment").length, "bg-[#FFF8E8]"],
+                                    ["Paid", orders.filter((order) => order.sale_status === "Paid").length, "bg-[#EEF8F0]"],
+                                    ["Rejected", orders.filter((order) => order.sale_status === "Rejected").length, "bg-[#FFF1F1]"],
+                                ].map(([label, count, color]) => (
+                                    <button
+                                        key={label}
+                                        onClick={() => { setOrderStatusFilter(String(label)); setOrdersCurrentPage(1); }}
+                                        className={`rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${color} ${orderStatusFilter === label ? "border-[#1F6B43] ring-2 ring-[#1F6B43]/15" : "border-gray-200"}`}
+                                    >
+                                        <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label === "Pending Payment" ? "Pending" : label}</p>
+                                        <p className="mt-1 text-xl font-black text-[#123D2A]">{count}</p>
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                {["All", "Pending Payment", "Paid", "Rejected"].map((status) => (
+                                    <button
+                                        key={status}
+                                        onClick={() => { setOrderStatusFilter(status); setOrdersCurrentPage(1); }}
+                                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${orderStatusFilter === status ? "bg-[#123D2A] text-white" : "bg-white text-[#52705D] hover:bg-[#EAF5EC]"}`}
+                                    >
+                                        {status === "Pending Payment" ? "Pending" : status}
+                                    </button>
+                                ))}
+                            </div>
                             <div className="mb-6 relative w-full">
                                 <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                                 <input
@@ -1682,7 +1893,7 @@ export default function ChairmanPosInventoryClient() {
                             </div>
 
                             {(() => {
-                                const filteredOrders = orders.filter(order => order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase()));
+                                const filteredOrders = orders.filter(order => (orderStatusFilter === "All" || order.sale_status === orderStatusFilter) && (order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase())));
                                 const ordersPerPage = 5;
                                 const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
                                 const startIndex = (ordersCurrentPage - 1) * ordersPerPage;
