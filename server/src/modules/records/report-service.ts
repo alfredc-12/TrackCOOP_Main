@@ -20,6 +20,7 @@ import type {
   ReportResult,
 } from "./records-types";
 import { storeProtectedDocument } from "./document-security";
+import { deleteProtectedFile } from "../../storage/protected-storage";
 import { RecordsError } from "./records-error";
 import type { RequestMetadata } from "./document-service";
 
@@ -2088,7 +2089,7 @@ export async function saveGeneratedReportToDocuments(
     };
   } catch (error) {
     await connection.rollback();
-    await unlink(stored.absolutePath).catch(() => undefined);
+    await deleteProtectedFile(stored.storagePath).catch(() => unlink(stored.absolutePath).catch(() => undefined));
     throw error;
   } finally {
     connection.release();

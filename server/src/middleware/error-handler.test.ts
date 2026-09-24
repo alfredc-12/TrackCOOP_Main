@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import express from "express";
@@ -20,10 +20,15 @@ function createErrorApp() {
 }
 
 test("unexpected errors are sanitized and do not write debug files", async () => {
+  const debugPath = path.join(process.cwd(), "debug.log");
+  if (existsSync(debugPath)) {
+    unlinkSync(debugPath);
+  }
+
   const response = await request(createErrorApp()).get("/boom");
 
   assert.equal(response.status, 500);
   assert.equal(response.body.message, "An unexpected error occurred");
   assert.deepEqual(response.body.errors, []);
-  assert.equal(existsSync(path.join(process.cwd(), "debug.log")), false);
+  assert.equal(existsSync(debugPath), false);
 });

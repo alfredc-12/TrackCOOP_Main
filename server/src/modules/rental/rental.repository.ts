@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { unlink } from "node:fs/promises";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
+import { deleteProtectedFile } from "../../storage/protected-storage";
 import type {
   Pool,
   PoolConnection,
@@ -1859,7 +1859,7 @@ export const rentalDatabase = {
       });
     } catch (error) {
       if (storedValidId) {
-        await unlink(storedValidId.absolutePath).catch(() => undefined);
+        await deleteProtectedFile(storedValidId.storagePath).catch(() => undefined);
       }
       throw error;
     }

@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
-import { access, mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { hash } from "bcryptjs";
 import PDFDocument from "pdfkit";
 import { env } from "../../config/env";
+import { deleteProtectedFile, readProtectedFile } from "../../storage/protected-storage";
+import { storageProvider } from "../../storage";
 import { AppError } from "../../utils/app-error";
 import {
   createMembershipApplicationRepository,
@@ -143,35 +144,19 @@ function storageExtension(documentType: string) {
   return allowed ? [...allowed.extensions][0] : "";
 }
 
-function protectedStorageRoot() {
-  return path.resolve(process.cwd(), "public", "uploads", "membership-applications");
-}
-
-function resolveStoredDocumentPath(storedFilePath: string) {
-  const root = protectedStorageRoot();
-  const absolutePath = path.resolve(process.cwd(), storedFilePath);
-  if (!absolutePath.startsWith(`${root}${path.sep}`)) {
-    throw new AppError(
-      "Stored document path is invalid",
-      500,
-      "MEMBERSHIP_DOCUMENT_PATH_INVALID",
-    );
-  }
-  return absolutePath;
-}
-
 async function storeDocumentBuffer(
   applicationCode: string,
   document: PublicDocumentUploadInput,
 ) {
-  const applicationDirectory = path.join(protectedStorageRoot(), applicationCode);
-  await mkdir(applicationDirectory, { recursive: true });
-
   const storedFileName = `${crypto.randomUUID()}${storageExtension(document.mimeType)}`;
-  const storedFilePath = path.join(applicationDirectory, storedFileName);
-  await writeFile(storedFilePath, document.buffer, { flag: "wx" });
-
-  return path.relative(process.cwd(), storedFilePath).replaceAll("\\", "/");
+  const key = `membership-applications/${applicationCode}/${storedFileName}`;
+  const stored = await storageProvider().put({
+    key,
+    visibility: "protected",
+    body: document.buffer,
+    contentType: document.mimeType,
+  });
+  return stored.path;
 }
 
 function normalizeChairmanApplication(input: ChairmanMembershipApplicationInput) {
@@ -311,7 +296,7 @@ export interface MembershipApplicationService {
   ): Promise<ChairmanApplicationDocument>;
   deleteDocument(documentId: string, auth: AuthContext): Promise<void>;
   viewDocument(documentId: string, auth: AuthContext): Promise<{
-    absolutePath: string;
+    contents: Buffer;
     originalFileName: string;
     mimeType: string;
   }>;
@@ -423,7 +408,7 @@ export function createMembershipApplicationService(
           storedFilePath,
         });
       } catch (error) {
-        await unlink(path.resolve(process.cwd(), storedFilePath)).catch(() => undefined);
+        await deleteProtectedFile(storedFilePath).catch(() => undefined);
         throw error;
       }
     },
@@ -509,14 +494,14 @@ export function createMembershipApplicationService(
           auth,
         });
       } catch (error) {
-        await unlink(path.resolve(process.cwd(), storedFilePath)).catch(() => undefined);
+        await deleteProtectedFile(storedFilePath).catch(() => undefined);
         throw error;
       }
     },
 
     async deleteDocument(documentId, auth) {
       const storedFilePath = await repository.deleteDocument(documentId, auth);
-      await unlink(path.resolve(process.cwd(), storedFilePath)).catch(() => undefined);
+      await deleteProtectedFile(storedFilePath).catch(() => undefined);
     },
 
     async viewDocument(documentId) {
@@ -529,8 +514,7 @@ export function createMembershipApplicationService(
         );
       }
 
-      const absolutePath = resolveStoredDocumentPath(document.storedFilePath);
-      await access(absolutePath).catch(() => {
+      const contents = await readProtectedFile(document.storedFilePath).catch(() => {
         throw new AppError(
           "Document file was not found",
           404,
@@ -539,7 +523,7 @@ export function createMembershipApplicationService(
       });
 
       return {
-        absolutePath,
+        contents,
         originalFileName: document.originalFileName,
         mimeType: document.mimeType,
       };

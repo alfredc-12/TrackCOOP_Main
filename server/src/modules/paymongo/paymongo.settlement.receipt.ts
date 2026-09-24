@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import PDFDocument from "pdfkit";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { createCentralDocument } from "../../records/central-document";
-import { normalizeProtectedStoragePath, protectedUploadRoot } from "../../storage/protected-storage";
+import { normalizeProtectedStoragePath } from "../../storage/protected-storage";
+import { storageProvider } from "../../storage";
 import type { PaymentValidationSource } from "./paymongo.settlement.types";
 
 export type ReceiptProcessingStatus = "Pending" | "Processing" | "Generated" | "Failed";
@@ -150,10 +149,14 @@ function renderReceipt(row: ReceiptRow) {
 async function writeDeterministicReceipt(row: ReceiptRow) {
   const buffer = await renderReceipt(row);
   const year = String((row.validatedAt ?? new Date()).getUTCFullYear());
-  const storagePath = normalizeProtectedStoragePath(`generated/receipts/${year}/payment-${row.paymentReferenceId}.pdf`);
-  const absolutePath = path.join(protectedUploadRoot, "generated", "receipts", year, `payment-${row.paymentReferenceId}.pdf`);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, buffer, { flag: "w" });
+  const key = `generated/receipts/${year}/payment-${row.paymentReferenceId}.pdf`;
+  const storagePath = normalizeProtectedStoragePath(key);
+  await storageProvider().put({
+    key,
+    visibility: "protected",
+    body: buffer,
+    contentType: "application/pdf",
+  });
   return { buffer, storagePath };
 }
 
@@ -168,9 +171,33 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
     async getStatus(paymentReferenceId) {
       const row = await selectReceipt(databasePool(), paymentReferenceId);
       if (!row) return null;
-      const { memberId: _m, issuedBy: _i, amount: _a, paymentChannel: _c, provider: _p,
-        validationSource: _v, subjectReference: _s, paymentDate: _pd, validatedAt: _va,
-        payerName: _pn, paymentPurpose: _pp, trackcoopReference: _tr, ...status } = row;
+      const {
+        memberId,
+        issuedBy,
+        amount,
+        paymentChannel,
+        provider,
+        validationSource,
+        subjectReference,
+        paymentDate,
+        validatedAt,
+        payerName,
+        paymentPurpose,
+        trackcoopReference,
+        ...status
+      } = row;
+      void memberId;
+      void issuedBy;
+      void amount;
+      void paymentChannel;
+      void provider;
+      void validationSource;
+      void subjectReference;
+      void paymentDate;
+      void validatedAt;
+      void payerName;
+      void paymentPurpose;
+      void trackcoopReference;
       return status;
     },
     async process(paymentReferenceId) {

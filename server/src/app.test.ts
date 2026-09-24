@@ -87,3 +87,15 @@ test("browser mutation requests from the configured frontend pass origin checks"
   assert.equal(response.status, 404);
   assert.equal(response.body.errors[0].code, "ROUTE_NOT_FOUND");
 });
+
+test("browser mutation requests from any configured CORS origin pass origin checks", async () => {
+  const response = await request(
+    createApp({ enableRequestLogging: false }),
+  )
+    .post("/api/does-not-exist")
+    .set("Origin", "http://localhost:3000")
+    .send({});
+
+  assert.equal(response.status, 404);
+  assert.equal(response.body.errors[0].code, "ROUTE_NOT_FOUND");
+});

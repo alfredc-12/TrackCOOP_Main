@@ -1,28 +1,16 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { mkdirSync } from "node:fs";
 import path from "node:path";
 import multer from "multer";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
+import { storageProvider } from "../../storage";
 import { createAuthService, type AuthService } from "../auth/auth.service";
 import { createLandingController } from "./landing.controller";
 import { createLandingService, type LandingService } from "./landing.service";
 
-const partnerFileStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const destination = path.join(process.cwd(), "public", "uploads", "partners-certifications");
-    mkdirSync(destination, { recursive: true });
-    cb(null, destination);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".bin";
-    cb(null, `${crypto.randomBytes(16).toString("hex")}${ext}`);
-  },
-});
-
 const partnerFileUpload = multer({
-  storage: partnerFileStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf") {
@@ -33,20 +21,8 @@ const partnerFileUpload = multer({
   },
 });
 
-const galleryFileStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const destination = path.join(process.cwd(), "public", "uploads", "gallery");
-    mkdirSync(destination, { recursive: true });
-    cb(null, destination);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".bin";
-    cb(null, `${crypto.randomBytes(16).toString("hex")}${ext}`);
-  },
-});
-
 const galleryFileUpload = multer({
-  storage: galleryFileStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) {
@@ -66,24 +42,35 @@ export function createLandingRouter(
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
 
   router.get("/public/landing", controller.publicLanding);
-  router.post("/landing/partners/upload", ...chairmanOnly, partnerFileUpload.single("file"), (req, res) => {
+  router.post("/landing/partners/upload", ...chairmanOnly, partnerFileUpload.single("file"), async (req, res, next) => {
     if (!req.file) {
       res.status(400).json({ success: false, message: "No file provided", errors: [] });
       return;
     }
 
-    res.json({
-      success: true,
-      data: {
-        url: `/uploads/partners-certifications/${req.file.filename}`,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-      },
-      message: "File uploaded",
-      meta: {},
-    });
+    try {
+      const ext = path.extname(req.file.originalname) || ".bin";
+      const stored = await storageProvider().put({
+        key: `partners-certifications/${crypto.randomBytes(16).toString("hex")}${ext}`,
+        visibility: "public",
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+      });
+      res.json({
+        success: true,
+        data: {
+          url: stored.url ?? stored.path,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+        },
+        message: "File uploaded",
+        meta: {},
+      });
+    } catch (error) {
+      next(error);
+    }
   });
-  router.post("/landing/gallery/upload", ...chairmanOnly, galleryFileUpload.array("images", 24), (req, res) => {
+  router.post("/landing/gallery/upload", ...chairmanOnly, galleryFileUpload.array("images", 24), async (req, res, next) => {
     const files = Array.isArray(req.files) ? req.files : [];
 
     if (files.length === 0) {
@@ -91,21 +78,34 @@ export function createLandingRouter(
       return;
     }
 
-    const urls = files.map((file) => `/uploads/gallery/${file.filename}`);
-    res.json({
-      success: true,
-      data: {
-        url: urls[0],
-        urls,
-        files: files.map((file, index) => ({
-          url: urls[index],
+    try {
+      const uploaded = await Promise.all(files.map(async (file) => {
+        const ext = path.extname(file.originalname) || ".bin";
+        const stored = await storageProvider().put({
+          key: `gallery/${crypto.randomBytes(16).toString("hex")}${ext}`,
+          visibility: "public",
+          body: file.buffer,
+          contentType: file.mimetype,
+        });
+        return {
+          url: stored.url ?? stored.path,
           originalName: file.originalname,
           mimeType: file.mimetype,
-        })),
-      },
-      message: "Gallery images uploaded",
-      meta: {},
-    });
+        };
+      }));
+      res.json({
+        success: true,
+        data: {
+          url: uploaded[0]?.url,
+          urls: uploaded.map((file) => file.url),
+          files: uploaded,
+        },
+        message: "Gallery images uploaded",
+        meta: {},
+      });
+    } catch (error) {
+      next(error);
+    }
   });
   router.put("/landing/gallery-slots/:slotKey", ...chairmanOnly, controller.updateGallerySlot);
   router.get("/landing/:collection", ...chairmanOnly, controller.list);

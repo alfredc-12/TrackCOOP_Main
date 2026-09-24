@@ -246,7 +246,7 @@ export function createMembershipApplicationController(
         "Content-Disposition",
         `inline; filename="${document.originalFileName.replace(/["\r\n]/g, "")}"`,
       );
-      return response.sendFile(document.absolutePath);
+      return response.send(document.contents);
     }),
 
     createRequirement: asyncHandler(async (request, response) => {

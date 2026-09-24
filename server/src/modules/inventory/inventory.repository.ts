@@ -1,8 +1,7 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
+import { storageProvider } from "../../storage";
 import { AppError } from "../../utils/app-error";
 import type { InventoryProduct, InventoryProductInput, InventoryStockInput } from "./inventory.types";
 
@@ -66,12 +65,14 @@ async function processAndSaveImage(base64Str: string, category = "inventory") {
   const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
   const buffer = Buffer.from(matches[2], "base64");
   const filename = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
-  const uploadDir = path.join(process.cwd(), "public", "uploads", category);
+  const stored = await storageProvider().put({
+    key: `${category}/${filename}`,
+    visibility: "public",
+    body: buffer,
+    contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+  });
 
-  await fs.mkdir(uploadDir, { recursive: true });
-  await fs.writeFile(path.join(uploadDir, filename), buffer);
-
-  return `/uploads/${category}/${filename}`;
+  return stored.url ?? stored.path;
 }
 
 function validateProductInput(input: InventoryProductInput, requireStock = false) {

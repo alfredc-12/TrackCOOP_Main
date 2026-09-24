@@ -290,7 +290,7 @@ function LookupCard({
         Track your application
       </h2>
       <p className="mt-3 text-xs leading-5 text-[#4F6F5D]">
-        Enter your application code and date of birth used in your membership
+        Enter your application code and the date of birth used in your membership
         application.
       </p>
 
@@ -533,7 +533,11 @@ function ApplicationInformationPanel({ status }: { status: PublicMembershipPayme
         <DetailRow label="Status" value={status.applicationStatus} />
         <DetailRow
           label="Payment Mode"
-          value={status.paymongoMode === "test" ? "PayMongo Test Mode" : "PayMongo Live Mode"}
+          value={
+            status.paymongoMode === "test"
+              ? "PayMongo Test Mode — No real money will be charged"
+              : "PayMongo Live Mode"
+          }
           last
         />
       </dl>
@@ -834,9 +838,12 @@ function ShareCapitalActionCard({
     <PanelCard icon={Wallet} title="Share capital">
       <div className="grid gap-2 text-xs sm:grid-cols-3">
         <MiniMetric label="Validated" value={peso(status.shareCapital.validatedAmount)} />
-        <MiniMetric label="Pending" value={peso(status.shareCapital.pendingAmount)} />
-        <MiniMetric label="Target remaining" value={peso(status.shareCapital.remainingToTarget)} />
+        <MiniMetric label="Remaining to PHP 3,000" value={peso(status.shareCapital.remainingToTarget)} />
+        <MiniMetric label="Remaining to PHP 15,000 max" value={peso(status.shareCapital.remainingToMaximum)} />
       </div>
+      <p className="mt-3 text-[0.68rem] font-bold leading-5 text-[#5D6D63]">
+        Internal IDs, webhook data, and tracking hashes stay hidden.
+      </p>
       <PaymentState state={state} label="Share capital" />
       {status.shareCapital.canStartCheckout ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -866,7 +873,9 @@ function ShareCapitalActionCard({
             ) : (
               <Wallet className="size-4" />
             )}
-            {status.shareCapital.pendingAmount > 0 ? "Continue" : "Start"}
+            {status.shareCapital.pendingAmount > 0
+              ? "Continue Share Capital Installment"
+              : "Start Share Capital Installment"}
           </Button>
         </div>
       ) : null}

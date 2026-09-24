@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
@@ -10,8 +9,9 @@ import { createAuthenticate, createOptionalAuthenticate } from "../../middleware
 import { requireRoles } from "../../middleware/authorize";
 import {
   normalizeProtectedStoragePath,
-  protectedUploadRoot,
+  deleteProtectedFile,
 } from "../../storage/protected-storage";
+import { storageProvider } from "../../storage";
 import { createAuthService, type AuthService } from "../auth/auth.service";
 import type { RoleSlug } from "../auth/auth.types";
 import {
@@ -28,7 +28,7 @@ import {
   validateRentalAssetPhoto,
 } from "./rental-photos";
 import {
-  resolveProtectedDocumentPath,
+  readProtectedDocument,
   validateDocumentFile,
   type UploadedFileLike,
   type ValidatedDocumentFile,
@@ -292,8 +292,7 @@ async function getRental(request: Request, response: Response) {
       if (!(await authorize(request, response, ["chairman"]))) return;
       const document = await rentalDatabase.getRentalValidId(id);
       if (!document) return notFound(response, "Valid ID was not found for this rental request.");
-      const absolutePath = resolveProtectedDocumentPath(document.storagePath);
-      const file = await readFile(absolutePath);
+      const file = await readProtectedDocument(document.storagePath);
       const extension = document.mimeType === "application/pdf"
         ? "pdf"
         : document.mimeType === "image/png"
@@ -358,13 +357,8 @@ async function getRental(request: Request, response: Response) {
       const storedPath = await rentalDatabase.getRentalPaymentProof(id, actor);
       if (!storedPath) return notFound(response, "Payment proof was not found.");
       const normalized = normalizeProtectedStoragePath(storedPath);
-      const absolutePath = nodePath.resolve(process.cwd(), normalized);
-      const allowedRoot = `${nodePath.resolve(protectedUploadRoot)}${nodePath.sep}`;
-      if (!absolutePath.startsWith(allowedRoot)) {
-        return json(response, { message: "Payment proof path is invalid." }, 403);
-      }
-      const file = await readFile(absolutePath);
-      const extension = nodePath.extname(absolutePath).toLowerCase();
+      const file = await readProtectedDocument(normalized);
+      const extension = nodePath.extname(normalized).toLowerCase();
       const contentType =
         extension === ".pdf"
           ? "application/pdf"
@@ -552,12 +546,14 @@ async function postRental(request: Request, response: Response) {
       if (file.size <= 0 || file.size > 5 * 1024 * 1024) {
         return badRequest(response, "Payment proof must be 5 MB or smaller.");
       }
-      const directory = nodePath.join(protectedUploadRoot, "rental-payments");
-      await mkdir(directory, { recursive: true });
       const generatedName = `${randomUUID()}.${extension}`;
-      const absolutePath = nodePath.join(directory, generatedName);
       const storedPath = normalizeProtectedStoragePath(`rental-payments/${generatedName}`);
-      await writeFile(absolutePath, file.buffer, { flag: "wx" });
+      await storageProvider().put({
+        key: `rental-payments/${generatedName}`,
+        visibility: "protected",
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
       try {
         return json(
           response,
@@ -573,7 +569,7 @@ async function postRental(request: Request, response: Response) {
           201,
         );
       } catch (error) {
-        await unlink(absolutePath).catch(() => undefined);
+        await deleteProtectedFile(storedPath).catch(() => undefined);
         throw error;
       }
     }
@@ -745,9 +741,6 @@ async function uploadRentalAssetImage(request: Request, response: Response) {
       return response.status(400).json({ error: "Upload up to 5 photos only." });
     }
 
-    const publicDir = nodePath.join(process.cwd(), "public", "uploads", "rentals");
-    await mkdir(publicDir, { recursive: true });
-
     const urls: string[] = [];
     for (const file of requestFiles) {
       const validationError = validateRentalAssetPhoto({
@@ -760,8 +753,13 @@ async function uploadRentalAssetImage(request: Request, response: Response) {
 
       const extension = rentalAssetPhotoExtensionByType[file.mimetype] ?? "jpg";
       const filename = `${randomUUID()}.${extension}`;
-      await writeFile(nodePath.join(publicDir, filename), file.buffer);
-      urls.push(`/uploads/rentals/${filename}`);
+      const stored = await storageProvider().put({
+        key: `rentals/${filename}`,
+        visibility: "public",
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
+      urls.push(stored.url ?? `/uploads/rentals/${filename}`);
     }
 
     return response.json({ url: urls[0], urls });

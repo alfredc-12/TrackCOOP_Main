@@ -18,6 +18,7 @@ const baseEnv = {
 test("parseServerEnv keeps PayMongo disabled by default without secrets", () => {
   const config = parseServerEnv(baseEnv);
 
+  assert.equal(config.PORT, undefined);
   assert.equal(config.PAYMONGO_ENABLED, false);
   assert.equal(config.PAYMONGO_MODE, "test");
   assert.equal(config.PAYMONGO_API_BASE_URL, "https://api.paymongo.com");
@@ -27,6 +28,83 @@ test("parseServerEnv keeps PayMongo disabled by default without secrets", () => 
   assert.equal(config.PAYMONGO_CHECKOUT_REUSE_MINUTES, 30);
   assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
   assert.equal(config.PAYMONGO_PASS_ON_FEES, false);
+  assert.deepEqual(config.CORS_ALLOWED_ORIGINS, ["http://localhost:3000"]);
+  assert.equal(config.SESSION_COOKIE_SAME_SITE, "lax");
+  assert.equal(config.SESSION_COOKIE_SECURE, false);
+  assert.equal(config.STORAGE_DRIVER, "local");
+  assert.equal(config.LOCAL_STORAGE_ROOT, "storage/uploads");
+});
+
+test("parseServerEnv accepts PORT override while keeping API_PORT fallback", () => {
+  const localConfig = parseServerEnv(baseEnv);
+  const hostedConfig = parseServerEnv({ ...baseEnv, PORT: "4173" });
+
+  assert.equal(localConfig.API_PORT, 5000);
+  assert.equal(localConfig.PORT, undefined);
+  assert.equal(hostedConfig.API_PORT, 5000);
+  assert.equal(hostedConfig.PORT, 4173);
+});
+
+test("parseServerEnv accepts portable production cookie settings", () => {
+  const config = parseServerEnv({
+    ...baseEnv,
+    NODE_ENV: "production",
+    FRONTEND_URL: "https://app.example.com",
+    CORS_ALLOWED_ORIGINS: "https://app.example.com,https://admin.example.com",
+    SESSION_COOKIE_DOMAIN: ".example.com",
+    SESSION_COOKIE_SAME_SITE: "lax",
+    SESSION_COOKIE_SECURE: "true",
+    TRUST_PROXY: "true",
+  });
+
+  assert.deepEqual(config.CORS_ALLOWED_ORIGINS, [
+    "https://app.example.com",
+    "https://admin.example.com",
+  ]);
+  assert.equal(config.SESSION_COOKIE_DOMAIN, ".example.com");
+  assert.equal(config.SESSION_COOKIE_SECURE, true);
+  assert.equal(config.TRUST_PROXY, true);
+});
+
+test("parseServerEnv rejects SameSite none without Secure cookies", () => {
+  assert.throws(
+    () => parseServerEnv({
+      ...baseEnv,
+      SESSION_COOKIE_SAME_SITE: "none",
+      SESSION_COOKIE_SECURE: "false",
+    }),
+    /SESSION_COOKIE_SECURE must be true/,
+  );
+});
+
+test("parseServerEnv rejects localhost cookie domains", () => {
+  assert.throws(
+    () => parseServerEnv({
+      ...baseEnv,
+      SESSION_COOKIE_DOMAIN: "localhost",
+    }),
+    /SESSION_COOKIE_DOMAIN must be empty for localhost/,
+  );
+});
+
+test("parseServerEnv validates S3 storage requirements", () => {
+  assert.throws(
+    () => parseServerEnv({ ...baseEnv, STORAGE_DRIVER: "s3" }),
+    /S3_BUCKET.*S3_REGION/,
+  );
+
+  const config = parseServerEnv({
+    ...baseEnv,
+    STORAGE_DRIVER: "s3",
+    S3_BUCKET: "trackcoop-uploads",
+    S3_REGION: "auto",
+    S3_ENDPOINT: "https://object-storage.example.com",
+    S3_FORCE_PATH_STYLE: "true",
+  });
+
+  assert.equal(config.STORAGE_DRIVER, "s3");
+  assert.equal(config.S3_BUCKET, "trackcoop-uploads");
+  assert.equal(config.S3_FORCE_PATH_STYLE, true);
 });
 
 test("parseServerEnv accepts enabled PayMongo test configuration", () => {

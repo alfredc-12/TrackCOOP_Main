@@ -2,28 +2,15 @@ import { Router } from "express";
 import multer from "multer";
 import path from "node:path";
 import crypto from "node:crypto";
-import { mkdirSync } from "node:fs";
 import { createAuthenticate, createOptionalAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
+import { storageProvider } from "../../storage";
 import { createAuthService, type AuthService } from "../auth/auth.service";
 import { createCommunicationController } from "./communication.controller";
 import { createCommunicationService, type CommunicationService } from "./communication.service";
 
-const uploadStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const destination = path.join(process.cwd(), "public", "uploads", "announcements");
-    mkdirSync(destination, { recursive: true });
-    cb(null, destination);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const uniqueSuffix = crypto.randomBytes(16).toString("hex");
-    cb(null, uniqueSuffix + ext);
-  },
-});
-
 const upload = multer({ 
-  storage: uploadStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
@@ -53,7 +40,7 @@ export function createCommunicationRouter(
   router.post("/announcements/upload-image", ...chairmanOnly, upload.fields([
     { name: "images", maxCount: 12 },
     { name: "image", maxCount: 1 },
-  ]), (req, res) => {
+  ]), async (req, res, next) => {
     const filesByField = req.files as Record<string, Express.Multer.File[]> | undefined;
     const files = [
       ...(filesByField?.images ?? []),
@@ -65,8 +52,21 @@ export function createCommunicationRouter(
       return;
     }
 
-    const urls = files.map((file) => `/uploads/announcements/${file.filename}`);
-    res.json({ success: true, data: { url: urls[0], urls }, message: "Success", meta: {} });
+    try {
+      const urls = await Promise.all(files.map(async (file) => {
+        const ext = path.extname(file.originalname) || ".bin";
+        const stored = await storageProvider().put({
+          key: `announcements/${crypto.randomBytes(16).toString("hex")}${ext}`,
+          visibility: "public",
+          body: file.buffer,
+          contentType: file.mimetype,
+        });
+        return stored.url ?? stored.path;
+      }));
+      res.json({ success: true, data: { url: urls[0], urls }, message: "Success", meta: {} });
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.post("/announcements", ...chairmanOnly, controller.createAnnouncement);

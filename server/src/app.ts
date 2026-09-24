@@ -38,6 +38,7 @@ import { createRentalRouter } from "./modules/rental/rental.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
 import { AppError } from "./utils/app-error";
+import { LocalStorageProvider } from "./storage/local-storage-provider";
 
 type CreateAppOptions = {
   authService?: AuthService;
@@ -49,12 +50,13 @@ type CreateAppOptions = {
   paymongoWebhookService?: PaymongoWebhookService;
 };
 
-function createCorsOptions(frontendUrl: string): CorsOptions {
+function createCorsOptions(allowedOrigins: string[]): CorsOptions {
+  const allowed = new Set(allowedOrigins);
   return {
     credentials: true,
     exposedHeaders: ["X-Request-ID"],
     origin(origin, callback) {
-      if (!origin || origin === frontendUrl) {
+      if (!origin || allowed.has(origin)) {
         callback(null, true);
         return;
       }
@@ -66,7 +68,9 @@ function createCorsOptions(frontendUrl: string): CorsOptions {
 
 export function createApp(options: CreateAppOptions = {}) {
   const app = express();
-  const frontendUrl = options.frontendUrl ?? env.FRONTEND_URL;
+  const allowedOrigins = options.frontendUrl
+    ? [options.frontendUrl]
+    : env.CORS_ALLOWED_ORIGINS;
 
   app.disable("x-powered-by");
 
@@ -84,8 +88,8 @@ export function createApp(options: CreateAppOptions = {}) {
     crossOriginResourcePolicy: { policy: "cross-origin" }
   }));
   app.use("/api/webhooks/paymongo", createPaymongoWebhookRouter(options.paymongoWebhookService));
-  app.use(cors(createCorsOptions(frontendUrl)));
-  app.use(validateOrigin(frontendUrl));
+  app.use(cors(createCorsOptions(allowedOrigins)));
+  app.use(validateOrigin(allowedOrigins));
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
@@ -98,8 +102,27 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }));
   app.use(cookieParser());
 
-  // Serve public uploads statically
-  app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
+  // Serve only public upload objects. Protected files are read through
+  // authorized API handlers and are never exposed through express.static().
+  if (env.STORAGE_DRIVER === "local") {
+    const localStorage = new LocalStorageProvider();
+    app.use("/uploads", express.static(localStorage.publicRoot()));
+  }
+  for (const publicFolder of [
+    "announcements",
+    "gallery",
+    "inventory",
+    "partners-certifications",
+    "rentals",
+  ]) {
+    app.use(
+      `/uploads/${publicFolder}`,
+      express.static(path.join(process.cwd(), "public", "uploads", publicFolder)),
+    );
+  }
+  app.get(/^\/uploads\/product-[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp)$/i, (request, response) => {
+    response.sendFile(path.join(process.cwd(), "public", request.path));
+  });
 
   app.use("/api/health", createHealthRouter(options.databaseProbe));
   app.use("/api/auth", createAuthRouter(options.authService));

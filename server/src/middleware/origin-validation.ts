@@ -3,7 +3,8 @@ import { AppError } from "../utils/app-error";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function validateOrigin(allowedOrigin: string): RequestHandler {
+export function validateOrigin(allowedOrigins: string[]): RequestHandler {
+  const allowed = new Set(allowedOrigins);
   return (request, _response, next) => {
     if (SAFE_METHODS.has(request.method)) {
       next();
@@ -14,7 +15,7 @@ export function validateOrigin(allowedOrigin: string): RequestHandler {
 
     // Non-browser clients may omit Origin. Browser mutation requests may not
     // use an origin other than the configured frontend.
-    if (!origin || origin === allowedOrigin) {
+    if (!origin || allowed.has(origin)) {
       next();
       return;
     }

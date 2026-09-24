@@ -1,12 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import type { PoolConnection } from "mysql2/promise";
 import PDFDocument from "pdfkit";
 import {
+  deleteProtectedFile,
   normalizeProtectedStoragePath,
-  protectedUploadRoot,
 } from "../storage/protected-storage";
+import { storageProvider } from "../storage";
 import {
   createCentralDocument,
   type CentralDocumentInput,
@@ -79,24 +78,26 @@ export async function createGeneratedPdfDocument(
   const buffer = await renderPdf(input);
   const year = String(new Date().getUTCFullYear());
   const storedFileName = `${randomUUID()}.pdf`;
-  const directory = path.join(protectedUploadRoot, "generated", year);
-  const absolutePath = path.join(directory, storedFileName);
-  await mkdir(directory, { recursive: true });
-  await writeFile(absolutePath, buffer, { flag: "wx" });
+  const key = `generated/${year}/${storedFileName}`;
+  const storagePath = normalizeProtectedStoragePath(key);
+  await storageProvider().put({
+    key,
+    visibility: "protected",
+    body: buffer,
+    contentType: "application/pdf",
+  });
 
   try {
     return await createCentralDocument(connection, {
       ...input,
-      storagePath: normalizeProtectedStoragePath(
-        `generated/${year}/${storedFileName}`,
-      ),
+      storagePath,
       originalFileName: `${safeBaseName(input.fileBaseName)}.pdf`,
       mimeType: "application/pdf",
       fileSizeBytes: buffer.length,
       checksum: createHash("sha256").update(buffer).digest("hex"),
     });
   } catch (error) {
-    await unlink(absolutePath).catch(() => undefined);
+    await deleteProtectedFile(storagePath).catch(() => undefined);
     throw error;
   }
 }

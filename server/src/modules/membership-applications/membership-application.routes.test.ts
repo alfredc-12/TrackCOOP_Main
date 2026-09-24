@@ -6,6 +6,7 @@ import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import request from "supertest";
 import { errorHandler } from "../../middleware/error-handler";
+import { readProtectedFile } from "../../storage/protected-storage";
 import { AppError } from "../../utils/app-error";
 import type { AuthService } from "../auth/auth.service";
 import type { AuthContext, AuthUser, RoleSlug } from "../auth/auth.types";
@@ -36,6 +37,7 @@ import type {
 const protectedUploadRoot = path.resolve(
   process.cwd(),
   "storage",
+  "uploads",
   "protected",
   "membership-applications",
 );
@@ -581,8 +583,10 @@ test("POST /api/membership-applications/public/:applicationCode/documents stores
   assert.equal(response.body.data.storedFilePath, undefined);
   assert.match(
     (repository.storedDocumentPath ?? "").replace(/\\/g, "/"),
-    /storage\/protected\/membership-applications/,
+    /^public\/uploads\/membership-applications\//,
   );
+  const contents = await readProtectedFile(repository.storedDocumentPath ?? "");
+  assert.match(contents.toString("utf8"), /^%PDF-1\.4/);
 });
 
 test("POST /api/membership-applications/public/:applicationCode/documents rejects unsupported file types", async () => {
@@ -624,7 +628,7 @@ test("POST /api/membership-applications/public/:applicationCode/documents remove
   assert.equal(response.status, 503);
   assert.equal(response.body.errors[0].code, "DOCUMENT_METADATA_SAVE_FAILED");
   await assert.rejects(
-    stat(path.resolve(process.cwd(), repository.storedDocumentPath ?? "")),
+    readProtectedFile(repository.storedDocumentPath ?? ""),
   );
 });
 

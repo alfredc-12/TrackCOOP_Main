@@ -1,13 +1,15 @@
 import type { Express } from "express";
 import path from "node:path";
+import crypto from "node:crypto";
 import type { ZodType } from "zod";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
 import {
   normalizeProtectedStoragePath,
-  protectedUploadRoot,
+  readProtectedFile,
 } from "../../storage/protected-storage";
+import { storageProvider } from "../../storage";
 import {
   accountCreationSchema,
   activationSchema,
@@ -61,40 +63,49 @@ function parseJson(value: unknown) {
   }
 }
 
-function uploadedDocuments(
+function uploadExtension(file: Express.Multer.File) {
+  if (file.mimetype === "application/pdf") return ".pdf";
+  if (file.mimetype === "image/png") return ".png";
+  return path.extname(file.originalname) || ".jpg";
+}
+
+async function storeMembershipUpload(file: Express.Multer.File, folder: string) {
+  const key = `${folder}/${crypto.randomUUID()}${uploadExtension(file)}`;
+  const stored = await storageProvider().put({
+    key,
+    visibility: "protected",
+    body: file.buffer,
+    contentType: file.mimetype,
+  });
+  return normalizeProtectedStoragePath(stored.path);
+}
+
+async function uploadedDocuments(
   files: Express.Multer.File[] | undefined,
   documentTypesValue: unknown,
-): UploadedApplicationDocument[] {
+): Promise<UploadedApplicationDocument[]> {
   const documentTypes =
     typeof documentTypesValue === "string"
       ? (parseJson(documentTypesValue) as unknown)
       : documentTypesValue;
   const types = Array.isArray(documentTypes) ? documentTypes.map(String) : [];
-  return (files ?? []).map((file, index) => ({
+  return Promise.all((files ?? []).map(async (file, index) => ({
     documentType: types[index] ?? "Other cooperative requirement",
     originalFileName: file.originalname,
-    storedFilePath: normalizeProtectedStoragePath(file.path),
+    storedFilePath: await storeMembershipUpload(file, "membership-applications"),
     mimeType: file.mimetype,
     fileSizeBytes: file.size,
-  }));
+  })));
 }
 
-function sendProtectedFile(
+async function sendProtectedFile(
   response: import("express").Response,
   file: { filePath: string; fileName: string; mimeType: string } | null,
 ) {
   if (!file) {
     throw new AppError("Protected file was not found", 404, "FILE_NOT_FOUND");
   }
-  const absolutePath = path.resolve(process.cwd(), file.filePath);
-  const allowedRoot = `${path.resolve(protectedUploadRoot)}${path.sep}`;
-  if (!absolutePath.startsWith(allowedRoot)) {
-    throw new AppError(
-      "Protected file path is invalid",
-      403,
-      "INVALID_FILE_PATH",
-    );
-  }
+  const contents = await readProtectedFile(file.filePath);
   response.setHeader("Content-Type", file.mimeType);
   response.setHeader(
     "Content-Disposition",
@@ -102,7 +113,7 @@ function sendProtectedFile(
   );
   response.setHeader("Cache-Control", "private, no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  return response.sendFile(absolutePath);
+  return response.send(contents);
 }
 
 export function createMembershipController(service: MembershipService) {
@@ -112,7 +123,7 @@ export function createMembershipController(service: MembershipService) {
         applicationInputSchema,
         parseJson(request.body.payload),
       );
-      const documents = uploadedDocuments(
+      const documents = await uploadedDocuments(
         request.files as Express.Multer.File[] | undefined,
         request.body.documentTypes,
       );
@@ -150,7 +161,7 @@ export function createMembershipController(service: MembershipService) {
           input.reference,
           input.contactNumber,
           input.information,
-          uploadedDocuments(
+          await uploadedDocuments(
             request.files as Express.Multer.File[] | undefined,
             request.body.documentTypes,
           ),
@@ -238,7 +249,7 @@ export function createMembershipController(service: MembershipService) {
             provider: String(request.body.provider ?? ""),
             referenceNumber: String(request.body.referenceNumber ?? ""),
             amount,
-            proofFilePath: normalizeProtectedStoragePath(proof.path),
+            proofFilePath: await storeMembershipUpload(proof, "membership-payments"),
             notes: request.body.notes ? String(request.body.notes) : undefined,
           },
         ),

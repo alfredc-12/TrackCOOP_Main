@@ -68,6 +68,8 @@ test("POST /api/auth/login sets an opaque HttpOnly SameSite cookie", async () =>
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /SameSite=Lax/);
   assert.match(cookie, /Path=\//);
+  assert.doesNotMatch(cookie, /Domain=/);
+  assert.doesNotMatch(cookie, /Secure/);
   assert.doesNotMatch(cookie, /rawToken|tokenHash/);
 });
 

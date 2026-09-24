@@ -13,6 +13,13 @@ const optionalTrimmedString = z
   .optional()
   .transform((value) => value || undefined);
 
+const commaSeparatedOrigins = z
+  .preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().trim().default("http://localhost:3000"),
+  )
+  .transform((value) => [...new Set(value.split(",").map((origin) => origin.trim()).filter(Boolean))]);
+
 const allowedPaymongoPaymentMethodTypes = ["card"] as const;
 
 const paymongoPaymentMethodTypes = z
@@ -41,15 +48,29 @@ const paymongoPaymentMethodTypes = z
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65535).optional(),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+  CORS_ALLOWED_ORIGINS: commaSeparatedOrigins,
   REQUEST_BODY_LIMIT: z.string().min(1).default("1mb"),
   TRUST_PROXY: booleanString.default(false),
   SESSION_COOKIE_NAME: z
     .string()
     .regex(/^[A-Za-z0-9_-]+$/)
     .default("trackcoop_session"),
+  SESSION_COOKIE_DOMAIN: optionalTrimmedString,
+  SESSION_COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
+  SESSION_COOKIE_SECURE: booleanString.default(false),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(12),
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  LOCAL_STORAGE_ROOT: z.string().trim().min(1).default("storage/uploads"),
+  S3_ENDPOINT: optionalTrimmedString,
+  S3_REGION: optionalTrimmedString,
+  S3_BUCKET: optionalTrimmedString,
+  S3_ACCESS_KEY_ID: optionalTrimmedString,
+  S3_SECRET_ACCESS_KEY: optionalTrimmedString,
+  S3_FORCE_PATH_STYLE: booleanString.default(false),
+  S3_PUBLIC_BASE_URL: optionalTrimmedString,
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
@@ -69,6 +90,39 @@ const envSchema = z.object({
   const secretKey = value.PAYMONGO_SECRET_KEY;
   const webhookSecret = value.PAYMONGO_WEBHOOK_SECRET;
   const systemActorUserId = value.PAYMONGO_SYSTEM_ACTOR_USER_ID;
+
+  if (value.SESSION_COOKIE_SAME_SITE === "none" && !value.SESSION_COOKIE_SECURE) {
+    context.addIssue({
+      code: "custom",
+      path: ["SESSION_COOKIE_SECURE"],
+      message: "SESSION_COOKIE_SECURE must be true when SESSION_COOKIE_SAME_SITE is none",
+    });
+  }
+
+  if (value.SESSION_COOKIE_DOMAIN?.includes("localhost")) {
+    context.addIssue({
+      code: "custom",
+      path: ["SESSION_COOKIE_DOMAIN"],
+      message: "SESSION_COOKIE_DOMAIN must be empty for localhost",
+    });
+  }
+
+  if (value.STORAGE_DRIVER === "s3") {
+    if (!value.S3_BUCKET) {
+      context.addIssue({
+        code: "custom",
+        path: ["S3_BUCKET"],
+        message: "S3_BUCKET is required when STORAGE_DRIVER is s3",
+      });
+    }
+    if (!value.S3_REGION) {
+      context.addIssue({
+        code: "custom",
+        path: ["S3_REGION"],
+        message: "S3_REGION is required when STORAGE_DRIVER is s3",
+      });
+    }
+  }
 
   if (!value.PAYMONGO_ENABLED) {
     return;

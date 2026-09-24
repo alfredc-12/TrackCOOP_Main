@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
-import { readFile, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { unlink } from "node:fs/promises";
 import type {
   PoolConnection,
   ResultSetHeader,
@@ -27,11 +27,12 @@ import {
   type DocumentPolicyRecord,
 } from "./document-policy";
 import {
-  resolveProtectedDocumentPath,
+  readProtectedDocument,
   storeProtectedDocument,
   validateDocumentFile,
   type UploadedFileLike,
 } from "./document-security";
+import { deleteProtectedFile } from "../../storage/protected-storage";
 import { RecordsError } from "./records-error";
 
 const db = getPool();
@@ -66,8 +67,6 @@ type SummaryRow = RowDataPacket & {
 
 type CountRow = RowDataPacket & { total: string | number };
 type IdRow = RowDataPacket & { id: string };
-type ChecksumRow = RowDataPacket & { id: string; checksum: string | null };
-
 export type DocumentListInput = {
   search?: string;
   category?: string;
@@ -584,7 +583,7 @@ export async function uploadDocument(
     return { id: String(documentId), reference };
   } catch (error) {
     await connection.rollback();
-    await unlink(stored.absolutePath).catch(() => undefined);
+    await deleteProtectedFile(stored.storagePath).catch(() => unlink(stored.absolutePath).catch(() => undefined));
     throw error;
   } finally {
     connection.release();
@@ -788,8 +787,7 @@ export async function getDocumentFile(
 
   let contents: Buffer;
   try {
-    const absolutePath = resolveProtectedDocumentPath(files[0].storagePath);
-    contents = await readFile(/* turbopackIgnore: true */ absolutePath);
+    contents = await readProtectedDocument(files[0].storagePath);
   } catch {
     throw new RecordsError(
       "The stored file is unavailable. Its metadata has been preserved.",

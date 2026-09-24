@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   normalizeProtectedStoragePath,
+  readProtectedFile,
   protectedUploadRoot,
 } from "../../storage/protected-storage";
+import { storageProvider } from "../../storage";
 
 const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -117,17 +118,18 @@ export async function storeProtectedDocument(
   folder = "documents",
 ) {
   const year = String(new Date().getFullYear());
-  const directory = path.join(protectedUploadRoot, folder, year);
-  await mkdir(directory, { recursive: true });
   const storedFileName = `${randomUUID()}.${file.extension}`;
-  const absolutePath = path.join(directory, storedFileName);
-  await writeFile(absolutePath, file.buffer, { flag: "wx" });
+  const key = `${folder}/${year}/${storedFileName}`;
+  await storageProvider().put({
+    key,
+    visibility: "protected",
+    body: file.buffer,
+    contentType: file.mimeType,
+  });
   return {
-    absolutePath,
+    absolutePath: path.join(protectedUploadRoot, key),
     storedFileName,
-    storagePath: normalizeProtectedStoragePath(
-      `${folder}/${year}/${storedFileName}`,
-    ),
+    storagePath: normalizeProtectedStoragePath(key),
   };
 }
 
@@ -140,4 +142,8 @@ export function resolveProtectedDocumentPath(storagePath: string) {
     throw new Error("The protected document path is invalid.");
   }
   return absolutePath;
+}
+
+export async function readProtectedDocument(storagePath: string) {
+  return readProtectedFile(storagePath);
 }

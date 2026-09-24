@@ -1,10 +1,13 @@
 import path from "node:path";
+import { env } from "../config/env";
 import { AppError } from "../utils/app-error";
+import { storageProvider } from "./index";
+import { normalizeObjectKey, protectedDatabasePath } from "./storage-paths";
 
 export const protectedUploadRoot = path.join(
   process.cwd(),
-  "public",
-  "uploads",
+  env.LOCAL_STORAGE_ROOT,
+  "protected",
 );
 
 const storagePrefixes = [
@@ -56,6 +59,23 @@ export function normalizeProtectedStoragePath(filePath: string) {
     throw new AppError("File path must stay inside protected storage", 400, "INVALID_FILE_PATH");
   }
 
-  return `public/uploads/${normalized}`;
+  return protectedDatabasePath(normalized);
 }
 
+export function protectedObjectKey(filePath: string) {
+  return normalizeObjectKey(normalizeProtectedStoragePath(filePath));
+}
+
+export async function readProtectedFile(filePath: string) {
+  return storageProvider().get({
+    key: protectedObjectKey(filePath),
+    visibility: "protected",
+  });
+}
+
+export async function deleteProtectedFile(filePath: string) {
+  await storageProvider().delete({
+    key: protectedObjectKey(filePath),
+    visibility: "protected",
+  });
+}

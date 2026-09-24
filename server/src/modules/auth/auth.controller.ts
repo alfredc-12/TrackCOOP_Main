@@ -1,19 +1,11 @@
-import type { CookieOptions, RequestHandler } from "express";
+import type { RequestHandler } from "express";
+import { sessionCookieOptions } from "../../config/cookies";
 import { env } from "../../config/env";
 import { asyncHandler } from "../../utils/async-handler";
 import { AppError } from "../../utils/app-error";
 import { sendSuccess } from "../../utils/response";
 import { loginSchema, sessionIdSchema } from "./auth.schema";
 import type { AuthService } from "./auth.service";
-
-function cookieOptions(): CookieOptions {
-  return {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production",
-    path: "/",
-  };
-}
 
 function validationError(issues: { path: PropertyKey[]; message: string }[]) {
   return new AppError(
@@ -46,7 +38,7 @@ export function createAuthController(authService: AuthService) {
 
       const result = await authService.login(parsed.data, requestContext(request));
       response.cookie(env.SESSION_COOKIE_NAME, result.rawToken, {
-        ...cookieOptions(),
+        ...sessionCookieOptions(),
         expires: result.expiresAt,
       });
 
@@ -57,7 +49,7 @@ export function createAuthController(authService: AuthService) {
 
     logout: asyncHandler(async (request, response) => {
       await authService.logout(request.auth!);
-      response.clearCookie(env.SESSION_COOKIE_NAME, cookieOptions());
+      response.clearCookie(env.SESSION_COOKIE_NAME, sessionCookieOptions());
 
       return sendSuccess(response, null, { message: "Signed out successfully" });
     }),
@@ -86,7 +78,7 @@ export function createAuthController(authService: AuthService) {
       await authService.revokeSession(request.auth!, parsed.data.id);
 
       if (isCurrent) {
-        response.clearCookie(env.SESSION_COOKIE_NAME, cookieOptions());
+        response.clearCookie(env.SESSION_COOKIE_NAME, sessionCookieOptions());
       }
 
       return sendSuccess(

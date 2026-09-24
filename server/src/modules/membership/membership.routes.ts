@@ -1,11 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import path from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
-import { protectedUploadRoot } from "../../storage/protected-storage";
 import type { AuthService } from "../auth/auth.service";
 import { createAuthService } from "../auth/auth.service";
 import { createMembershipController } from "./membership.controller";
@@ -20,22 +16,9 @@ const allowedMimeTypes = new Set([
   "application/pdf",
 ]);
 
-function createUpload(folder: string) {
-  const destination = path.join(protectedUploadRoot, folder);
-  mkdirSync(destination, { recursive: true });
+function createUpload() {
   return multer({
-    storage: multer.diskStorage({
-      destination,
-      filename: (_request, file, callback) => {
-        const extension =
-          file.mimetype === "application/pdf"
-            ? ".pdf"
-            : file.mimetype === "image/png"
-              ? ".png"
-              : ".jpg";
-        callback(null, `${randomUUID()}${extension}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 5 },
     fileFilter: (_request, file, callback) => {
       callback(null, allowedMimeTypes.has(file.mimetype));
@@ -52,8 +35,8 @@ export function createMembershipRouter(
   const authenticate = createAuthenticate(authService);
   const chairmanOnly = [authenticate, requireRoles("chairman")];
   const bookkeeperOnly = [authenticate, requireRoles("bookkeeper")];
-  const documentUpload = createUpload("membership-applications");
-  const paymentUpload = createUpload("membership-payments");
+  const documentUpload = createUpload();
+  const paymentUpload = createUpload();
 
   router.post(
     "/public/membership/applications",

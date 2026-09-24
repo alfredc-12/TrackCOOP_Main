@@ -1,7 +1,6 @@
 import { ZodError, type ZodType } from "zod";
-import path from "node:path";
 import type { Response } from "express";
-import { protectedUploadRoot } from "../../storage/protected-storage";
+import { readProtectedFile } from "../../storage/protected-storage";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
@@ -31,16 +30,14 @@ function requireAuth(auth: Express.Request["auth"]) {
   if (!auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
   return auth;
 }
-function sendProtectedProof(response: Response, file: { filePath: string; fileName: string; mimeType: string } | null) {
+async function sendProtectedProof(response: Response, file: { filePath: string; fileName: string; mimeType: string } | null) {
   if (!file) throw new AppError("Payment proof was not found", 404, "PAYMENT_PROOF_NOT_FOUND");
-  const absolutePath = path.resolve(process.cwd(), file.filePath);
-  const allowedRoot = `${path.resolve(protectedUploadRoot)}${path.sep}`;
-  if (!absolutePath.startsWith(allowedRoot)) throw new AppError("Payment proof path is invalid", 403, "INVALID_FILE_PATH");
+  const contents = await readProtectedFile(file.filePath);
   response.setHeader("Content-Type", file.mimeType);
   response.setHeader("Content-Disposition", `inline; filename="${file.fileName.replaceAll('"', "")}"`);
   response.setHeader("Cache-Control", "private, no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  return response.sendFile(absolutePath);
+  return response.send(contents);
 }
 
 export function createPaymentReferenceController(service: PaymentReferenceService) {

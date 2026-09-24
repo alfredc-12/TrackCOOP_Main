@@ -3,10 +3,11 @@ import { env } from "./config/env";
 import { closePool } from "./db/pool";
 import { logger } from "./utils/logger";
 
-const server = app.listen(env.API_PORT, () => {
+const port = env.PORT ?? env.API_PORT;
+const server = app.listen(port, "0.0.0.0", () => {
   logger.info("server started", {
     environment: env.NODE_ENV,
-    port: env.API_PORT,
+    port,
   });
 });
 
