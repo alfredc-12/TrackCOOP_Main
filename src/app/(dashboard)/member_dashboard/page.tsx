@@ -12,6 +12,7 @@ import { RentalProvider } from "@/app/rental/_context/RentalProvider";
 import { logout, getAuthenticatedUser } from "@/lib/auth-client";
 import type { AuthUser } from "@/features/auth/types";
 import { apiRequest } from "@/lib/api-client";
+import { expressFetch } from "@/lib/express-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { env } from "@/config/env";
@@ -103,7 +104,7 @@ export default function MemberDashboardPage() {
       .then(setUser)
       .catch(console.error);
 
-    fetch("/api/members/me/dashboard")
+    expressFetch("/api/members/me/dashboard")
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch dashboard");
         return res.json();

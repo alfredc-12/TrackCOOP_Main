@@ -14,6 +14,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { env } from "@/config/env";
+import { expressFetch } from "@/lib/express-api";
 
 const PHOTO_PROGRESS_DURATION_MS = 5500;
 
@@ -84,7 +85,7 @@ export default function AnnouncementsSection() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/announcements")
+    expressFetch("/api/announcements")
       .then((res) => res.json())
       .then((json) => {
         if (!json.success || cancelled) return;

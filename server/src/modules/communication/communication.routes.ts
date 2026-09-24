@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "node:path";
 import crypto from "node:crypto";
 import { mkdirSync } from "node:fs";
-import { createAuthenticate } from "../../middleware/authenticate";
+import { createAuthenticate, createOptionalAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
 import { createAuthService, type AuthService } from "../auth/auth.service";
 import { createCommunicationController } from "./communication.controller";
@@ -33,6 +33,7 @@ export function createCommunicationRouter(
 ) {
   const router = Router();
   const controller = createCommunicationController(communicationService);
+  const optionalAuthenticated = createOptionalAuthenticate(authService);
   const authenticated = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper", "member")];
   const staff = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper")];
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
@@ -47,7 +48,7 @@ export function createCommunicationRouter(
   router.post("/reports", ...staff, controller.createReport);
   router.post("/reports/:id/archive", ...staff, controller.archiveReport);
 
-  router.get("/announcements", ...authenticated, controller.listAnnouncements);
+  router.get("/announcements", optionalAuthenticated, controller.listAnnouncements);
   
   router.post("/announcements/upload-image", ...chairmanOnly, upload.fields([
     { name: "images", maxCount: 12 },

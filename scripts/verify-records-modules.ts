@@ -1,18 +1,20 @@
 import type { RowDataPacket } from "mysql2/promise";
-import { db } from "../src/lib/db";
-import type { AuthorizedUser } from "../src/lib/next-api-auth";
+import { getPool } from "../server/src/db/pool";
+import type { AuthorizedUser } from "../server/src/modules/records/records-auth";
 import {
   getDocumentDetail,
   getDocumentFile,
   listDocuments,
   setDocumentArchived,
   uploadDocument,
-} from "../src/features/records/server/document-service";
-import { RecordsError } from "../src/features/records/server/records-error";
+} from "../server/src/modules/records/document-service";
+import { RecordsError } from "../server/src/modules/records/records-error";
 import {
   generateReport,
   saveGeneratedReportToDocuments,
-} from "../src/features/records/server/report-service";
+} from "../server/src/modules/records/report-service";
+
+const db = getPool();
 
 type UserRow = RowDataPacket & {
   id: string;

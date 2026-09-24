@@ -56,7 +56,7 @@ export interface CommunicationService {
   listReports(query: ListReportsQuery): ReturnType<CommunicationRepository["listReports"]>;
   createReport(input: CreateReportServiceInput, auth: AuthContext): ReturnType<CommunicationRepository["createReport"]>;
   archiveReport(id: string, reason: string | null | undefined, auth: AuthContext): ReturnType<CommunicationRepository["archiveReport"]>;
-  listAnnouncements(query: ListAnnouncementsQuery, auth: AuthContext): ReturnType<CommunicationRepository["listAnnouncements"]>;
+  listAnnouncements(query: ListAnnouncementsQuery, auth: AuthContext | null): ReturnType<CommunicationRepository["listAnnouncements"]>;
   createAnnouncement(input: CreateAnnouncementInput, auth: AuthContext): ReturnType<CommunicationRepository["createAnnouncement"]>;
   updateAnnouncement(id: string, input: UpdateAnnouncementInput, auth: AuthContext): ReturnType<CommunicationRepository["updateAnnouncement"]>;
   publishAnnouncement(id: string, auth: AuthContext): ReturnType<CommunicationRepository["setAnnouncementStatus"]>;

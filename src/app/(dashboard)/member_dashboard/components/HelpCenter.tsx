@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { MessageSquare, Send, Clock, CheckCircle, Info, Loader2 } from "lucide-react";
+import { expressFetch } from "@/lib/express-api";
 
 type Ticket = {
   ticket_id: number;
@@ -20,7 +21,7 @@ export function HelpCenter() {
 
   const fetchTickets = () => {
     setIsFetching(true);
-    fetch("/api/members/me/support")
+    expressFetch("/api/members/me/support")
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setTickets(data);
@@ -39,7 +40,7 @@ export function HelpCenter() {
     setMsg({ text: "", type: "" });
 
     try {
-      const res = await fetch("/api/members/me/support", {
+      const res = await expressFetch("/api/members/me/support", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)

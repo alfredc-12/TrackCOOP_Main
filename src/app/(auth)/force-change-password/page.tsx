@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuthenticatedUser } from "@/features/auth/service";
+import { expressFetch } from "@/lib/express-api";
 import { Loader2, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 export default function ForceChangePasswordPage() {
@@ -35,7 +36,7 @@ export default function ForceChangePasswordPage() {
     setPasswordMsg({ text: "", type: "" });
 
     try {
-      const res = await fetch("/api/members/me/password", {
+      const res = await expressFetch("/api/members/me/password", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

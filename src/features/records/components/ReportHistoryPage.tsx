@@ -13,6 +13,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
+import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import {
   DataTable,
   EmptyState,
@@ -56,7 +57,7 @@ export function ReportHistoryPage({
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/reports/history", {
+      const response = await expressFetch("/api/reports/history", {
         cache: "no-store",
       });
       if (!response.ok) throw new Error(await apiError(response));
@@ -85,7 +86,7 @@ export function ReportHistoryPage({
   async function regenerate(report: GeneratedReportRecord) {
     setSaving(true);
     try {
-      const response = await fetch(
+      const response = await expressFetch(
         `/api/reports/generate/${report.reportKey}`,
         {
           method: "POST",
@@ -114,7 +115,7 @@ export function ReportHistoryPage({
   async function archive(report: GeneratedReportRecord) {
     setSaving(true);
     try {
-      const response = await fetch(`/api/reports/${report.id}`, {
+      const response = await expressFetch(`/api/reports/${report.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "archive", reason: archiveReason }),
@@ -137,7 +138,7 @@ export function ReportHistoryPage({
 
   async function print(report: GeneratedReportRecord) {
     try {
-      const response = await fetch(`/api/reports/${report.id}/activity`, {
+      const response = await expressFetch(`/api/reports/${report.id}/activity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "print" }),
@@ -168,12 +169,12 @@ export function ReportHistoryPage({
             title="Generated Reports"
             description="Review report generation history, filters, linked documents, exports, regenerations, and archived records."
             actions={
-              <Link
-                href="/api/reports/history/export"
+              <a
+                href={expressApiUrl("/api/reports/history/export")}
                 className={secondaryButtonClass}
               >
                 <Download className="size-4" /> Export Register
-              </Link>
+              </a>
             }
           />
         </>
@@ -452,7 +453,7 @@ function exportHref(report: GeneratedReportRecord, format: "pdf" | "csv") {
   Object.entries(report.filters).forEach(([key, value]) => {
     if (value) query.set(key, value);
   });
-  return `/api/reports/generate/${report.reportKey}/export?${query}`;
+  return expressApiUrl(`/api/reports/generate/${report.reportKey}/export?${query}`);
 }
 
 function FilterSummary({ filters }: { filters: ReportFilters }) {

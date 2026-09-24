@@ -31,6 +31,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
+import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import {
   DataTable,
   EmptyState,
@@ -150,7 +151,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch(
+      const response = await expressFetch(
         `/api/documents?${queryFor(filters, page)}`,
         {
           cache: "no-store",
@@ -221,7 +222,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     if (!confirmUpload) return;
     setUploading(true);
     try {
-      const response = await fetch("/api/documents", {
+      const response = await expressFetch("/api/documents", {
         method: "POST",
         body: confirmUpload,
       });
@@ -248,7 +249,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     setMutating(true);
     const archive = document.status !== "ARCHIVED";
     try {
-      const response = await fetch(`/api/documents/${document.id}`, {
+      const response = await expressFetch(`/api/documents/${document.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -281,7 +282,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     
     for (const id of Array.from(selectedIds)) {
       try {
-        const response = await fetch(`/api/documents/${id}`, {
+        const response = await expressFetch(`/api/documents/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "archive", reason: "Bulk archived" }),
@@ -309,7 +310,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       
       const downloadPromises = selectedDocs.map(async (doc) => {
         try {
-          const response = await fetch(`/api/documents/${doc.id}/file?action=download`);
+          const response = await expressFetch(`/api/documents/${doc.id}/file?action=download`);
           if (!response.ok) throw new Error("Failed to fetch");
           const blob = await response.blob();
           zip.file(doc.fileName, blob);
@@ -362,7 +363,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
             </div>
             <div className="flex flex-wrap items-center gap-3 justify-end">
               <a
-                href={`/api/documents/export?${queryFor(filters)}`}
+                href={expressApiUrl(`/api/documents/export?${queryFor(filters)}`)}
                 className={secondaryButtonClass}
               >
                 <Download className="size-4" /> Export List
@@ -667,7 +668,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {data.documents.map((document) => {
-                  const previewUrl = `/api/documents/${document.id}/file?action=preview`;
+                  const previewUrl = expressApiUrl(`/api/documents/${document.id}/file?action=preview`);
                   const isImage = document.mimeType?.startsWith("image/");
                   return (
                     <div key={document.id} className="relative flex flex-col overflow-hidden rounded-lg border border-[#CAD8CB] bg-white transition-shadow hover:shadow-md">
@@ -1091,8 +1092,8 @@ function DocumentActions({
   const [open, setOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const download = `/api/documents/${document.id}/file?action=download`;
-  const previewUrl = `/api/documents/${document.id}/file?action=preview`;
+  const download = expressApiUrl(`/api/documents/${document.id}/file?action=download`);
+  const previewUrl = expressApiUrl(`/api/documents/${document.id}/file?action=preview`);
 
   const triggerButton = mobile ? (
     <button

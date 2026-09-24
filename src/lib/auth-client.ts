@@ -1,9 +1,5 @@
 import type { AuthUser, LoginInput } from "@/features/auth/types";
-import { apiRequest } from "./api-client";
-
-type OptionalSessionResponse = {
-  user: AuthUser | null;
-};
+import { ApiClientError, apiRequest } from "./api-client";
 
 export function login(input: LoginInput) {
   return apiRequest<AuthUser>("/api/auth/login", {
@@ -21,12 +17,12 @@ export function getAuthenticatedUser() {
 }
 
 export async function getOptionalAuthenticatedUser() {
-  const response = await fetch("/api/auth/session", { cache: "no-store" });
-
-  if (!response.ok) {
+  try {
+    return await apiRequest<AuthUser>("/api/auth/me", { cache: "no-store" });
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      return null;
+    }
     return null;
   }
-
-  const payload = (await response.json()) as OptionalSessionResponse;
-  return payload.user;
 }

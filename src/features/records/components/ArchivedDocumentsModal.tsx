@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FormDialog, ConfirmDialog } from "@/components/portal/PortalPrimitives";
 import { FileText, ArchiveRestore, Clock3, Inbox, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
+import { expressFetch } from "@/lib/express-api";
 import type { DocumentListResponse, DocumentRecord } from "../records-types";
 import { apiError, primaryButtonClass, secondaryButtonClass, formatDate } from "./RecordsUi";
 import { toast } from "sonner";
@@ -32,7 +33,7 @@ export function ArchivedDocumentsModal({
         page: String(page),
         pageSize: "5",
       });
-      const response = await fetch(`/api/documents?${parameters}`);
+      const response = await expressFetch(`/api/documents?${parameters}`);
       if (!response.ok) throw new Error(await apiError(response));
       setData(await response.json());
       setError(null);
@@ -50,7 +51,7 @@ export function ArchivedDocumentsModal({
   async function restoreDocument(documentId: string) {
     setMutating(documentId);
     try {
-      const response = await fetch(`/api/documents/${documentId}`, {
+      const response = await expressFetch(`/api/documents/${documentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "restore" }),

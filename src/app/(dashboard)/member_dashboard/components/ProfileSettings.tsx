@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { User, Phone, MapPin, Mail, KeyRound, Save, Loader2, CheckCircle2 } from "lucide-react";
+import { expressFetch } from "@/lib/express-api";
 
 export function ProfileSettings() {
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +29,7 @@ export function ProfileSettings() {
   useEffect(() => {
     // Fetch initial profile data from the dashboard endpoint which has member info
     setIsLoading(true);
-    fetch("/api/members/me/dashboard")
+    expressFetch("/api/members/me/dashboard")
       .then(res => res.json())
       .then(data => {
         if (data && data.member) {
@@ -58,7 +59,7 @@ export function ProfileSettings() {
     setProfileMsg({ text: "", type: "" });
     
     try {
-      const res = await fetch("/api/members/me/profile", {
+      const res = await expressFetch("/api/members/me/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile)
@@ -87,7 +88,7 @@ export function ProfileSettings() {
     setPasswordMsg({ text: "", type: "" });
     
     try {
-      const res = await fetch("/api/members/me/password", {
+      const res = await expressFetch("/api/members/me/password", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

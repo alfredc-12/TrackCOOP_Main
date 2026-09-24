@@ -128,7 +128,7 @@ export function createCommunicationController(service: CommunicationService) {
     }),
 
     listAnnouncements: asyncHandler(async (request, response) => {
-      return sendList(response, await service.listAnnouncements(parse(listAnnouncementsQuerySchema, request.query), requireAuth(request.auth)));
+      return sendList(response, await service.listAnnouncements(parse(listAnnouncementsQuerySchema, request.query), request.auth ?? null));
     }),
     createAnnouncement: asyncHandler(async (request, response) => {
       return sendSuccess(

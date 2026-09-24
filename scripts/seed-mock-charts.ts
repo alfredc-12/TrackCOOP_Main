@@ -1,4 +1,6 @@
-import { db } from "../src/lib/db";
+import { getPool } from "../server/src/db/pool";
+
+const db = getPool();
 
 async function seed() {
   try {

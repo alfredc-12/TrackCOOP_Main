@@ -21,6 +21,7 @@ import type {
   RentalService,
   ServiceVisibility,
 } from "@/app/rental/_types/rental";
+import { env } from "@/config/env";
 
 const blank: RentalService = {
   serviceId: "",
@@ -143,9 +144,10 @@ export function ChairmanRentalAssetEditor({
     const uploadForm = new FormData();
     files.forEach((file) => uploadForm.append("images", file));
     try {
-      const response = await fetch("/api/rental/upload-image", {
+      const response = await fetch(`${env.apiUrl}/api/rental/upload-image`, {
         method: "POST",
         body: uploadForm,
+        credentials: "include",
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

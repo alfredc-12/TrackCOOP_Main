@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { expressFetch } from "@/lib/express-api";
 import { format } from "date-fns";
 
 type ActivityItem = {
@@ -41,7 +42,7 @@ export default function ActivityModal({
     if (!open) return;
 
     setLoading(true);
-    fetch(`/api/members/me/activity?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(debouncedSearch)}`)
+    expressFetch(`/api/members/me/activity?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(debouncedSearch)}`)
       .then(res => res.json())
       .then(result => {
         if (result.records) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image as ImageIcon, Package, Search, LayoutGrid, List, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, AlertCircle, Sprout, Eye, X } from "lucide-react";
+import { expressFetch } from "@/lib/express-api";
 
 type InventoryItem = {
   id: number;
@@ -43,7 +44,7 @@ export default function ProductCatalogClient() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await fetch("/api/inventory", { cache: "no-store" });
+      const response = await expressFetch("/api/inventory", { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Unable to load products.");
       }

@@ -42,6 +42,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
+import { env } from "@/config/env";
 
 const fieldClass =
   "min-h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
@@ -103,9 +104,10 @@ function ChairmanAddAssetModal({
     files.forEach((file) => formData.append("images", file));
 
     try {
-      const response = await fetch("/api/rental/upload-image", {
+      const response = await fetch(`${env.apiUrl}/api/rental/upload-image`, {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
 
       if (!response.ok) {

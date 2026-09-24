@@ -20,6 +20,7 @@ import type {
   PublicRentalInquiryStatus,
   ScheduleConflict,
 } from "../_types/rental";
+import { env } from "@/config/env";
 
 export class RentalApiError extends Error {
   constructor(
@@ -33,7 +34,7 @@ export class RentalApiError extends Error {
   }
 }
 
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "/api";
+const apiBase = env.apiUrl.replace(/\/$/, "");
 
 function codeForStatus(status: number): RentalApiError["code"] {
   if (status === 401) return "UNAUTHORIZED";
@@ -46,8 +47,9 @@ function codeForStatus(status: number): RentalApiError["code"] {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${apiBase}/rental${path}`, {
+    const response = await fetch(`${apiBase}/api/rental${path}`, {
       ...options,
+      credentials: options?.credentials ?? "include",
       headers: options?.body instanceof FormData ? options.headers : { "Content-Type": "application/json", ...options?.headers },
     });
     const data = await response.json().catch(() => undefined) as T | { message?: string; errors?: unknown } | undefined;
@@ -123,7 +125,7 @@ export const rentalApiRepository = {
     }),
   getRentalInquiryById: (inquiryId: string) => request<RentalInquiry>(`/inquiries/${inquiryId}`),
   getRentalValidIdUrl: (inquiryId: string) =>
-    `${apiBase}/rental/inquiries/${encodeURIComponent(inquiryId)}/valid-id`,
+    `${apiBase}/api/rental/inquiries/${encodeURIComponent(inquiryId)}/valid-id`,
   getRentalStatusHistory: (inquiryId: string) =>
     request<RentalStatusHistoryEntry[]>(`/inquiries/${inquiryId}/history`),
   lookupRentalInquiry: (reference: string, contact: string) => request<PublicRentalInquiryStatus>(`/inquiries/status?reference=${encodeURIComponent(reference)}&contact=${encodeURIComponent(contact)}`),
@@ -141,7 +143,7 @@ export const rentalApiRepository = {
   getRentalPayments: () => request<RentalPayment[]>("/payments"),
   getRentalPaymentById: (paymentId: string) => request<RentalPayment>(`/payments/${paymentId}`),
   getRentalPaymentProofUrl: (paymentId: string) =>
-    `${apiBase}/rental/payments/${encodeURIComponent(paymentId)}/proof`,
+    `${apiBase}/api/rental/payments/${encodeURIComponent(paymentId)}/proof`,
   recordRentalPayment: (payment: Omit<RentalPayment, "paymentId" | "submittedAt">) => request<RentalPayment>("/payments", { method: "POST", body: JSON.stringify(payment) }),
   validateRentalPayment: (paymentId: string, status: RentalPayment["status"], note?: string, amount?: number) => request<{ payment: RentalPayment; receipt?: RentalReceipt }>(`/payments/${paymentId}/validate`, { method: "POST", body: JSON.stringify({ status, note, amount }) }),
   uploadRentalPaymentProof: async (

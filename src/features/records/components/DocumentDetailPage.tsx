@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
+import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import {
   ErrorState,
   FormDialog,
@@ -78,7 +79,7 @@ export function DocumentDetailPage({
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch(`/api/documents/${documentId}`, {
+      const response = await expressFetch(`/api/documents/${documentId}`, {
         cache: "no-store",
       });
       if (!response.ok) throw new Error(await apiError(response));
@@ -127,7 +128,7 @@ export function DocumentDetailPage({
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/documents/${document.id}`, {
+      const response = await expressFetch(`/api/documents/${document.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update", document: next }),
@@ -153,7 +154,7 @@ export function DocumentDetailPage({
     const archive = document.status !== "ARCHIVED";
     setSaving(true);
     try {
-      const response = await fetch(`/api/documents/${document.id}`, {
+      const response = await expressFetch(`/api/documents/${document.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -189,7 +190,7 @@ export function DocumentDetailPage({
     );
   }
   if (!document) return null;
-  const currentFile = `/api/documents/${document.id}/file`;
+  const currentFile = expressApiUrl(`/api/documents/${document.id}/file`);
 
   return (
     <div className="grid min-w-0 gap-6">

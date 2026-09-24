@@ -34,6 +34,7 @@ import {
   type ValidIdType,
 } from "../_types/rental";
 import { getAuthenticatedUser } from "@/lib/auth-client";
+import { expressFetch } from "@/lib/express-api";
 
 const ClientBookingSchema = BookingSchema.safeExtend({
   firstName: z.string().trim().min(2, "Enter your first name."),
@@ -239,7 +240,7 @@ export function RentalInquiryForm({
           if (!currentValues.email) setValue("email", user.email, { shouldValidate: true });
           
           try {
-            const profileRes = await fetch("/api/members/me/profile");
+            const profileRes = await expressFetch("/api/members/me/profile");
             if (profileRes.ok && active) {
               const profile = await profileRes.json();
               if (profile.contact_number && !currentValues.contactNumber) {

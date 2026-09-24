@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Loader2, RefreshCw, CalendarDays, CircleDollarSign } from "lucide-react";
+import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 
 type PosOrderItem = {
@@ -68,7 +69,7 @@ export default function PosSalesClient() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const response = await fetch("/api/pos/orders", { cache: "no-store" });
+      const response = await expressFetch("/api/pos/orders", { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Unable to load POS sales.");
       }
@@ -175,7 +176,7 @@ export default function PosSalesClient() {
       
       const totalDiscountAmount = memberDiscountAmount + additionalDiscountAmount;
 
-      const response = await fetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
+      const response = await expressFetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ discount_amount: totalDiscountAmount }),
@@ -212,7 +213,7 @@ export default function PosSalesClient() {
   const processRejectPayment = async () => {
     if (orderToRejectId === null) return;
     try {
-      const response = await fetch(`/api/pos/orders/${orderToRejectId}/reject`, {
+      const response = await expressFetch(`/api/pos/orders/${orderToRejectId}/reject`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: rejectReason })
@@ -237,7 +238,7 @@ export default function PosSalesClient() {
     if (orderToRevokeId === null) return;
     setIsRevoking(true);
     try {
-      const response = await fetch(`/api/pos/orders/${orderToRevokeId}/revoke`, {
+      const response = await expressFetch(`/api/pos/orders/${orderToRevokeId}/revoke`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: revokeReason })

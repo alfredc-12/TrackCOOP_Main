@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
+import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 
 type InventoryItem = {
@@ -136,7 +137,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
 
     const fetchInventory = useCallback(async () => {
         try {
-            const res = await fetch(isPublicView ? "/api/public/store-products" : "/api/inventory");
+            const res = await expressFetch(isPublicView ? "/api/public/store-products" : "/api/inventory");
             if (res.ok) {
                 const data = await res.json();
                 setInventory(data as InventoryItem[]);
@@ -174,7 +175,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
 
     const fetchHistory = async () => {
         try {
-            const res = await fetch("/api/pos/history");
+            const res = await expressFetch("/api/pos/history");
             if (res.ok) {
                 const data = await res.json();
                 setHistory(data as PosOrder[]);
@@ -188,7 +189,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
 
     const fetchHistoryQuietly = useCallback(async () => {
         try {
-            const res = await fetch("/api/pos/history");
+            const res = await expressFetch("/api/pos/history");
             if (res.ok) {
                 const data = await res.json();
                 setHistory(data as PosOrder[]);
@@ -351,7 +352,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const processCheckout = async () => {
         setIsCheckingOut(true);
         try {
-            const res = await fetch("/api/pos/checkout", {
+            const res = await expressFetch("/api/pos/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact: `+63${paymentContact}` }),

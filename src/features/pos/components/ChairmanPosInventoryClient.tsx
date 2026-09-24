@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 
 type StockHistory = {
@@ -235,7 +236,7 @@ export default function ChairmanPosInventoryClient() {
 
     const fetchInventory = useCallback(async () => {
         try {
-            const res = await fetch("/api/inventory");
+            const res = await expressFetch("/api/inventory");
             if (res.ok) {
                 const data = await res.json();
                 setInventory(data as InventoryItem[]);
@@ -248,7 +249,7 @@ export default function ChairmanPosInventoryClient() {
 
     const fetchOrdersQuietly = useCallback(async () => {
         try {
-            const res = await fetch("/api/pos/orders");
+            const res = await expressFetch("/api/pos/orders");
             if (res.ok) {
                 const data = await res.json();
                 setOrders(data as PosOrder[]);
@@ -298,7 +299,7 @@ export default function ChairmanPosInventoryClient() {
     const [stockErrorMsg, setStockErrorMsg] = useState<string | null>(null);
     const fetchGlobalHistory = async () => {
         try {
-            const res = await fetch("/api/inventory/history");
+            const res = await expressFetch("/api/inventory/history");
             if (res.ok) {
                 const data = await res.json();
                 setGlobalHistory(data as StockActivityLog[]);
@@ -312,7 +313,7 @@ export default function ChairmanPosInventoryClient() {
 
     const fetchOrders = async () => {
         try {
-            const res = await fetch("/api/pos/orders");
+            const res = await expressFetch("/api/pos/orders");
             if (res.ok) {
                 const data = await res.json();
                 setOrders(data as PosOrder[]);
@@ -353,7 +354,7 @@ export default function ChairmanPosInventoryClient() {
             
             const totalDiscountAmount = memberDiscountAmount + additionalDiscountAmount;
 
-            const res = await fetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
+            const res = await expressFetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ discount_amount: totalDiscountAmount })
@@ -394,7 +395,7 @@ export default function ChairmanPosInventoryClient() {
     const processRejectPayment = async () => {
         if (orderToRejectId === null) return;
         try {
-            const res = await fetch(`/api/pos/orders/${orderToRejectId}/reject`, {
+            const res = await expressFetch(`/api/pos/orders/${orderToRejectId}/reject`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ reason: rejectReason })
@@ -416,7 +417,7 @@ export default function ChairmanPosInventoryClient() {
         if (orderToRevokeId === null) return;
         setIsRevoking(true);
         try {
-            const res = await fetch(`/api/pos/orders/${orderToRevokeId}/revoke`, {
+            const res = await expressFetch(`/api/pos/orders/${orderToRevokeId}/revoke`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ reason: revokeReason })
@@ -539,7 +540,7 @@ export default function ChairmanPosInventoryClient() {
         };
 
         try {
-            const res = await fetch("/api/inventory", {
+            const res = await expressFetch("/api/inventory", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(newItem),
@@ -618,7 +619,7 @@ export default function ChairmanPosInventoryClient() {
     const processStockUpdate = async () => {
         if (!addingStockItem || !stockToAdd) return;
         try {
-            const res = await fetch(`/api/inventory/${addingStockItem.id}/stock`, {
+            const res = await expressFetch(`/api/inventory/${addingStockItem.id}/stock`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ amount: stockToAdd, type: stockActionType }),
@@ -643,7 +644,7 @@ export default function ChairmanPosInventoryClient() {
         if (!editingItem) return;
 
         try {
-            const res = await fetch(`/api/inventory/${editingItem.id}`, {
+            const res = await expressFetch(`/api/inventory/${editingItem.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(editingItem),
@@ -670,7 +671,7 @@ export default function ChairmanPosInventoryClient() {
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            const res = await fetch(`/api/inventory/${itemToDelete.id}`, { method: "DELETE" });
+            const res = await expressFetch(`/api/inventory/${itemToDelete.id}`, { method: "DELETE" });
             if (res.ok) {
                 fetchInventory();
                 setItemToDelete(null);

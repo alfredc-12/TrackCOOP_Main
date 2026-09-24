@@ -7,8 +7,12 @@ export class DashboardController {
 
   getChairmanDashboard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const period = req.query.period as string | undefined;
-      const data = await this.dashboardService.getChairmanDashboardData(period);
+      const data = await this.dashboardService.getChairmanDashboardData({
+        period: typeof req.query.period === "string" ? req.query.period : undefined,
+        barangay: typeof req.query.barangay === "string" ? req.query.barangay : null,
+        memberStatus: typeof req.query.memberStatus === "string" ? req.query.memberStatus : null,
+        memberType: typeof req.query.memberType === "string" ? req.query.memberType : null,
+      });
       res.json({
         success: true,
         data,

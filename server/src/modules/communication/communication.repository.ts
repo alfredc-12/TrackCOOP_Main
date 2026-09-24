@@ -700,9 +700,16 @@ function canReadDocument(document: DocumentRecord, auth: AuthContext, memberId: 
 function applyAnnouncementAccess(
   where: string[],
   values: Array<string | number>,
-  auth: AuthContext,
+  auth: AuthContext | null,
   memberProfile: MemberAnnouncementProfileRow | null,
 ) {
+  if (!auth) {
+    where.push("a.audience_type = 'Public'");
+    where.push("a.announcement_status = 'Published'");
+    where.push("(a.expires_at IS NULL OR a.expires_at >= NOW())");
+    return;
+  }
+
   if (auth.user.role === "chairman") return;
 
   where.push("a.announcement_status = 'Published'");
@@ -787,7 +794,7 @@ export interface CommunicationRepository {
   listReports(query: ListReportsQuery): Promise<ListResult<ReportRecord>>;
   createReport(input: CreateReportInput, auth: AuthContext): Promise<ReportRecord>;
   archiveReport(id: string, reason: string | null | undefined, auth: AuthContext): Promise<ReportRecord>;
-  listAnnouncements(query: ListAnnouncementsQuery, auth: AuthContext): Promise<ListResult<AnnouncementRecord>>;
+  listAnnouncements(query: ListAnnouncementsQuery, auth: AuthContext | null): Promise<ListResult<AnnouncementRecord>>;
   createAnnouncement(input: CreateAnnouncementInput, auth: AuthContext): Promise<AnnouncementRecord>;
   updateAnnouncement(id: string, input: UpdateAnnouncementInput, auth: AuthContext): Promise<AnnouncementRecord>;
   setAnnouncementStatus(id: string, status: "Published" | "Archived", auth: AuthContext): Promise<AnnouncementRecord>;
@@ -1105,7 +1112,9 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
     async listAnnouncements(query, auth) {
       const where: string[] = [];
       const values: Array<string | number> = [];
-      const memberProfile = await getAnnouncementProfileForUser(databasePool(), auth.user.id);
+      const memberProfile = auth
+        ? await getAnnouncementProfileForUser(databasePool(), auth.user.id)
+        : null;
       applyAnnouncementAccess(where, values, auth, memberProfile);
       if (query.search) {
         where.push("(a.title LIKE ? OR a.excerpt LIKE ? OR a.message LIKE ?)");
@@ -1123,7 +1132,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const offset = (query.page - 1) * query.pageSize;
-      const queryValues = [auth.user.id, ...values];
+      const queryValues = [auth?.user.id ?? "0", ...values];
       const baseSelect = announcementSelect();
       const fromIndex = baseSelect.indexOf("FROM");
       const selectPart = baseSelect.substring(0, fromIndex);

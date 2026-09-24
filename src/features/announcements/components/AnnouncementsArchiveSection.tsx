@@ -16,8 +16,8 @@ import {
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { getAnnouncements } from "../service";
 import { env } from "@/config/env";
+import { expressFetch } from "@/lib/express-api";
 
 function getPreview(content?: string | null) {
   if (!content) return "";
@@ -70,7 +70,7 @@ export default function AnnouncementsArchiveSection() {
         : [];
 
   useEffect(() => {
-    fetch("/api/announcements")
+    expressFetch("/api/announcements")
       .then((res) => res.json())
       .then((json) => {
         if (json.success) {

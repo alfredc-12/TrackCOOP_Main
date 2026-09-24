@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
+import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import {
   DataTable,
   EmptyState,
@@ -103,7 +104,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/reports", { cache: "no-store" });
+      const response = await expressFetch("/api/reports", { cache: "no-store" });
       if (!response.ok) throw new Error(await apiError(response));
       setError(null);
       setData((await response.json()) as ReportsLandingData);
@@ -162,7 +163,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     setGenerating(true);
     setError(null);
     try {
-      const response = await fetch(`/api/reports/generate/${selected.key}`, {
+      const response = await expressFetch(`/api/reports/generate/${selected.key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filters }),
@@ -189,7 +190,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   async function printReport() {
     if (!result) return;
     try {
-      const response = await fetch(`/api/reports/${result.reportId}/activity`, {
+      const response = await expressFetch(`/api/reports/${result.reportId}/activity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "print" }),
@@ -209,7 +210,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     if (!result) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/reports/${result.reportId}/save`, {
+      const response = await expressFetch(`/api/reports/${result.reportId}/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessLevel: saveAccess }),
@@ -267,12 +268,12 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
             >
               <FileClock className="size-4" /> View Generated Reports
             </button>
-            <Link
-              href="/api/reports/history/export"
+            <a
+              href={expressApiUrl("/api/reports/history/export")}
               className={secondaryButtonClass}
             >
               <Download className="size-4" /> Export Report Register
-            </Link>
+            </a>
             <button
               type="button"
               onClick={() => {
@@ -853,7 +854,7 @@ function ReportPreview({
   onSave: () => void;
   exportQuery: URLSearchParams;
 }) {
-  const exportBase = `/api/reports/generate/${result.reportKey}/export`;
+  const exportBase = expressApiUrl(`/api/reports/generate/${result.reportKey}/export`);
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const totalPages = Math.max(1, Math.ceil(result.rows.length / pageSize));
