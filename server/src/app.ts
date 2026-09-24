@@ -39,6 +39,7 @@ import { createShareCapitalRouter } from "./modules/share-capital/share-capital.
 import { createUserRouter } from "./modules/users/user.routes";
 import { AppError } from "./utils/app-error";
 import { LocalStorageProvider } from "./storage/local-storage-provider";
+import { createPublicUploadHandler } from "./storage/public-upload-route";
 
 type CreateAppOptions = {
   authService?: AuthService;
@@ -108,16 +109,27 @@ export function createApp(options: CreateAppOptions = {}) {
     const localStorage = new LocalStorageProvider();
     app.use("/uploads", express.static(localStorage.publicRoot()));
   }
-  for (const publicFolder of [
+  app.use("/uploads", createPublicUploadHandler());
+
+  const publicUploadFolders = [
     "announcements",
     "gallery",
     "inventory",
     "partners-certifications",
     "rentals",
-  ]) {
+  ];
+  for (const publicFolder of publicUploadFolders) {
     app.use(
       `/uploads/${publicFolder}`,
       express.static(path.join(process.cwd(), "public", "uploads", publicFolder)),
+    );
+    app.use(
+      `/uploads/${publicFolder}`,
+      express.static(path.join(process.cwd(), "storage", "public", "uploads", publicFolder)),
+    );
+    app.use(
+      `/uploads/${publicFolder}`,
+      express.static(path.join(process.cwd(), "storage", "uploads", publicFolder)),
     );
   }
   app.get(/^\/uploads\/product-[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp)$/i, (request, response) => {

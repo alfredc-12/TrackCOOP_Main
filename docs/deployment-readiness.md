@@ -99,6 +99,41 @@ S3_PUBLIC_BASE_URL=
 
 `S3_PUBLIC_BASE_URL` is optional. If set, public uploaded media can use that base URL. Protected files must still go through authorized Express routes or signed URLs after authorization.
 
+Public upload URLs stay stable across storage drivers:
+
+```text
+/uploads/<key>
+```
+
+Development flow:
+
+```text
+Browser
+  -> Express /uploads/<key>
+  -> LocalStorageProvider
+  -> storage/uploads/public/<key>
+```
+
+Production flow:
+
+```text
+Browser
+  -> Express /uploads/<key>
+  -> S3StorageProvider
+  -> public/<key> in the configured S3-compatible bucket
+```
+
+This means public URLs such as `/uploads/announcements/example.jpg`,
+`/uploads/gallery/example.jpg`, `/uploads/rentals/example.jpg`,
+`/uploads/inventory/example.jpg`, and
+`/uploads/partners-certifications/example.jpg` do not need to change when moving
+from local storage to S3-compatible storage.
+
+The public `/uploads/*` route only reads public storage objects. Protected files
+such as membership documents, rental valid IDs, payment proofs, restricted
+records, private receipts, and member files must continue to use their
+authorized Express API routes.
+
 ## Ports
 
 Local development uses `API_PORT=5000`. Hosted Node platforms often inject `PORT`; the API uses `PORT` when present and falls back to `API_PORT`.
