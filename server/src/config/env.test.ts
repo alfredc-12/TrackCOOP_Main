@@ -12,6 +12,8 @@ const baseEnv = {
   SESSION_TTL_HOURS: "12",
   AUTH_MAX_FAILED_ATTEMPTS: "5",
   AUTH_LOCKOUT_MINUTES: "15",
+  AUTH_LOGIN_RATE_LIMIT: "10",
+  AUTH_LOGIN_RATE_WINDOW_MINUTES: "15",
   BCRYPT_ROUNDS: "12",
 };
 
@@ -33,6 +35,8 @@ test("parseServerEnv keeps PayMongo disabled by default without secrets", () => 
   assert.equal(config.SESSION_COOKIE_SECURE, false);
   assert.equal(config.STORAGE_DRIVER, "local");
   assert.equal(config.LOCAL_STORAGE_ROOT, "storage/uploads");
+  assert.equal(config.AUTH_LOGIN_RATE_LIMIT, 10);
+  assert.equal(config.AUTH_LOGIN_RATE_WINDOW_MINUTES, 15);
 });
 
 test("parseServerEnv accepts PORT override while keeping API_PORT fallback", () => {
@@ -134,6 +138,35 @@ test("parseServerEnv validates the PayMongo checkout reuse interval", () => {
     assert.throws(
       () => parseServerEnv({ ...baseEnv, PAYMONGO_CHECKOUT_REUSE_MINUTES: value }),
       /PAYMONGO_CHECKOUT_REUSE_MINUTES/,
+    );
+  }
+});
+
+test("parseServerEnv accepts custom login rate limit configuration", () => {
+  const config = parseServerEnv({
+    ...baseEnv,
+    AUTH_LOGIN_RATE_LIMIT: "7",
+    AUTH_LOGIN_RATE_WINDOW_MINUTES: "30",
+  });
+
+  assert.equal(config.AUTH_LOGIN_RATE_LIMIT, 7);
+  assert.equal(config.AUTH_LOGIN_RATE_WINDOW_MINUTES, 30);
+});
+
+test("parseServerEnv rejects invalid login rate limit values", () => {
+  for (const value of ["0", "101", "1.5", "abc"]) {
+    assert.throws(
+      () => parseServerEnv({ ...baseEnv, AUTH_LOGIN_RATE_LIMIT: value }),
+      /AUTH_LOGIN_RATE_LIMIT/,
+    );
+  }
+});
+
+test("parseServerEnv rejects invalid login rate window values", () => {
+  for (const value of ["0", "1441", "1.5", "abc"]) {
+    assert.throws(
+      () => parseServerEnv({ ...baseEnv, AUTH_LOGIN_RATE_WINDOW_MINUTES: value }),
+      /AUTH_LOGIN_RATE_WINDOW_MINUTES/,
     );
   }
 });

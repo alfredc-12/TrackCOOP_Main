@@ -13,6 +13,15 @@ const optionalTrimmedString = z
   .optional()
   .transform((value) => value || undefined);
 
+const optionalTrimmedUrl = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  },
+  z.string().url().optional(),
+);
+
 const commaSeparatedOrigins = z
   .preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -73,6 +82,8 @@ const envSchema = z.object({
   S3_PUBLIC_BASE_URL: optionalTrimmedString,
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+  AUTH_LOGIN_RATE_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
+  AUTH_LOGIN_RATE_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
   PAYMONGO_ENABLED: booleanString.default(false),
   PAYMONGO_MODE: z.enum(["test", "live"]).default("test"),
@@ -86,6 +97,8 @@ const envSchema = z.object({
   PAYMONGO_PASS_ON_FEES: booleanString.default(false),
   PAYMENT_SUCCESS_URL: z.string().url().default("http://localhost:3000/payment/success"),
   PAYMENT_CANCEL_URL: z.string().url().default("http://localhost:3000/payment/cancelled"),
+  RENTAL_STATUS_EMAIL_WEBHOOK_URL: optionalTrimmedUrl,
+  RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN: optionalTrimmedString,
 }).superRefine((value, context) => {
   const secretKey = value.PAYMONGO_SECRET_KEY;
   const webhookSecret = value.PAYMONGO_WEBHOOK_SECRET;

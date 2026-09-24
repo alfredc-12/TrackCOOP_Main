@@ -1,17 +1,32 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import { env } from "../../config/env";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { AppError } from "../../utils/app-error";
 import { createAuthController } from "./auth.controller";
 import { createAuthService, type AuthService } from "./auth.service";
 
-export function createAuthRouter(authService: AuthService = createAuthService()) {
+type AuthRouterOptions = {
+  loginRateLimit?: {
+    limit: number;
+    windowMinutes: number;
+  };
+};
+
+export function createAuthRouter(
+  authService: AuthService = createAuthService(),
+  options: AuthRouterOptions = {},
+) {
   const router = Router();
   const controller = createAuthController(authService);
   const authenticate = createAuthenticate(authService);
+  const loginRateLimit = options.loginRateLimit ?? {
+    limit: env.AUTH_LOGIN_RATE_LIMIT,
+    windowMinutes: env.AUTH_LOGIN_RATE_WINDOW_MINUTES,
+  };
   const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 1000, // increased for dev
+    windowMs: loginRateLimit.windowMinutes * 60 * 1000,
+    limit: loginRateLimit.limit,
     standardHeaders: "draft-8",
     legacyHeaders: false,
     handler(_request, _response, next) {

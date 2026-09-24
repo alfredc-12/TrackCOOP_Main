@@ -43,6 +43,10 @@ import { createPublicUploadHandler } from "./storage/public-upload-route";
 
 type CreateAppOptions = {
   authService?: AuthService;
+  authLoginRateLimit?: {
+    limit: number;
+    windowMinutes: number;
+  };
   databaseProbe?: DatabaseProbe;
   enableRequestLogging?: boolean;
   frontendUrl?: string;
@@ -137,7 +141,9 @@ export function createApp(options: CreateAppOptions = {}) {
   });
 
   app.use("/api/health", createHealthRouter(options.databaseProbe));
-  app.use("/api/auth", createAuthRouter(options.authService));
+  app.use("/api/auth", createAuthRouter(options.authService, {
+    loginRateLimit: options.authLoginRateLimit,
+  }));
   app.use("/api", createUserRouter(options.authService));
   app.use("/api", createMemberRouter(options.authService));
   app.use(

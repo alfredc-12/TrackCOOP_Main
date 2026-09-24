@@ -73,6 +73,67 @@ test("POST /api/auth/login sets an opaque HttpOnly SameSite cookie", async () =>
   assert.doesNotMatch(cookie, /rawToken|tokenHash/);
 });
 
+test("POST /api/auth/login returns 429 after configured IP limit is exceeded", async () => {
+  const app = createApp({
+    authService: createService(),
+    authLoginRateLimit: {
+      limit: 2,
+      windowMinutes: 15,
+    },
+    enableRequestLogging: false,
+    frontendUrl,
+  });
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await request(app)
+      .post("/api/auth/login")
+      .set("Origin", frontendUrl)
+      .send({ identifier: user.email, password: "valid-password" });
+
+    assert.equal(response.status, 200);
+  }
+
+  const limited = await request(app)
+    .post("/api/auth/login")
+    .set("Origin", frontendUrl)
+    .send({ identifier: user.email, password: "valid-password" });
+
+  assert.equal(limited.status, 429);
+  assert.equal(limited.body.errors[0].code, "LOGIN_RATE_LIMITED");
+  assert.ok(limited.headers["ratelimit"] || limited.headers["ratelimit-policy"]);
+});
+
+test("login-specific limiter does not block ordinary authenticated auth endpoints", async () => {
+  const app = createApp({
+    authService: createService(),
+    authLoginRateLimit: {
+      limit: 1,
+      windowMinutes: 15,
+    },
+    enableRequestLogging: false,
+    frontendUrl,
+  });
+
+  await request(app)
+    .post("/api/auth/login")
+    .set("Origin", frontendUrl)
+    .send({ identifier: user.email, password: "valid-password" })
+    .expect(200);
+
+  await request(app)
+    .post("/api/auth/login")
+    .set("Origin", frontendUrl)
+    .send({ identifier: user.email, password: "valid-password" })
+    .expect(429);
+
+  const response = await request(app)
+    .get("/api/auth/me")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.data, user);
+});
+
 test("GET /api/auth/me returns the authenticated user", async () => {
   const response = await request(
     createApp({

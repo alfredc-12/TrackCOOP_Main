@@ -1,4 +1,5 @@
 import { logger } from "../../utils/logger";
+import { env } from "../../config/env";
 import type { RentalInquiry } from "./rental.types";
 import {
   formatPeso,
@@ -40,8 +41,7 @@ export type RentalEmailPayload = {
 };
 
 function statusUrl() {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
-    .replace(/\/$/, "");
+  const appUrl = env.FRONTEND_URL.replace(/\/$/, "");
   return `${appUrl}/rental/inquiry/status`;
 }
 
@@ -177,13 +177,13 @@ export function buildRentalStatusEmailPayload(
 async function triggerRentalEmail(
   payload: RentalEmailPayload | undefined,
 ): Promise<"sent" | "skipped" | "failed"> {
-  const webhookUrl = process.env.RENTAL_STATUS_EMAIL_WEBHOOK_URL?.trim();
+  const webhookUrl = env.RENTAL_STATUS_EMAIL_WEBHOOK_URL;
   if (!webhookUrl || !payload) return "skipped";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5_000);
   try {
-    const token = process.env.RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN?.trim();
+    const token = env.RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN;
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: {
