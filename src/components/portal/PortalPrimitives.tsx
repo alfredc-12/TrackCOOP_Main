@@ -324,10 +324,11 @@ export function LoadingSkeleton() {
   );
 }
 
-export function ErrorState({ message }: { message: string }) {
+export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="rounded-lg border border-[#E7B8A8] bg-[#FFF4EC] p-4 text-sm text-[#7A3023]">
-      {message}
+    <div role="alert" aria-live="assertive" className="rounded-lg border border-[#E7B8A8] bg-[#FFF4EC] p-4 text-sm text-[#7A3023]">
+      <p>{message}</p>
+      {onRetry ? <button type="button" onClick={onRetry} className="mt-3 rounded-lg border border-[#B85C4A] px-3 py-2 font-bold text-[#7A3023] hover:bg-[#FDE8DC]">Try again</button> : null}
     </div>
   );
 }

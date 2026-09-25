@@ -846,7 +846,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
 
   async function listRequestHistory(id: string) {
     const [rows] = await databasePool().execute<RequestStatusHistoryRow[]>(
-      `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at DESC`,
+      `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at ASC, h.request_status_history_id ASC`,
       [id],
     );
     return rows.map(mapRequestHistory);
@@ -1469,7 +1469,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       const request = mapRequest(rows[0]);
       
       const [historyRows] = await databasePool().execute<RequestStatusHistoryRow[]>(
-        `${requestHistorySelect()} WHERE h.request_id = ? AND (h.user_visible_message IS NOT NULL OR h.old_status != h.new_status) ORDER BY h.changed_at DESC`,
+        `${requestHistorySelect()} WHERE h.request_id = ? AND (h.user_visible_message IS NOT NULL OR h.old_status != h.new_status) ORDER BY h.changed_at ASC, h.request_status_history_id ASC`,
         [request.id],
       );
       
@@ -1534,7 +1534,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           [id],
         );
         const [historyRows] = await connection.execute<RequestStatusHistoryRow[]>(
-          `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at DESC`,
+          `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at ASC, h.request_status_history_id ASC`,
           [id],
         );
         if (!rows[0]) throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");
@@ -1586,7 +1586,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           [id],
         );
         const [historyRows] = await connection.execute<RequestStatusHistoryRow[]>(
-          `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at DESC`,
+          `${requestHistorySelect()} WHERE h.request_id = ? ORDER BY h.changed_at ASC, h.request_status_history_id ASC`,
           [id],
         );
         if (!finalRows[0]) throw new AppError("Request was not found", 404, "REQUEST_NOT_FOUND");

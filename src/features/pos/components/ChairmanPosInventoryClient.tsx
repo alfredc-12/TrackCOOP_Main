@@ -1392,14 +1392,14 @@ export default function ChairmanPosInventoryClient() {
                                         <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[#123D2A] shadow-sm">
                                             <Camera className="size-6" />
                                         </div>
-                                        <p className="relative z-10 mt-3 text-sm font-semibold text-white">Change item photo</p>
+                                        <p className="relative z-10 mt-3 text-sm font-semibold text-white">Change product photo</p>
                                     </>
                                 ) : (
                                     <>
                                         <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-[#123D2A]/10 text-[#0F9D58]">
                                             <Camera className="size-6" />
                                         </div>
-                                        <p className="relative z-10 mt-3 text-sm font-semibold text-[#1e293b]">Upload item photo</p>
+                                        <p className="relative z-10 mt-3 text-sm font-semibold text-[#1e293b]">Upload product photo</p>
                                     </>
                                 )}
                             </div>

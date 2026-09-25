@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toaster, toast } from "sonner";
 import { trackPublicRequest, addPublicRequestReply, type RequestDetailResponse } from "@/features/communication/communication-api";
+import type { RequestStatusHistoryRecord } from "@/features/communication/communication-types";
+
+type ApiError = { statusCode?: number };
 
 function TrackContent() {
   const searchParams = useSearchParams();
@@ -35,13 +38,7 @@ function TrackContent() {
     if (result?.history?.length) requestAnimationFrame(() => { if (timelineRef.current) timelineRef.current.scrollTop = timelineRef.current.scrollHeight; });
   }, [result]);
 
-  useEffect(() => {
-    if (code) {
-      handleSearch();
-    }
-  }, []);
-
-  const handleSearch = async (e?: React.FormEvent) => {
+  const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
     if (!code.trim()) {
@@ -54,9 +51,9 @@ function TrackContent() {
     try {
       const data = await trackPublicRequest(code.trim());
       setResult(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setResult(null);
-      if (error.statusCode === 404) {
+      if ((error as ApiError).statusCode === 404) {
         toast.error("Invalid tracking code. Please check and try again.");
       } else {
         toast.error("An error occurred while tracking. Please try again later.");
@@ -64,7 +61,13 @@ function TrackContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [code]);
+
+  useEffect(() => {
+    if (!code) return;
+    const timer = window.setTimeout(() => void handleSearch(), 0);
+    return () => window.clearTimeout(timer);
+  }, [code, handleSearch]);
 
   const handlePaste = async () => {
     try {
@@ -77,7 +80,7 @@ function TrackContent() {
 
   const handleReply = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!replyText.trim() || !result) return;
+    if (!replyText.trim() || !result || isSubmittingReply) return;
     
     setIsSubmittingReply(true);
     try {
@@ -85,7 +88,7 @@ function TrackContent() {
       setResult(data);
       setReplyText("");
       toast.success("Reply sent successfully.");
-    } catch (error: any) {
+    } catch {
       toast.error("Failed to send reply. Please try again.");
     } finally {
       setIsSubmittingReply(false);
@@ -255,7 +258,7 @@ function TrackContent() {
           <AlertCircle className="mx-auto mb-2 size-8 text-red-500" />
           <h3 className="text-lg font-bold">Request Not Found</h3>
           <p className="mt-1 text-sm">
-            We couldn't find any inquiry matching that code. Please verify the code and try again.
+            We couldn&apos;t find any inquiry matching that code. Please verify the code and try again.
           </p>
         </div>
       )}
@@ -342,12 +345,13 @@ function TrackContent() {
                     rows={1}
                     placeholder="Type your reply to the admin here..."
                     value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
+                    onChange={(e) => setReplyText(e.target.value.slice(0, 8000))}
+                    maxLength={8000}
                     disabled={isSubmittingReply}
                   />
                   <div className="mt-2 flex flex-wrap justify-end gap-2">
-                    <button type="button" onClick={() => setIsCancelConfirmOpen(true)} disabled={isCancelling || isSubmittingReply} className="h-10 flex-1 rounded-md border border-[#D64545] bg-[#D64545] px-4 text-sm font-bold text-white transition hover:bg-[#B93636] disabled:opacity-60">
-                      {isCancelling ? "Cancelling..." : "Cancel Inquiry"}
+                    <button type="button" onClick={() => setIsCancelConfirmOpen(true)} disabled={isCancelling || isSubmittingReply} title="Request cancellation" aria-label="Request cancellation" className="h-10 flex-1 rounded-md border border-[#D64545] bg-[#D64545] px-4 text-sm font-bold text-white transition hover:bg-[#B93636] disabled:opacity-60">
+                      {isCancelling ? "Sending cancellation request..." : "Request Cancellation"}
                     </button>
                     <Button type="submit" disabled={isSubmittingReply || !replyText.trim()} className="h-10 flex-1">
                       {isSubmittingReply ? "Sending..." : "Send Reply"}
@@ -371,7 +375,7 @@ function TrackContent() {
                 
                 <div className="relative pl-10"><div className="absolute left-2 top-1.5 size-3.5 rounded-full border-2 border-white shadow-sm bg-slate-400" /><div className="rounded-lg border p-4 text-sm leading-relaxed bg-white border-slate-200 text-slate-800"><div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100"><span className="font-bold text-[#123D2A]">You (Submitted Inquiry)</span><span className="text-xs opacity-75">{format(new Date(result.request.submittedAt), "MMM d, h:mm a")}</span></div>{result.request.subject && <strong className="block mb-2">{result.request.subject}</strong>}<div className="whitespace-pre-wrap">{result.request.message}</div></div></div>
 
-                {result.history.slice().sort((a: any, b: any) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime()).map((item: any, index: number) => {
+                {result.history.slice().sort((a: RequestStatusHistoryRecord, b: RequestStatusHistoryRecord) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime()).map((item: RequestStatusHistoryRecord, index: number) => {
                   const isPublicReply = !item.changedBy; // NULL changed_by = public user reply
                   const isStatusChange = item.newStatus !== item.oldStatus;
                   
@@ -418,11 +422,11 @@ function TrackContent() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#123D2A]/45 px-4 backdrop-blur-sm">
           <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-[#D7E5D8] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.25)]">
             <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-[#FDE7E4] text-[#D64545]"><AlertCircle className="size-6" /></div>
-            <h2 className="text-xl font-black text-[#123D2A]">Cancel this inquiry?</h2>
+            <h2 className="text-xl font-black text-[#123D2A]">Request cancellation?</h2>
             <p className="mt-2 text-sm leading-relaxed text-[#5E7467]">A cancellation request will be sent to the Chairman for review.</p>
             <div className="mt-6 flex gap-3">
               <button type="button" onClick={() => setIsCancelConfirmOpen(false)} className="h-11 flex-1 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#365F4A] hover:bg-[#F4F8F3]">Keep Inquiry</button>
-              <button type="button" onClick={handleCancelInquiry} className="h-11 flex-1 rounded-md bg-[#D64545] px-4 text-sm font-bold text-white hover:bg-[#B93636]">Confirm Cancel</button>
+              <button type="button" onClick={handleCancelInquiry} className="h-11 flex-1 rounded-md bg-[#D64545] px-4 text-sm font-bold text-white hover:bg-[#B93636]">Send Cancellation Request</button>
             </div>
           </div>
         </div>

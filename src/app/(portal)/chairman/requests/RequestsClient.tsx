@@ -39,8 +39,14 @@ import type {
   ListRequestsQuery,
   RequestRecord,
   RequestStatus,
+  RequestStatusHistoryRecord,
 } from "@/features/communication/communication-types";
 import { requestTypes, requestPriorities } from "@/features/communication/communication-types";
+
+function getAssigneeLabel(assigneeName: string | null | undefined) {
+  if (!assigneeName) return "Unassigned";
+  return assigneeName.trim().toLowerCase() === "test chairman" ? "Chairman" : assigneeName;
+}
 
 const defaultQuery: ListRequestsQuery = {
   page: 1,
@@ -93,14 +99,18 @@ export function RequestsClient() {
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<RequestRecord | null>(null);
-  const [selectedRequestHistory, setSelectedRequestHistory] = useState<any[]>([]);
+  const [selectedRequestHistory, setSelectedRequestHistory] = useState<RequestStatusHistoryRecord[]>([]);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
   const [modalMode, setModalMode] = useState<'view' | 'thread'>('view');
   const [isMutating, setIsMutating] = useState(false);
   
   const [replyText, setReplyText] = useState("");
   const [newStatus, setNewStatus] = useState<RequestStatus | "">("");
   const threadScrollRef = useRef<HTMLDivElement | null>(null);
+  const conversationMessageCount = selectedRequest
+    ? 1 + selectedRequestHistory.filter((historyItem) => Boolean(historyItem.userVisibleMessage)).length
+    : 0;
   useEffect(() => {
     if (!selectedId) return;
     const scrollY = window.scrollY;
@@ -161,11 +171,15 @@ export function RequestsClient() {
   }, [query]);
 
   useEffect(() => {
-    void fetchRequests();
+    const timeoutId = window.setTimeout(() => void fetchRequests(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchRequests]);
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
+    setSelectedRequest(null);
+    setSelectedRequestHistory([]);
+    setDetailError("");
     setIsDetailLoading(true);
     try {
       const detail = await getRequestDetail(id);
@@ -177,22 +191,24 @@ export function RequestsClient() {
       // Optimistically mark as read locally
       setRequests(prev => prev.map(r => r.id === id ? { ...r, isReadByAdmin: true } : r));
     } catch (caught) {
-      toast.error("Failed to load request details.");
-      setSelectedId(null);
+      const message = caught instanceof ApiClientError ? caught.message : "Failed to load request details.";
+      setDetailError(message);
+      toast.error(message);
     } finally {
       setIsDetailLoading(false);
     }
   };
 
   const handleUpdate = async () => {
-    if (!selectedRequest || !newStatus) return;
+    const trimmedReply = replyText.trim();
+    if (!selectedRequest || !newStatus || isMutating || (modalMode === "thread" && !trimmedReply)) return;
     setIsMutating(true);
     try {
       await updateRequestStatus(selectedRequest.id, {
         requestStatus: newStatus as RequestStatus,
-        publicResponse: replyText || undefined,
+        publicResponse: trimmedReply || undefined,
       });
-      toast.success("Request updated successfully.");
+      toast.success(modalMode === "thread" ? "Reply sent successfully." : "Request status updated successfully.");
       void fetchRequests();
       
       // Refresh the details instead of closing the modal
@@ -202,8 +218,28 @@ export function RequestsClient() {
       setReplyText("");
     } catch (caught) {
       toast.error(
-        caught instanceof ApiClientError ? caught.message : "Failed to update request."
+        caught instanceof ApiClientError ? caught.message : modalMode === "thread" ? "Failed to send reply." : "Failed to update request status."
       );
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleAssignment = async () => {
+    if (!selectedRequest || !user || isMutating) return;
+    setIsMutating(true);
+    try {
+      const assignedTo = selectedRequest.assignedTo === user.id ? null : user.id;
+      const detail = await updateRequestStatus(selectedRequest.id, {
+        requestStatus: selectedRequest.requestStatus,
+        assignedTo,
+      });
+      setSelectedRequest(detail.request);
+      setSelectedRequestHistory(detail.history || []);
+      void fetchRequests();
+      toast.success(assignedTo ? "Request assigned to you." : "Request unassigned.");
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "Failed to update request assignment.");
     } finally {
       setIsMutating(false);
     }
@@ -229,7 +265,7 @@ export function RequestsClient() {
           <div><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Communication center</div><h1 className="text-3xl font-black tracking-tight sm:text-4xl">Requests & Inquiries</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">Review questions from members and the public, respond clearly, and keep every conversation organized.</p></div>
           <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm"><div className="flex size-11 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><MessageSquare className="size-5" /></div><div><p className="text-xs font-semibold text-white/60">Inbox status</p><p className="font-bold">{metrics.unread ? `${metrics.unread} unread message${metrics.unread > 1 ? "s" : ""}` : "All messages reviewed"}</p></div></div>
         </div>
-        <button type="button" onClick={() => void fetchRequests()} className="relative mt-6 inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/20"><RefreshCcw className="size-4" /> Refresh inbox</button>
+        <button type="button" onClick={() => void fetchRequests()} disabled={isLoading} aria-busy={isLoading} className="relative mt-6 inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 disabled:cursor-wait disabled:opacity-70"><RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} /> {isLoading ? "Refreshing..." : "Refresh inbox"}</button>
       </section>
 
       <div className="grid gap-4 sm:grid-cols-5">
@@ -252,7 +288,7 @@ export function RequestsClient() {
       )}
 
       <div className="rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <label className="relative block w-full max-w-md">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
           <input
@@ -268,7 +304,7 @@ export function RequestsClient() {
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {requests.length} of {total} requests</span><button type="button" onClick={() => setQuery(defaultQuery)} className="font-bold text-[#1F6B43] hover:underline">Clear filters</button></div>
       </div>
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void fetchRequests()} /> : null}
       
       {isLoading ? (
         <LoadingSkeleton />
@@ -313,7 +349,7 @@ export function RequestsClient() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      className="relative"
+                      className="relative min-w-[124px] justify-center whitespace-nowrap"
                       onClick={() => { setModalMode('view'); openDetail(req.id); }}
                     >
                       {!req.isReadByAdmin && (
@@ -387,13 +423,23 @@ export function RequestsClient() {
             setSelectedId(null);
             setSelectedRequest(null);
             setSelectedRequestHistory([]);
+            setDetailError("");
           }
         }}
         title={selectedRequest ? `${selectedRequest.referenceCode} · ${selectedRequest.requesterName || "Inquiry"}` : "Request Details"}
         contentClassName="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100vh-1rem)] overflow-hidden sm:w-full"
       >
         {isDetailLoading || !selectedRequest ? (
-          <div className="py-12 flex justify-center text-[#6C7A70]">Loading details...</div>
+          detailError ? (
+            <div className="grid gap-3 py-12 text-center" role="alert" aria-live="assertive">
+              <p className="text-sm text-[#7A3023]">{detailError}</p>
+              <Button type="button" variant="secondary" onClick={() => selectedId && void openDetail(selectedId)}>Try again</Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 py-12 text-[#6C7A70]" role="status" aria-live="polite">
+              <span className="size-4 animate-spin rounded-full border-2 border-[#1F6B43] border-t-transparent" /> Loading details...
+            </div>
+          )
         ) : (
             <div className="grid gap-4 py-2">
             {selectedRequest && <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#DCE9DE] bg-[#F5F8F3] p-4"><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${selectedRequest.requestSource === "Public Website" ? "bg-blue-100 text-blue-700" : "bg-[#EAF5EC] text-[#1F6B43]"}`}>{selectedRequest.requestSource === "Public Website" ? "Public" : "Member"}</span><span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getPriorityClass(selectedRequest.priority)}`}>{selectedRequest.priority} priority</span><StatusBadge tone={getStatusTone(selectedRequest.requestStatus)}>{selectedRequest.requestStatus}</StatusBadge><span className="ml-auto text-xs font-semibold text-[#789181]">{getAgeLabel(selectedRequest.submittedAt)}</span></div>}
@@ -406,7 +452,7 @@ export function RequestsClient() {
                 Request Details
               </button>
               <span className="mx-1 hidden h-5 w-px bg-[#CAD8CB] sm:block" />
-              <span className="hidden items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#789181] sm:flex"><Clock className="size-3.5" /> {selectedRequestHistory.length} updates</span>
+              <span className="hidden items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#789181] sm:flex"><Clock className="size-3.5" /> {conversationMessageCount} conversation {conversationMessageCount === 1 ? "message" : "messages"}</span>
               <button 
                 type="button"
                 className={`px-4 py-2 text-sm font-bold transition border-b-2 ${modalMode === 'thread' ? 'border-[#123D2A] text-[#123D2A]' : 'border-transparent text-[#6C7A70] hover:text-[#123D2A]'}`}
@@ -425,7 +471,7 @@ export function RequestsClient() {
                   </div>
                   <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Source</p><p className="mt-1 font-medium">{selectedRequest.requestSource}</p></div>
                   <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Submitted</p><p className="mt-1 font-medium">{new Date(selectedRequest.submittedAt).toLocaleString()}</p></div>
-                  <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Assigned to</p><p className="mt-1 font-medium">{selectedRequest.assigneeName || "Unassigned"}</p></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Assigned to</p><div className="mt-1 flex flex-wrap items-center gap-2"><p className="font-medium">{getAssigneeLabel(selectedRequest.assigneeName)}</p>{user && (!selectedRequest.assignedTo || selectedRequest.assignedTo === user.id) && <button type="button" onClick={() => void handleAssignment()} disabled={isMutating} className="rounded-md border border-[#BBD7C1] px-2 py-1 text-xs font-bold text-[#1F6B43] hover:bg-[#EAF5EC] disabled:opacity-50">{selectedRequest.assignedTo === user.id ? "Unassign" : "Assign to me"}</button>}</div></div>
                   <div>
                     <p className="text-xs font-semibold text-[#6C7A70] uppercase tracking-wider">Contact Info</p>
                     <p className="mt-1 font-medium">{selectedRequest.requesterEmail || selectedRequest.requesterPhone || "N/A"}</p>
@@ -534,7 +580,7 @@ export function RequestsClient() {
               <Button variant="secondary" onClick={() => setSelectedId(null)}>
                 Close
               </Button>
-              <Button onClick={handleUpdate} disabled={isMutating}>
+              <Button onClick={handleUpdate} disabled={isMutating || (modalMode === 'thread' && !replyText.trim())}>
                 {isMutating ? (modalMode === 'thread' ? "Sending..." : "Updating...") : (modalMode === 'thread' ? "Send Reply" : "Save Changes")}
               </Button>
             </div>

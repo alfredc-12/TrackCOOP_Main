@@ -30,6 +30,7 @@ import type {
   RequestStatus,
   RequestType,
   RequestPriority,
+  RequestStatusHistoryRecord,
 } from "@/features/communication/communication-types";
 
 const defaultQuery: ListRequestsQuery = {
@@ -80,8 +81,8 @@ export function MemberRequestsClient() {
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
-  const [selectedRequestHistory, setSelectedRequestHistory] = useState<any[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<RequestRecord | null>(null);
+  const [selectedRequestHistory, setSelectedRequestHistory] = useState<RequestStatusHistoryRecord[]>([]);
   const threadScrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (modalMode === "thread" && selectedRequestHistory.length > 0) {
@@ -115,7 +116,8 @@ export function MemberRequestsClient() {
   }, [query]);
 
   useEffect(() => {
-    void fetchRequests();
+    const timeoutId = window.setTimeout(() => void fetchRequests(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchRequests]);
 
   const openDetail = async (id: string) => {
@@ -137,7 +139,7 @@ export function MemberRequestsClient() {
   };
 
   const handleSendReply = async () => {
-    if (!selectedId || !memberReply.trim()) return;
+    if (!selectedId || !memberReply.trim() || isSendingReply) return;
     setIsSendingReply(true);
     try {
       const detail = await addRequestReply(selectedId, memberReply);
@@ -172,6 +174,7 @@ export function MemberRequestsClient() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const newErrors: Record<string, string> = {};
 
     if (!formData.subject.trim()) {
@@ -196,7 +199,7 @@ export function MemberRequestsClient() {
         requestType: formData.requestType,
         priority: formData.priority,
         subject: formData.subject || undefined,
-        message: formData.message,
+        message: formData.message.trim(),
       });
 
       toast.success("Request submitted successfully!");
@@ -223,13 +226,17 @@ export function MemberRequestsClient() {
               type="button"
               variant="secondary"
               onClick={() => void fetchRequests()}
+              loading={isLoading}
+              loadingLabel="Refreshing..."
+              aria-label="Refresh requests"
               className="h-11"
             >
-              <RefreshCcw className="size-4" aria-hidden="true" />
+              {!isLoading && <RefreshCcw className="size-4" aria-hidden="true" />}
             </Button>
             <Button
               type="button"
               onClick={() => setIsFormOpen(true)}
+              disabled={isSubmitting || isLoading}
               className="h-11"
             >
               <Plus className="mr-2 size-4" aria-hidden="true" />
@@ -239,7 +246,7 @@ export function MemberRequestsClient() {
         }
       />
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void fetchRequests()} /> : null}
       
       {isLoading ? (
         <LoadingSkeleton />
@@ -280,7 +287,7 @@ export function MemberRequestsClient() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      className="relative"
+                      className="relative min-w-[112px] justify-center whitespace-nowrap"
                       onClick={() => { setModalMode('view'); openDetail(req.id); }}
                     >
                       {!req.isReadByMember && (
@@ -386,6 +393,7 @@ export function MemberRequestsClient() {
                 if (errors.subject) setErrors({ ...errors, subject: "" });
               }}
               placeholder="E.g. Follow up on my Share Capital"
+              maxLength={255}
               disabled={isSubmitting}
               className={`h-11 bg-[#F7F8F3] ${errors.subject ? 'border-red-500 focus-visible:ring-red-500/20' : ''}`}
             />
@@ -406,6 +414,7 @@ export function MemberRequestsClient() {
                 if (errors.message) setErrors({ ...errors, message: "" });
               }}
               rows={5}
+              maxLength={8000}
               placeholder="Please describe your request in detail..."
               disabled={isSubmitting}
               className={`w-full rounded-md border ${errors.message ? 'border-red-500 focus:border-red-500 ring-1 ring-red-500/20' : 'border-[#CAD8CB] focus:border-[#1F6B43]'} bg-[#F7F8F3] p-3 text-sm outline-none transition`}
@@ -416,7 +425,7 @@ export function MemberRequestsClient() {
           </div>
 
           <div className="flex justify-end gap-3 mt-4">
-            <Button type="button" variant="secondary" onClick={() => setIsFormOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setIsFormOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
@@ -539,13 +548,13 @@ export function MemberRequestsClient() {
                   <textarea
                     className="w-full rounded-md border border-[#CAD8CB] p-2.5 text-sm outline-none transition focus:border-[#1F6B43] custom-scrollbar"
                     rows={2}
-                    maxLength={1000}
                     placeholder="Type a reply here..."
                     value={memberReply}
-                    onChange={(e) => setMemberReply(e.target.value)}
+                    onChange={(e) => setMemberReply(e.target.value.slice(0, 8000))}
+                    maxLength={8000}
                     disabled={isSendingReply}
                   />
-                  <p className="mt-1 text-right text-xs text-[#789181]">{memberReply.length}/1000</p>
+                  <p className="mt-1 text-right text-xs text-[#789181]">{memberReply.length}/8000</p>
                 </div>
               </>
             )}
@@ -556,8 +565,8 @@ export function MemberRequestsClient() {
               </Button>
               {modalMode === 'thread' && (
                 <>
-                  <Button onClick={() => setIsCancelConfirmOpen(true)} disabled={isSendingReply || isCancelling || !canCancelInquiry} className="min-w-[142px] border-[#D64545] bg-[#D64545] text-white hover:bg-[#B93636]">
-                    Cancel Inquiry
+                  <Button onClick={() => setIsCancelConfirmOpen(true)} disabled={isSendingReply || isCancelling || !canCancelInquiry} title={!canCancelInquiry ? "Cancellation is unavailable for resolved, closed, or cancelled requests." : "Request cancellation"} aria-label={!canCancelInquiry ? "Cancellation unavailable for this request" : "Request cancellation"} className="min-w-[142px] border-[#D64545] bg-[#D64545] text-white hover:bg-[#B93636]">
+                    Request Cancellation
                   </Button>
                   <Button onClick={handleSendReply} disabled={isSendingReply || !memberReply.trim()} className="min-w-[142px]">
                     {isSendingReply ? "Sending..." : "Send Reply"}
@@ -572,11 +581,11 @@ export function MemberRequestsClient() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#123D2A]/45 px-4 backdrop-blur-sm">
           <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-[#D7E5D8] bg-white p-6 shadow-[0_24px_70px_rgba(18,61,42,0.25)]">
             <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-[#FDE7E4] text-[#D64545]">!</div>
-            <h2 className="text-xl font-black text-[#123D2A]">Cancel this inquiry?</h2>
+            <h2 className="text-xl font-black text-[#123D2A]">Request cancellation?</h2>
             <p className="mt-2 text-sm leading-relaxed text-[#5E7467]">A cancellation request will be sent to the Chairman for review.</p>
             <div className="mt-6 flex gap-3">
               <button type="button" onClick={() => setIsCancelConfirmOpen(false)} className="h-11 flex-1 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#365F4A] hover:bg-[#F4F8F3]">Keep Inquiry</button>
-              <button type="button" onClick={handleCancelInquiry} className="h-11 flex-1 rounded-md bg-[#D64545] px-4 text-sm font-bold text-white hover:bg-[#B93636]">Confirm Cancel</button>
+              <button type="button" onClick={handleCancelInquiry} className="h-11 flex-1 rounded-md bg-[#D64545] px-4 text-sm font-bold text-white hover:bg-[#B93636]">Send Cancellation Request</button>
             </div>
           </div>
         </div>
