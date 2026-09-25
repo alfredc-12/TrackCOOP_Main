@@ -26,7 +26,9 @@
     "records:verify": "tsx scripts/verify-records-modules.ts",
     "test:records": "tsx --test src/features/records/**/*.test.ts",
     "security:scan": "tsx scripts/scan-secrets.ts",
-    "user:create": "tsx server/src/scripts/create-user.ts"
+    "user:create": "tsx server/src/scripts/create-user.ts",
+    "lint:ci": "node scripts/check-lint-baseline.mjs",
+    "lint:baseline:update": "node scripts/check-lint-baseline.mjs --update"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1139.0",
