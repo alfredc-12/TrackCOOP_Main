@@ -116,11 +116,14 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
     ...baseEnv,
     PAYMONGO_ENABLED: "true",
     PAYMONGO_MODE: "test",
-    PAYMONGO_SECRET_KEY: "sk_test_example",
-    PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+    PAYMONGO_TEST_SECRET_KEY: "sk_test_example",
+    PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_example",
     PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
     PAYMONGO_CHECKOUT_REUSE_MINUTES: "45",
-    PAYMONGO_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_LIVE_SECRET_KEY: "sk_live_inactive",
+    PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_inactive",
+    PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
     PAYMONGO_PASS_ON_FEES: "true",
   });
 
@@ -130,24 +133,31 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
   assert.equal(config.PAYMONGO_SYSTEM_ACTOR_USER_ID, "900");
   assert.equal(config.PAYMONGO_CHECKOUT_REUSE_MINUTES, 45);
   assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+  assert.equal(config.PAYMONGO_LIVE_SECRET_KEY, "sk_live_inactive");
   assert.equal(config.PAYMONGO_PASS_ON_FEES, true);
 });
 
-test("parseServerEnv accepts PayMongo QR Ph in production live mode", () => {
+test("parseServerEnv accepts PayMongo QR Ph in production live mode without local override", () => {
   const config = parseServerEnv({
     ...baseEnv,
     NODE_ENV: "production",
     PAYMONGO_ENABLED: "true",
     PAYMONGO_MODE: "live",
-    PAYMONGO_SECRET_KEY: "sk_live_example",
-    PAYMONGO_WEBHOOK_SECRET: "whsec_live_example",
+    PAYMONGO_ALLOW_LIVE_LOCAL: "false",
+    PAYMONGO_TEST_SECRET_KEY: "sk_test_inactive",
+    PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_inactive",
+    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_LIVE_SECRET_KEY: "sk_live_example",
+    PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_example",
+    PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
     PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
-    PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
   });
 
   assert.equal(config.PAYMONGO_MODE, "live");
   assert.equal(config.PAYMONGO_SECRET_KEY, "sk_live_example");
+  assert.equal(config.PAYMONGO_WEBHOOK_SECRET, "whsec_live_example");
   assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
+  assert.equal(config.PAYMONGO_TEST_SECRET_KEY, "sk_test_inactive");
 });
 
 test("parseServerEnv validates the PayMongo checkout reuse interval", () => {
@@ -199,18 +209,34 @@ test("parseServerEnv requires PayMongo secrets when enabled", () => {
   );
 });
 
-test("parseServerEnv rejects PayMongo live keys outside production", () => {
+test("parseServerEnv supports legacy PayMongo variables as active fallback", () => {
+  const config = parseServerEnv({
+    ...baseEnv,
+    PAYMONGO_ENABLED: "true",
+    PAYMONGO_MODE: "test",
+    PAYMONGO_SECRET_KEY: "sk_test_legacy",
+    PAYMONGO_WEBHOOK_SECRET: "whsec_test_legacy",
+    PAYMONGO_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+  });
+
+  assert.equal(config.PAYMONGO_SECRET_KEY, "sk_test_legacy");
+  assert.equal(config.PAYMONGO_WEBHOOK_SECRET, "whsec_test_legacy");
+  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+});
+
+test("parseServerEnv rejects selected test keys that are not test keys", () => {
   assert.throws(
     () =>
       parseServerEnv({
         ...baseEnv,
         PAYMONGO_ENABLED: "true",
         PAYMONGO_MODE: "test",
-        PAYMONGO_SECRET_KEY: "sk_live_example",
-        PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
+        PAYMONGO_TEST_SECRET_KEY: "sk_live_example",
+        PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_example",
         PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
       }),
-    /PayMongo live secret keys are not allowed outside production/,
+    /PayMongo test mode requires a sk_test_ secret key/,
   );
 });
 
@@ -221,12 +247,85 @@ test("parseServerEnv rejects PayMongo live mode outside production", () => {
         ...baseEnv,
         PAYMONGO_ENABLED: "true",
         PAYMONGO_MODE: "live",
-        PAYMONGO_SECRET_KEY: "sk_live_example",
-        PAYMONGO_WEBHOOK_SECRET: "whsec_live_example",
+        PAYMONGO_ALLOW_LIVE_LOCAL: "false",
+        PAYMONGO_LIVE_SECRET_KEY: "sk_live_example",
+        PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_example",
         PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
-        PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
+        PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
       }),
-    /PayMongo live mode is not allowed outside production/,
+    /PayMongo live mode outside production requires PAYMONGO_ALLOW_LIVE_LOCAL=true/,
+  );
+});
+
+test("parseServerEnv accepts PayMongo live mode outside production with explicit safety override", () => {
+  const config = parseServerEnv({
+    ...baseEnv,
+    PAYMONGO_ENABLED: "true",
+    PAYMONGO_MODE: "live",
+    PAYMONGO_ALLOW_LIVE_LOCAL: "true",
+    PAYMONGO_LIVE_SECRET_KEY: "sk_live_example",
+    PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_example",
+    PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
+    PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+  });
+
+  assert.equal(config.PAYMONGO_MODE, "live");
+  assert.equal(config.PAYMONGO_ALLOW_LIVE_LOCAL, true);
+  assert.equal(config.PAYMONGO_SECRET_KEY, "sk_live_example");
+  assert.equal(config.PAYMONGO_WEBHOOK_SECRET, "whsec_live_example");
+  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
+});
+
+test("parseServerEnv ignores inactive PayMongo credentials", () => {
+  const testConfig = parseServerEnv({
+    ...baseEnv,
+    PAYMONGO_ENABLED: "true",
+    PAYMONGO_MODE: "test",
+    PAYMONGO_TEST_SECRET_KEY: "sk_test_valid",
+    PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_valid",
+    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+  });
+  assert.equal(testConfig.PAYMONGO_SECRET_KEY, "sk_test_valid");
+  assert.deepEqual(testConfig.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+
+  const liveConfig = parseServerEnv({
+    ...baseEnv,
+    PAYMONGO_ENABLED: "true",
+    PAYMONGO_MODE: "live",
+    PAYMONGO_ALLOW_LIVE_LOCAL: "true",
+    PAYMONGO_LIVE_SECRET_KEY: "sk_live_valid",
+    PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_valid",
+    PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
+    PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+  });
+  assert.equal(liveConfig.PAYMONGO_SECRET_KEY, "sk_live_valid");
+  assert.deepEqual(liveConfig.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
+});
+
+test("parseServerEnv requires only the active PayMongo secret and webhook secret", () => {
+  assert.throws(
+    () =>
+      parseServerEnv({
+        ...baseEnv,
+        PAYMONGO_ENABLED: "true",
+        PAYMONGO_MODE: "test",
+        PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_example",
+        PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+      }),
+    /PAYMONGO_SECRET_KEY/,
+  );
+  assert.throws(
+    () =>
+      parseServerEnv({
+        ...baseEnv,
+        PAYMONGO_ENABLED: "true",
+        PAYMONGO_MODE: "live",
+        PAYMONGO_ALLOW_LIVE_LOCAL: "true",
+        PAYMONGO_LIVE_SECRET_KEY: "sk_live_example",
+        PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+      }),
+    /PAYMONGO_WEBHOOK_SECRET/,
   );
 });
 
@@ -238,10 +337,10 @@ test("parseServerEnv rejects PayMongo test keys in production live mode", () => 
         NODE_ENV: "production",
         PAYMONGO_ENABLED: "true",
         PAYMONGO_MODE: "live",
-        PAYMONGO_SECRET_KEY: "sk_test_example",
-        PAYMONGO_WEBHOOK_SECRET: "whsec_live_example",
+        PAYMONGO_LIVE_SECRET_KEY: "sk_test_example",
+        PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_example",
         PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
-        PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
+        PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
       }),
     /PayMongo live mode requires a sk_live_ secret key/,
   );
@@ -256,7 +355,7 @@ test("parseServerEnv rejects unsupported PayMongo payment methods", () => {
         PAYMONGO_SECRET_KEY: "sk_test_example",
         PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
         PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
-        PAYMONGO_PAYMENT_METHOD_TYPES: "card,unsupported",
+        PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card,unsupported",
       }),
     /Unsupported PayMongo payment method type: unsupported/,
   );

@@ -92,14 +92,21 @@ API / Express variables:
 | `S3_FORCE_PATH_STYLE` | No | Provider-dependent | No | Enables path-style bucket URLs. |
 | `S3_PUBLIC_BASE_URL` | No | No | No | Optional public CDN/base URL. |
 | `PAYMONGO_ENABLED` | No | Payment-dependent | No | Enables PayMongo checkout/webhook flows. |
-| `PAYMONGO_MODE` | No | Payment-dependent | No | `test` or `live`; live is allowed only in production. |
+| `PAYMONGO_MODE` | No | Payment-dependent | No | Selects active PayMongo config: `test` or `live`. |
+| `PAYMONGO_ALLOW_LIVE_LOCAL` | No | No | No | Required as `true` before live mode can run outside production. Leave `false` in production. |
 | `PAYMONGO_API_BASE_URL` | No | No | No | PayMongo API base URL. |
-| `PAYMONGO_SECRET_KEY` | No | Yes when PayMongo enabled | Yes | PayMongo API secret key. |
-| `PAYMONGO_WEBHOOK_SECRET` | No | Yes when PayMongo enabled | Yes | PayMongo webhook signing secret. |
+| `PAYMONGO_TEST_SECRET_KEY` | No | Test mode only | Yes | PayMongo test secret key. |
+| `PAYMONGO_TEST_WEBHOOK_SECRET` | No | Test mode only | Yes | PayMongo test webhook signing secret. |
+| `PAYMONGO_TEST_PAYMENT_METHOD_TYPES` | No | Test mode only | No | Usually `card`. |
+| `PAYMONGO_LIVE_SECRET_KEY` | No | Live mode only | Yes | PayMongo live secret key. |
+| `PAYMONGO_LIVE_WEBHOOK_SECRET` | No | Live mode only | Yes | PayMongo live webhook signing secret. |
+| `PAYMONGO_LIVE_PAYMENT_METHOD_TYPES` | No | Live mode only | No | Usually `qrph`. |
+| `PAYMONGO_SECRET_KEY` | No | No | Yes | Legacy fallback only when the mode-specific active key is not set. |
+| `PAYMONGO_WEBHOOK_SECRET` | No | No | Yes | Legacy fallback only when the mode-specific active webhook secret is not set. |
 | `PAYMONGO_SYSTEM_ACTOR_USER_ID` | No | Yes when PayMongo enabled | Sensitive | Internal service user ID for automated settlement. |
 | `PAYMONGO_WEBHOOK_TOLERANCE_SECONDS` | No | No | No | Webhook timestamp tolerance. |
 | `PAYMONGO_CHECKOUT_REUSE_MINUTES` | No | No | No | Active checkout reuse window. |
-| `PAYMONGO_PAYMENT_METHOD_TYPES` | No | No | No | Comma-separated PayMongo methods. Use `card` for local/test card flows and `qrph` for live QR Ph. |
+| `PAYMONGO_PAYMENT_METHOD_TYPES` | No | No | No | Legacy fallback payment methods when the mode-specific active methods are not set. |
 | `PAYMONGO_PASS_ON_FEES` | No | No | No | PayMongo fee handling flag. |
 | `PAYMENT_SUCCESS_URL` | No | Yes when PayMongo enabled | No | Browser return URL after payment. |
 | `PAYMENT_CANCEL_URL` | No | Yes when PayMongo enabled | No | Browser return URL after cancellation. |
@@ -119,8 +126,12 @@ Deployment matrix:
 | `DB_HOST` | No | Yes |
 | `DB_USER` | No | Yes |
 | `DB_PASSWORD` | No | Yes |
-| `PAYMONGO_SECRET_KEY` | No | Yes |
-| `PAYMONGO_WEBHOOK_SECRET` | No | Yes |
+| `PAYMONGO_TEST_SECRET_KEY` | No | API only, if test mode is used |
+| `PAYMONGO_TEST_WEBHOOK_SECRET` | No | API only, if test mode is used |
+| `PAYMONGO_LIVE_SECRET_KEY` | No | API only, if live mode is used |
+| `PAYMONGO_LIVE_WEBHOOK_SECRET` | No | API only, if live mode is used |
+| `PAYMONGO_SECRET_KEY` | No | API only, legacy fallback |
+| `PAYMONGO_WEBHOOK_SECRET` | No | API only, legacy fallback |
 | `S3_ACCESS_KEY_ID` | No | Yes |
 | `S3_SECRET_ACCESS_KEY` | No | Yes |
 | `RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN` | No | Yes |
@@ -130,34 +141,80 @@ S3, session, or webhook secrets in a `NEXT_PUBLIC_*` variable.
 
 ## PayMongo Mode Setup
 
-PayMongo is owned by the Express API. Keep `PAYMONGO_SECRET_KEY` and
-`PAYMONGO_WEBHOOK_SECRET` on the API host only, such as Railway. Do not add
+PayMongo is owned by the Express API. Keep all PayMongo secret keys and webhook
+secrets on the API host only, such as Railway or local `server/.env`. Do not add
 PayMongo secret keys to Vercel or any `NEXT_PUBLIC_*` value.
 
-Local card testing:
+TrackCOOP resolves one active PayMongo config from `PAYMONGO_MODE`:
+
+- `PAYMONGO_MODE=test` uses `PAYMONGO_TEST_SECRET_KEY`,
+  `PAYMONGO_TEST_WEBHOOK_SECRET`, and `PAYMONGO_TEST_PAYMENT_METHOD_TYPES`.
+- `PAYMONGO_MODE=live` uses `PAYMONGO_LIVE_SECRET_KEY`,
+  `PAYMONGO_LIVE_WEBHOOK_SECRET`, and `PAYMONGO_LIVE_PAYMENT_METHOD_TYPES`.
+
+The older `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, and
+`PAYMONGO_PAYMENT_METHOD_TYPES` variables are supported only as fallback values
+when the active mode-specific variables are empty. New deployments should use
+the mode-specific variables.
+
+TEST MODE uses simulated/test money. LIVE MODE uses real money.
+
+Recommended local structure:
 
 ```env
 NODE_ENV=development
 PAYMONGO_ENABLED=true
 PAYMONGO_MODE=test
-PAYMONGO_SECRET_KEY=sk_test_xxx
-PAYMONGO_WEBHOOK_SECRET=whsec_test_xxx
+PAYMONGO_ALLOW_LIVE_LOCAL=false
+
+PAYMONGO_TEST_SECRET_KEY=sk_test_REPLACE_ME
+PAYMONGO_TEST_WEBHOOK_SECRET=REPLACE_TEST_WEBHOOK_SECRET
+PAYMONGO_TEST_PAYMENT_METHOD_TYPES=card
+
+PAYMONGO_LIVE_SECRET_KEY=sk_live_REPLACE_ME
+PAYMONGO_LIVE_WEBHOOK_SECRET=REPLACE_LIVE_WEBHOOK_SECRET
+PAYMONGO_LIVE_PAYMENT_METHOD_TYPES=qrph
+
 PAYMONGO_SYSTEM_ACTOR_USER_ID=1
-PAYMONGO_PAYMENT_METHOD_TYPES=card
+PAYMONGO_API_BASE_URL=https://api.paymongo.com
+PAYMONGO_WEBHOOK_TOLERANCE_SECONDS=300
+PAYMONGO_CHECKOUT_REUSE_MINUTES=30
+PAYMONGO_PASS_ON_FEES=false
 PAYMENT_SUCCESS_URL=http://localhost:3000/payment/success
 PAYMENT_CANCEL_URL=http://localhost:3000/payment/cancelled
 ```
 
-Production live QR Ph on Railway:
+Normal local card testing should keep:
+
+```env
+PAYMONGO_MODE=test
+PAYMONGO_ALLOW_LIVE_LOCAL=false
+```
+
+Controlled local live QR Ph testing must deliberately use both:
+
+```env
+PAYMONGO_MODE=live
+PAYMONGO_ALLOW_LIVE_LOCAL=true
+```
+
+Production live QR Ph on Railway does not require the local override:
 
 ```env
 NODE_ENV=production
 PAYMONGO_ENABLED=true
 PAYMONGO_MODE=live
-PAYMONGO_SECRET_KEY=sk_live_xxx
-PAYMONGO_WEBHOOK_SECRET=whsec_live_xxx
+PAYMONGO_ALLOW_LIVE_LOCAL=false
+
+PAYMONGO_TEST_SECRET_KEY=
+PAYMONGO_TEST_WEBHOOK_SECRET=
+PAYMONGO_TEST_PAYMENT_METHOD_TYPES=card
+
+PAYMONGO_LIVE_SECRET_KEY=sk_live_REPLACE_ME
+PAYMONGO_LIVE_WEBHOOK_SECRET=REPLACE_LIVE_WEBHOOK_SECRET
+PAYMONGO_LIVE_PAYMENT_METHOD_TYPES=qrph
+
 PAYMONGO_SYSTEM_ACTOR_USER_ID=1
-PAYMONGO_PAYMENT_METHOD_TYPES=qrph
 PAYMENT_SUCCESS_URL=https://nffac.trackcoop.online/payment/success
 PAYMENT_CANCEL_URL=https://nffac.trackcoop.online/payment/cancelled
 ```
@@ -172,6 +229,19 @@ Use the webhook secret generated by that live PayMongo webhook configuration.
 Do not reuse the test webhook secret for live mode. The success page only polls
 TrackCOOP status; the signed PayMongo webhook remains the source of truth for
 marking payments as confirmed.
+
+For local testing, success and cancel URLs may remain localhost because the
+browser performing the test can reach `http://localhost:3000`. PayMongo webhook
+delivery is different: PayMongo's server cannot normally reach
+`http://localhost:5000`. To receive real webhook callbacks locally, use a
+temporary public HTTPS address that forwards to:
+
+```text
+http://localhost:5000/api/webhooks/paymongo
+```
+
+Configure that public HTTPS webhook URL in the matching PayMongo test or live
+webhook settings. TrackCOOP does not hardcode or configure a tunnel provider.
 
 ## External MySQL
 

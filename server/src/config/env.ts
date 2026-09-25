@@ -31,16 +31,17 @@ const commaSeparatedOrigins = z
 
 const allowedPaymongoPaymentMethodTypes = ["card", "qrph"] as const;
 
-const paymongoPaymentMethodTypes = z
+const optionalPaymongoPaymentMethodTypes = z
   .preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-    z.string().trim().default("card"),
+    z.string().trim().optional(),
   )
   .transform((value, context) => {
+    if (!value) return undefined;
     const methods = [...new Set(value.split(",").map((method) => method.trim().toLowerCase()).filter(Boolean))];
 
     if (!methods.length) {
-      return ["card"];
+      return undefined;
     }
 
     for (const method of methods) {
@@ -54,6 +55,44 @@ const paymongoPaymentMethodTypes = z
 
     return methods;
   });
+
+function defaultPaymongoMethods(mode: "test" | "live") {
+  return mode === "live" ? ["qrph"] : ["card"];
+}
+
+function activePaymongoSecret(value: {
+  PAYMONGO_MODE: "test" | "live";
+  PAYMONGO_SECRET_KEY?: string;
+  PAYMONGO_TEST_SECRET_KEY?: string;
+  PAYMONGO_LIVE_SECRET_KEY?: string;
+}) {
+  return value.PAYMONGO_MODE === "live"
+    ? value.PAYMONGO_LIVE_SECRET_KEY ?? value.PAYMONGO_SECRET_KEY
+    : value.PAYMONGO_TEST_SECRET_KEY ?? value.PAYMONGO_SECRET_KEY;
+}
+
+function activePaymongoWebhookSecret(value: {
+  PAYMONGO_MODE: "test" | "live";
+  PAYMONGO_WEBHOOK_SECRET?: string;
+  PAYMONGO_TEST_WEBHOOK_SECRET?: string;
+  PAYMONGO_LIVE_WEBHOOK_SECRET?: string;
+}) {
+  return value.PAYMONGO_MODE === "live"
+    ? value.PAYMONGO_LIVE_WEBHOOK_SECRET ?? value.PAYMONGO_WEBHOOK_SECRET
+    : value.PAYMONGO_TEST_WEBHOOK_SECRET ?? value.PAYMONGO_WEBHOOK_SECRET;
+}
+
+function activePaymongoPaymentMethodTypes(value: {
+  PAYMONGO_MODE: "test" | "live";
+  PAYMONGO_PAYMENT_METHOD_TYPES?: string[];
+  PAYMONGO_TEST_PAYMENT_METHOD_TYPES?: string[];
+  PAYMONGO_LIVE_PAYMENT_METHOD_TYPES?: string[];
+}) {
+  const selected = value.PAYMONGO_MODE === "live"
+    ? value.PAYMONGO_LIVE_PAYMENT_METHOD_TYPES
+    : value.PAYMONGO_TEST_PAYMENT_METHOD_TYPES;
+  return selected ?? value.PAYMONGO_PAYMENT_METHOD_TYPES ?? defaultPaymongoMethods(value.PAYMONGO_MODE);
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -87,21 +126,28 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
   PAYMONGO_ENABLED: booleanString.default(false),
   PAYMONGO_MODE: z.enum(["test", "live"]).default("test"),
+  PAYMONGO_ALLOW_LIVE_LOCAL: booleanString.default(false),
   PAYMONGO_API_BASE_URL: z.string().url().default("https://api.paymongo.com"),
   PAYMONGO_SECRET_KEY: optionalTrimmedString,
   PAYMONGO_WEBHOOK_SECRET: optionalTrimmedString,
+  PAYMONGO_TEST_SECRET_KEY: optionalTrimmedString,
+  PAYMONGO_TEST_WEBHOOK_SECRET: optionalTrimmedString,
+  PAYMONGO_TEST_PAYMENT_METHOD_TYPES: optionalPaymongoPaymentMethodTypes,
+  PAYMONGO_LIVE_SECRET_KEY: optionalTrimmedString,
+  PAYMONGO_LIVE_WEBHOOK_SECRET: optionalTrimmedString,
+  PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: optionalPaymongoPaymentMethodTypes,
   PAYMONGO_SYSTEM_ACTOR_USER_ID: optionalTrimmedString,
   PAYMONGO_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
   PAYMONGO_CHECKOUT_REUSE_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
-  PAYMONGO_PAYMENT_METHOD_TYPES: paymongoPaymentMethodTypes,
+  PAYMONGO_PAYMENT_METHOD_TYPES: optionalPaymongoPaymentMethodTypes,
   PAYMONGO_PASS_ON_FEES: booleanString.default(false),
   PAYMENT_SUCCESS_URL: z.string().url().default("http://localhost:3000/payment/success"),
   PAYMENT_CANCEL_URL: z.string().url().default("http://localhost:3000/payment/cancelled"),
   RENTAL_STATUS_EMAIL_WEBHOOK_URL: optionalTrimmedUrl,
   RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN: optionalTrimmedString,
 }).superRefine((value, context) => {
-  const secretKey = value.PAYMONGO_SECRET_KEY;
-  const webhookSecret = value.PAYMONGO_WEBHOOK_SECRET;
+  const secretKey = activePaymongoSecret(value);
+  const webhookSecret = activePaymongoWebhookSecret(value);
   const systemActorUserId = value.PAYMONGO_SYSTEM_ACTOR_USER_ID;
 
   if (value.SESSION_COOKIE_SAME_SITE === "none" && !value.SESSION_COOKIE_SECURE) {
@@ -171,19 +217,15 @@ const envSchema = z.object({
     });
   }
 
-  if (value.NODE_ENV !== "production" && value.PAYMONGO_MODE === "live") {
+  if (
+    value.NODE_ENV !== "production"
+    && value.PAYMONGO_MODE === "live"
+    && !value.PAYMONGO_ALLOW_LIVE_LOCAL
+  ) {
     context.addIssue({
       code: "custom",
-      path: ["PAYMONGO_MODE"],
-      message: "PayMongo live mode is not allowed outside production",
-    });
-  }
-
-  if (secretKey?.startsWith("sk_live_") && value.NODE_ENV !== "production") {
-    context.addIssue({
-      code: "custom",
-      path: ["PAYMONGO_SECRET_KEY"],
-      message: "PayMongo live secret keys are not allowed outside production",
+      path: ["PAYMONGO_ALLOW_LIVE_LOCAL"],
+      message: "PayMongo live mode outside production requires PAYMONGO_ALLOW_LIVE_LOCAL=true",
     });
   }
 
@@ -202,7 +244,12 @@ const envSchema = z.object({
       message: "PayMongo live mode requires a sk_live_ secret key",
     });
   }
-});
+}).transform((value) => ({
+  ...value,
+  PAYMONGO_SECRET_KEY: activePaymongoSecret(value),
+  PAYMONGO_WEBHOOK_SECRET: activePaymongoWebhookSecret(value),
+  PAYMONGO_PAYMENT_METHOD_TYPES: activePaymongoPaymentMethodTypes(value),
+}));
 
 export type ServerEnvironment = z.infer<typeof envSchema>;
 

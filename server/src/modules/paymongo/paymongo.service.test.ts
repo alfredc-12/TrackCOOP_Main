@@ -226,6 +226,26 @@ test("createPaymentReferenceCheckout uses configured QR Ph payment method", asyn
   assert.equal(checkoutCalls[0].input.metadata.environment, "Test");
 });
 
+test("createPaymentReferenceCheckout sends QR Ph for explicit local live mode", async () => {
+  const { service, checkoutCalls } = makeService({
+    ...paymentReference,
+    gatewayEnvironment: "Live",
+  }, {
+    configOverride: {
+      mode: "live",
+      allowLiveLocal: true,
+      secretKey: "sk_live_example",
+      webhookSecret: "whsec_live_example",
+      paymentMethodTypes: ["qrph"],
+    },
+  });
+
+  await service.createPaymentReferenceCheckout("100", memberAuth);
+
+  assert.deepEqual(checkoutCalls[0].input.paymentMethodTypes, ["qrph"]);
+  assert.equal(checkoutCalls[0].input.metadata.environment, "Live");
+});
+
 test("getPublicPaymentReferenceStatus requires the exact reference number", async () => {
   const { service } = makeService(paymentReference);
 

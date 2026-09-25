@@ -20,6 +20,7 @@ export function createPaymongoConfigFromEnv(): PaymongoConfig {
   return {
     enabled: env.PAYMONGO_ENABLED,
     mode: env.PAYMONGO_MODE,
+    allowLiveLocal: env.PAYMONGO_ALLOW_LIVE_LOCAL,
     apiBaseUrl: env.PAYMONGO_API_BASE_URL.replace(/\/+$/, ""),
     secretKey: env.PAYMONGO_SECRET_KEY,
     webhookSecret: env.PAYMONGO_WEBHOOK_SECRET,
@@ -40,11 +41,12 @@ export function validatePaymongoConfig(config: PaymongoConfig, nodeEnv = env.NOD
   if (!config.secretKey) {
     throw new AppError("PayMongo secret key is not configured", 503, "PAYMONGO_NOT_CONFIGURED");
   }
-  if (nodeEnv !== "production" && config.mode === "live") {
-    throw new AppError("PayMongo live mode is not allowed outside production", 503, "PAYMONGO_LIVE_MODE_BLOCKED");
-  }
-  if (nodeEnv !== "production" && config.secretKey.startsWith("sk_live_")) {
-    throw new AppError("PayMongo live secret keys are not allowed outside production", 503, "PAYMONGO_LIVE_KEY_BLOCKED");
+  if (nodeEnv !== "production" && config.mode === "live" && !config.allowLiveLocal) {
+    throw new AppError(
+      "PayMongo live mode outside production requires PAYMONGO_ALLOW_LIVE_LOCAL=true",
+      503,
+      "PAYMONGO_LIVE_LOCAL_NOT_ALLOWED",
+    );
   }
   if (config.mode === "test" && !config.secretKey.startsWith("sk_test_")) {
     throw new AppError("PayMongo test mode requires a test secret key", 503, "PAYMONGO_TEST_KEY_REQUIRED");

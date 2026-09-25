@@ -14,6 +14,7 @@ export type PaymongoPaymentChannel =
 export type PaymongoConfig = {
   enabled: boolean;
   mode: PaymongoMode;
+  allowLiveLocal?: boolean;
   apiBaseUrl: string;
   secretKey?: string;
   webhookSecret?: string;

@@ -212,18 +212,35 @@ test("createCheckoutSession rejects malformed PayMongo responses", async () => {
   );
 });
 
-test("validatePaymongoConfig rejects disabled gateway and live keys in development", () => {
+test("validatePaymongoConfig rejects disabled gateway and live mode without local override", () => {
   assert.throws(
     () => validatePaymongoConfig({ ...config, enabled: false }),
     (error) => error instanceof AppError && error.code === "PAYMONGO_DISABLED",
   );
   assert.throws(
-    () => validatePaymongoConfig({ ...config, secretKey: "sk_live_example" }, "development"),
-    (error) => error instanceof AppError && error.code === "PAYMONGO_LIVE_KEY_BLOCKED",
+    () => validatePaymongoConfig({
+      ...config,
+      mode: "live",
+      secretKey: "sk_live_example",
+      paymentMethodTypes: ["qrph"],
+    }, "development"),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_LIVE_LOCAL_NOT_ALLOWED",
   );
 });
 
 test("validatePaymongoConfig enforces environment-aware PayMongo modes and methods", () => {
+  assert.doesNotThrow(() =>
+    validatePaymongoConfig(
+      {
+        ...config,
+        mode: "live",
+        allowLiveLocal: true,
+        secretKey: "sk_live_example",
+        paymentMethodTypes: ["qrph"],
+      },
+      "development",
+    ),
+  );
   assert.doesNotThrow(() =>
     validatePaymongoConfig(
       {

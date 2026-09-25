@@ -79,15 +79,22 @@ function payload(overrides: {
   };
 }
 
-function signed(body: unknown, timestamp = Math.floor(Date.now() / 1000)) {
+function signed(
+  body: unknown,
+  timestamp = Math.floor(Date.now() / 1000),
+  webhookSecret = config.webhookSecret ?? "",
+  signatureKey: "te" | "li" = "te",
+) {
   const raw = Buffer.from(JSON.stringify(body));
   const signature = crypto
-    .createHmac("sha256", config.webhookSecret ?? "")
+    .createHmac("sha256", webhookSecret)
     .update(`${timestamp}.${raw.toString("utf8")}`)
     .digest("hex");
   return {
     raw,
-    header: `t=${timestamp},te=${signature},li=live-signature`,
+    header: signatureKey === "te"
+      ? `t=${timestamp},te=${signature},li=live-signature`
+      : `t=${timestamp},te=test-signature,li=${signature}`,
   };
 }
 
@@ -197,6 +204,64 @@ test("verifyAndParsePaymongoWebhook rejects missing, invalid, and stale signatur
   assert.throws(
     () => verifyAndParsePaymongoWebhook({ rawBody: body.raw, signatureHeader: body.header, config, nowSeconds: nowSeconds + 301 }),
     (error) => error instanceof AppError && error.code === "PAYMONGO_SIGNATURE_STALE",
+  );
+});
+
+test("verifyAndParsePaymongoWebhook uses only the active mode webhook secret", () => {
+  const body = payload();
+  const testConfig = {
+    ...config,
+    mode: "test" as const,
+    secretKey: "sk_test_example",
+    webhookSecret: "whsec_active_test",
+  };
+  const liveConfig = {
+    ...config,
+    mode: "live" as const,
+    allowLiveLocal: true,
+    secretKey: "sk_live_example",
+    webhookSecret: "whsec_active_live",
+    paymentMethodTypes: ["qrph"],
+  };
+
+  const signedWithTestSecret = signed(body, nowSeconds, "whsec_active_test", "te");
+  const signedWithLiveSecret = signed(body, nowSeconds, "whsec_active_live", "li");
+
+  assert.equal(
+    verifyAndParsePaymongoWebhook({
+      rawBody: signedWithTestSecret.raw,
+      signatureHeader: signedWithTestSecret.header,
+      config: testConfig,
+      nowSeconds,
+    }).payload.data.attributes.type,
+    "checkout_session.payment.paid",
+  );
+  assert.throws(
+    () => verifyAndParsePaymongoWebhook({
+      rawBody: signedWithLiveSecret.raw,
+      signatureHeader: signedWithLiveSecret.header,
+      config: testConfig,
+      nowSeconds,
+    }),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_SIGNATURE_INVALID",
+  );
+  assert.equal(
+    verifyAndParsePaymongoWebhook({
+      rawBody: signedWithLiveSecret.raw,
+      signatureHeader: signedWithLiveSecret.header,
+      config: liveConfig,
+      nowSeconds,
+    }).payload.data.attributes.type,
+    "checkout_session.payment.paid",
+  );
+  assert.throws(
+    () => verifyAndParsePaymongoWebhook({
+      rawBody: signedWithTestSecret.raw,
+      signatureHeader: signedWithTestSecret.header,
+      config: liveConfig,
+      nowSeconds,
+    }),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_SIGNATURE_INVALID",
   );
 });
 

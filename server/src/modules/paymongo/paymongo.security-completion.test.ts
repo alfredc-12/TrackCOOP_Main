@@ -31,10 +31,11 @@ function position(haystack: string, needle: string) {
   return index;
 }
 
-test("PayMongo remains test-first and rejects live configuration outside production", () => {
+test("PayMongo remains test-first and requires explicit local live override", () => {
   assert.match(envSource, /PAYMONGO_MODE: z\.enum\(\["test", "live"\]\)\.default\("test"\)/);
-  assert.match(envSource, /value\.NODE_ENV !== "production" && value\.PAYMONGO_MODE === "live"/);
-  assert.match(envSource, /secretKey\?\.startsWith\("sk_live_"\)/);
+  assert.match(envSource, /value\.NODE_ENV !== "production"[\s\S]*value\.PAYMONGO_MODE === "live"/);
+  assert.match(envSource, /PAYMONGO_ALLOW_LIVE_LOCAL/);
+  assert.match(envSource, /PayMongo live mode outside production requires PAYMONGO_ALLOW_LIVE_LOCAL=true/);
   assert.match(envSource, /PAYMONGO_SYSTEM_ACTOR_USER_ID is required/);
 });
 
