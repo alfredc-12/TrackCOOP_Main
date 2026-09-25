@@ -114,6 +114,23 @@ test("createCheckoutSession uses Basic auth, V2 URL, idempotency, and safe metad
   assert.equal(result.checkoutUrl, "https://checkout.paymongo.com/cs_test_123");
 });
 
+test("createCheckoutSession sends QR Ph when selected by the service", async () => {
+  let capturedInit: RequestInit | undefined;
+  const fetchImpl = (async (_url, init) => {
+    capturedInit = init;
+    return successResponse();
+  }) as typeof fetch;
+
+  const client = createPaymongoClient({ ...config, paymentMethodTypes: ["qrph"] }, fetchImpl);
+  await client.createCheckoutSession(
+    { ...checkoutRequest, paymentMethodTypes: ["qrph"] },
+    "idem-qrph",
+  );
+
+  const body = JSON.parse(String(capturedInit?.body));
+  assert.deepEqual(body.data.attributes.payment_method_types, ["qrph"]);
+});
+
 test("retrieveCheckoutSession uses the documented V1 endpoint and selects the paid payment", async () => {
   let capturedUrl = "";
   let capturedInit: RequestInit | undefined;
@@ -203,5 +220,39 @@ test("validatePaymongoConfig rejects disabled gateway and live keys in developme
   assert.throws(
     () => validatePaymongoConfig({ ...config, secretKey: "sk_live_example" }, "development"),
     (error) => error instanceof AppError && error.code === "PAYMONGO_LIVE_KEY_BLOCKED",
+  );
+});
+
+test("validatePaymongoConfig enforces environment-aware PayMongo modes and methods", () => {
+  assert.doesNotThrow(() =>
+    validatePaymongoConfig(
+      {
+        ...config,
+        mode: "live",
+        secretKey: "sk_live_example",
+        paymentMethodTypes: ["qrph"],
+      },
+      "production",
+    ),
+  );
+  assert.throws(
+    () => validatePaymongoConfig(
+      {
+        ...config,
+        mode: "live",
+        secretKey: "sk_test_example",
+        paymentMethodTypes: ["qrph"],
+      },
+      "production",
+    ),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_LIVE_KEY_REQUIRED",
+  );
+  assert.throws(
+    () => validatePaymongoConfig({ ...config, paymentMethodTypes: [] }),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_METHOD_REQUIRED",
+  );
+  assert.throws(
+    () => validatePaymongoConfig({ ...config, paymentMethodTypes: ["unsupported"] }),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_METHOD_UNSUPPORTED",
   );
 });

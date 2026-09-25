@@ -14,6 +14,8 @@ export class PaymongoClientError extends AppError {
   }
 }
 
+const allowedPaymentMethodTypes = new Set(["card", "qrph"]);
+
 export function createPaymongoConfigFromEnv(): PaymongoConfig {
   return {
     enabled: env.PAYMONGO_ENABLED,
@@ -46,6 +48,17 @@ export function validatePaymongoConfig(config: PaymongoConfig, nodeEnv = env.NOD
   }
   if (config.mode === "test" && !config.secretKey.startsWith("sk_test_")) {
     throw new AppError("PayMongo test mode requires a test secret key", 503, "PAYMONGO_TEST_KEY_REQUIRED");
+  }
+  if (config.mode === "live" && !config.secretKey.startsWith("sk_live_")) {
+    throw new AppError("PayMongo live mode requires a live secret key", 503, "PAYMONGO_LIVE_KEY_REQUIRED");
+  }
+  if (!config.paymentMethodTypes.length) {
+    throw new AppError("At least one PayMongo payment method is required", 503, "PAYMONGO_METHOD_REQUIRED");
+  }
+  for (const method of config.paymentMethodTypes) {
+    if (!allowedPaymentMethodTypes.has(method)) {
+      throw new AppError(`Unsupported PayMongo payment method type: ${method}`, 503, "PAYMONGO_METHOD_UNSUPPORTED");
+    }
   }
 }
 

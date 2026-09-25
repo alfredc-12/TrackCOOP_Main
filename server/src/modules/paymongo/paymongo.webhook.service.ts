@@ -181,6 +181,12 @@ function selectPaidPayment(
 }
 
 function assertMetadataMatches(metadata: Record<string, string>, reference: PaymentReferenceLookup) {
+  if (!metadata.trackcoop_payment_reference_id) {
+    throw new AppError("PayMongo metadata is missing the TrackCOOP payment reference", 422, "PAYMENT_METADATA_MISSING");
+  }
+  if (metadata.trackcoop_payment_reference_id !== reference.id) {
+    throw new AppError("PayMongo payment reference ID conflicts with TrackCOOP metadata", 422, "PAYMENT_REFERENCE_MISMATCH");
+  }
   if (metadata.trackcoop_reference_number && metadata.trackcoop_reference_number !== reference.referenceNumber) {
     throw new AppError("PayMongo reference number does not match TrackCOOP metadata", 422, "PAYMENT_REFERENCE_MISMATCH");
   }
@@ -326,14 +332,12 @@ export function createPaymongoWebhookRepository(pool?: Pool): PaymongoWebhookRep
 
   return {
     async findPaymentReference(input) {
-      const values: string[] = [];
-      const where: string[] = [];
+      const values: string[] = [input.referenceNumber];
+      const where = ["reference_number = ?"];
       if (input.paymentReferenceId) {
         where.push("payment_reference_id = ?");
         values.push(input.paymentReferenceId);
       }
-      where.push("reference_number = ?");
-      values.push(input.referenceNumber);
 
       const [rows] = await databasePool().execute<PaymentReferenceLookupRow[]>(
         `SELECT CAST(payment_reference_id AS CHAR) AS id,
@@ -346,7 +350,7 @@ export function createPaymongoWebhookRepository(pool?: Pool): PaymongoWebhookRep
                 gateway_checkout_id AS gatewayCheckoutId,
                 gateway_payment_id AS gatewayPaymentId
            FROM payment_references
-          WHERE ${where.join(" OR ")}
+          WHERE ${where.join(" AND ")}
           ORDER BY payment_reference_id DESC
           LIMIT 1`,
         values,
@@ -581,6 +585,9 @@ export function createPaymongoWebhookService(options: {
       }
 
       const metadataReferenceId = checkoutAttributes.metadata.trackcoop_payment_reference_id;
+      if (!metadataReferenceId) {
+        throw new AppError("PayMongo metadata is missing the TrackCOOP payment reference", 422, "PAYMENT_METADATA_MISSING");
+      }
       const reference = await repository.findPaymentReference({
         paymentReferenceId: metadataReferenceId,
         referenceNumber: checkoutAttributes.reference_number,

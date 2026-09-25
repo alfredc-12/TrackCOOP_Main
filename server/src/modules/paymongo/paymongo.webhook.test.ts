@@ -34,8 +34,16 @@ function payload(overrides: {
   paymentStatus?: string;
   paymentId?: string;
   referenceNumber?: string;
-  metadataReferenceId?: string;
+  metadataReferenceId?: string | null;
 } = {}) {
+  const referenceNumber = overrides.referenceNumber ?? "MEM-APP-2026-000300-FEE";
+  const metadata: Record<string, string> = {
+    trackcoop_reference_number: referenceNumber,
+  };
+  if (overrides.metadataReferenceId !== null) {
+    metadata.trackcoop_payment_reference_id = overrides.metadataReferenceId ?? "900";
+  }
+
   return {
     data: {
       type: "event",
@@ -46,12 +54,10 @@ function payload(overrides: {
           type: "checkout_session",
           attributes: {
             livemode: overrides.livemode ?? false,
-            reference_number: overrides.referenceNumber ?? "MEM-APP-2026-000300-FEE",
+            reference_number: referenceNumber,
             status: "paid",
             payment_intent: { id: "pi_test_123" },
-            metadata: {
-              trackcoop_payment_reference_id: overrides.metadataReferenceId ?? "900",
-            },
+            metadata,
             payments: [
               {
                 id: overrides.paymentId ?? "pay_test_123",
@@ -94,10 +100,16 @@ function makeService(options: {
   const failedEvents: unknown[] = [];
   const insertedEvents: unknown[] = [];
   const repository: PaymongoWebhookRepository = {
-    async findPaymentReference() {
+    async findPaymentReference(input) {
       const reference = options.reference === undefined
         ? { id: "900", amount: 200, referenceNumber: "MEM-APP-2026-000300-FEE" }
         : options.reference;
+      if (
+        reference
+        && (reference.id !== input.paymentReferenceId || reference.referenceNumber !== input.referenceNumber)
+      ) {
+        return null;
+      }
       return reference
         ? {
             ...reference,
@@ -256,7 +268,7 @@ test("handleWebhook rejects live, malformed, unknown, and mismatched events safe
   const mismatch = signed(payload({ referenceNumber: "OTHER-REF" }));
   await assert.rejects(
     () => makeService().service.handleWebhook({ rawBody: mismatch.raw, signatureHeader: mismatch.header }),
-    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_MISMATCH",
+    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NOT_FOUND",
   );
 });
 

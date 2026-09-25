@@ -13,6 +13,13 @@ function requireParam(value: string | string[] | undefined, name: string) {
   return value;
 }
 
+function requireQuery(value: unknown, name: string) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new AppError(`Query parameter ${name} is required`, 400, "QUERY_PARAM_REQUIRED");
+  }
+  return value;
+}
+
 function requireAuth(auth: Express.Request["auth"]) {
   if (!auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
   return auth;
@@ -72,6 +79,15 @@ export function createPaymongoController(service: PaymongoService) {
       const result = await service.getPaymentReferenceStatus(
         requireParam(request.params.paymentReferenceId, "paymentReferenceId"),
         requireAuth(request.auth),
+      );
+
+      return sendSuccess(response, result);
+    }),
+
+    getPublicPaymentReferenceStatus: asyncHandler(async (request, response) => {
+      const result = await service.getPublicPaymentReferenceStatus(
+        requireParam(request.params.paymentReferenceId, "paymentReferenceId"),
+        requireQuery(request.query.referenceNumber, "referenceNumber"),
       );
 
       return sendSuccess(response, result);

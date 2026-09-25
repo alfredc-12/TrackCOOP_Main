@@ -29,7 +29,7 @@ const commaSeparatedOrigins = z
   )
   .transform((value) => [...new Set(value.split(",").map((origin) => origin.trim()).filter(Boolean))]);
 
-const allowedPaymongoPaymentMethodTypes = ["card"] as const;
+const allowedPaymongoPaymentMethodTypes = ["card", "qrph"] as const;
 
 const paymongoPaymentMethodTypes = z
   .preprocess(

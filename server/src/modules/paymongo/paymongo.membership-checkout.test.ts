@@ -103,6 +103,9 @@ function makeMembershipService(options: {
       async findPaymentReference() {
         return null;
       },
+      async findPaymentReferenceByIdAndReferenceNumber() {
+        return null;
+      },
       async findMembershipApplicationByCode() {
         return options.applicationRecord === undefined
           ? application
@@ -351,7 +354,7 @@ test("payment return pages are informational and do not mutate status", () => {
   );
 
   assert.match(successPage, /webhook confirms/i);
-  assert.match(successPage, /does not update your payment status/i);
+  assert.match(successPage, /PaymentStatusPoller/);
   assert.doesNotMatch(successPage, /apiRequest|fetch\(/);
   assert.match(cancelledPage, /does not reject your membership application/i);
   assert.doesNotMatch(cancelledPage, /apiRequest|fetch\(/);

@@ -133,6 +133,23 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
   assert.equal(config.PAYMONGO_PASS_ON_FEES, true);
 });
 
+test("parseServerEnv accepts PayMongo QR Ph in production live mode", () => {
+  const config = parseServerEnv({
+    ...baseEnv,
+    NODE_ENV: "production",
+    PAYMONGO_ENABLED: "true",
+    PAYMONGO_MODE: "live",
+    PAYMONGO_SECRET_KEY: "sk_live_example",
+    PAYMONGO_WEBHOOK_SECRET: "whsec_live_example",
+    PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+    PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
+  });
+
+  assert.equal(config.PAYMONGO_MODE, "live");
+  assert.equal(config.PAYMONGO_SECRET_KEY, "sk_live_example");
+  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
+});
+
 test("parseServerEnv validates the PayMongo checkout reuse interval", () => {
   for (const value of ["0", "1441", "1.5"]) {
     assert.throws(
@@ -194,6 +211,39 @@ test("parseServerEnv rejects PayMongo live keys outside production", () => {
         PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
       }),
     /PayMongo live secret keys are not allowed outside production/,
+  );
+});
+
+test("parseServerEnv rejects PayMongo live mode outside production", () => {
+  assert.throws(
+    () =>
+      parseServerEnv({
+        ...baseEnv,
+        PAYMONGO_ENABLED: "true",
+        PAYMONGO_MODE: "live",
+        PAYMONGO_SECRET_KEY: "sk_live_example",
+        PAYMONGO_WEBHOOK_SECRET: "whsec_live_example",
+        PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+        PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
+      }),
+    /PayMongo live mode is not allowed outside production/,
+  );
+});
+
+test("parseServerEnv rejects PayMongo test keys in production live mode", () => {
+  assert.throws(
+    () =>
+      parseServerEnv({
+        ...baseEnv,
+        NODE_ENV: "production",
+        PAYMONGO_ENABLED: "true",
+        PAYMONGO_MODE: "live",
+        PAYMONGO_SECRET_KEY: "sk_test_example",
+        PAYMONGO_WEBHOOK_SECRET: "whsec_live_example",
+        PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
+        PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
+      }),
+    /PayMongo live mode requires a sk_live_ secret key/,
   );
 });
 

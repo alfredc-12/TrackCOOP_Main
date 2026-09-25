@@ -52,6 +52,25 @@ function createMemberCheckoutLimiter() {
   });
 }
 
+function createPublicStatusLimiter() {
+  return rateLimit({
+    windowMs: 5 * 60 * 1000,
+    limit: 120,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Too many PayMongo status checks. Please try again shortly.",
+      errors: [
+        {
+          code: "PAYMONGO_STATUS_RATE_LIMITED",
+          message: "Too many PayMongo status checks. Please try again shortly.",
+        },
+      ],
+    },
+  });
+}
+
 export function createPaymongoRouter(
   authService: AuthService = createAuthService(),
   paymongoService?: PaymongoService,
@@ -67,6 +86,7 @@ export function createPaymongoRouter(
     : null;
   const publicCheckoutLimiter = createPublicCheckoutLimiter();
   const memberCheckoutLimiter = createMemberCheckoutLimiter();
+  const publicStatusLimiter = createPublicStatusLimiter();
   const authenticatedPaymentUser = [
     createAuthenticate(authService),
     requireRoles("chairman", "bookkeeper", "member"),
@@ -77,6 +97,11 @@ export function createPaymongoRouter(
     "/paymongo/checkouts/membership-applications/:applicationCode",
     publicCheckoutLimiter,
     controller.createMembershipApplicationCheckout,
+  );
+  router.get(
+    "/paymongo/public/payments/:paymentReferenceId/status",
+    publicStatusLimiter,
+    controller.getPublicPaymentReferenceStatus,
   );
   if (memberController) {
     router.get(

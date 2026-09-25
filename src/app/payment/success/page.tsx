@@ -1,8 +1,10 @@
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
 import { Button } from "@/components/ui/Button";
+import PaymentStatusPoller from "./payment-status-poller";
 
 export default function PaymentSuccessPage() {
   return (
@@ -14,15 +16,24 @@ export default function PaymentSuccessPage() {
             <CheckCircle2 className="size-7" />
           </div>
           <p className="mt-7 text-xs font-black uppercase tracking-[0.32em] text-[#f4b62a]">
-            PayMongo Test Mode
+            PayMongo Checkout
           </p>
           <h1 className="mt-3 text-4xl font-black leading-tight tracking-normal text-[#073f2b] md:text-6xl">
-            Payment checkout submitted
+            Payment submitted
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-[#365F4A]">
             TrackCOOP will mark the payment confirmed only after the PayMongo
-            webhook confirms it. This page does not update your payment status.
+            webhook confirms it.
           </p>
+          <Suspense
+            fallback={
+              <div className="mt-7 rounded-3xl border border-[#DDE8D8] bg-[#F8FBF5] p-5 text-sm font-semibold text-[#365F4A]">
+                Preparing payment status check...
+              </div>
+            }
+          >
+            <PaymentStatusPoller />
+          </Suspense>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/membership/application-status">
               <Button className="h-11 w-full rounded-full bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] sm:w-auto">

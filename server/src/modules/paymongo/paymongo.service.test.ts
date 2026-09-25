@@ -104,6 +104,13 @@ function makeService(record: PaymongoPaymentReferenceRecord | null, options: {
         async findPaymentReference() {
           return record;
         },
+        async findPaymentReferenceByIdAndReferenceNumber(input) {
+          if (!record) return null;
+          return record.id === input.paymentReferenceId
+            && record.referenceNumber === input.referenceNumber
+            ? record
+            : null;
+        },
         async findMembershipApplicationByCode() {
           return null;
         },
@@ -199,7 +206,41 @@ test("createPaymentReferenceCheckout uses trusted database fields for metadata a
   assert.equal(checkoutCalls[0].input.metadata.related_entity_type, "membership_application");
   assert.equal(checkoutCalls[0].input.metadata.related_entity_id, "30");
   assert.equal(checkoutCalls[0].input.metadata.environment, "Test");
+  assert.equal(
+    checkoutCalls[0].input.successUrl,
+    "http://localhost:3000/payment/success?paymentReferenceId=100&referenceNumber=TC-REF-0100",
+  );
   assert.equal(attempts.length, 1);
+});
+
+test("createPaymentReferenceCheckout uses configured QR Ph payment method", async () => {
+  const { service, checkoutCalls } = makeService(paymentReference, {
+    configOverride: {
+      paymentMethodTypes: ["qrph"],
+    },
+  });
+
+  await service.createPaymentReferenceCheckout("100", memberAuth);
+
+  assert.deepEqual(checkoutCalls[0].input.paymentMethodTypes, ["qrph"]);
+  assert.equal(checkoutCalls[0].input.metadata.environment, "Test");
+});
+
+test("getPublicPaymentReferenceStatus requires the exact reference number", async () => {
+  const { service } = makeService(paymentReference);
+
+  const status = await service.getPublicPaymentReferenceStatus("100", "TC-REF-0100");
+  assert.equal(status.paymentReferenceId, "100");
+  assert.equal(status.referenceNumber, "TC-REF-0100");
+
+  await assert.rejects(
+    () => service.getPublicPaymentReferenceStatus("100", ""),
+    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NUMBER_REQUIRED",
+  );
+  await assert.rejects(
+    () => service.getPublicPaymentReferenceStatus("100", "OTHER-REF"),
+    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NOT_FOUND",
+  );
 });
 
 test("createPaymentReferenceCheckout allows bookkeeper assistance", async () => {

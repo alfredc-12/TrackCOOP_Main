@@ -130,6 +130,10 @@ function referenceSuffix(paymentPurpose: PaymongoMembershipCheckoutPurpose) {
 
 export interface PaymongoRepository {
   findPaymentReference(paymentReferenceId: string): Promise<PaymongoPaymentReferenceRecord | null>;
+  findPaymentReferenceByIdAndReferenceNumber(input: {
+    paymentReferenceId: string;
+    referenceNumber: string;
+  }): Promise<PaymongoPaymentReferenceRecord | null>;
   findMembershipApplicationByCode(
     applicationCode: string,
   ): Promise<PaymongoMembershipApplicationRecord | null>;
@@ -157,6 +161,41 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
   return {
     async findPaymentReference(paymentReferenceId) {
       return selectPaymentReference(databasePool(), paymentReferenceId);
+    },
+
+    async findPaymentReferenceByIdAndReferenceNumber(input) {
+      const [rows] = await databasePool().execute<PaymentReferenceRow[]>(
+        `SELECT CAST(p.payment_reference_id AS CHAR) AS id,
+                CAST(p.member_id AS CHAR) AS memberId,
+                CAST(m.user_id AS CHAR) AS memberUserId,
+                CAST(p.submitted_by AS CHAR) AS submittedBy,
+                p.payer_name AS payerName,
+                p.payer_email AS payerEmail,
+                p.payer_contact AS payerContact,
+                p.provider,
+                p.reference_number AS referenceNumber,
+                p.payment_purpose AS paymentPurpose,
+                p.related_entity_type AS relatedEntityType,
+                CAST(p.related_entity_id AS CHAR) AS relatedEntityId,
+                p.amount,
+                p.validation_status AS validationStatus,
+                p.payment_channel AS paymentChannel,
+                p.gateway_environment AS gatewayEnvironment,
+                p.gateway_checkout_id AS gatewayCheckoutId,
+                p.gateway_payment_id AS gatewayPaymentId,
+                p.gateway_payment_intent_id AS gatewayPaymentIntentId,
+                p.gateway_status AS gatewayStatus,
+                p.idempotency_key AS idempotencyKey,
+                p.paid_at AS paidAt
+           FROM payment_references p
+           LEFT JOIN member_profiles m ON m.member_id = p.member_id
+          WHERE p.payment_reference_id = ?
+            AND p.reference_number = ?
+          LIMIT 1`,
+        [input.paymentReferenceId, input.referenceNumber],
+      );
+
+      return rows[0] ? mapPaymentReference(rows[0]) : null;
     },
 
     async findMembershipApplicationByCode(applicationCode) {

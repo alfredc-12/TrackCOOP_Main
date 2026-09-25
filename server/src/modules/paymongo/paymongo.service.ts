@@ -241,6 +241,13 @@ function checkoutMetadata(
   };
 }
 
+function checkoutSuccessUrl(configuredUrl: string, record: PaymongoPaymentReferenceRecord) {
+  const url = new URL(configuredUrl);
+  url.searchParams.set("paymentReferenceId", record.id);
+  url.searchParams.set("referenceNumber", record.referenceNumber);
+  return url.toString();
+}
+
 function buildCheckoutRequest(
   record: PaymongoPaymentReferenceRecord,
   config: PaymongoConfig,
@@ -261,7 +268,7 @@ function buildCheckoutRequest(
       },
     ],
     paymentMethodTypes: config.paymentMethodTypes,
-    successUrl: config.successUrl,
+    successUrl: checkoutSuccessUrl(config.successUrl, record),
     cancelUrl: config.cancelUrl,
     billing: {
       name: record.payerName ?? undefined,
@@ -292,6 +299,10 @@ export interface PaymongoService {
   getPaymentReferenceStatus(
     paymentReferenceId: string,
     auth: AuthContext,
+  ): Promise<PaymongoPaymentStatus>;
+  getPublicPaymentReferenceStatus(
+    paymentReferenceId: string,
+    referenceNumber: string,
   ): Promise<PaymongoPaymentStatus>;
 }
 
@@ -527,6 +538,38 @@ export function createPaymongoService(options: {
         currency: "PHP",
         checkoutAttemptNumber: refreshedAttempt?.attemptNumber ?? null,
         gatewayLastCheckedAt: refreshedAttempt?.lastCheckedAt ?? null,
+      };
+    },
+
+    async getPublicPaymentReferenceStatus(paymentReferenceId, referenceNumber) {
+      const trimmedReferenceNumber = referenceNumber.trim();
+      if (!trimmedReferenceNumber) {
+        throw new AppError("Payment reference number is required", 400, "PAYMENT_REFERENCE_NUMBER_REQUIRED");
+      }
+
+      const record = requirePaymentReference(
+        await repository.findPaymentReferenceByIdAndReferenceNumber({
+          paymentReferenceId,
+          referenceNumber: trimmedReferenceNumber,
+        }),
+      );
+      const attempt = await attemptRepository.findLatestCheckoutAttempt(record.id);
+
+      return {
+        paymentReferenceId: record.id,
+        referenceNumber: record.referenceNumber,
+        validationStatus: record.validationStatus,
+        paymentChannel: record.paymentChannel,
+        gatewayEnvironment: record.gatewayEnvironment,
+        gatewayCheckoutId: record.gatewayCheckoutId,
+        gatewayPaymentId: record.gatewayPaymentId,
+        gatewayPaymentIntentId: record.gatewayPaymentIntentId,
+        gatewayStatus: record.gatewayStatus,
+        paidAt: record.paidAt,
+        amount: record.amount,
+        currency: "PHP",
+        checkoutAttemptNumber: attempt?.attemptNumber ?? null,
+        gatewayLastCheckedAt: attempt?.lastCheckedAt ?? null,
       };
     },
   };

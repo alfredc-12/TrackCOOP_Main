@@ -95,6 +95,7 @@ function record(
 function baseRepository(): PaymongoRepository {
   return {
     async findPaymentReference() { return null; },
+    async findPaymentReferenceByIdAndReferenceNumber() { return null; },
     async findMembershipApplicationByCode() { return null; },
     async getMembershipPaymentSettings() { return settings; },
     async getValidatedMembershipPaymentTotal() { return 0; },
@@ -239,6 +240,7 @@ test("authenticated status lookup does not expose another Member's payment", asy
   const repository = {
     ...baseRepository(),
     async findPaymentReference() { return other; },
+    async findPaymentReferenceByIdAndReferenceNumber() { return other; },
   } as PaymongoRepository;
   const service = createPaymongoService({
     config,

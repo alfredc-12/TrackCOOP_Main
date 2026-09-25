@@ -74,11 +74,22 @@ function payload(overrides: {
   paymentStatus?: string;
   paymentId?: string;
   referenceNumber?: string;
-  metadataReferenceId?: string;
+  metadataReferenceId?: string | null;
   metadataPurpose?: string;
   metadataRelatedType?: string;
   metadataRelatedId?: string;
 } = {}) {
+  const referenceNumber = overrides.referenceNumber ?? "MEM-APP-2026-000300-FEE";
+  const metadata: Record<string, string> = {
+    trackcoop_reference_number: referenceNumber,
+    payment_purpose: overrides.metadataPurpose ?? "Associate Membership Fee",
+    related_entity_type: overrides.metadataRelatedType ?? "membership_application",
+    related_entity_id: overrides.metadataRelatedId ?? "300",
+  };
+  if (overrides.metadataReferenceId !== null) {
+    metadata.trackcoop_payment_reference_id = overrides.metadataReferenceId ?? "900";
+  }
+
   return {
     data: {
       id: overrides.eventId ?? "evt_test_123",
@@ -91,16 +102,10 @@ function payload(overrides: {
           type: "checkout_session",
           attributes: {
             livemode: overrides.checkoutLivemode ?? false,
-            reference_number: overrides.referenceNumber ?? "MEM-APP-2026-000300-FEE",
+            reference_number: referenceNumber,
             status: overrides.checkoutStatus ?? "paid",
             payment_intent: { id: "pi_test_123" },
-            metadata: {
-              trackcoop_payment_reference_id: overrides.metadataReferenceId ?? "900",
-              trackcoop_reference_number: overrides.referenceNumber ?? "MEM-APP-2026-000300-FEE",
-              payment_purpose: overrides.metadataPurpose ?? "Associate Membership Fee",
-              related_entity_type: overrides.metadataRelatedType ?? "membership_application",
-              related_entity_id: overrides.metadataRelatedId ?? "300",
-            },
+            metadata,
             payments: overrides.payments ?? [
               payment({
                 id: overrides.paymentId,
@@ -146,6 +151,7 @@ function defaultReference(overrides: Partial<ReferenceFixture> = {}): ReferenceF
 function makeService(options: {
   duplicateStatus?: GatewayProcessingStatus;
   reference?: ReferenceFixture | null;
+  references?: ReferenceFixture[];
   settleError?: unknown;
   markProcessingResult?: boolean;
 } = {}) {
@@ -155,10 +161,14 @@ function makeService(options: {
   const ignoredEvents: unknown[] = [];
   const processingClaims: unknown[] = [];
   const repository: PaymongoWebhookRepository = {
-    async findPaymentReference() {
-      const reference = options.reference === undefined
-        ? defaultReference()
-        : options.reference;
+    async findPaymentReference(input) {
+      const references = options.references
+        ?? (options.reference === undefined ? [defaultReference()] : options.reference ? [options.reference] : []);
+      const reference = references.find(
+        (item) =>
+          item.id === input.paymentReferenceId
+          && item.referenceNumber === input.referenceNumber,
+      ) ?? null;
       return reference
         ? { ...reference, amount: reference.amount }
         : null;
@@ -391,7 +401,66 @@ test("handleWebhook rejects live, malformed, unknown, and mismatched events safe
   const mismatch = signed(payload({ referenceNumber: "OTHER-REF" }));
   await assert.rejects(
     () => makeService().service.handleWebhook({ rawBody: mismatch.raw, signatureHeader: mismatch.header }),
-    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_MISMATCH",
+    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NOT_FOUND",
+  );
+});
+
+test("handleWebhook correlates each paid event to the exact payment reference metadata", async () => {
+  const references = [
+    defaultReference({
+      id: "901",
+      amount: 500,
+      referenceNumber: "TC-SAME-AMOUNT-A",
+      gatewayCheckoutId: "cs_same_a",
+      relatedEntityId: "301",
+    }),
+    defaultReference({
+      id: "902",
+      amount: 500,
+      referenceNumber: "TC-SAME-AMOUNT-B",
+      gatewayCheckoutId: "cs_same_b",
+      relatedEntityId: "302",
+    }),
+  ];
+  const { service, settlementCalls } = makeService({ references });
+
+  const first = signed(payload({
+    eventId: "evt_same_a",
+    checkoutId: "cs_same_a",
+    paymentId: "pay_same_a",
+    amount: 50_000,
+    referenceNumber: "TC-SAME-AMOUNT-A",
+    metadataReferenceId: "901",
+    metadataRelatedId: "301",
+  }));
+  const second = signed(payload({
+    eventId: "evt_same_b",
+    checkoutId: "cs_same_b",
+    paymentId: "pay_same_b",
+    amount: 50_000,
+    referenceNumber: "TC-SAME-AMOUNT-B",
+    metadataReferenceId: "902",
+    metadataRelatedId: "302",
+  }));
+
+  await service.handleWebhook({ rawBody: first.raw, signatureHeader: first.header });
+  await service.handleWebhook({ rawBody: second.raw, signatureHeader: second.header });
+
+  assert.deepEqual(
+    settlementCalls.map((call) => (call as { paymentReferenceId: string }).paymentReferenceId),
+    ["901", "902"],
+  );
+});
+
+test("handleWebhook rejects paid checkout events without TrackCOOP payment reference metadata", async () => {
+  const missingMetadata = signed(payload({ metadataReferenceId: null }));
+
+  await assert.rejects(
+    () => makeService().service.handleWebhook({
+      rawBody: missingMetadata.raw,
+      signatureHeader: missingMetadata.header,
+    }),
+    (error) => error instanceof AppError && error.code === "PAYMENT_METADATA_MISSING",
   );
 });
 

@@ -238,6 +238,10 @@ function makeFixture(recordOverrides: Partial<PaymongoPaymentReferenceRecord> = 
     async findPaymentReference(id) {
       return records.get(id) ?? null;
     },
+    async findPaymentReferenceByIdAndReferenceNumber(input) {
+      const match = records.get(input.paymentReferenceId);
+      return match?.referenceNumber === input.referenceNumber ? match : null;
+    },
     async findMembershipApplicationByCode() {
       return null;
     },
