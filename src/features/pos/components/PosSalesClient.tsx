@@ -60,6 +60,7 @@ export default function PosSalesClient() {
   const [confirmDiscountError, setConfirmDiscountError] = useState<string>("");
   const [isConfirming, setIsConfirming] = useState(false);
   const [orderToRejectId, setOrderToRejectId] = useState<number | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
   const [orderToRevokeId, setOrderToRevokeId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [revokeReason, setRevokeReason] = useState("");
@@ -89,6 +90,14 @@ export default function PosSalesClient() {
     setIsRefreshing(true);
     await fetchOrders();
     setIsRefreshing(false);
+  };
+
+  const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "All" || dateFilter !== "All time";
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("All");
+    setDateFilter("All time");
+    setCurrentPage(1);
   };
 
   useEffect(() => {
@@ -122,10 +131,12 @@ export default function PosSalesClient() {
     return orders.filter((order) => {
       const matchesStatus = statusFilter === "All" || order.sale_status === statusFilter;
       const saleDate = new Date(order.sale_date);
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const saleTime = saleDate.getTime();
       const matchesDate = dateFilter === "All time"
         || (dateFilter === "Today" && saleDate.toDateString() === now.toDateString())
-        || (dateFilter === "This week" && now.getTime() - saleDate.getTime() <= 7 * 24 * 60 * 60 * 1000)
-        || (dateFilter === "This month" && saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear());
+        || (dateFilter === "This week" && saleTime >= startOfToday - 7 * 24 * 60 * 60 * 1000 && saleTime <= now.getTime())
+        || (dateFilter === "This month" && saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear() && saleTime <= now.getTime());
       const matchesSearch =
         order.sale_number.toLowerCase().includes(query) ||
         (order.customer_name ?? "").toLowerCase().includes(query) ||
@@ -143,12 +154,12 @@ export default function PosSalesClient() {
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
 
   const pendingCount = orders.filter((order) => order.sale_status === "Pending Payment").length;
-  const paidCount = orders.filter((order) => order.sale_status === "Paid").length;
+  const validatedCount = orders.filter((order) => order.sale_status === "Paid" || order.sale_status === "Completed").length;
   const totalSales = orders
-    .filter((order) => order.sale_status === "Paid")
+    .filter((order) => order.sale_status === "Paid" || order.sale_status === "Completed")
     .reduce((sum, order) => sum + Number(order.total_amount), 0);
-  const cashSales = orders.filter((order) => order.sale_status === "Paid" && !order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
-  const gcashSales = orders.filter((order) => order.sale_status === "Paid" && order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
+  const cashSales = orders.filter((order) => (order.sale_status === "Paid" || order.sale_status === "Completed") && !order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
+  const gcashSales = orders.filter((order) => (order.sale_status === "Paid" || order.sale_status === "Completed") && order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
 
   const confirmPayment = (orderId: number) => {
     setOrderToConfirmId(orderId);
@@ -212,6 +223,12 @@ export default function PosSalesClient() {
 
   const processRejectPayment = async () => {
     if (orderToRejectId === null) return;
+    if (rejectReason.length > 500) {
+      toast.error("Cancellation reason must be 500 characters or fewer.");
+      return;
+    }
+    if (isRejecting) return;
+    setIsRejecting(true);
     try {
       const response = await expressFetch(`/api/pos/orders/${orderToRejectId}/reject`, {
         method: "PUT",
@@ -219,18 +236,20 @@ export default function PosSalesClient() {
         body: JSON.stringify({ reason: rejectReason })
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: "Order rejection failed." }));
-        toast.error(payload.error ?? "Order rejection failed.");
+        const payload = await response.json().catch(() => ({ error: "Order cancellation failed." }));
+        toast.error(payload.error ?? "Order cancellation failed.");
         return;
       }
 
-      toast.success("Order rejected.");
+      toast.success("Order cancelled.");
       setOrderToRejectId(null);
       setRejectReason("");
       await fetchOrders();
     } catch (error) {
-      console.error("Failed to reject order", error);
-      toast.error("Order rejection failed.");
+      console.error("Failed to cancel order", error);
+      toast.error("Order cancellation failed.");
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -282,12 +301,12 @@ export default function PosSalesClient() {
         <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             ["Pending Orders", String(pendingCount), "Orders awaiting review"],
-            ["Paid Sales", String(paidCount), "Validated transactions"],
+            ["Validated Orders", String(validatedCount), "Paid or completed transactions"],
             ["Validated Sales", formatMoney(totalSales), "All paid orders"],
             ["Cash Sales", formatMoney(cashSales), "Paid POS orders"],
             ["GCash Sales", formatMoney(gcashSales), "Paid online orders"],
           ].map(([label, value, hint], index) => (
-            <div key={label} className="flex min-h-[118px] items-center gap-3 rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+            <div key={`${label}-${index}`} className="flex min-h-[118px] items-center gap-3 rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
               <div className="shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">{index === 0 ? <AlertCircle className="size-5" /> : index === 1 ? <CheckCircle className="size-5" /> : index === 4 ? <Smartphone className="size-5" /> : <Banknote className="size-5" />}</div>
               <div className="min-w-0"><p className="text-xs font-bold text-gray-500">{label}</p><p className="text-[10px] leading-4 text-gray-400">{hint}</p><p className="break-words text-lg font-black leading-7 text-[#123D2A]">{value}</p></div>
             </div>
@@ -309,11 +328,11 @@ export default function PosSalesClient() {
           <div className="flex items-center gap-2">
             <CalendarDays className="hidden size-4 text-[#52705D] sm:block" />
             <PosThemedSelect value={dateFilter} onChange={(value) => { setDateFilter(value); setCurrentPage(1); }} ariaLabel="Filter sales by date" options={['All time', 'Today', 'This week', 'This month'].map((date) => ({ value: date, label: date }))} />
-            <button type="button" onClick={() => void refreshOrders()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60"><RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Refresh</span></button>
+            <button type="button" onClick={() => void refreshOrders()} disabled={isRefreshing} aria-busy={isRefreshing} className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60"><RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">{isRefreshing ? "Refreshing..." : "Refresh"}</span></button>
           </div>
           </div>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {["All", "Pending Payment", "Paid", "Rejected"].map((status) => (
+            {["All", "Pending Payment", "Paid", "Completed", "Cancelled"].map((status) => (
               <button
                 key={status}
                 type="button"
@@ -330,17 +349,20 @@ export default function PosSalesClient() {
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-[#789181]">
             <span>Showing {filteredOrders.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length} orders</span>
-            {lastUpdated && <span>Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+            <div className="flex items-center gap-3">
+              {hasActiveFilters && <button type="button" onClick={clearFilters} className="font-bold text-[#1F6B43] underline-offset-2 hover:underline">Clear filters</button>}
+              {lastUpdated && <span>Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+            </div>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="rounded-2xl border border-[#d8e4d6] bg-white p-6 shadow-sm">
+          <div aria-live="polite" className="rounded-2xl border border-[#d8e4d6] bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3 text-sm font-semibold text-[#607a6b]"><Loader2 className="size-5 animate-spin text-[#1F6B43]" /> Loading POS sales...</div>
             <div className="space-y-3">{[1, 2, 3].map((row) => <div key={row} className="h-14 animate-pulse rounded-xl bg-[#EEF5EF]" />)}</div>
           </div>
         ) : loadError ? (
-          <div className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
+          <div role="alert" aria-live="assertive" className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
             <AlertCircle className="mx-auto mb-3 size-10 text-red-500" />
             <h2 className="text-lg font-bold text-[#123D2A]">Unable to load sales</h2>
             <p className="mt-1 text-sm text-[#607a6b]">{loadError}</p>
@@ -354,7 +376,8 @@ export default function PosSalesClient() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-[#d8e4d6] bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <caption className="sr-only">POS sales orders and available actions</caption>
               <thead className="bg-[#fbfcfa] font-bold text-[#607a6b]">
                 <tr>
                   <th className="border-b border-[#d8e4d6] px-4 py-3">Sale #</th>
@@ -378,8 +401,10 @@ export default function PosSalesClient() {
                           ? "bg-[#fff0d8] text-[#9a5a00]"
                           : order.sale_status === "Paid"
                             ? "bg-[#e1f6e7] text-[#126b37]"
-                            : order.sale_status === "Rejected"
+                          : order.sale_status === "Cancelled"
                               ? "bg-[#fff1f1] text-[#b42318]"
+                            : order.sale_status === "Completed"
+                              ? "bg-[#e8f0ff] text-[#2457a6]"
                             : "bg-[#eef1f0] text-[#607a6b]"
                       }`}>
                         {order.sale_status}
@@ -412,9 +437,11 @@ export default function PosSalesClient() {
                               type="button"
                               onClick={() => setOrderToRejectId(order.id)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50"
-                              title="Reject"
+                              aria-label="Cancel order"
+                              title="Cancel order"
                             >
                               <XCircle className="size-3.5" />
+                              <span className="hidden xl:inline">Cancel</span>
                             </button>
                           </>
                         ) : null}
@@ -434,9 +461,11 @@ export default function PosSalesClient() {
                               type="button"
                               onClick={() => setOrderToRevokeId(order.id)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50"
-                              title="Revoke Payment"
+                              aria-label="Revoke payment"
+                              title="Revoke payment"
                             >
                               <RotateCcw className="size-3.5" />
+                              <span className="hidden xl:inline">Revoke</span>
                             </button>
                           </>
                         ) : null}
@@ -520,7 +549,7 @@ export default function PosSalesClient() {
                 <h2 className="text-lg font-bold text-[#123D2A]">Order Details</h2>
                 <p className="text-xs text-gray-500">{detailsOrder.sale_number}</p>
               </div>
-              <button onClick={() => setDetailsOrder(null)} className="text-gray-400 hover:text-gray-900 transition bg-white rounded-full p-1 shadow-sm border border-gray-100">
+              <button type="button" onClick={() => setDetailsOrder(null)} aria-label="Close order details" className="text-gray-400 hover:text-gray-900 transition bg-white rounded-full p-1 shadow-sm border border-gray-100">
                 <X className="size-5" />
               </button>
             </div>
@@ -617,38 +646,41 @@ export default function PosSalesClient() {
         </div>
       )}
 
-      {/* Reject Payment Modal */}
+      {/* Cancel Order Modal */}
       {orderToRejectId !== null && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
             <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
               <AlertCircle className="size-6" />
             </div>
-            <h2 className="mb-2 text-xl font-bold text-gray-900">Reject Order</h2>
+            <h2 className="mb-2 text-xl font-bold text-gray-900">Cancel Order</h2>
             <p className="mb-4 text-sm text-gray-500">
-              Are you sure you want to reject this order? This action cannot be undone.
+              Are you sure you want to cancel this order? This action cannot be undone.
             </p>
             <div className="text-left mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Rejection (Optional)</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Cancellation reason (Optional)</label>
               <textarea
                 value={rejectReason}
+                maxLength={500}
                 onChange={(e) => setRejectReason(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm outline-none transition focus:border-red-500 focus:bg-white focus:ring-1 focus:ring-red-200 resize-none h-24"
-                placeholder="Enter reason..."
+                placeholder="Enter cancellation reason..."
               />
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setOrderToRejectId(null)}
-                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                disabled={isRejecting}
+                className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={processRejectPayment}
-                className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
+                disabled={isRejecting}
+                className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
               >
-                Reject
+                {isRejecting ? <><Loader2 className="mr-2 inline size-4 animate-spin" />Cancelling...</> : "Cancel Order"}
               </button>
             </div>
           </div>
@@ -661,7 +693,7 @@ export default function PosSalesClient() {
           <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
               <h2 className="text-lg font-bold text-gray-900">Receipt</h2>
-              <button onClick={() => setReceiptOrder(null)} className="text-gray-400 hover:text-gray-900 transition">
+              <button type="button" onClick={() => setReceiptOrder(null)} aria-label="Close receipt" className="text-gray-400 hover:text-gray-900 transition">
                 <X className="size-5" />
               </button>
             </div>
@@ -806,7 +838,9 @@ export default function PosSalesClient() {
             <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-6 py-5">
               <h3 className="text-xl font-black text-gray-900">Revoke Payment</h3>
               <button
+                type="button"
                 onClick={() => setOrderToRevokeId(null)}
+                aria-label="Close revoke payment dialog"
                 className="rounded-xl bg-white p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
               >
                 <X className="size-5" />

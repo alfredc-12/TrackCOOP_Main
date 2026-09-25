@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
@@ -119,6 +119,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [checkoutSuccess, setCheckoutSuccess] = useState(false);
     const [activeAdjustItemId, setActiveAdjustItemId] = useState<number | null>(null);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
+    const [isInventoryLoading, setIsInventoryLoading] = useState(true);
+    const [inventoryError, setInventoryError] = useState("");
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
     const [historySearchQuery, setHistorySearchQuery] = useState("");
     const [checkoutStep, setCheckoutStep] = useState<"cart" | "payment">("cart");
     const [paymentName, setPaymentName] = useState("");
@@ -127,6 +130,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
     const [checkoutErrors, setCheckoutErrors] = useState<Record<string, string>>({});
+    const [checkoutStatusMessage, setCheckoutStatusMessage] = useState("");
 
     // Filter and Sort State
     const [searchQuery, setSearchQuery] = useState("");
@@ -135,28 +139,34 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [productPage, setProductPage] = useState(1);
     const productsPerPage = 8;
 
-    const fetchInventory = useCallback(async () => {
+    const fetchInventory = useCallback(async (notifyOnError = false, showLoading = notifyOnError) => {
+        if (showLoading) setIsInventoryLoading(true);
+        setInventoryError("");
         try {
             const res = await expressFetch(isPublicView ? "/api/public/store-products" : "/api/inventory");
             if (res.ok) {
                 const data = await res.json();
                 setInventory(data as InventoryItem[]);
             } else {
-                setInventory([]);
+                throw new Error(`Products could not be loaded (${res.status}).`);
             }
         } catch (error) {
             console.error("Failed to fetch inventory", error);
+            setInventoryError("We could not load the products right now. Check your connection and try again.");
+            if (notifyOnError) toast.error("Products could not be loaded. Please try again.");
+        } finally {
+            if (showLoading) setIsInventoryLoading(false);
         }
     }, [isPublicView]);
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
-            void fetchInventory();
+            void fetchInventory(true);
         }, 0);
 
         const interval = window.setInterval(() => {
-            void fetchInventory();
-        }, 5000); // Poll inventory every 5 seconds
+            if (document.visibilityState === "visible") void fetchInventory(false);
+        }, 15000); // Refresh visible store inventory every 15 seconds
 
         if (!isPublicView) {
             getAuthenticatedUser().then(user => {
@@ -174,6 +184,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     }, [fetchInventory, isPublicView]);
 
     const fetchHistory = async () => {
+        setIsHistoryLoading(true);
         try {
             const res = await expressFetch("/api/pos/history");
             if (res.ok) {
@@ -184,6 +195,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             }
         } catch (error) {
             console.error("Failed to fetch history", error);
+            toast.error("Order history could not be loaded. Please try again.");
+        } finally {
+            setIsHistoryLoading(false);
         }
     };
 
@@ -350,17 +364,24 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     };
 
     const processCheckout = async () => {
+        if (isCheckingOut) return;
         setIsCheckingOut(true);
+        setCheckoutStatusMessage("Processing your order...");
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 30000);
         try {
+            const checkoutRequestId = window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             const res = await expressFetch("/api/pos/checkout", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                signal: controller.signal,
+                headers: { "Content-Type": "application/json", "X-Checkout-Request-Id": checkoutRequestId },
                 body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact: `+63${paymentContact}` }),
             });
             const data = await res.json().catch(() => null);
 
             if (res.ok) {
                 if (data?.checkoutUrl) {
+                    setCheckoutStatusMessage("Opening secure payment checkout...");
                     setCart([]);
                     setIsConfirmCheckoutModalOpen(false);
                     setIsCartOpen(false);
@@ -385,15 +406,19 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                     setPaymentEmail("");
                 }
                 setPaymentContact("");
-                fetchInventory(); // Refresh stock
+                void fetchInventory(false); // Refresh stock
             } else {
-                toast.error(data?.error || "Checkout failed");
+                toast.error(data?.error || "We could not process your order. Please try again.");
             }
         } catch (error) {
             console.error("Checkout error:", error);
-            toast.error("An error occurred during checkout.");
+            toast.error(error instanceof DOMException && error.name === "AbortError"
+                ? "Checkout timed out. Please check your connection and try again."
+                : "We could not connect to the checkout service. Please try again.");
         } finally {
+            window.clearTimeout(timeoutId);
             setIsCheckingOut(false);
+            setCheckoutStatusMessage("");
         }
     };
 
@@ -464,6 +489,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             type="text"
                             value={searchQuery}
                             onChange={(e) => { setSearchQuery(e.target.value); setProductPage(1); }}
+                            aria-label="Search available products"
                             placeholder="Search Products..."
                             className="w-full rounded-full border border-gray-200 bg-[#f8fafc] py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                         />
@@ -492,12 +518,23 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             </div>
 
             {isPublicView && checkoutStep === "cart" && (
-                <div className="mb-5 rounded-xl border border-[#D8E5DB] bg-[#EEF8F0] px-4 py-3 text-sm text-[#52705D]"><span className="font-bold text-[#123D2A]">Guest checkout:</span> Add items to your cart, then provide your contact details before secure payment.</div>
+                <div className="mb-5 rounded-xl border border-[#D8E5DB] bg-[#EEF8F0] px-4 py-3 text-sm text-[#52705D]"><span className="font-bold text-[#123D2A]">Guest checkout:</span> Add products to your cart, then provide your contact details before secure payment.</div>
             )}
 
             {/* Product Grid */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-12">
-                {filteredAndSortedInventory.length > 0 ? (
+                {inventoryError && inventory.length === 0 ? (
+                    <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-red-200 bg-white px-6 py-16 text-center shadow-sm" role="alert" aria-live="assertive">
+                        <AlertCircle className="mb-4 size-12 text-red-500" aria-hidden="true" />
+                        <h3 className="text-xl font-bold text-[#123D2A]">Products are temporarily unavailable</h3>
+                        <p className="mt-2 max-w-md text-sm text-[#607A6B]">{inventoryError}</p>
+                        <button type="button" onClick={() => void fetchInventory(true)} disabled={isInventoryLoading} aria-busy={isInventoryLoading} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-wait disabled:opacity-60">
+                            {isInventoryLoading ? <><Loader2 className="size-4 animate-spin" /> Loading products...</> : "Try again"}
+                        </button>
+                    </div>
+                ) : isInventoryLoading ? (
+                    [1, 2, 3, 4].map((item) => <div key={item} aria-hidden="true" className="h-[27rem] animate-pulse rounded-2xl bg-[#E7F2E4]" />)
+                ) : filteredAndSortedInventory.length > 0 ? (
                     paginatedInventory.map(item => {
                         const cartItem = cart.find(c => c.id === item.id);
 
@@ -576,8 +613,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 ) : (
                     <div className="col-span-full flex flex-col items-center justify-center py-20 text-center bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
                         <Package className="size-12 text-gray-300 mb-4" />
-                        <h3 className="text-xl font-bold text-[#1e293b]">No products found</h3>
-                        <p className="text-gray-500 mt-2 text-sm">Try adjusting your search or category filters.</p>
+                        <h3 className="text-xl font-bold text-[#1e293b]">{searchQuery || selectedCategory !== "All" ? "No products match your filters" : "No products are currently available"}</h3>
+                        <p className="text-gray-500 mt-2 text-sm">{searchQuery || selectedCategory !== "All" ? "Try a different search or clear your filters." : "Please check back later for available cooperative products."}</p>
+                        {(searchQuery || selectedCategory !== "All") && <button type="button" onClick={() => { setSearchQuery(""); setSelectedCategory("All"); setProductPage(1); }} className="mt-4 rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#1F6B43]">Clear filters</button>}
                     </div>
                 )}
             </div>
@@ -609,7 +647,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                 {checkoutStep === "cart" ? "My Cart" : "Payment Method"}
                             </h2>
                             <button
+                                type="button"
                                 onClick={() => setIsCartOpen(false)}
+                                aria-label="Close cart"
                                 className="rounded-full p-2 text-gray-400 transition hover:bg-white hover:text-gray-600 hover:shadow-sm"
                             >
                                 <X className="size-5" />
@@ -795,12 +835,13 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                             }
                                         }}
                                         disabled={isCheckingOut}
+                                        aria-busy={isCheckingOut}
                                         className="flex-1 rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                                     >
                                         {isCheckingOut ? (
                                             <>
                                                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                                Opening PayMongo...
+                                                {checkoutStatusMessage || "Processing..."}
                                             </>
                                         ) : checkoutStep === "cart" ? (
                                             "Proceed to Checkout"
@@ -858,12 +899,13 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             <button
                                 onClick={processCheckout}
                                 disabled={isCheckingOut}
+                                aria-busy={isCheckingOut}
                                 className="flex-1 rounded-xl border border-transparent bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90 flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 {isCheckingOut ? (
                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                                 ) : null}
-                                {isCheckingOut ? "Opening..." : "Continue"}
+                                {isCheckingOut ? (checkoutStatusMessage || "Processing...") : "Continue"}
                             </button>
                         </div>
                     </div>
@@ -897,7 +939,9 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                 />
                             </div>
 
-                            {history.filter(order => order.sale_number.toLowerCase().includes(historySearchQuery.toLowerCase())).length === 0 ? (
+                            {isHistoryLoading ? (
+                                <div className="flex min-h-48 items-center justify-center" role="status" aria-live="polite"><div className="flex items-center gap-2 font-semibold text-[#123D2A]"><Loader2 className="size-5 animate-spin" /> Loading order history...</div></div>
+                            ) : history.filter(order => order.sale_number.toLowerCase().includes(historySearchQuery.toLowerCase())).length === 0 ? (
                                 <div className="text-center py-12">
                                     <History className="size-16 text-gray-200 mx-auto mb-4" />
                                     <p className="text-gray-500 font-medium">No previous orders found.</p>

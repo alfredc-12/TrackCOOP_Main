@@ -224,6 +224,8 @@ export default function ChairmanPosInventoryClient() {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [inventoryError, setInventoryError] = useState<string | null>(null);
+    const [isInventoryLoading, setIsInventoryLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -241,9 +243,15 @@ export default function ChairmanPosInventoryClient() {
                 const data = await res.json();
                 setInventory(data as InventoryItem[]);
                 setLastUpdated(new Date());
+                setInventoryError(null);
+            } else {
+                setInventoryError("Unable to load inventory right now.");
             }
         } catch (error) {
             console.error("Failed to fetch inventory", error);
+            setInventoryError("Unable to connect to the inventory service.");
+        } finally {
+            setIsInventoryLoading(false);
         }
     }, []);
 
@@ -296,8 +304,13 @@ export default function ChairmanPosInventoryClient() {
     const [activityTypeFilter, setActivityTypeFilter] = useState<"All" | "add" | "deduct">("All");
     const [activityCurrentPage, setActivityCurrentPage] = useState(1);
     const [pendingAction, setPendingAction] = useState<"add" | "edit" | "stock" | null>(null);
+    const [isActionProcessing, setIsActionProcessing] = useState(false);
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+    const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [stockErrorMsg, setStockErrorMsg] = useState<string | null>(null);
     const fetchGlobalHistory = async () => {
+        setIsHistoryLoading(true);
         try {
             const res = await expressFetch("/api/inventory/history");
             if (res.ok) {
@@ -308,10 +321,14 @@ export default function ChairmanPosInventoryClient() {
             }
         } catch (error) {
             console.error(error);
+        } finally {
+            setIsHistoryLoading(false);
         }
     };
 
     const fetchOrders = async () => {
+        setIsOrdersLoading(true);
+        setIsOrdersModalOpen(true);
         try {
             const res = await expressFetch("/api/pos/orders");
             if (res.ok) {
@@ -319,10 +336,11 @@ export default function ChairmanPosInventoryClient() {
                 setOrders(data as PosOrder[]);
                 setOrderSearchQuery(""); // Reset search on open
                 setOrderStatusFilter("All");
-                setIsOrdersModalOpen(true);
             }
         } catch (error) {
             console.error(error);
+        } finally {
+            setIsOrdersLoading(false);
         }
     };
 
@@ -401,12 +419,12 @@ export default function ChairmanPosInventoryClient() {
                 body: JSON.stringify({ reason: rejectReason })
             });
             if (res.ok) {
-                toast.success("Order rejected successfully!");
+                toast.success("Order cancelled successfully!");
                 setOrderToRejectId(null);
                 setRejectReason("");
                 fetchOrdersQuietly();
             } else {
-                toast.error("Failed to reject order.");
+                toast.error("Failed to cancel order.");
             }
         } catch {
             toast.error("An error occurred.");
@@ -483,6 +501,16 @@ export default function ChairmanPosInventoryClient() {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
+                toast.error("Use a PNG, JPG, GIF, or WebP image.");
+                e.target.value = "";
+                return;
+            }
+            if (file.size > 700 * 1024) {
+                toast.error("Image must be 700 KB or smaller.");
+                e.target.value = "";
+                return;
+            }
             const reader = new FileReader();
             reader.onloadend = () => {
                 setImagePreview(reader.result as string);
@@ -494,6 +522,11 @@ export default function ChairmanPosInventoryClient() {
     const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !editingItem) return;
+        if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type) || file.size > 700 * 1024) {
+            toast.error("Use a PNG, JPG, GIF, or WebP image up to 700 KB.");
+            e.target.value = "";
+            return;
+        }
 
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -503,15 +536,15 @@ export default function ChairmanPosInventoryClient() {
         reader.readAsDataURL(file);
     };
 
-    const handleAddItemClick = () => {
+    const handleAddProductClick = () => {
         const errors: Record<string, string> = {};
         
-        if (!newItemName) errors.name = "Item name is required.";
+        if (newItemName.trim().length < 2 || newItemName.trim().length > 120) errors.name = "Name must be 2–120 characters.";
         if (!newItemCategory.trim()) errors.category = "Category is required.";
         if (!newItemUnit) errors.unit = "Unit is required.";
-        if (!newItemStock) errors.stock = "Initial stock is required.";
-        if (!newItemCostPrice) errors.cost_price = "Cost price is required.";
-        if (!newItemPrice) errors.price = "Final selling price is required.";
+        if (!newItemStock || !Number.isFinite(Number(newItemStock)) || Number(newItemStock) < 0) errors.stock = "Enter a valid stock amount.";
+        if (!newItemCostPrice || !Number.isFinite(Number(newItemCostPrice)) || Number(newItemCostPrice) < 0) errors.cost_price = "Enter a valid cost price.";
+        if (!newItemPrice || !Number.isFinite(Number(newItemPrice)) || Number(newItemPrice) < 0) errors.price = "Enter a valid selling price.";
 
         if (Object.keys(errors).length > 0) {
             setNewItemErrors(errors);
@@ -523,7 +556,8 @@ export default function ChairmanPosInventoryClient() {
         setPendingAction("add");
     };
 
-    const handleAddItem = async () => {
+    const handleAddProduct = async () => {
+        setIsActionProcessing(true);
 
         const stockNum = Number(newItemStock);
         const newItem = {
@@ -559,13 +593,16 @@ export default function ChairmanPosInventoryClient() {
                 setNewItemStatus("Available");
                 setImagePreview(null);
                 setNewItemErrors({});
-                toast.success("Item added successfully!");
+                toast.success("Product added successfully!");
             } else {
-                toast.error("Failed to add item.");
+                toast.error("Failed to add product.");
             }
         } catch (error) {
             console.error(error);
             toast.error("An error occurred.");
+        } finally {
+            setIsActionProcessing(false);
+            setPendingAction(null);
         }
     };
 
@@ -581,12 +618,12 @@ export default function ChairmanPosInventoryClient() {
         if (!editingItem) return;
         
         const errors: Record<string, string> = {};
-        if (!editingItem.name) errors.name = "Item name is required.";
+        if (editingItem.name.trim().length < 2 || editingItem.name.trim().length > 120) errors.name = "Name must be 2–120 characters.";
         if (!editingItem.category.trim()) errors.category = "Category is required.";
         if (!editingItem.unit) errors.unit = "Unit is required.";
-        if (editingItem.stock === "") errors.stock = "Current stock is required.";
-        if (!editingItem.cost_price) errors.cost_price = "Cost price is required.";
-        if (!editingItem.price) errors.price = "Final selling price is required.";
+        if (editingItem.stock === "" || !Number.isFinite(Number(editingItem.stock)) || Number(editingItem.stock) < 0) errors.stock = "Enter a valid stock amount.";
+        if (!Number.isFinite(Number(editingItem.cost_price)) || Number(editingItem.cost_price) < 0) errors.cost_price = "Enter a valid cost price.";
+        if (!Number.isFinite(Number(editingItem.price)) || Number(editingItem.price) < 0) errors.price = "Enter a valid selling price.";
 
         if (Object.keys(errors).length > 0) {
             setEditItemErrors(errors);
@@ -599,7 +636,7 @@ export default function ChairmanPosInventoryClient() {
     };
 
     const handleStockClick = () => {
-        if (!stockToAdd) {
+        if (!stockToAdd || !Number.isFinite(Number(stockToAdd)) || Number(stockToAdd) <= 0) {
             setStockInputError("Please enter quantity.");
             return;
         }
@@ -618,6 +655,7 @@ export default function ChairmanPosInventoryClient() {
 
     const processStockUpdate = async () => {
         if (!addingStockItem || !stockToAdd) return;
+        setIsActionProcessing(true);
         try {
             const res = await expressFetch(`/api/inventory/${addingStockItem.id}/stock`, {
                 method: "POST",
@@ -637,11 +675,15 @@ export default function ChairmanPosInventoryClient() {
         } catch (error) {
             console.error(error);
             toast.error("An error occurred.");
+        } finally {
+            setIsActionProcessing(false);
+            setPendingAction(null);
         }
     };
 
     const saveEditItem = async () => {
         if (!editingItem) return;
+        setIsActionProcessing(true);
 
         try {
             const res = await expressFetch(`/api/inventory/${editingItem.id}`, {
@@ -660,29 +702,35 @@ export default function ChairmanPosInventoryClient() {
         } catch (error) {
             console.error(error);
             toast.error("An error occurred.");
+        } finally {
+            setIsActionProcessing(false);
+            setPendingAction(null);
         }
     };
 
-    const handleDeleteItem = async () => {
+    const handleArchiveProduct = async () => {
         if (!editingItem) return;
         setItemToDelete(editingItem);
     };
 
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
+        setIsDeleting(true);
         try {
             const res = await expressFetch(`/api/inventory/${itemToDelete.id}`, { method: "DELETE" });
             if (res.ok) {
                 fetchInventory();
                 setItemToDelete(null);
                 setEditingItem(null);
-                toast.success("Item deleted successfully!");
+                toast.success("Product archived successfully!");
             } else {
-                toast.error("Failed to delete item.");
+                toast.error("Failed to archive product.");
             }
         } catch (error) {
             console.error(error);
             toast.error("An error occurred.");
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -777,7 +825,7 @@ export default function ChairmanPosInventoryClient() {
                         </div>
                         <div>
                             <p className="text-xs font-semibold text-white/60">Catalog health</p>
-                            <p className="font-bold">{lowStockCount > 0 ? `${lowStockCount} item${lowStockCount > 1 ? "s" : ""} need attention` : "All stock levels healthy"}</p>
+                            <p className="font-bold">{lowStockCount > 0 ? `${lowStockCount} product${lowStockCount > 1 ? "s" : ""} need attention` : "All stock levels healthy"}</p>
                         </div>
                     </div>
                 </div>
@@ -791,7 +839,7 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                     <div className="min-w-0 flex-1">
                         <p className="mb-0.5 text-xs font-bold text-gray-500">Total Products</p>
-                        <p className="text-[10px] leading-4 text-gray-400">Active catalog items</p>
+                        <p className="text-[10px] leading-4 text-gray-400">Active catalog products</p>
                         <p className="break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 text-[#123D2A]">{inventory.length}</p>
                     </div>
                 </div>
@@ -848,16 +896,17 @@ export default function ChairmanPosInventoryClient() {
                         <span className="h-2 w-2 rounded-full bg-[#F2C94C] shadow-[0_0_0_4px_rgba(242,201,76,0.18)]" />
                         <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B8A76]">Operations / Products</span>
                     </div>
-                    <h2 className="text-3xl font-bold text-[#123D2A]">All Inventory Items</h2>
+                    <h2 className="text-3xl font-bold text-[#123D2A]">All Products</h2>
                     <p className="text-sm text-[#64748b] mt-1">Manage products, stock levels, and reorder alerts.</p>
                     <p className="mt-2 text-xs font-medium text-[#789181]">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading inventory…"}</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={fetchOrders}
+                        disabled={isOrdersLoading}
                         className="relative flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
-                        <ShoppingBag className="size-4 text-gray-500 group-hover:text-[#123D2A] transition-colors" /> Orders & Payments
+                        {isOrdersLoading ? <Loader2 className="size-4 animate-spin" /> : <ShoppingBag className="size-4 text-gray-500 group-hover:text-[#123D2A] transition-colors" />} {isOrdersLoading ? "Loading..." : "Orders & Payments"}
                         {orders.filter(o => o.sale_status === 'Pending Payment').length > 0 && (
                             <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
                                 {orders.filter(o => o.sale_status === 'Pending Payment').length}
@@ -866,9 +915,10 @@ export default function ChairmanPosInventoryClient() {
                     </button>
                     <button
                         onClick={fetchGlobalHistory}
+                        disabled={isHistoryLoading}
                         className="flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
-                        <Activity className="size-4 text-gray-500 group-hover:text-blue-600 transition-colors" /> Activity Log
+                        {isHistoryLoading ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4 text-gray-500 group-hover:text-blue-600 transition-colors" />} {isHistoryLoading ? "Loading..." : "Activity Log"}
                     </button>
                     <button
                         onClick={refreshInventory}
@@ -880,13 +930,20 @@ export default function ChairmanPosInventoryClient() {
                         <span className="hidden sm:inline">Refresh</span>
                     </button>
                     <button
-                        onClick={() => setIsAddModalOpen(true)}
+                        onClick={() => { setPendingAction(null); setIsActionProcessing(false); setIsAddModalOpen(true); }}
                         className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#123D2A] to-[#1a5c3f] px-5 py-2 text-sm font-bold text-white shadow-[0_4px_12px_rgba(18,61,42,0.3)] hover:shadow-[0_6px_16px_rgba(18,61,42,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 group"
                     >
-                        <Plus className="size-4 transition-transform group-hover:rotate-90 duration-300" /> Add Item
+                        <Plus className="size-4 transition-transform group-hover:rotate-90 duration-300" /> Add Product
                     </button>
                 </div>
             </div>
+
+            {inventoryError && (
+                <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <span>{inventoryError}</span>
+                    <button type="button" onClick={() => { setIsInventoryLoading(true); void fetchInventory(); }} className="rounded-lg bg-red-700 px-3 py-1.5 font-bold text-white hover:bg-red-800">Retry</button>
+                </div>
+            )}
 
             {/* Toolbar */}
             <div className="mb-6 mt-4 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
@@ -964,7 +1021,19 @@ export default function ChairmanPosInventoryClient() {
 
             {/* Grid */}
             <div className="grid grid-cols-1 gap-6 pb-6 sm:grid-cols-2 lg:grid-cols-4">
-                {paginatedInventory.length > 0 ? (
+                {isInventoryLoading ? (
+                    Array.from({ length: inventoryPageSize }).map((_, index) => (
+                        <div key={`inventory-skeleton-${index}`} className="min-h-[320px] animate-pulse overflow-hidden rounded-2xl border border-[#DCE9DE] bg-white">
+                            <div className="h-48 bg-[#EAF2EA]" />
+                            <div className="space-y-4 p-4">
+                                <div className="h-5 w-3/4 rounded bg-[#EAF2EA]" />
+                                <div className="h-4 w-1/2 rounded bg-[#EAF2EA]" />
+                                <div className="h-4 w-full rounded bg-[#EAF2EA]" />
+                                <div className="mt-8 h-10 rounded-xl bg-[#EAF2EA]" />
+                            </div>
+                        </div>
+                    ))
+                ) : paginatedInventory.length > 0 ? (
                     paginatedInventory.map(item => {
                         const availableStock = item.stock - (item.pending_qty || 0);
                         const isLowStock = item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
@@ -1070,7 +1139,7 @@ export default function ChairmanPosInventoryClient() {
                 ) : (
                     <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
                         <Wheat className="size-12 text-gray-300 mb-4" />
-                        <h3 className="text-lg font-bold text-gray-900">No items found</h3>
+                        <h3 className="text-lg font-bold text-gray-900">No products found</h3>
                         <p className="text-gray-500 text-sm mt-1">Try adjusting your search or category filters.</p>
                     </div>
                 )}
@@ -1089,7 +1158,7 @@ export default function ChairmanPosInventoryClient() {
                     <div className="w-full max-w-3xl rounded-3xl bg-white p-2 sm:p-4 shadow-xl animate-in zoom-in-95 duration-200 overflow-hidden">
                         <div className="max-h-[85vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
                         <div className="mb-6 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-[#1e293b]">Add New Item</h2>
+                            <h2 className="text-xl font-bold text-[#1e293b]">Add New Product</h2>
                             <button
                                 onClick={() => setIsAddModalOpen(false)}
                                 className="rounded-full p-2 text-[#64748b] transition hover:bg-gray-100 hover:text-[#1e293b]"
@@ -1109,13 +1178,13 @@ export default function ChairmanPosInventoryClient() {
                                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#123D2A]/10 text-[#0F9D58] z-10">
                                             <Camera className="size-6" />
                                         </div>
-                                        <p className="mt-3 text-sm font-semibold text-[#1e293b] z-10">Upload item photo</p>
+                                        <p className="mt-3 text-sm font-semibold text-[#1e293b] z-10">Upload product photo</p>
                                     </>
                                 )}
                             </div>
 
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-[#64748b]">Item Name</label>
+                                <label className="mb-1 block text-sm font-medium text-[#64748b]">Product Name</label>
                                 <input
                                     type="text"
                                     value={newItemName}
@@ -1271,7 +1340,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Status</label>
-                                    <ThemedSelect value={newItemStatus} onChange={setNewItemStatus} ariaLabel="Item status" options={[{ value: "Available", label: "Available" }, { value: "Unavailable", label: "Unavailable" }]} />
+                                    <ThemedSelect value={newItemStatus} onChange={setNewItemStatus} ariaLabel="Product status" options={[{ value: "Available", label: "Available" }, { value: "Unavailable", label: "Unavailable" }]} />
                                 </div>
                             </div>
 
@@ -1286,10 +1355,10 @@ export default function ChairmanPosInventoryClient() {
                             </div>
 
                             <button
-                                onClick={handleAddItemClick}
+                                onClick={handleAddProductClick}
                                 className="mt-4 w-full rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#123D2A]/90"
                             >
-                                Add to Inventory
+                                Add Product
                             </button>
                         </div>
                         </div>
@@ -1303,7 +1372,7 @@ export default function ChairmanPosInventoryClient() {
                     <div className="w-full max-w-3xl rounded-3xl bg-white p-2 sm:p-4 shadow-xl animate-in zoom-in-95 duration-200 overflow-hidden">
                         <div className="max-h-[85vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
                         <div className="mb-6 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-[#1e293b]">Edit Item Details</h2>
+                            <h2 className="text-xl font-bold text-[#1e293b]">Edit Product Details</h2>
                             <button
                                 onClick={() => setEditingItem(null)}
                                 className="rounded-full p-2 text-[#64748b] transition hover:bg-gray-100 hover:text-[#1e293b]"
@@ -1487,7 +1556,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-[#64748b]">Status</label>
-                                    <ThemedSelect value={editingItem.status} onChange={(value) => handleEditChange("status", value)} ariaLabel="Edit item status" options={[{ value: "Available", label: "Available" }, { value: "Unavailable", label: "Unavailable" }]} />
+                                    <ThemedSelect value={editingItem.status} onChange={(value) => handleEditChange("status", value)} ariaLabel="Edit product status" options={[{ value: "Available", label: "Available" }, { value: "Unavailable", label: "Unavailable" }]} />
                                 </div>
                             </div>
 
@@ -1501,11 +1570,11 @@ export default function ChairmanPosInventoryClient() {
                             </div>
 
                             <div className="flex gap-3 mt-4">
-                                <button
-                                    onClick={handleDeleteItem}
-                                    className="w-1/3 rounded-xl border border-red-200 bg-white py-3 text-sm font-bold text-red-600 transition hover:bg-red-50 hover:border-red-300"
-                                >
-                                    Delete
+                            <button
+                                onClick={handleArchiveProduct}
+                                className="w-1/3 rounded-xl border border-red-200 bg-white py-3 text-sm font-bold text-red-600 transition hover:bg-red-50 hover:border-red-300"
+                            >
+                                    Archive
                                 </button>
                                 <button
                                     onClick={saveEditItemClick}
@@ -1542,7 +1611,7 @@ export default function ChairmanPosInventoryClient() {
 
                         <div className="flex-1">
                             <div className="mb-4">
-                                <p className="text-sm text-gray-500 mb-1">Item:</p>
+                                <p className="text-sm text-gray-500 mb-1">Product:</p>
                                 <p className="font-bold text-gray-900">{addingStockItem.name}</p>
                                 <p className="text-xs text-gray-400 mt-1">Current Stock: {formatQuantityUnit(addingStockItem.stock, addingStockItem.unit)}</p>
                             </div>
@@ -1584,13 +1653,13 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                 </div>
             )}
-            {/* Item History Modal */}
+            {/* Product Stock History Modal */}
             {historyItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
                         <div className="mb-6 flex items-center justify-between">
                             <div>
-                                <h2 className="text-xl font-bold text-[#1e293b]">Stock History</h2>
+                        <h2 className="text-xl font-bold text-[#1e293b]">Product Stock History</h2>
                                 <p className="text-sm text-gray-500 mt-1">{historyItem.name}</p>
                             </div>
                             <button
@@ -1630,7 +1699,7 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                 </div>
             )}
-            {/* Delete Confirmation Modal */}
+            {/* Archive Confirmation Modal */}
             {itemToDelete && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
@@ -1639,22 +1708,24 @@ export default function ChairmanPosInventoryClient() {
                                 <AlertCircle className="size-8" />
                             </div>
                         </div>
-                        <h3 className="mb-2 text-center text-xl font-bold text-gray-900">Delete Item?</h3>
+                        <h3 className="mb-2 text-center text-xl font-bold text-gray-900">Archive Product?</h3>
                         <p className="mb-6 text-center text-sm text-gray-500">
-                            Are you sure you want to delete <span className="font-bold text-gray-700">{itemToDelete.name}</span>? This action cannot be undone.
+                            Are you sure you want to archive <span className="font-bold text-gray-700">{itemToDelete.name}</span>? It will be removed from active inventory.
                         </p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setItemToDelete(null)}
+                                disabled={isDeleting}
                                 className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={handleConfirmDelete}
-                                className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
+                                onClick={() => void handleConfirmDelete()}
+                                disabled={isDeleting}
+                                className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
                             >
-                                Delete
+                                {isDeleting ? <><Loader2 className="mr-2 inline size-4 animate-spin" />Archiving...</> : "Archive Product"}
                             </button>
                         </div>
                     </div>
@@ -1701,7 +1772,8 @@ export default function ChairmanPosInventoryClient() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto space-y-4 bg-gray-50/50 p-6 custom-scrollbar">
+                        <div className="relative flex-1 overflow-y-auto space-y-4 bg-gray-50/50 p-6 custom-scrollbar">
+                            {isHistoryLoading && <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80"><div className="flex items-center gap-2 text-sm font-semibold text-[#123D2A]"><Loader2 className="size-5 animate-spin" /> Loading activity...</div></div>}
                             {filteredActivityLogs.length > 0 ? (
                                 <>
                                 {paginatedActivityLogs.map((log) => (
@@ -1714,7 +1786,7 @@ export default function ChairmanPosInventoryClient() {
                                             </div>
                                         )}
                                         <div className="flex-1">
-                                            <h3 className="font-bold text-gray-800 text-sm">{log.inventoryItem?.name || "Unknown Item"}</h3>
+                                            <h3 className="font-bold text-gray-800 text-sm">{log.inventoryItem?.name || "Unknown Product"}</h3>
                                             <p suppressHydrationWarning className="text-xs text-gray-500">{new Date(log.date).toLocaleString()}</p>
                                         </div>
                                         <div className="flex flex-col items-end">
@@ -1791,10 +1863,10 @@ export default function ChairmanPosInventoryClient() {
                                 </div>
                             </div>
                             <h3 className="mb-2 text-center text-xl font-bold text-gray-900">
-                                {pendingAction === 'add' ? 'Confirm Addition' : pendingAction === 'edit' ? 'Confirm Changes' : `Confirm ${stockActionType === 'add' ? 'Add' : 'Deduct'} Stock`}
+                                {pendingAction === 'add' ? 'Confirm Add Product' : pendingAction === 'edit' ? 'Confirm Changes' : `Confirm ${stockActionType === 'add' ? 'Add' : 'Deduct'} Stock`}
                             </h3>
                             <p className="text-center text-sm text-gray-500">
-                                {pendingAction === 'add' && `Are you sure you want to add ${newItemName} to the inventory?`}
+                                {pendingAction === 'add' && `Are you sure you want to add ${newItemName} as a new product?`}
                                 {pendingAction === 'edit' && `Are you sure you want to save the changes for ${editingItem?.name}?`}
                                 {pendingAction === 'stock' && `Are you sure you want to ${stockActionType === 'add' ? 'add' : 'deduct'} ${formatQuantityUnit(stockToAdd, addingStockItem?.unit)} to ${addingStockItem?.name}?`}
                             </p>
@@ -1802,6 +1874,7 @@ export default function ChairmanPosInventoryClient() {
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setPendingAction(null)}
+                                disabled={isActionProcessing}
                                 className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                             >
                                 Cancel
@@ -1809,21 +1882,20 @@ export default function ChairmanPosInventoryClient() {
                             <button
                                 onClick={() => {
                                     if (pendingAction === 'add') {
-                                        handleAddItem();
-                                        setPendingAction(null);
+                                        void handleAddProduct();
                                     } else if (pendingAction === 'edit') {
-                                        saveEditItem();
-                                        setPendingAction(null);
+                                        void saveEditItem();
                                     } else if (pendingAction === 'stock') {
-                                        processStockUpdate();
+                                        void processStockUpdate();
                                     }
                                 }}
-                                className={`flex-1 rounded-xl border border-transparent py-3 text-sm font-bold text-white shadow-sm transition ${(pendingAction === 'stock' && stockActionType === 'deduct')
+                                disabled={!pendingAction || isActionProcessing}
+                                className={`flex-1 rounded-xl border border-transparent py-3 text-sm font-bold text-white shadow-sm transition disabled:cursor-wait disabled:opacity-60 ${(pendingAction === 'stock' && stockActionType === 'deduct')
                                     ? "bg-orange-600 hover:bg-orange-700"
                                     : "bg-[#123D2A] hover:bg-[#123D2A]/90"
                                     }`}
                             >
-                                Confirm
+                                {isActionProcessing ? <><Loader2 className="mr-2 inline size-4 animate-spin" />{pendingAction === 'add' ? 'Adding product...' : pendingAction === 'edit' ? 'Saving changes...' : stockActionType === 'add' ? 'Adding stock...' : 'Deducting stock...'}</> : pendingAction === 'add' ? 'Add Product' : pendingAction === 'edit' ? 'Save Changes' : stockActionType === 'add' ? 'Add Stock' : 'Deduct Stock'}
                             </button>
                         </div>
                     </div>
@@ -1850,7 +1922,8 @@ export default function ChairmanPosInventoryClient() {
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto bg-gray-50 p-6 custom-scrollbar">
+                        <div className="relative flex-1 overflow-y-auto bg-gray-50 p-6 custom-scrollbar">
+                            {isOrdersLoading && <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80"><div className="flex items-center gap-2 text-sm font-semibold text-[#123D2A]"><Loader2 className="size-5 animate-spin" /> Loading orders...</div></div>}
                             <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                                 {[
                                     ["All", orders.length, "bg-white"],
@@ -2097,12 +2170,12 @@ export default function ChairmanPosInventoryClient() {
                         <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                             <AlertCircle className="size-6" />
                         </div>
-                        <h2 className="mb-2 text-xl font-bold text-gray-900">Reject Order</h2>
+                        <h2 className="mb-2 text-xl font-bold text-gray-900">Cancel Order</h2>
                         <p className="mb-4 text-sm text-gray-500">
-                            Are you sure you want to reject this order? This action cannot be undone.
+                            Are you sure you want to cancel this order? This action cannot be undone.
                         </p>
                         <div className="text-left mb-6">
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Rejection (Optional)</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Cancellation reason (Optional)</label>
                             <textarea
                                 value={rejectReason}
                                 onChange={(e) => setRejectReason(e.target.value)}
@@ -2121,7 +2194,7 @@ export default function ChairmanPosInventoryClient() {
                                 onClick={processRejectPayment}
                                 className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
                             >
-                                Reject
+                                Cancel Order
                             </button>
                         </div>
                     </div>

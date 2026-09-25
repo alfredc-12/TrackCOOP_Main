@@ -16,6 +16,14 @@ function requireParam(value: string | string[] | undefined, name: string) {
   return value;
 }
 
+function requireOrderId(value: string | string[] | undefined) {
+  const id = requireParam(value, "id");
+  if (!/^\d+$/.test(id) || Number(id) <= 0) {
+    throw new AppError("Order id must be a positive integer", 400, "INVALID_ORDER_ID");
+  }
+  return id;
+}
+
 function sendError(response: Response, error: unknown, fallback: string, includeDetails = false) {
   if (error instanceof AppError) {
     return response.status(error.statusCode).json({ error: error.message });
@@ -58,7 +66,7 @@ export function createPosController(service: PosService) {
         return response.json({
           success: true,
           ...(await service.confirmOrder(
-            requireParam(request.params.id, "id"),
+            requireOrderId(request.params.id),
             (request.body ?? {}) as ConfirmOrderInput,
             requireAuth(request.auth),
           )),
@@ -71,20 +79,20 @@ export function createPosController(service: PosService) {
     rejectOrder: asyncHandler(async (request, response) => {
       try {
         await service.rejectOrder(
-          requireParam(request.params.id, "id"),
+          requireOrderId(request.params.id),
           (request.body ?? {}) as PosReasonInput,
           requireAuth(request.auth),
         );
-        return response.json({ message: "Order rejected successfully" });
+        return response.json({ message: "Order cancelled successfully" });
       } catch (error) {
-        return sendError(response, error, "Failed to reject order");
+        return sendError(response, error, "Failed to cancel order");
       }
     }),
 
     revokeOrder: asyncHandler(async (request, response) => {
       try {
         await service.revokeOrder(
-          requireParam(request.params.id, "id"),
+          requireOrderId(request.params.id),
           (request.body ?? {}) as PosReasonInput,
           requireAuth(request.auth),
         );

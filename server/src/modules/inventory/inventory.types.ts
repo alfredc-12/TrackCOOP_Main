@@ -27,7 +27,7 @@ export type InventoryProductInput = {
   description?: string;
   unit?: string;
   stock?: number | string;
-  status?: string;
+  status?: "Available" | "Unavailable";
   img?: string;
   reorder_level?: number | string;
 };

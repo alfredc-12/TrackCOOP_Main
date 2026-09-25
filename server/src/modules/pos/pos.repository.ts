@@ -1,4 +1,5 @@
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { randomInt } from "node:crypto";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
@@ -7,6 +8,10 @@ import type { AuthContext } from "../auth/auth.types";
 import type { CheckoutPayload, ConfirmOrderInput, PosReasonInput } from "./pos.types";
 
 type PosOrderRow = RowDataPacket & { id: number };
+type PosOrderDisplay = PosOrderRow & {
+  sale_number: string;
+  items: Array<{ name: string; quantity: number | string; price: number | string }>;
+};
 type PosSaleItemDisplayRow = RowDataPacket & {
   pos_sale_id: number;
   name: string;
@@ -64,8 +69,23 @@ function groupItemsBySale(itemRows: PosSaleItemDisplayRow[]) {
   }, {} as Record<number, Array<{ name: string; quantity: number | string; price: number | string }>>);
 }
 
-async function attachItems(connection: PoolConnection, rows: PosOrderRow[]) {
-  let formatted = rows.map((row) => ({ ...row, items: [] as any[] }));
+function normalizeSaleNumber(saleNumber: unknown, saleId: number, saleDate: unknown) {
+  const value = String(saleNumber ?? "").trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if (value && !isUuid) return value;
+
+  const parsedDate = new Date(String(saleDate ?? "")).getTime();
+  const timestamp = Number.isFinite(parsedDate) ? parsedDate : Date.now();
+  const uniqueSuffix = saleId % 1000;
+  return `SALE-${String(timestamp + uniqueSuffix).slice(0, 13).padStart(13, "0")}`;
+}
+
+function createSaleNumber() {
+  return `SALE-${randomInt(1_000_000_000_000, 10_000_000_000_000)}`;
+}
+
+async function attachItems(connection: PoolConnection, rows: PosOrderRow[]): Promise<PosOrderDisplay[]> {
+  let formatted: PosOrderDisplay[] = rows.map((row) => ({ ...row, sale_number: normalizeSaleNumber(row.sale_number, row.id, row.sale_date), items: [] }));
 
   if (rows.length > 0) {
     const saleIds = rows.map((row) => row.id);
@@ -83,8 +103,8 @@ async function attachItems(connection: PoolConnection, rows: PosOrderRow[]) {
 }
 
 export interface PosRepository {
-  listOrders(): Promise<any[]>;
-  listMemberHistory(auth: AuthContext): Promise<any[]>;
+  listOrders(): Promise<PosOrderDisplay[]>;
+  listMemberHistory(auth: AuthContext): Promise<PosOrderDisplay[]>;
   createCheckout(input: CheckoutPayload, auth: AuthContext | null): Promise<{
     saleId: number;
     totalAmount: number;
@@ -196,6 +216,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
       if (!input.items || input.items.length === 0) {
         throw new AppError("Cart is empty", 400, "POS_CART_EMPTY");
       }
+      if (input.items.length > 50) {
+        throw new AppError("Cart contains too many products.", 400, "POS_CART_TOO_LARGE");
+      }
 
       const customerName = input.paymentName?.trim();
       const customerEmail = input.paymentEmail?.trim();
@@ -203,12 +226,21 @@ export function createPosRepository(pool?: Pool): PosRepository {
       if (!customerName || !customerEmail || !customerContact) {
         throw new AppError("Customer name, email, and contact number are required.", 400, "POS_CUSTOMER_REQUIRED");
       }
+      if (customerName.length < 2 || customerName.length > 120) {
+        throw new AppError("Customer name must be between 2 and 120 characters.", 400, "POS_CUSTOMER_NAME_INVALID");
+      }
+      if (customerEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+        throw new AppError("Please provide a valid email address.", 400, "POS_CUSTOMER_EMAIL_INVALID");
+      }
+      if (!/^\+?[0-9]{10,15}$/.test(customerContact)) {
+        throw new AppError("Please provide a valid contact number.", 400, "POS_CUSTOMER_CONTACT_INVALID");
+      }
 
       const quantities = new Map<number, number>();
       for (const item of input.items) {
         const productId = Number(item.id);
         const quantity = Number(item.quantity);
-        if (!Number.isInteger(productId) || productId <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+        if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(quantity) || quantity <= 0 || quantity > 100000) {
           throw new AppError("Cart contains an invalid product or quantity.", 400, "POS_CART_INVALID");
         }
         quantities.set(productId, (quantities.get(productId) ?? 0) + quantity);
@@ -280,7 +312,7 @@ export function createPosRepository(pool?: Pool): PosRepository {
 
         const discountAmount = memberId ? subtotal * 0.05 : 0;
         const totalAmount = Math.max(0, subtotal - discountAmount);
-        const saleNumber = `SALE-${Date.now()}`;
+        const saleNumber = createSaleNumber();
 
         const [saleResult] = await connection.query<ResultSetHeader>(
           `INSERT INTO pos_sales
@@ -325,6 +357,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
     async confirmOrder(orderId, input, auth) {
       const userId = numericUserId(auth);
       const discountAmount = Number(input.discount_amount || 0);
+      if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+        throw new AppError("Discount must be a non-negative number.", 400, "INVALID_DISCOUNT");
+      }
 
       return withTransaction(async (connection) => {
         const [sales] = await connection.query<PosSaleStatusRow[]>(
@@ -338,6 +373,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
         const sale = sales[0];
         if (sale.sale_status !== "Pending Payment") {
           throw new AppError("Only pending orders can be confirmed.", 400, "POS_ORDER_NOT_PENDING");
+        }
+        if (discountAmount > Number(sale.subtotal_amount)) {
+          throw new AppError("Discount cannot exceed the order subtotal.", 400, "INVALID_DISCOUNT");
         }
 
         const [items] = await connection.query<PosSaleItemRow[]>(
@@ -483,6 +521,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
     async rejectOrder(orderId, input, auth) {
       const userId = numericUserId(auth);
       const reason = input.reason?.trim();
+      if (reason && reason.length > 500) {
+        throw new AppError("Cancellation reason must be 500 characters or fewer.", 400, "INVALID_REASON");
+      }
       await withTransaction(async (connection) => {
         const [sales] = await connection.query<Array<RowDataPacket & { sale_status: string; payment_reference_id?: number | null }>>(
           "SELECT sale_status, payment_reference_id FROM pos_sales WHERE pos_sale_id = ?",
@@ -493,7 +534,7 @@ export function createPosRepository(pool?: Pool): PosRepository {
           throw new AppError("Only pending orders can be rejected", 400, "POS_ORDER_NOT_PENDING");
         }
 
-        const notesAddition = reason ? `\n[Rejected Reason]: ${reason}` : "\n[Rejected Reason]: Order rejected by user.";
+        const notesAddition = reason ? `\n[Cancellation Reason]: ${reason}` : "\n[Cancellation Reason]: Order cancelled by user.";
         await connection.query<ResultSetHeader>(
           `UPDATE pos_sales
               SET sale_status = 'Cancelled',
@@ -520,6 +561,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
     async revokeOrder(orderId, input, auth) {
       const userId = numericUserId(auth);
       const reason = input.reason?.trim();
+      if (reason && reason.length > 500) {
+        throw new AppError("Revocation reason must be 500 characters or fewer.", 400, "INVALID_REASON");
+      }
       await withTransaction(async (connection) => {
         const [sales] = await connection.query<PosSaleStatusRow[]>(
           `SELECT sale_number, sale_status, payment_reference_id, member_id, subtotal_amount, total_amount, customer_name, customer_contact, sale_date

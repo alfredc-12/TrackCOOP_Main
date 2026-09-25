@@ -534,7 +534,7 @@ export function ChairmanAnnouncementsClient() {
       toast.success("Announcement successfully deleted.");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to delete announcement.");
+      toast.error("Failed to archive announcement.");
     } finally {
       setIsSubmitting(false);
     }
@@ -1126,9 +1126,9 @@ export function ChairmanAnnouncementsClient() {
       <ConfirmDialog
         open={!!deletingId}
         onOpenChange={(open) => !open && setDeletingId(null)}
-        title="Delete announcement?"
-        description="This announcement will be moved to the deleted list."
-        confirmLabel={isSubmitting ? "Deleting..." : "Delete"}
+        title="Archive Announcement?"
+        description="This announcement will be moved to the archived list and hidden from active announcements."
+        confirmLabel={isSubmitting ? "Archiving..." : "Archive Announcement"}
         variant="danger"
         onConfirm={handleDelete}
       />
@@ -1273,7 +1273,7 @@ export function ChairmanAnnouncementsClient() {
                   <button onClick={() => handleEdit(ann)} className="grid size-9 place-items-center rounded-md text-[#6C7A70] transition hover:bg-[#EEF2EC] hover:text-[#123D2A]" aria-label={`Edit ${ann.title}`}>
                     <Edit className="size-4" />
                   </button>
-                  <button onClick={() => confirmDelete(ann.id)} className="grid size-9 place-items-center rounded-md text-[#6C7A70] transition hover:bg-[#FFE6E0] hover:text-[#9A392A]" aria-label={`Delete ${ann.title}`}>
+                  <button onClick={() => confirmDelete(ann.id)} className="grid size-9 place-items-center rounded-md text-[#6C7A70] transition hover:bg-[#FFE6E0] hover:text-[#9A392A]" aria-label={`Archive ${ann.title}`}>
                     <Trash2 className="size-4" />
                   </button>
                 </>

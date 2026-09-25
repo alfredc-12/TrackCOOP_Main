@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { LoadingSpinner } from "./LoadingStates";
 
 const buttonVariants = cva(
   "inline-flex h-11 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
@@ -27,13 +28,17 @@ const buttonVariants = cva(
 );
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants>;
+  VariantProps<typeof buttonVariants> & { loading?: boolean; loadingLabel?: string };
 
-export function Button({ className, variant, size, ...props }: ButtonProps) {
+export function Button({ className, variant, size, loading = false, loadingLabel = "Processing...", children, disabled, ...props }: ButtonProps) {
   return (
     <button
       className={cn(buttonVariants({ variant, size }), className)}
+      disabled={loading || disabled}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading ? <LoadingSpinner label={loadingLabel} /> : children}
+    </button>
   );
 }

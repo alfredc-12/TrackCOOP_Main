@@ -16,6 +16,14 @@ function requireParam(value: string | string[] | undefined, name: string) {
   return value;
 }
 
+function requireProductId(value: string | string[] | undefined) {
+  const id = requireParam(value, "id");
+  if (!/^\d+$/.test(id) || Number(id) <= 0) {
+    throw new AppError("Product id must be a positive integer", 400, "INVALID_PRODUCT_ID");
+  }
+  return id;
+}
+
 function sendError(response: Response, error: unknown, fallback: string) {
   if (error instanceof AppError) {
     return response.status(error.statusCode).json({ error: error.message });
@@ -54,7 +62,7 @@ export function createInventoryController(service: InventoryService) {
 
     updateProduct: asyncHandler(async (request, response) => {
       try {
-        await service.updateProduct(requireParam(request.params.id, "id"), request.body as InventoryProductInput);
+        await service.updateProduct(requireProductId(request.params.id), request.body as InventoryProductInput, requireAuth(request.auth).user.id);
         return response.json({ success: true });
       } catch (error) {
         return sendError(response, error, "Failed to update product");
@@ -63,24 +71,24 @@ export function createInventoryController(service: InventoryService) {
 
     archiveProduct: asyncHandler(async (request, response) => {
       try {
-        const archived = await service.archiveProduct(requireParam(request.params.id, "id"));
+        const archived = await service.archiveProduct(requireProductId(request.params.id), requireAuth(request.auth).user.id);
         if (!archived) return response.status(404).json({ error: "Product not found" });
         return response.json({ success: true });
       } catch (error) {
-        return sendError(response, error, "Failed to delete product");
+        return sendError(response, error, "Failed to archive product");
       }
     }),
 
     updateStock: asyncHandler(async (request, response) => {
       try {
         await service.updateStock(
-          requireParam(request.params.id, "id"),
+          requireProductId(request.params.id),
           request.body as InventoryStockInput,
           requireAuth(request.auth).user.id,
         );
         return response.json({ success: true });
       } catch (error) {
-        return sendError(response, error, "Failed to update stock");
+        return sendError(response, error, "Failed to adjust stock");
       }
     }),
 

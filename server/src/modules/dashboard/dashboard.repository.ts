@@ -300,7 +300,7 @@ export class DashboardRepository {
       actionItems.push({
         id: "low-stock",
         type: "Notification",
-        title: `${inventoryAlerts.length} Low Stock Item${inventoryAlerts.length > 1 ? "s" : ""}`,
+        title: `${inventoryAlerts.length} Low Stock Product${inventoryAlerts.length > 1 ? "s" : ""}`,
         description: "Some products are running low. Check inventory.",
         date: new Date(),
         module: "Inventory",
@@ -312,7 +312,7 @@ export class DashboardRepository {
       actionItems.push({
         id: "out-of-stock",
         type: "Notification",
-        title: `${outOfStockCount} Out of Stock Item${outOfStockCount > 1 ? "s" : ""}`,
+        title: `${outOfStockCount} Out of Stock Product${outOfStockCount > 1 ? "s" : ""}`,
         description: "These products are completely out of stock.",
         date: new Date(),
         module: "Inventory",

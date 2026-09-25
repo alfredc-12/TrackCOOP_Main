@@ -136,7 +136,7 @@ export function createApp(options: CreateAppOptions = {}) {
       express.static(path.join(process.cwd(), "storage", "uploads", publicFolder)),
     );
   }
-  app.get(/^\/uploads\/product-[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp)$/i, (request, response) => {
+  app.get(/^\/uploads\/product-[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|gif|webp)$/i, (request, response) => {
     response.sendFile(path.join(process.cwd(), "public", request.path));
   });
 
