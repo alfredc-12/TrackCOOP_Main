@@ -81,35 +81,35 @@ export default function AnnouncementsSection() {
   const [readMoreOpen, setReadMoreOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const loadAnnouncements = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(false);
+    try {
+      const res = await expressFetch("/api/announcements");
+      const json = await res.json();
+      if (!json.success) throw new Error("Failed to load announcements");
+      const publicAnnouncements = (json.data ?? []).filter(
+        (item: PublicAnnouncement) =>
+          item.audienceType === "Public" && item.announcementStatus !== "Archived",
+      );
+      setAnnouncements(publicAnnouncements.slice(0, 4));
+      setCurrentAnnouncement(0);
+      setCurrentImage(0);
+    } catch {
+      setAnnouncements([]);
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    expressFetch("/api/announcements")
-      .then((res) => res.json())
-      .then((json) => {
-        if (!json.success || cancelled) return;
-
-        const publicAnnouncements = (json.data ?? []).filter(
-          (item: PublicAnnouncement) =>
-            item.audienceType === "Public" &&
-            item.announcementStatus !== "Archived",
-        );
-
-        setAnnouncements(
-          publicAnnouncements.length ? publicAnnouncements.slice(0, 4) : [],
-        );
-        setCurrentAnnouncement(0);
-        setCurrentImage(0);
-      })
-      .catch(() => {
-        if (!cancelled) setAnnouncements([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const timer = window.setTimeout(() => void loadAnnouncements(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadAnnouncements]);
 
   useEffect(() => {
     if (!readMoreOpen) return;
@@ -189,6 +189,14 @@ export default function AnnouncementsSection() {
     nextAnnouncement,
     readMoreOpen,
   ]);
+
+  if (isLoading) {
+    return <section aria-busy="true" aria-live="polite" className="relative h-full min-h-[18rem] overflow-hidden rounded-2xl bg-[#123D2A]"><div className="absolute inset-0 animate-pulse bg-white/10" /><p className="absolute inset-0 grid place-items-center text-sm font-bold text-white">Loading announcements...</p></section>;
+  }
+
+  if (loadError) {
+    return <section role="alert" aria-live="assertive" className="relative grid min-h-[18rem] place-items-center overflow-hidden rounded-2xl bg-[#123D2A] p-6 text-center text-white"><div><p className="font-bold">Unable to load announcements.</p><button type="button" onClick={() => void loadAnnouncements()} className="mt-3 rounded-lg bg-white px-4 py-2 text-sm font-bold text-[#123D2A]">Retry</button></div></section>;
+  }
 
   if (!announcement) return null;
 

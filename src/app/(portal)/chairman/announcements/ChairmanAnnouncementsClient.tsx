@@ -311,6 +311,8 @@ export function ChairmanAnnouncementsClient() {
   const [ackPage, setAckPage] = useState(1);
   const [ackList, setAckList] = useState<{ userId: string; fullName: string; acknowledgedAt: string }[]>([]);
   const [isFetchingAckList, setIsFetchingAckList] = useState(false);
+  const [ackListError, setAckListError] = useState(false);
+  const [ackAnnouncementId, setAckAnnouncementId] = useState<string | null>(null);
   
   const [memberSearch, setMemberSearch] = useState("");
   const [members, setMembers] = useState<any[]>([]);
@@ -321,6 +323,7 @@ export function ChairmanAnnouncementsClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [announcementsList, setAnnouncementsList] = useState<any[]>([]);
   const [isFetchingAnnouncements, setIsFetchingAnnouncements] = useState(true);
+  const [announcementLoadError, setAnnouncementLoadError] = useState(false);
   const [audienceFilter, setAudienceFilter] = useState("All");
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [searchTerm, setSearchTerm] = useState("");
@@ -345,10 +348,12 @@ export function ChairmanAnnouncementsClient() {
 
   const fetchAnnouncements = () => {
     setIsFetchingAnnouncements(true);
+    setAnnouncementLoadError(false);
     apiRequest<any[]>("/api/announcements")
       .then((data) => setAnnouncementsList(data || []))
       .catch((err) => {
         console.error(err);
+        setAnnouncementLoadError(true);
         toast.error("Failed to load announcements.");
       })
       .finally(() => setIsFetchingAnnouncements(false));
@@ -507,11 +512,14 @@ export function ChairmanAnnouncementsClient() {
   const openAckList = async (id: string) => {
     setAckListModalOpen(true);
     setIsFetchingAckList(true);
+    setAckListError(false);
+    setAckAnnouncementId(id);
     try {
       const data = await apiRequest<{ userId: string; fullName: string; acknowledgedAt: string }[]>(`/api/announcements/${id}/acknowledgments`);
       setAckList(data || []);
     } catch (error) {
       console.error("Failed to fetch acknowledgments:", error);
+      setAckListError(true);
       toast.error("Failed to load acknowledgments.");
     } finally {
       setIsFetchingAckList(false);
@@ -523,7 +531,7 @@ export function ChairmanAnnouncementsClient() {
   };
 
   const handleDelete = async () => {
-    if (!deletingId) return;
+    if (!deletingId || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await apiRequest(`/api/announcements/${deletingId}/archive`, {
@@ -531,7 +539,7 @@ export function ChairmanAnnouncementsClient() {
       });
       setDeletingId(null);
       fetchAnnouncements();
-      toast.success("Announcement successfully deleted.");
+      toast.success("Announcement archived successfully.");
     } catch (err) {
       console.error(err);
       toast.error("Failed to archive announcement.");
@@ -544,8 +552,12 @@ export function ChairmanAnnouncementsClient() {
     e.preventDefault();
     
     const errors: Record<string, string> = {};
+    const plainMessage = stripHtml(message).trim();
     if (title.trim().length < 3) errors.title = "Title must be at least 3 characters long.";
-    if (message.trim().length < 10) errors.message = "Message must be at least 10 characters long.";
+    if (title.trim().length > 120) errors.title = "Title must not exceed 120 characters.";
+    if (plainMessage.length < 10) errors.message = "Message must be at least 10 characters long.";
+    if (plainMessage.length > 8000) errors.message = "Message must not exceed 8,000 characters.";
+    if (excerpt.trim().length > 240) errors.excerpt = "Excerpt must not exceed 240 characters.";
     if (audienceType === "Selected Users" && selectedMembers.length === 0) {
       errors.audience = "Please select at least one member.";
     }
@@ -571,6 +583,7 @@ export function ChairmanAnnouncementsClient() {
   };
 
   const executeSubmit = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const newPhotoDrafts = photoDrafts.filter((draft): draft is AnnouncementPhotoDraft & { file: File } => Boolean(draft.file));
@@ -633,10 +646,13 @@ export function ChairmanAnnouncementsClient() {
       router.refresh();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save announcement. Check console for details.");
+      const message = err instanceof Error ? err.message : "Unable to save announcement.";
+      setFormErrors({ form: message || "Unable to save announcement. Please try again." });
+      setConfirmSubmitModalOpen(false);
+      setModalOpen(true);
+      toast.error("Unable to save announcement. Please review the form and try again.");
     } finally {
       setIsSubmitting(false);
-      setConfirmSubmitModalOpen(false);
     }
   };
 
@@ -736,6 +752,11 @@ export function ChairmanAnnouncementsClient() {
         contentClassName="w-[min(76rem,calc(100vw-2rem))] p-3 sm:p-4"
       >
         <form onSubmit={handleSubmit} noValidate className="mt-3 grid gap-4 lg:h-[calc(100vh-8.5rem)] lg:max-h-[44rem] lg:grid-cols-[minmax(20rem,0.9fr)_minmax(25rem,1.1fr)] lg:overflow-hidden">
+          {formErrors.form ? (
+            <div role="alert" aria-live="assertive" className="lg:col-span-2 rounded-md border border-[#FFB4B4] bg-[#FFF1F1] px-3 py-2 text-sm font-semibold text-[#9A392A]">
+              {formErrors.form}
+            </div>
+          ) : null}
           <section className="relative min-h-[25rem] min-w-0 overflow-hidden rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] lg:min-h-0">
             <input
               ref={photoInputRef}
@@ -920,8 +941,10 @@ export function ChairmanAnnouncementsClient() {
                   className={formErrors.title ? errorFieldClass : fieldClass}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    maxLength={120}
                     placeholder="e.g., General Assembly Schedule"
                   />
+                <span className="text-right text-xs font-normal text-[#6C7A70]">{title.length}/120</span>
               </Field>
 
               <Field label="Message" required error={formErrors.message}>
@@ -933,6 +956,7 @@ export function ChairmanAnnouncementsClient() {
                     placeholder="Enter the full announcement details here..."
                   />
                 </div>
+                <p className="text-right text-xs font-normal text-[#6C7A70]">{stripHtml(message).trim().length}/8,000 characters</p>
               </Field>
 
               <Field label="Short Excerpt" hint="A brief summary (optional)">
@@ -940,10 +964,12 @@ export function ChairmanAnnouncementsClient() {
                   type="text"
                   name="excerpt"
                   className={fieldClass}
-                  value={excerpt}
-                  onChange={(e) => setExcerpt(e.target.value)}
+                    value={excerpt}
+                    onChange={(e) => setExcerpt(e.target.value)}
+                  maxLength={240}
                   placeholder="Summary of the announcement"
                 />
+                <span className="text-right text-xs font-normal text-[#6C7A70]">{excerpt.length}/240</span>
               </Field>
             </div>
 
@@ -1208,6 +1234,11 @@ export function ChairmanAnnouncementsClient() {
       {isFetchingAnnouncements ? (
         <div className="flex h-32 items-center justify-center">
           <BusyLabel label="Loading announcements..." />
+        </div>
+      ) : announcementLoadError ? (
+        <div role="alert" aria-live="assertive" className="rounded-lg border border-[#FFB4B4] bg-[#FFF1F1] p-6 text-center text-[#9A392A]">
+          <p className="font-bold">Unable to load announcements.</p>
+          <button type="button" onClick={fetchAnnouncements} className="mt-3 rounded-md bg-[#123D2A] px-4 py-2 text-sm font-bold text-white">Retry</button>
         </div>
       ) : (
         (() => {
@@ -1547,6 +1578,11 @@ export function ChairmanAnnouncementsClient() {
               <div className="flex h-full items-center justify-center py-8">
                  <BusyLabel label="Loading..." />
               </div>
+            ) : ackListError ? (
+              <div role="alert" aria-live="assertive" className="py-8 text-center text-sm text-[#9A392A]">
+                <p className="font-semibold">Unable to load acknowledgment records.</p>
+                <button type="button" disabled={!ackAnnouncementId} onClick={() => ackAnnouncementId ? void openAckList(ackAnnouncementId) : undefined} className="mt-3 rounded-md bg-[#123D2A] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Retry</button>
+              </div>
             ) : (
               (() => {
                 const filteredAcks = ackList.filter(ack => ack.fullName.toLowerCase().includes(ackSearch.toLowerCase()));
@@ -1677,7 +1713,7 @@ export function ChairmanAnnouncementsClient() {
         description="Full details of the announcement."
       >
         {viewingAnnouncement && (
-          <div className="mt-4 grid gap-5">
+          <div className="mt-4 grid min-w-0 max-w-full gap-5 overflow-x-hidden">
             {(() => {
               const images = Array.isArray(viewingAnnouncement.images) && viewingAnnouncement.images.length > 0
                 ? viewingAnnouncement.images
@@ -1688,10 +1724,10 @@ export function ChairmanAnnouncementsClient() {
               if (images.length === 0) return null;
 
               return (
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid min-w-0 max-w-full gap-2 overflow-hidden sm:grid-cols-2">
                   {images.map((image: string, index: number) => (
-                    <div key={`${image}-${index}`} className="relative h-48 w-full overflow-hidden rounded-md border border-[#CAD8CB] bg-[#F7F8F3]">
-                      <img src={`${env.apiUrl}${image}`} alt={viewingAnnouncement.title} className="absolute inset-0 h-full w-full object-cover" />
+                    <div key={`${image}-${index}`} className="relative min-w-0 h-48 w-full max-w-full overflow-hidden rounded-md border border-[#CAD8CB] bg-[#F7F8F3]">
+                      <img src={`${env.apiUrl}${image}`} alt={viewingAnnouncement.title} className="absolute inset-0 block h-full w-full max-w-full object-cover" />
                     </div>
                   ))}
                 </div>
@@ -1710,7 +1746,7 @@ export function ChairmanAnnouncementsClient() {
               </p>
             </div>
 
-            <div className="whitespace-pre-wrap text-sm text-[#294B39] quill-content" dangerouslySetInnerHTML={{ __html: viewingAnnouncement.message }} />
+            <div className="min-w-0 max-w-full break-words whitespace-pre-wrap text-sm text-[#294B39] quill-content" dangerouslySetInnerHTML={{ __html: viewingAnnouncement.message }} />
 
             {viewingAnnouncement.audienceValue && (
               <div className="rounded-md bg-[#F7F8F3] px-3 py-2 text-sm text-[#294B39] border border-[#CAD8CB]">

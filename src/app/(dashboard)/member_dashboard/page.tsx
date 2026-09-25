@@ -15,6 +15,7 @@ import { apiRequest } from "@/lib/api-client";
 import { expressFetch } from "@/lib/express-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { toast } from "sonner";
 import { env } from "@/config/env";
 import {
   Bell,
@@ -77,6 +78,7 @@ export default function MemberDashboardPage() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isFetchingAnnouncements, setIsFetchingAnnouncements] = useState(false);
+  const [announcementLoadError, setAnnouncementLoadError] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isFetchingNotifications, setIsFetchingNotifications] = useState(false);
   const [ackModalOpen, setAckModalOpen] = useState(false);
@@ -116,10 +118,14 @@ export default function MemberDashboardPage() {
 
   const fetchAnnouncements = () => {
     setIsFetchingAnnouncements(true);
+    setAnnouncementLoadError(false);
     // Fetch only published announcements
     apiRequest<any[]>("/api/announcements?status=Published")
       .then((data) => setAnnouncements(data || []))
-      .catch(console.error)
+      .catch((error) => {
+        console.error(error);
+        setAnnouncementLoadError(true);
+      })
       .finally(() => setIsFetchingAnnouncements(false));
   };
 
@@ -167,7 +173,7 @@ export default function MemberDashboardPage() {
   };
 
   const executeAcknowledge = async () => {
-    if (!ackId) return;
+    if (!ackId || isAcknowledging) return;
     setIsAcknowledging(true);
     try {
       await apiRequest(`/api/announcements/${ackId}/acknowledge`, { method: "POST" });
@@ -181,8 +187,7 @@ export default function MemberDashboardPage() {
       setSuccessModalOpen(true);
     } catch (error) {
       console.error("Failed to acknowledge announcement:", error);
-      setSuccessMessage("Failed to acknowledge announcement. Please try again.");
-      setSuccessModalOpen(true);
+      toast.error("Unable to acknowledge announcement. Please try again.");
     } finally {
       setIsAcknowledging(false);
     }
@@ -941,6 +946,11 @@ export default function MemberDashboardPage() {
                     <div className="rounded-3xl border border-[#E5E7EB] bg-white p-12 text-center shadow-sm">
                       <p className="text-sm font-semibold text-[#6B7280]">Loading latest announcements...</p>
                     </div>
+                  ) : announcementLoadError ? (
+                    <div role="alert" aria-live="assertive" className="rounded-3xl border border-red-200 bg-red-50 p-12 text-center shadow-sm">
+                      <p className="text-sm font-semibold text-red-800">Unable to load announcements.</p>
+                      <button type="button" onClick={fetchAnnouncements} className="mt-3 rounded-lg bg-[#123D2A] px-4 py-2 text-sm font-bold text-white">Retry</button>
+                    </div>
                   ) : announcements.length === 0 ? (
                     <div className="rounded-3xl border border-[#E5E7EB] bg-white p-12 text-center shadow-sm">
                       <Megaphone className="mx-auto mb-3 h-8 w-8 text-[#94A3B8]" />
@@ -1052,6 +1062,11 @@ export default function MemberDashboardPage() {
                       {isFetchingAnnouncements ? (
                         <div className="py-8 text-center">
                           <p className="text-xs font-medium text-[#6B7280]">Loading alerts...</p>
+                        </div>
+                      ) : announcementLoadError ? (
+                        <div role="alert" aria-live="assertive" className="py-8 text-center">
+                          <p className="text-xs font-medium text-red-700">Unable to load alerts.</p>
+                          <button type="button" onClick={fetchAnnouncements} className="mt-2 text-xs font-bold text-[#1F6B43] underline">Retry</button>
                         </div>
                       ) : announcements.length === 0 ? (
                         <div className="py-8 text-center">
