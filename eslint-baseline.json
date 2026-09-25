@@ -1,0 +1,312 @@
+{
+  "version": 1,
+  "generatedFrom": "GitHub Actions lint run on 2026-09-25 (commit 1251511fb3bde158abb71cf1f8a7d14b817d1b61)",
+  "totals": {
+    "errors": 121,
+    "warnings": 106
+  },
+  "allowances": {
+    "script.js": {
+      "error": {
+        "@typescript-eslint/no-require-imports": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "scripts/get-members.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1
+      }
+    },
+    "scripts/seed-mock-charts.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 4
+      }
+    },
+    "server/src/modules/communication/communication.repository.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 3
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "server/src/modules/dashboard/dashboard.controller.ts": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "server/src/modules/membership-applications/membership-application.capital.test.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 3
+      }
+    },
+    "server/src/modules/membership-applications/membership-application.routes.test.ts": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "server/src/modules/payment-references/payment-reference.review.test.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 2
+      }
+    },
+    "server/src/modules/paymongo/paymongo.gateway-recovery.test.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "server/src/modules/paymongo/paymongo.membership-installment.queries.ts": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "server/src/modules/pos/pos.repository.ts": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 3
+      }
+    },
+    "server/src/records/central-document.ts": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "src/app/(LandingPage)/contact/ContactForm.tsx": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 3
+      }
+    },
+    "src/app/(LandingPage)/page.tsx": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 3
+      }
+    },
+    "src/app/(LandingPage)/track/page.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 5,
+        "react-hooks/immutability": 1,
+        "react/no-unescaped-entities": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 6,
+        "react-hooks/exhaustive-deps": 1
+      }
+    },
+    "src/app/(auth)/force-change-password/page.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1
+      }
+    },
+    "src/app/(auth)/login/page.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 2
+      }
+    },
+    "src/app/(dashboard)/member_dashboard/components/ActivityModal.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/app/(dashboard)/member_dashboard/components/HelpCenter.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1,
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/app/(dashboard)/member_dashboard/components/ProfileSettings.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 2,
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/app/(dashboard)/member_dashboard/page.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 9,
+        "react-hooks/set-state-in-effect": 2,
+        "react/no-unescaped-entities": 1
+      },
+      "warning": {
+        "@next/next/no-img-element": 3,
+        "@typescript-eslint/no-unused-vars": 14
+      }
+    },
+    "src/app/(portal)/chairman/announcements/ChairmanAnnouncementsClient.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 15,
+        "react-hooks/set-state-in-effect": 3
+      },
+      "warning": {
+        "@next/next/no-img-element": 4,
+        "jsx-a11y/role-has-required-aria-props": 1
+      }
+    },
+    "src/app/(portal)/chairman/dashboard/DashboardClient.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 13,
+        "prefer-const": 1,
+        "react-hooks/purity": 1,
+        "react-hooks/set-state-in-effect": 1,
+        "react/no-unescaped-entities": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 11
+      }
+    },
+    "src/app/(portal)/chairman/dashboard/_components/DemographicsMap.tsx": {
+      "error": {
+        "@typescript-eslint/ban-ts-comment": 2,
+        "react-hooks/purity": 2,
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/app/(portal)/chairman/member-indicators/MemberIndicatorsClient.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/app/(portal)/chairman/members/MembersClient.tsx": {
+      "error": {
+        "react-hooks/static-components": 2
+      }
+    },
+    "src/app/(portal)/chairman/requests/RequestsClient.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1,
+        "react-hooks/set-state-in-effect": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 3
+      }
+    },
+    "src/app/(portal)/member/requests/MemberRequestsClient.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 2,
+        "react-hooks/set-state-in-effect": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 3
+      }
+    },
+    "src/app/rental/_components/RentalMemberArea.tsx": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "src/app/rental/_components/RentalPageHeader.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1
+      }
+    },
+    "src/app/rental/page.tsx": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "src/app/statement/statement-print-view.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 3
+      }
+    },
+    "src/components/portal/PortalShell.tsx": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "src/components/portal/PortalSidebar.tsx": {
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 4
+      }
+    },
+    "src/features/announcements/components/AnnouncementsArchiveSection.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 5,
+        "react/no-unescaped-entities": 1
+      },
+      "warning": {
+        "@next/next/no-img-element": 1,
+        "@typescript-eslint/no-unused-vars": 2
+      }
+    },
+    "src/features/finance/FinanceViews.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 1,
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/features/finance/PaymentValidationView.tsx": {
+      "error": {
+        "@typescript-eslint/no-explicit-any": 11
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    },
+    "src/features/landing-admin/LandingAdminViews.tsx": {
+      "warning": {
+        "@next/next/no-img-element": 7
+      }
+    },
+    "src/features/member-share-capital/MemberShareCapitalLauncher.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/features/pos/components/ChairmanPosInventoryClient.tsx": {
+      "warning": {
+        "@next/next/no-img-element": 4
+      }
+    },
+    "src/features/pos/components/MemberPosClient.tsx": {
+      "warning": {
+        "@next/next/no-img-element": 2
+      }
+    },
+    "src/features/pos/components/ProductCatalogClient.tsx": {
+      "warning": {
+        "@next/next/no-img-element": 3
+      }
+    },
+    "src/features/records/components/ArchivedDocumentsModal.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 3
+      }
+    },
+    "src/features/records/components/DocumentDetailPage.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      }
+    },
+    "src/features/records/components/DocumentMetadataFields.tsx": {
+      "warning": {
+        "<no-rule>": 1
+      }
+    },
+    "src/features/records/components/DocumentsPage.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-expressions": 1,
+        "@typescript-eslint/no-unused-vars": 12
+      }
+    },
+    "src/features/records/components/ReportsPage.tsx": {
+      "error": {
+        "react-hooks/set-state-in-effect": 1
+      },
+      "warning": {
+        "@typescript-eslint/no-unused-vars": 1
+      }
+    }
+  }
+}
