@@ -16,7 +16,7 @@ const config: PaymongoConfig = {
   webhookSecret: "whsec_test_example",
   webhookToleranceSeconds: 300,
   checkoutReuseMinutes: 30,
-  paymentMethodTypes: ["card"],
+  paymentMethodTypes: ["qrph"],
   passOnFees: true,
   successUrl: "http://localhost:3000/payment/success",
   cancelUrl: "http://localhost:3000/payment/cancelled",
@@ -35,7 +35,7 @@ const checkoutRequest: PaymongoCheckoutRequest = {
       description: "TrackCOOP Associate Membership Fee (TC-REF-0001)",
     },
   ],
-  paymentMethodTypes: ["card"],
+  paymentMethodTypes: ["qrph"],
   successUrl: "http://localhost:3000/payment/success",
   cancelUrl: "http://localhost:3000/payment/cancelled",
   billing: {
@@ -104,7 +104,7 @@ test("createCheckoutSession uses Basic auth, V2 URL, idempotency, and safe metad
   const attributes = body.data.attributes;
   assert.equal(attributes.line_items[0].amount, 20_000);
   assert.equal(attributes.line_items[0].currency, "PHP");
-  assert.deepEqual(attributes.payment_method_types, ["card"]);
+  assert.deepEqual(attributes.payment_method_types, ["qrph"]);
   assert.equal(attributes.pass_on_fees, true);
   assert.equal(attributes.reference_number, "TC-REF-0001");
   assert.equal(attributes.cancel_url, "http://localhost:3000/payment/cancelled");

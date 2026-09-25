@@ -40,6 +40,8 @@ type CheckoutAttemptLookup = {
   id: string;
   gatewayEnvironment: PaymongoOnlineGatewayEnvironment;
   amount: string | number;
+  supersededAt: Date | null;
+  completedAt: Date | null;
 };
 
 type PaymentReferenceLookupRow = RowDataPacket & PaymentReferenceLookup;
@@ -225,6 +227,13 @@ function assertGatewayIdsMatch(input: {
         "PAYMENT_GATEWAY_ENVIRONMENT_MISMATCH",
       );
     }
+    if (input.attempt.supersededAt && !input.attempt.completedAt) {
+      throw new AppError(
+        "This PayMongo checkout attempt was superseded by a newer checkout",
+        409,
+        "PAYMONGO_CHECKOUT_SUPERSEDED",
+      );
+    }
     if (toMoney(Number(input.attempt.amount)) !== toMoney(input.details.amount)) {
       throw new AppError(
         "PayMongo checkout attempt amount does not match the payment",
@@ -362,7 +371,9 @@ export function createPaymongoWebhookRepository(pool?: Pool): PaymongoWebhookRep
       const [rows] = await databasePool().execute<CheckoutAttemptLookupRow[]>(
         `SELECT CAST(payment_gateway_checkout_attempt_id AS CHAR) AS id,
                 gateway_environment AS gatewayEnvironment,
-                amount
+                amount,
+                superseded_at AS supersededAt,
+                completed_at AS completedAt
            FROM payment_gateway_checkout_attempts
           WHERE payment_reference_id = ?
             AND gateway_name = 'PayMongo'

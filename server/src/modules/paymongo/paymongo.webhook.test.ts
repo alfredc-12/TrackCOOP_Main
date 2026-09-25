@@ -102,6 +102,12 @@ function makeService(options: {
   duplicate?: boolean;
   reference?: { id: string; amount: number; referenceNumber: string } | null;
   settleError?: AppError;
+  checkoutAttempt?: {
+    gatewayEnvironment?: "Test" | "Live";
+    amount?: number;
+    supersededAt?: Date | null;
+    completedAt?: Date | null;
+  };
 } = {}) {
   const settlementCalls: unknown[] = [];
   const failedEvents: unknown[] = [];
@@ -146,8 +152,10 @@ function makeService(options: {
     async findCheckoutAttempt() {
       return {
         id: "1000",
-        gatewayEnvironment: "Test",
-        amount: 200,
+        gatewayEnvironment: options.checkoutAttempt?.gatewayEnvironment ?? "Test",
+        amount: options.checkoutAttempt?.amount ?? 200,
+        supersededAt: options.checkoutAttempt?.supersededAt ?? null,
+        completedAt: options.checkoutAttempt?.completedAt ?? null,
       };
     },
     async markCheckoutAttemptPaid() {},
@@ -335,6 +343,111 @@ test("handleWebhook rejects live, malformed, unknown, and mismatched events safe
     () => makeService().service.handleWebhook({ rawBody: mismatch.raw, signatureHeader: mismatch.header }),
     (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NOT_FOUND",
   );
+});
+
+test("handleWebhook rejects a paid event from a superseded checkout attempt", async () => {
+  const signedPayload = signed(payload());
+  const { service, settlementCalls, failedEvents } = makeService({
+    checkoutAttempt: {
+      supersededAt: new Date("2026-01-01T00:00:00Z"),
+      completedAt: null,
+    },
+  });
+
+  await assert.rejects(
+    () => service.handleWebhook({ rawBody: signedPayload.raw, signatureHeader: signedPayload.header }),
+    (error) => error instanceof AppError && error.code === "PAYMONGO_CHECKOUT_SUPERSEDED",
+  );
+  assert.equal(settlementCalls.length, 0);
+  assert.equal(failedEvents.length, 0);
+});
+
+test("handleWebhook keeps same-amount references isolated by metadata and reference number", async () => {
+  const signedPayload = signed(payload({
+    metadataReferenceId: "901",
+    referenceNumber: "MEM-APP-2026-000301-FEE",
+  }));
+
+  await assert.rejects(
+    () => makeService({
+      reference: {
+        id: "900",
+        referenceNumber: "MEM-APP-2026-000300-FEE",
+        amount: 200,
+      },
+    }).service.handleWebhook({ rawBody: signedPayload.raw, signatureHeader: signedPayload.header }),
+    (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NOT_FOUND",
+  );
+});
+
+test("handleWebhook treats near-concurrent duplicate processing as a duplicate", async () => {
+  const signedPayload = signed(payload());
+  let claims = 0;
+  const settlementCalls: unknown[] = [];
+  const repository: PaymongoWebhookRepository = {
+    async findPaymentReference() {
+      return {
+        id: "900",
+        amount: 200,
+        referenceNumber: "MEM-APP-2026-000300-FEE",
+        paymentPurpose: "Associate Membership Fee",
+        relatedEntityType: "membership_application",
+        relatedEntityId: "300",
+        gatewayEnvironment: "Test",
+        gatewayCheckoutId: "cs_test_123",
+        gatewayPaymentId: null,
+      };
+    },
+    async findCheckoutAttempt() {
+      return {
+        id: "1000",
+        gatewayEnvironment: "Test",
+        amount: 200,
+        supersededAt: null,
+        completedAt: null,
+      };
+    },
+    async insertGatewayEvent() {
+      return {
+        id: "70",
+        duplicate: false,
+        processingStatus: "Received",
+        retryCount: 0,
+      };
+    },
+    async markGatewayEventProcessing() {
+      claims += 1;
+      return claims === 1;
+    },
+    async markGatewayEventIgnored() {},
+    async markCheckoutAttemptPaid() {},
+  };
+  const service = createPaymongoWebhookService({
+    config,
+    repository,
+    settlementRepository: {
+      async settlePaymentReference(input) {
+        settlementCalls.push(input);
+        return {
+          paymentReferenceId: input.paymentReferenceId,
+          alreadySettled: false,
+          validationStatus: "Validated",
+          receiptStatus: null,
+          receiptErrorCode: null,
+        };
+      },
+      async markGatewayEventProcessed() {},
+      async markGatewayEventFailed() {},
+    },
+  });
+
+  const [first, second] = await Promise.all([
+    service.handleWebhook({ rawBody: signedPayload.raw, signatureHeader: signedPayload.header }),
+    service.handleWebhook({ rawBody: signedPayload.raw, signatureHeader: signedPayload.header }),
+  ]);
+
+  assert.deepEqual([first.status, second.status].sort(), ["duplicate", "processed"]);
+  assert.equal(settlementCalls.length, 1);
 });
 
 test("handleWebhook marks gateway events failed when settlement rolls back", async () => {

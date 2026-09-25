@@ -88,6 +88,7 @@ export function createPaymongoController(service: PaymongoService) {
       const result = await service.getPublicPaymentReferenceStatus(
         requireParam(request.params.paymentReferenceId, "paymentReferenceId"),
         requireQuery(request.query.referenceNumber, "referenceNumber"),
+        requireQuery(request.query.statusToken, "statusToken"),
       );
 
       return sendSuccess(response, result);

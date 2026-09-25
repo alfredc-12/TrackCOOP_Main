@@ -28,7 +28,7 @@ test("parseServerEnv keeps PayMongo disabled by default without secrets", () => 
   assert.equal(config.PAYMONGO_WEBHOOK_SECRET, undefined);
   assert.equal(config.PAYMONGO_WEBHOOK_TOLERANCE_SECONDS, 300);
   assert.equal(config.PAYMONGO_CHECKOUT_REUSE_MINUTES, 30);
-  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
   assert.equal(config.PAYMONGO_PASS_ON_FEES, false);
   assert.deepEqual(config.CORS_ALLOWED_ORIGINS, ["http://localhost:3000"]);
   assert.equal(config.SESSION_COOKIE_SAME_SITE, "lax");
@@ -120,7 +120,7 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
     PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_example",
     PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
     PAYMONGO_CHECKOUT_REUSE_MINUTES: "45",
-    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "qrph",
     PAYMONGO_LIVE_SECRET_KEY: "sk_live_inactive",
     PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_inactive",
     PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
@@ -132,7 +132,7 @@ test("parseServerEnv accepts enabled PayMongo test configuration", () => {
   assert.equal(config.PAYMONGO_WEBHOOK_SECRET, "whsec_test_example");
   assert.equal(config.PAYMONGO_SYSTEM_ACTOR_USER_ID, "900");
   assert.equal(config.PAYMONGO_CHECKOUT_REUSE_MINUTES, 45);
-  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
   assert.equal(config.PAYMONGO_LIVE_SECRET_KEY, "sk_live_inactive");
   assert.equal(config.PAYMONGO_PASS_ON_FEES, true);
 });
@@ -146,7 +146,7 @@ test("parseServerEnv accepts PayMongo QR Ph in production live mode without loca
     PAYMONGO_ALLOW_LIVE_LOCAL: "false",
     PAYMONGO_TEST_SECRET_KEY: "sk_test_inactive",
     PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_inactive",
-    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "qrph",
     PAYMONGO_LIVE_SECRET_KEY: "sk_live_example",
     PAYMONGO_LIVE_WEBHOOK_SECRET: "whsec_live_example",
     PAYMONGO_LIVE_PAYMENT_METHOD_TYPES: "qrph",
@@ -216,13 +216,13 @@ test("parseServerEnv supports legacy PayMongo variables as active fallback", () 
     PAYMONGO_MODE: "test",
     PAYMONGO_SECRET_KEY: "sk_test_legacy",
     PAYMONGO_WEBHOOK_SECRET: "whsec_test_legacy",
-    PAYMONGO_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_PAYMENT_METHOD_TYPES: "qrph",
     PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
   });
 
   assert.equal(config.PAYMONGO_SECRET_KEY, "sk_test_legacy");
   assert.equal(config.PAYMONGO_WEBHOOK_SECRET, "whsec_test_legacy");
-  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+  assert.deepEqual(config.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
 });
 
 test("parseServerEnv rejects selected test keys that are not test keys", () => {
@@ -283,11 +283,11 @@ test("parseServerEnv ignores inactive PayMongo credentials", () => {
     PAYMONGO_MODE: "test",
     PAYMONGO_TEST_SECRET_KEY: "sk_test_valid",
     PAYMONGO_TEST_WEBHOOK_SECRET: "whsec_test_valid",
-    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card",
+    PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "qrph",
     PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
   });
   assert.equal(testConfig.PAYMONGO_SECRET_KEY, "sk_test_valid");
-  assert.deepEqual(testConfig.PAYMONGO_PAYMENT_METHOD_TYPES, ["card"]);
+  assert.deepEqual(testConfig.PAYMONGO_PAYMENT_METHOD_TYPES, ["qrph"]);
 
   const liveConfig = parseServerEnv({
     ...baseEnv,
@@ -355,7 +355,7 @@ test("parseServerEnv rejects unsupported PayMongo payment methods", () => {
         PAYMONGO_SECRET_KEY: "sk_test_example",
         PAYMONGO_WEBHOOK_SECRET: "whsec_test_example",
         PAYMONGO_SYSTEM_ACTOR_USER_ID: "900",
-        PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "card,unsupported",
+        PAYMONGO_TEST_PAYMENT_METHOD_TYPES: "qrph,unsupported",
       }),
     /Unsupported PayMongo payment method type: unsupported/,
   );

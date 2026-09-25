@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { AppError } from "../../utils/app-error";
 import {
   requireApplicationBirthDateCredential,
@@ -241,10 +242,71 @@ function checkoutMetadata(
   };
 }
 
-function checkoutSuccessUrl(configuredUrl: string, record: PaymongoPaymentReferenceRecord) {
+function publicStatusToken(input: {
+  record: PaymongoPaymentReferenceRecord;
+  environment: PaymongoOnlineGatewayEnvironment;
+  webhookSecret: string;
+}) {
+  const cents = amountToCentavos(input.record.amount);
+  return crypto
+    .createHmac("sha256", input.webhookSecret)
+    .update([
+      input.record.id,
+      input.record.referenceNumber,
+      cents,
+      input.environment,
+    ].join("|"))
+    .digest("hex");
+}
+
+function assertPublicStatusToken(input: {
+  record: PaymongoPaymentReferenceRecord;
+  config: PaymongoConfig;
+  token: string;
+}) {
+  const webhookSecret = input.config.webhookSecret;
+  if (!webhookSecret) {
+    throw new AppError("PayMongo webhook secret is not configured", 503, "PAYMONGO_NOT_CONFIGURED");
+  }
+  const environment = input.record.gatewayEnvironment === "Manual"
+    ? gatewayEnvironment(input.config.mode)
+    : input.record.gatewayEnvironment;
+
+  const expected = publicStatusToken({
+    record: input.record,
+    environment,
+    webhookSecret,
+  });
+  const provided = input.token.trim();
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const providedBuffer = Buffer.from(provided, "hex");
+  if (
+    expectedBuffer.length !== providedBuffer.length
+    || !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
+  ) {
+    throw new AppError("Payment status token is invalid", 403, "PAYMENT_STATUS_TOKEN_INVALID");
+  }
+}
+
+function checkoutSuccessUrl(
+  configuredUrl: string,
+  record: PaymongoPaymentReferenceRecord,
+  config: PaymongoConfig,
+) {
   const url = new URL(configuredUrl);
   url.searchParams.set("paymentReferenceId", record.id);
   url.searchParams.set("referenceNumber", record.referenceNumber);
+  if (!config.webhookSecret) {
+    throw new AppError("PayMongo webhook secret is not configured", 503, "PAYMONGO_NOT_CONFIGURED");
+  }
+  url.searchParams.set(
+    "statusToken",
+    publicStatusToken({
+      record,
+      environment: gatewayEnvironment(config.mode),
+      webhookSecret: config.webhookSecret,
+    }),
+  );
   return url.toString();
 }
 
@@ -268,7 +330,7 @@ function buildCheckoutRequest(
       },
     ],
     paymentMethodTypes: config.paymentMethodTypes,
-    successUrl: checkoutSuccessUrl(config.successUrl, record),
+    successUrl: checkoutSuccessUrl(config.successUrl, record, config),
     cancelUrl: config.cancelUrl,
     billing: {
       name: record.payerName ?? undefined,
@@ -303,6 +365,7 @@ export interface PaymongoService {
   getPublicPaymentReferenceStatus(
     paymentReferenceId: string,
     referenceNumber: string,
+    statusToken: string,
   ): Promise<PaymongoPaymentStatus>;
 }
 
@@ -541,10 +604,13 @@ export function createPaymongoService(options: {
       };
     },
 
-    async getPublicPaymentReferenceStatus(paymentReferenceId, referenceNumber) {
+    async getPublicPaymentReferenceStatus(paymentReferenceId, referenceNumber, statusToken) {
       const trimmedReferenceNumber = referenceNumber.trim();
       if (!trimmedReferenceNumber) {
         throw new AppError("Payment reference number is required", 400, "PAYMENT_REFERENCE_NUMBER_REQUIRED");
+      }
+      if (!statusToken.trim()) {
+        throw new AppError("Payment status token is required", 400, "PAYMENT_STATUS_TOKEN_REQUIRED");
       }
 
       const record = requirePaymentReference(
@@ -553,6 +619,7 @@ export function createPaymongoService(options: {
           referenceNumber: trimmedReferenceNumber,
         }),
       );
+      assertPublicStatusToken({ record, config, token: statusToken });
       const attempt = await attemptRepository.findLatestCheckoutAttempt(record.id);
 
       return {
@@ -561,9 +628,9 @@ export function createPaymongoService(options: {
         validationStatus: record.validationStatus,
         paymentChannel: record.paymentChannel,
         gatewayEnvironment: record.gatewayEnvironment,
-        gatewayCheckoutId: record.gatewayCheckoutId,
-        gatewayPaymentId: record.gatewayPaymentId,
-        gatewayPaymentIntentId: record.gatewayPaymentIntentId,
+        gatewayCheckoutId: null,
+        gatewayPaymentId: null,
+        gatewayPaymentIntentId: null,
         gatewayStatus: record.gatewayStatus,
         paidAt: record.paidAt,
         amount: record.amount,

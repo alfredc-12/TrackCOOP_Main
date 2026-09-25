@@ -23,7 +23,7 @@ type PaymentStatus = {
 
 type PollState = "idle" | "checking" | "confirmed" | "failed" | "unavailable" | "timeout";
 
-const maxAttempts = 48;
+const maxAttempts = 120;
 const pollIntervalMs = 2500;
 
 function money(value: number) {
@@ -43,8 +43,11 @@ export default function PaymentStatusPoller() {
   const searchParams = useSearchParams();
   const paymentReferenceId = searchParams?.get("paymentReferenceId")?.trim() ?? "";
   const referenceNumber = searchParams?.get("referenceNumber")?.trim() ?? "";
+  const statusToken = searchParams?.get("statusToken")?.trim() ?? "";
   const [attempts, setAttempts] = useState(0);
-  const [state, setState] = useState<PollState>(paymentReferenceId && referenceNumber ? "checking" : "idle");
+  const [state, setState] = useState<PollState>(
+    paymentReferenceId && referenceNumber && statusToken ? "checking" : "idle",
+  );
   const [payment, setPayment] = useState<PaymentStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -66,14 +69,14 @@ export default function PaymentStatusPoller() {
         : Clock3;
 
   useEffect(() => {
-    if (!paymentReferenceId || !referenceNumber) return;
+    if (!paymentReferenceId || !referenceNumber || !statusToken) return;
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     async function checkStatus(nextAttempt: number) {
       try {
         const data = await apiRequest<PaymentStatus>(
-          `/api/paymongo/public/payments/${encodeURIComponent(paymentReferenceId)}/status?referenceNumber=${encodeURIComponent(referenceNumber)}`,
+          `/api/paymongo/public/payments/${encodeURIComponent(paymentReferenceId)}/status?referenceNumber=${encodeURIComponent(referenceNumber)}&statusToken=${encodeURIComponent(statusToken)}`,
         );
         if (cancelled) return;
         setPayment(data);
@@ -109,7 +112,7 @@ export default function PaymentStatusPoller() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [paymentReferenceId, referenceNumber]);
+  }, [paymentReferenceId, referenceNumber, statusToken]);
 
   return (
     <div className="mt-7 rounded-3xl border border-[#DDE8D8] bg-[#F8FBF5] p-5">

@@ -18,7 +18,7 @@ const config: PaymongoConfig = {
   secretKey: "sk_test_example",
   webhookSecret: "whsec_test_example",
   webhookToleranceSeconds: 300,
-  paymentMethodTypes: ["card"],
+  paymentMethodTypes: ["qrph"],
   passOnFees: false,
   successUrl: "http://localhost:3000/payment/success",
   cancelUrl: "http://localhost:3000/payment/cancelled",
@@ -206,19 +206,16 @@ test("createPaymentReferenceCheckout uses trusted database fields for metadata a
   assert.equal(checkoutCalls[0].input.metadata.related_entity_type, "membership_application");
   assert.equal(checkoutCalls[0].input.metadata.related_entity_id, "30");
   assert.equal(checkoutCalls[0].input.metadata.environment, "Test");
-  assert.equal(
-    checkoutCalls[0].input.successUrl,
-    "http://localhost:3000/payment/success?paymentReferenceId=100&referenceNumber=TC-REF-0100",
-  );
+  const successUrl = new URL(checkoutCalls[0].input.successUrl);
+  assert.equal(successUrl.origin + successUrl.pathname, "http://localhost:3000/payment/success");
+  assert.equal(successUrl.searchParams.get("paymentReferenceId"), "100");
+  assert.equal(successUrl.searchParams.get("referenceNumber"), "TC-REF-0100");
+  assert.match(successUrl.searchParams.get("statusToken") ?? "", /^[a-f0-9]{64}$/);
   assert.equal(attempts.length, 1);
 });
 
-test("createPaymentReferenceCheckout uses configured QR Ph payment method", async () => {
-  const { service, checkoutCalls } = makeService(paymentReference, {
-    configOverride: {
-      paymentMethodTypes: ["qrph"],
-    },
-  });
+test("createPaymentReferenceCheckout uses QR Ph payment method in test mode", async () => {
+  const { service, checkoutCalls } = makeService(paymentReference);
 
   await service.createPaymentReferenceCheckout("100", memberAuth);
 
@@ -246,20 +243,28 @@ test("createPaymentReferenceCheckout sends QR Ph for explicit local live mode", 
   assert.equal(checkoutCalls[0].input.metadata.environment, "Live");
 });
 
-test("getPublicPaymentReferenceStatus requires the exact reference number", async () => {
-  const { service } = makeService(paymentReference);
+test("getPublicPaymentReferenceStatus requires the exact reference number and status token", async () => {
+  const { service, checkoutCalls } = makeService(paymentReference);
+  await service.createPaymentReferenceCheckout("100", memberAuth);
+  const statusToken = new URL(checkoutCalls[0].input.successUrl).searchParams.get("statusToken") ?? "";
 
-  const status = await service.getPublicPaymentReferenceStatus("100", "TC-REF-0100");
+  const status = await service.getPublicPaymentReferenceStatus("100", "TC-REF-0100", statusToken);
   assert.equal(status.paymentReferenceId, "100");
   assert.equal(status.referenceNumber, "TC-REF-0100");
+  assert.equal(status.gatewayCheckoutId, null);
+  assert.equal(status.gatewayPaymentId, null);
 
   await assert.rejects(
-    () => service.getPublicPaymentReferenceStatus("100", ""),
+    () => service.getPublicPaymentReferenceStatus("100", "", statusToken),
     (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NUMBER_REQUIRED",
   );
   await assert.rejects(
-    () => service.getPublicPaymentReferenceStatus("100", "OTHER-REF"),
+    () => service.getPublicPaymentReferenceStatus("100", "OTHER-REF", statusToken),
     (error) => error instanceof AppError && error.code === "PAYMENT_REFERENCE_NOT_FOUND",
+  );
+  await assert.rejects(
+    () => service.getPublicPaymentReferenceStatus("100", "TC-REF-0100", "bad-token"),
+    (error) => error instanceof AppError && error.code === "PAYMENT_STATUS_TOKEN_INVALID",
   );
 });
 

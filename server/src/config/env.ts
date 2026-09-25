@@ -56,8 +56,8 @@ const optionalPaymongoPaymentMethodTypes = z
     return methods;
   });
 
-function defaultPaymongoMethods(mode: "test" | "live") {
-  return mode === "live" ? ["qrph"] : ["card"];
+function defaultPaymongoMethods() {
+  return ["qrph"];
 }
 
 function activePaymongoSecret(value: {
@@ -91,7 +91,7 @@ function activePaymongoPaymentMethodTypes(value: {
   const selected = value.PAYMONGO_MODE === "live"
     ? value.PAYMONGO_LIVE_PAYMENT_METHOD_TYPES
     : value.PAYMONGO_TEST_PAYMENT_METHOD_TYPES;
-  return selected ?? value.PAYMONGO_PAYMENT_METHOD_TYPES ?? defaultPaymongoMethods(value.PAYMONGO_MODE);
+  return selected ?? value.PAYMONGO_PAYMENT_METHOD_TYPES ?? defaultPaymongoMethods();
 }
 
 const envSchema = z.object({
