@@ -4,7 +4,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   RefreshCcw,
 } from "lucide-react";
 import Link from "next/link";
@@ -83,11 +82,9 @@ export function ChairmanRentalCalendar() {
   const [view, setView] = useState<CalendarView>("Month");
   const [cursor, setCursor] = useState(() => new Date());
   const [asset, setAsset] = useState("All");
-  const [requester, setRequester] = useState("");
   const [requesterType, setRequesterType] = useState("All");
   const [requestStatus, setRequestStatus] = useState("All");
   const [scheduleStatus, setScheduleStatus] = useState("All");
-  const [operator, setOperator] = useState("All");
   const [barangay, setBarangay] = useState("All");
 
   const load = useCallback(async () => {
@@ -121,23 +118,16 @@ export function ChairmanRentalCalendar() {
     [inquiries],
   );
   const filtered = useMemo(() => {
-    const query = requester.trim().toLowerCase();
     return schedules
       .filter((item) => {
         const inquiry = inquiryByRental.get(item.rentalId);
         return (
           (asset === "All" || item.serviceId === asset) &&
-          (!query ||
-            `${item.requesterName} ${item.inquiryId}`
-              .toLowerCase()
-              .includes(query)) &&
           (requesterType === "All" ||
             item.requesterType === requesterType) &&
           (requestStatus === "All" ||
             inquiry?.status === requestStatus) &&
           (scheduleStatus === "All" || item.status === scheduleStatus) &&
-          (operator === "All" ||
-            (item.assignedOperator ?? "Unassigned") === operator) &&
           (barangay === "All" || item.barangay === barangay)
         );
       })
@@ -151,9 +141,7 @@ export function ChairmanRentalCalendar() {
     asset,
     barangay,
     inquiryByRental,
-    operator,
     requestStatus,
-    requester,
     requesterType,
     scheduleStatus,
     schedules,
@@ -240,15 +228,6 @@ export function ChairmanRentalCalendar() {
             ),
           ]}
         />
-        <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
-          Requester or reference
-          <input
-            value={requester}
-            onChange={(event) => setRequester(event.target.value)}
-            type="search"
-            className="h-11 rounded-md border border-[#CAD8CB] px-3 text-sm font-normal"
-          />
-        </label>
         <Filter
           label="Requester type"
           value={requesterType}
@@ -279,19 +258,6 @@ export function ChairmanRentalCalendar() {
             ...Array.from(new Set(schedules.map((item) => item.status))).map(
               (item) => [item, item] as [string, string],
             ),
-          ]}
-        />
-        <Filter
-          label="Operator"
-          value={operator}
-          onChange={setOperator}
-          options={[
-            ["All", "All operators"],
-            ...Array.from(
-              new Set(
-                schedules.map((item) => item.assignedOperator ?? "Unassigned"),
-              ),
-            ).map((item) => [item, item] as [string, string]),
           ]}
         />
         <Filter
@@ -424,12 +390,13 @@ function MonthGrid({
                   <Link
                     key={item.scheduleId}
                     href={`/portal/chairman/rentals/bookings/${item.inquiryId}`}
-                    className="rounded bg-[#E7F2E4] p-2 text-xs text-[#123D2A]"
+                    className="grid gap-1 rounded bg-[#E7F2E4] p-2 text-xs text-[#123D2A]"
                   >
-                    <strong>
-                      {key === item.date ? item.startTime : "Continues"}
-                    </strong>{" "}
-                    {item.equipmentName}
+                    <strong className="truncate">{item.equipmentName}</strong>
+                    <span className="truncate">{item.requesterName}</span>
+                    <span className="truncate text-[#5D6D63]">
+                      {item.barangay || "Barangay not recorded"}
+                    </span>
                   </Link>
                 ))}
                 {records.length > 3 ? (
@@ -471,10 +438,6 @@ function ScheduleList({ schedules }: { schedules: RentalSchedule[] }) {
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6C7A70]">
               {formatDateRange(item)}
             </p>
-            <p className="mt-1 flex items-center gap-2 font-black text-[#123D2A]">
-              <Clock3 className="size-4" />
-              {item.startTime}-{item.endTime}
-            </p>
           </div>
           <div>
             <p className="font-black text-[#123D2A]">{item.equipmentName}</p>
@@ -485,7 +448,6 @@ function ScheduleList({ schedules }: { schedules: RentalSchedule[] }) {
           <div className="text-sm text-[#5D6D63]">
             <p>{item.serviceLocation}</p>
             <p>{item.barangay || "Barangay not recorded"}</p>
-            <p>{item.assignedOperator ?? "Operator unassigned"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
             <StatusBadge>{item.status}</StatusBadge>
