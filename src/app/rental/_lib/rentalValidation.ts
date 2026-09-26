@@ -35,7 +35,7 @@ export const BookingSchema = z
       .string()
       .trim()
       .transform(normalizePhilippineMobile)
-      .refine((value) => PHILIPPINE_MOBILE_PATTERN.test(value), "Enter an 11-digit mobile number, for example 09171234567."),
+      .refine((value) => PHILIPPINE_MOBILE_PATTERN.test(value), "Enter a Philippine mobile number beginning with +63 9, for example +63 917 123 4567."),
     email: z
       .string()
       .trim()

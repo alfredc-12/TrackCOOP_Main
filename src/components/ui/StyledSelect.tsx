@@ -13,9 +13,20 @@ type StyledSelectProps = {
 
 export function StyledSelect({ value, options, onChange, disabled, prefix }: StyledSelectProps) {
   const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionsId = useId();
+
+  function toggleOpen() {
+    if (!open && rootRef.current) {
+      const bounds = rootRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - bounds.bottom;
+      const spaceAbove = bounds.top;
+      setOpenUpward(spaceBelow < 280 && spaceAbove > spaceBelow);
+    }
+    setOpen((current) => !current);
+  }
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -27,7 +38,7 @@ export function StyledSelect({ value, options, onChange, disabled, prefix }: Sty
 
   return (
     <div ref={rootRef} className="styled-select-root relative">
-      <button ref={triggerRef} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox" aria-controls={optionsId}
+      <button ref={triggerRef} type="button" disabled={disabled} onClick={toggleOpen} aria-expanded={open} aria-haspopup="listbox" aria-controls={optionsId}
         onKeyDown={(event) => {
           if (event.key === "Escape" && open) {
             event.preventDefault();
@@ -40,7 +51,7 @@ export function StyledSelect({ value, options, onChange, disabled, prefix }: Sty
         <ChevronDown size={17} className={`text-[#527765] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div id={optionsId} role="listbox" aria-label={prefix ?? "Options"} className="absolute inset-x-0 top-[calc(100%+6px)] z-50 rounded-xl border border-[#D4E5D8] bg-white p-2 shadow-[0_14px_30px_rgba(18,61,42,0.14)]">
+        <div id={optionsId} role="listbox" aria-label={prefix ?? "Options"} className={`absolute inset-x-0 z-50 max-h-64 overflow-y-auto rounded-xl border border-[#D4E5D8] bg-white p-2 shadow-[0_14px_30px_rgba(18,61,42,0.14)] custom-scrollbar ${openUpward ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}>
           {options.map((option) => (
             <button type="button" role="option" aria-selected={option === value} key={option} onClick={() => { onChange(option); setOpen(false); triggerRef.current?.focus(); }}
               className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#466B59] hover:bg-[#F4F8F3]"}`}>

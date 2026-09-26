@@ -206,7 +206,7 @@ export function DatePicker({
   const displayValue = formatDate(value);
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("date-picker-root relative", className)}>
       <label
         id={labelId}
         className={cn(
@@ -254,7 +254,7 @@ export function DatePicker({
           aria-modal="false"
           aria-labelledby={labelId}
           className={cn(
-            "absolute left-1/2 z-50 w-[19rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[1rem] border border-[#DDE8D8] bg-white p-3 shadow-[0_18px_48px_rgba(18,61,42,0.14)] ring-1 ring-[#F8F1E5]",
+            "absolute left-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-[#CAD8CB] bg-white p-4 shadow-[0_20px_50px_rgba(18,61,42,0.18)] ring-1 ring-[#F8F1E5]",
             openDirection === "up" ? "bottom-full mb-2" : "top-full mt-2",
           )}
         >
@@ -320,13 +320,13 @@ export function DatePicker({
             </div>
           </div>
 
-          <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[0.5rem] font-black uppercase tracking-[0.05em] text-[#5D6D63]">
+          <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[0.65rem] font-black uppercase tracking-[0.05em] text-[#5D6D63]">
             {weekdayNames.map((weekday) => (
               <div key={weekday}>{weekday.slice(0, 1)}</div>
             ))}
           </div>
 
-          <div className="mt-1 grid grid-cols-7 gap-x-1.5 gap-y-0.5">
+          <div className="mt-2 grid grid-cols-7 gap-x-1.5 gap-y-1">
             {days.map((day) => (
               <button
                 key={day.dateKey}
@@ -334,7 +334,7 @@ export function DatePicker({
                 disabled={day.isDisabled}
                 onClick={() => selectDate(day.dateKey)}
                 className={cn(
-                  "mx-auto grid size-6 place-items-center rounded-full text-[0.62rem] font-black leading-none outline-none transition focus:ring-2 focus:ring-[#1F6B43]/25",
+                  "mx-auto grid size-8 place-items-center rounded-lg text-[0.72rem] font-black leading-none outline-none transition focus:ring-2 focus:ring-[#1F6B43]/25",
                   day.isSelected
                     ? "bg-[#1F6B43] text-white shadow-sm"
                     : "text-[#28372F] hover:bg-[#EAF3E8]",

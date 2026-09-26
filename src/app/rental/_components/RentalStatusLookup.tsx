@@ -7,7 +7,7 @@ import {
   formatRentalDateRange,
 } from "../_lib/rentalFormatting";
 import { rentalRepository } from "../_lib/rentalRepository";
-import { PHILIPPINE_MOBILE_PATTERN } from "../_lib/rentalValidation";
+import { normalizePhilippineMobile, PHILIPPINE_MOBILE_PATTERN } from "../_lib/rentalValidation";
 import type {
   PublicRentalInquiryStatus,
   RentalStatus,
@@ -41,8 +41,9 @@ export function RentalStatusLookup() {
 
   async function lookup(event: React.FormEvent) {
     event.preventDefault();
-    if (!PHILIPPINE_MOBILE_PATTERN.test(contact.trim())) {
-      setContactError("Use 09XXXXXXXXX or +639XXXXXXXXX.");
+    const normalizedContact = normalizePhilippineMobile(`+63${contact}`);
+    if (!PHILIPPINE_MOBILE_PATTERN.test(normalizedContact)) {
+      setContactError("Enter the 10-digit mobile number after +63.");
       return;
     }
     setContactError("");
@@ -50,7 +51,7 @@ export function RentalStatusLookup() {
     setSearched(false);
     try {
       setResult(
-        await rentalRepository.lookupRentalInquiry(reference, contact),
+        await rentalRepository.lookupRentalInquiry(reference, normalizedContact),
       );
     } finally {
       setLoading(false);
@@ -79,20 +80,25 @@ export function RentalStatusLookup() {
           </label>
           <label className="grid gap-2 text-sm font-bold text-[#365f4a]">
             Contact number used for booking
-            <input
-              required
-              inputMode="tel"
-              autoComplete="tel"
-              value={contact}
-              onChange={(event) => {
-                setContact(event.target.value);
-                if (contactError) setContactError("");
-              }}
-              placeholder="09XXXXXXXXX"
-              aria-invalid={Boolean(contactError)}
-              aria-describedby={contactError ? "rental-status-contact-error" : undefined}
-              className={`h-11 rounded-xl border px-3 font-normal outline-none focus:border-[#1f6b43] ${contactError ? "border-red-400" : "border-[#d5e1d0]"}`}
-            />
+            <div className={`flex h-11 overflow-hidden rounded-xl border bg-white focus-within:border-[#1f6b43] ${contactError ? "border-red-400" : "border-[#d5e1d0]"}`}>
+              <span className="flex min-w-[4.5rem] items-center justify-center border-r border-[#d5e1d0] bg-[#f7f3e8] px-3 text-sm font-bold text-[#365f4a]">+63</span>
+              <input
+                required
+                inputMode="tel"
+                autoComplete="tel"
+                value={contact}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "").replace(/^63/, "").replace(/^0/, "").slice(0, 10);
+                  setContact(digits);
+                  if (contactError) setContactError("");
+                }}
+                placeholder="9171234567"
+                maxLength={10}
+                aria-invalid={Boolean(contactError)}
+                aria-describedby={contactError ? "rental-status-contact-error" : undefined}
+                className="min-w-0 flex-1 border-0 px-3 font-normal outline-none"
+              />
+            </div>
             {contactError ? (
               <span id="rental-status-contact-error" className="text-xs font-semibold text-red-700">
                 {contactError}

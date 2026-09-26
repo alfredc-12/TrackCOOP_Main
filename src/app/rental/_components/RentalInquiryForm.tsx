@@ -37,6 +37,8 @@ import {
 } from "../_types/rental";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 const ClientBookingSchema = BookingSchema.safeExtend({
   firstName: z.string().trim().min(2, "Enter your first name.").max(60, "First name must be 60 characters or fewer.").regex(PERSON_NAME_PATTERN, "Use letters, spaces, apostrophes, or hyphens only."),
@@ -144,6 +146,25 @@ export function RentalInquiryForm({
   const [blockedDatesError, setBlockedDatesError] = useState<string>();
   const [selectedFarmWork, setSelectedFarmWork] = useState("");
   const [otherFarmWork, setOtherFarmWork] = useState("");
+  const [contactDisplay, setContactDisplay] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([
+    "Nasugbu, Batangas",
+    "Lian, Batangas",
+    "Balayan, Batangas",
+    "Tagaytay City, Cavite",
+    "Batangas City, Batangas",
+    "Quezon City, Metro Manila",
+  ]);
+  const allBarangays = useMemo(() => {
+    const values = addressSuggestions
+      .filter((location) => location.split(",").length >= 3)
+      .filter((location) => {
+        const parts = location.split(",").map((part) => part.trim().toLowerCase());
+        return parts[1] === "nasugbu" && parts[2] === "batangas";
+      })
+      .map((location) => location.split(",")[0].trim());
+    return [...new Set(values.length ? values : BARANGAYS)].sort((a, b) => a.localeCompare(b));
+  }, [addressSuggestions]);
   const {
     register,
     reset,
@@ -152,6 +173,7 @@ export function RentalInquiryForm({
     clearErrors,
     trigger,
     control,
+    watch,
     getValues,
     formState: { errors },
   } = useForm<ClientFormValues>({
@@ -163,6 +185,30 @@ export function RentalInquiryForm({
       requesterType: member ? "Member" : "Public or Non-member",
     },
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refprovince.json"),
+      fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refcitymun.json"),
+      fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refbrgy.json"),
+    ]).then(async ([provinceResponse, cityResponse, barangayResponse]) => {
+      if (!provinceResponse.ok || !cityResponse.ok || !barangayResponse.ok || cancelled) return;
+      const provinces = (await provinceResponse.json()) as { RECORDS?: { provCode: string; provDesc: string }[] };
+      const cities = (await cityResponse.json()) as { RECORDS?: { provCode: string; citymunCode: string; citymunDesc: string }[] };
+      const barangays = (await barangayResponse.json()) as { RECORDS?: { provCode: string; citymunCode: string; brgyDesc: string }[] };
+      const titleCase = (value: string) => value.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+      const provinceNames = new Map((provinces.RECORDS ?? []).map((item) => [item.provCode, titleCase(item.provDesc)]));
+      const cityNames = new Map((cities.RECORDS ?? []).map((item) => [item.citymunCode, titleCase(item.citymunDesc)]));
+      const locations = [
+        ...(provinces.RECORDS ?? []).map((item) => titleCase(item.provDesc)),
+        ...(cities.RECORDS ?? []).map((item) => `${titleCase(item.citymunDesc)}, ${provinceNames.get(item.provCode) ?? ""}`),
+        ...(barangays.RECORDS ?? []).map((item) => `${titleCase(item.brgyDesc)}, ${cityNames.get(item.citymunCode) ?? ""}, ${provinceNames.get(item.provCode) ?? ""}`),
+      ].filter((location) => !location.includes(", ,"));
+      if (!cancelled) setAddressSuggestions([...new Set(locations)].sort((a, b) => a.localeCompare(b)));
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   const selectedServiceId = useWatch({ control, name: "serviceId" });
   const preferredDate = useWatch({ control, name: "preferredDate" });
@@ -492,29 +538,37 @@ export function RentalInquiryForm({
                 <input {...register("firstName")} autoComplete="given-name" maxLength={60} />
               </Field>
               <Field label="Last name" required error={errors.lastName?.message}>
-                <input {...register("lastName")} autoComplete="family-name" maxLength={60} />
+                <input {...register("lastName", { onBlur: () => void trigger("lastName") })} autoComplete="family-name" maxLength={60} />
               </Field>
             <Field
               label="Contact number"
               required
-              hint="Example: 09171234567"
+              hint="Format: +63 9XXXXXXXXX"
               error={errors.contactNumber?.message}
             >
-              <input
-                {...register("contactNumber", {
-                  onBlur: (event) => {
-                    setValue(
-                      "contactNumber",
-                      normalizePhilippineMobile(event.target.value),
-                      { shouldValidate: true },
-                    );
-                  },
-                })}
+              <div className="flex overflow-hidden rounded-xl border border-[#d5e1d0] bg-white focus-within:border-[#1f6b43] focus-within:ring-4 focus-within:ring-[#1f6b43]/10">
+                <span className="flex min-w-[4.5rem] items-center justify-center border-r border-[#d5e1d0] bg-[#f7f3e8] px-3 text-sm font-bold text-[#365f4a]">+63</span>
+                <input
+                  value={contactDisplay}
+                  onChange={(event) => {
+                    const raw = event.target.value.replace(/\D/g, "");
+                    const localDigits = raw.startsWith("63")
+                      ? raw.slice(2)
+                      : raw.startsWith("0")
+                        ? raw.slice(1)
+                        : raw;
+                    const next = localDigits.slice(0, 10);
+                    setContactDisplay(next);
+                    setValue("contactNumber", next ? `+63${next}` : "", { shouldValidate: true });
+                  }}
+                  onBlur={() => setValue("contactNumber", contactDisplay ? `+63${contactDisplay}` : "", { shouldValidate: true })}
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="09XXXXXXXXX"
-                maxLength={16}
-              />
+                  placeholder="9171234567"
+                  maxLength={10}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-4 text-base outline-none"
+                />
+              </div>
             </Field>
             <Field label="Email (optional)" hint="Leave blank if you prefer SMS updates." error={errors.email?.message}>
               <input
@@ -531,26 +585,29 @@ export function RentalInquiryForm({
               error={errors.completeAddress?.message}
               wide
             >
-              <input {...register("completeAddress")} autoComplete="street-address" maxLength={250} placeholder="House or sitio, street, barangay" />
+              <AddressAutocomplete
+                value={watch("completeAddress") || ""}
+                suggestions={addressSuggestions}
+                error={errors.completeAddress?.message}
+                onChange={(value) => setValue("completeAddress", value, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             <Field label="Barangay" required error={errors.barangay?.message}>
-              <select {...register("barangay")}>
-                <option value="">Select barangay</option>
-                {BARANGAYS.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
+              <StyledSelect
+                value={watch("barangay") || "Select barangay"}
+                options={["Select barangay", ...allBarangays]}
+                onChange={(value) => setValue("barangay", value === "Select barangay" ? "" : value, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             <Field label="Municipality" required error={errors.municipality?.message}>
               <input {...register("municipality")} maxLength={100} readOnly className="bg-[#f1f4ef]" />
             </Field>
             <Field label="Valid ID type" required error={errors.validIdType?.message}>
-              <select {...register("validIdType")}>
-                <option value="">Select valid ID type</option>
-                {VALID_ID_TYPES.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </select>
+              <StyledSelect
+                value={watch("validIdType") || "Select valid ID type"}
+                options={["Select valid ID type", ...VALID_ID_TYPES]}
+                onChange={(value) => setValue("validIdType", value === "Select valid ID type" ? "" : value, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             <UploadField
               label="Valid ID file"
@@ -617,14 +674,11 @@ export function RentalInquiryForm({
                 error={errors.serviceId?.message}
                 wide
               >
-                <select {...register("serviceId")}>
-                  <option value="">Select equipment</option>
-                  {services.map((service) => (
-                    <option value={service.serviceId} key={service.serviceId}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
+                <StyledSelect
+                  value={services.find((service) => service.serviceId === selectedServiceId)?.name || "Select equipment"}
+                  options={["Select equipment", ...services.map((service) => service.name)]}
+                  onChange={(value) => setValue("serviceId", services.find((service) => service.name === value)?.serviceId ?? "", { shouldDirty: true, shouldValidate: true })}
+                />
               </Field>
             )}
             <FarmWorkField
@@ -642,20 +696,20 @@ export function RentalInquiryForm({
                   required
                   error={errors.preferredDate?.message}
                 >
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Start date"
+                    hideLabel
+                    value={preferredDate}
                     min={todayKey()}
-                    {...register("preferredDate", {
-                      onChange: (event) => {
-                        const date = event.target.value;
-                        const currentEndDate = getValues("preferredEndDate");
-                        if (!currentEndDate || currentEndDate < date) {
-                          setValue("preferredEndDate", date, {
-                            shouldValidate: true,
-                          });
-                        }
-                      },
-                    })}
+                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    placeholder="Select start date"
+                    onChange={(date) => {
+                      setValue("preferredDate", date, { shouldValidate: true });
+                      const currentEndDate = getValues("preferredEndDate");
+                      if (!currentEndDate || currentEndDate < date) {
+                        setValue("preferredEndDate", date, { shouldValidate: true });
+                      }
+                    }}
                   />
                 </Field>
                 <Field
@@ -663,10 +717,14 @@ export function RentalInquiryForm({
                   required
                   error={errors.preferredEndDate?.message}
                 >
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="End date"
+                    hideLabel
+                    value={preferredEndDate}
                     min={preferredDate || todayKey()}
-                    {...register("preferredEndDate")}
+                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    placeholder="Select end date"
+                    onChange={(date) => setValue("preferredEndDate", date, { shouldValidate: true })}
                   />
                 </Field>
               </div>
@@ -905,23 +963,11 @@ function FarmWorkField({
         What farm work will you do? <span className="text-red-700">*</span>
       </span>
       <div className="grid gap-3">
-        <select
-          value={selected}
-          onChange={(event) => onChange(event.target.value)}
-          className={`min-h-12 rounded-xl border bg-white px-3.5 py-2.5 text-sm font-normal text-[#17211c] outline-none transition focus:ring-4 ${
-            error
-              ? "border-red-400 focus:border-red-600 focus:ring-red-100"
-              : "border-[#cfd9d2] hover:border-[#aebdb3] focus:border-[#168046] focus:ring-[#168046]/10"
-          }`}
-        >
-          <option value="">Select farm work</option>
-          {FARM_WORK_OPTIONS.map((work) => (
-            <option key={work} value={work}>
-              {work}
-            </option>
-          ))}
-          <option value={OTHER_FARM_WORK}>{OTHER_FARM_WORK}</option>
-        </select>
+        <StyledSelect
+          value={selected || "Select farm work"}
+          options={["Select farm work", ...FARM_WORK_OPTIONS, OTHER_FARM_WORK]}
+          onChange={(value) => onChange(value === "Select farm work" ? "" : value)}
+        />
         {otherSelected ? (
           <input
             value={otherValue}
@@ -939,6 +985,55 @@ function FarmWorkField({
       ) : (
         <span className="text-xs font-semibold text-red-700">{error}</span>
       )}
+    </div>
+  );
+}
+
+function AddressAutocomplete({
+  value,
+  suggestions,
+  error,
+  onChange,
+}: {
+  value: string;
+  suggestions: string[];
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const query = value.trim().toLowerCase();
+  const matches = query.length < 2
+    ? []
+    : suggestions
+      .filter((location) => location.toLowerCase().includes(query))
+      .slice(0, 8);
+
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        autoComplete="street-address"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="rental-address-suggestions"
+        aria-expanded={open && matches.length > 0}
+        aria-invalid={Boolean(error)}
+        maxLength={250}
+        placeholder="Search barangay, municipality, or enter house/street"
+        className="mt-1 h-12 w-full rounded-xl border border-[#DDE8D8] bg-white px-4 text-base font-normal text-[#123D2A] outline-none transition placeholder:text-[#9AA8A0] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+      />
+      {open && matches.length > 0 ? (
+        <div id="rental-address-suggestions" role="listbox" className="absolute inset-x-0 top-[calc(100%+6px)] z-50 max-h-64 overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+          {matches.map((location) => (
+            <button key={location} type="button" role="option" aria-selected={location === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(location); setOpen(false); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A]">
+              {location}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1054,7 +1149,7 @@ function ConsentField({
   children: React.ReactNode;
 }) {
   return (
-    <label className={`rounded-xl border bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec] ${error ? "border-red-400" : "border-[#e1e8e2]"}`}>
+    <label className={`block w-full rounded-xl border bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec] ${error ? "border-red-400" : "border-[#e1e8e2]"}`}>
       <span className="flex items-start gap-3">{children}</span>
       {error ? <span className="mt-2 block text-xs font-semibold text-red-700">{error}</span> : null}
     </label>
