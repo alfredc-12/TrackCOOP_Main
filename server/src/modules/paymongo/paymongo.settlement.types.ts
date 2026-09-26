@@ -58,6 +58,7 @@ export type MembershipApplicationSettlementRow = RowDataPacket & {
   requestedMembershipType: "Associate" | "True Member";
   convertedMemberId: string | null;
   memberUserId: string | null;
+  email: string | null;
   fullName: string;
 };
 export type RequirementSettlementRow = RowDataPacket & {

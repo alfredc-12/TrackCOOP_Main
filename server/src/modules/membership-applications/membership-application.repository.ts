@@ -131,6 +131,8 @@ type SummaryRow = RowDataPacket & {
   submitted: number;
   underReview: number;
   needsInformation: number;
+  paymentRequired: number;
+  paymentConfirmed: number;
   approved: number;
   rejected: number;
   withdrawn: number;
@@ -153,7 +155,7 @@ const membershipSettingKeys = [
 
 const defaultSettings: MembershipSettings = {
   associateFee: 200,
-  initialShareCapital: 1500,
+  initialShareCapital: 3000,
   trueMemberRequiredCapital: 3000,
   maximumShareCapital: 15000,
   shareCapitalDeadlineMonths: 12,
@@ -174,8 +176,10 @@ const listSortColumns: Record<ChairmanApplicationListQuery["sortBy"], string> = 
 
 const allowedTransitions: Record<MembershipApplicationStatus, MembershipApplicationStatus[]> = {
   Submitted: ["Under Review", "Needs Information", "Rejected", "Withdrawn"],
-  "Under Review": ["Needs Information", "Rejected", "Withdrawn", "Approved"],
+  "Under Review": ["Needs Information", "Rejected", "Withdrawn", "Payment Required"],
   "Needs Information": ["Under Review", "Withdrawn"],
+  "Payment Required": ["Needs Information", "Rejected", "Withdrawn", "Payment Confirmed"],
+  "Payment Confirmed": ["Rejected", "Withdrawn", "Approved"],
   Approved: [],
   Rejected: [],
   Withdrawn: [],
@@ -900,6 +904,8 @@ export function createMembershipApplicationRepository(
                 SUM(application_status = 'Submitted') AS submitted,
                 SUM(application_status = 'Under Review') AS underReview,
                 SUM(application_status = 'Needs Information') AS needsInformation,
+                SUM(application_status = 'Payment Required') AS paymentRequired,
+                SUM(application_status = 'Payment Confirmed') AS paymentConfirmed,
                 SUM(application_status = 'Approved') AS approved,
                 SUM(application_status = 'Rejected') AS rejected,
                 SUM(application_status = 'Withdrawn') AS withdrawn
@@ -911,6 +917,8 @@ export function createMembershipApplicationRepository(
         submitted: Number(row?.submitted ?? 0),
         underReview: Number(row?.underReview ?? 0),
         needsInformation: Number(row?.needsInformation ?? 0),
+        paymentRequired: Number(row?.paymentRequired ?? 0),
+        paymentConfirmed: Number(row?.paymentConfirmed ?? 0),
         approved: Number(row?.approved ?? 0),
         rejected: Number(row?.rejected ?? 0),
         withdrawn: Number(row?.withdrawn ?? 0),
@@ -1690,9 +1698,9 @@ export function createMembershipApplicationRepository(
         );
         const application = rows[0];
         if (!application) throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
-        if (application.applicationStatus !== "Under Review") {
+        if (application.applicationStatus !== "Payment Confirmed") {
           throw new AppError(
-            "Only applications under review can be approved",
+            "Only applications with confirmed payment can be approved",
             409,
             "MEMBERSHIP_APPLICATION_APPROVAL_STATUS_INVALID",
           );
@@ -1819,7 +1827,7 @@ export function createMembershipApplicationRepository(
         if (application.requestedMembershipType === "True Member") {
           if (validatedCapital < input.settings.initialShareCapital) {
             throw new AppError(
-              "At least PHP 1,500 validated initial share capital is required",
+              `At least PHP ${input.settings.initialShareCapital.toLocaleString("en-US")} validated initial share capital is required`,
               409,
               "INITIAL_SHARE_CAPITAL_INCOMPLETE",
             );
@@ -1983,7 +1991,7 @@ export function createMembershipApplicationRepository(
         await connection.execute(
           `INSERT INTO membership_application_status_history
              (membership_application_id, old_status, new_status, internal_note, applicant_message, changed_by)
-           VALUES (?, 'Under Review', 'Approved', ?, 'Your membership application was approved.', ?)`,
+           VALUES (?, 'Payment Confirmed', 'Approved', ?, 'Your membership application was approved.', ?)`,
           [input.applicationId, input.approval.decisionReason, input.auth.user.id],
         );
         await connection.execute(

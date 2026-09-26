@@ -9,8 +9,6 @@ import type {
 } from "./paymongo.types";
 import { roundMoney, type MembershipRequirementStatus } from "./paymongo.membership-installment.rules";
 
-const terminalApplicationStatuses = new Set(["Approved", "Rejected", "Withdrawn"]);
-
 export type PaymentReferenceRow = RowDataPacket & {
   id: string;
   memberId: string | null;
@@ -117,9 +115,9 @@ export async function lockApplication(
       "MEMBERSHIP_APPLICATION_NOT_FOUND",
     );
   }
-  if (terminalApplicationStatuses.has(row.applicationStatus)) {
+  if (row.applicationStatus !== "Payment Required") {
     throw new AppError(
-      "This membership application is not eligible for online payment",
+      "The Chairman must approve this application for payment before checkout can start",
       409,
       "MEMBERSHIP_APPLICATION_PAYMENT_NOT_ELIGIBLE",
     );

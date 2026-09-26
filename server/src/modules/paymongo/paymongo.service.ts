@@ -106,9 +106,9 @@ function assertCanAccessPayment(record: PaymongoPaymentReferenceRecord, auth: Au
 }
 
 function assertApplicationCanStartCheckout(application: PaymongoMembershipApplicationRecord) {
-  if (["Approved", "Rejected", "Withdrawn"].includes(application.applicationStatus)) {
+  if (application.applicationStatus !== "Payment Required") {
     throw new AppError(
-      "This membership application is not eligible for online payment",
+      "The Chairman must approve this application for payment before checkout can start",
       409,
       "MEMBERSHIP_APPLICATION_PAYMENT_NOT_ELIGIBLE",
     );

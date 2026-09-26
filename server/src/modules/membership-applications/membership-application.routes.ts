@@ -205,6 +205,11 @@ export function createMembershipApplicationRouter(
     ...chairmanOnly,
     controller.requestInformation,
   );
+  router.post(
+    "/membership-applications/:id/approve-for-payment",
+    ...chairmanOnly,
+    controller.approveForPayment,
+  );
   router.post("/membership-applications/:id/reject", ...chairmanOnly, controller.reject);
   router.post("/membership-applications/:id/withdraw", ...chairmanOnly, controller.withdraw);
   router.post(

@@ -104,7 +104,7 @@ class FakeMembershipApplicationRepository {
   }
 
   async hasRecentDuplicate(input: PublicMembershipApplicationInput) {
-    assert.equal(input.contactNumber, "09171234567");
+    assert.equal(input.contactNumber, "9171234567");
     assert.equal(input.email, "applicant@example.test");
     return this.duplicate;
   }
@@ -212,7 +212,7 @@ function validApplicationPayload() {
     lastName: "Santos",
     suffix: "",
     email: "Applicant@Example.Test",
-    contactNumber: "0917 123 4567",
+    contactNumber: "9171234567",
     civilStatus: "Married",
     placeOfBirth: "Nasugbu, Batangas",
     dateOfBirth: "1990-01-15",
@@ -357,7 +357,17 @@ class FakeChairmanService {
     throw new Error("not used");
   }
   async summary() {
-    return { total: 1, submitted: 1, underReview: 0, needsInformation: 0, approved: 0, rejected: 0, withdrawn: 0 };
+    return {
+      total: 1,
+      submitted: 1,
+      underReview: 0,
+      needsInformation: 0,
+      paymentRequired: 0,
+      paymentConfirmed: 0,
+      approved: 0,
+      rejected: 0,
+      withdrawn: 0,
+    };
   }
   async list(query: ChairmanApplicationListQuery) {
     this.lastQuery = query;
@@ -408,6 +418,13 @@ class FakeChairmanService {
     this.status = "Needs Information";
     return detail(this.status);
   }
+  async approveForPayment() {
+    if (this.status !== "Under Review") {
+      throw new AppError("Invalid transition", 409, "MEMBERSHIP_APPLICATION_STATUS_INVALID");
+    }
+    this.status = "Payment Required";
+    return detail(this.status);
+  }
   async reject() {
     this.status = "Rejected";
     return detail(this.status);
@@ -420,7 +437,7 @@ class FakeChairmanService {
     const failures = {
       orientation: ["Orientation must be verified before approval", "MEMBERSHIP_ORIENTATION_INCOMPLETE"],
       fee: ["The PHP 200 associate membership fee has not been validated", "MEMBERSHIP_FEE_INCOMPLETE"],
-      trueBelow: ["At least PHP 1,500 validated initial share capital is required", "INITIAL_SHARE_CAPITAL_INCOMPLETE"],
+      trueBelow: ["At least PHP 3,000 validated initial share capital is required", "INITIAL_SHARE_CAPITAL_INCOMPLETE"],
       conflict: ["A conflicting user account already exists", "MEMBERSHIP_ACCOUNT_CONFLICT"],
       repeat: ["This application has already been converted to a member profile", "MEMBERSHIP_APPLICATION_ALREADY_CONVERTED"],
       maxCapital: ["Validated share capital cannot exceed PHP 15,000", "SHARE_CAPITAL_MAXIMUM_EXCEEDED"],
@@ -669,11 +686,18 @@ test("GET and PATCH /api/membership-applications/:id support Chairman detail and
   const updateResponse = await request(app)
     .patch("/api/membership-applications/1")
     .set("Cookie", "trackcoop_session=opaque-cookie-value")
-    .send({ firstName: "Maria", middleName: "R.", lastName: "Santos", contactNumber: "0917 000 0000" });
+    .send({
+      firstName: "Maria",
+      middleName: "R.",
+      lastName: "Santos",
+      contactNumber: "9170000000",
+      fatherName: "Juan Santos",
+      motherName: "Rosa Santos",
+    });
 
   assert.equal(updateResponse.status, 200);
   assert.equal(updateResponse.body.data.fullName, "Maria R. Santos");
-  assert.equal(service.lastUpdate?.contactNumber, "0917 000 0000");
+  assert.equal(service.lastUpdate?.contactNumber, "9170000000");
 });
 
 test("Chairman status transitions enforce valid paths and required reasons", async () => {

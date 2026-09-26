@@ -3,24 +3,34 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Select from "@radix-ui/react-select";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
+  CalendarDays,
   Check,
+  CheckCircle2,
+  ClipboardCheck,
   FileUp,
+  Home,
   Loader2,
+  Mail,
+  MapPin,
   PenLine,
   RotateCcw,
   Send,
   UploadCloud,
+  UserRound,
+  UsersRound,
+  WalletCards,
   X,
   ChevronDown,
   Check as SelectCheck,
 } from "lucide-react";
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type PointerEvent,
@@ -57,13 +67,14 @@ import {
 import { ApplicationProgress } from "./ApplicationProgress";
 import { ApplicationSuccess } from "./ApplicationSuccess";
 import { BeneficiaryFields } from "./BeneficiaryFields";
-import { CommitmentReview, ReviewSummary } from "./CommitmentReview";
+import { CommitmentReview } from "./CommitmentReview";
 
 const draftKey = "trackcoop.membershipApplicationDraft.v1";
 const maxUploadBytes = 5 * 1024 * 1024;
 const allowedUploadTypes = ["application/pdf", "image/jpeg", "image/png"];
 const allowedUploadExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
 const occupationOptions = ["Farmer", "Fisherfolk", "Entrepreneur", "Government employee", "Private employee", "Self-employed", "Student", "Retired", "Unemployed"] as const;
+const motionEase = [0.22, 1, 0.36, 1] as const;
 
 function formatLocationName(value: string) {
   return value
@@ -221,7 +232,6 @@ const defaultValues: MembershipApplicationFormValues = {
 
 const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
   [
-    "requestedMembershipType",
     "firstName",
     "middleName",
     "lastName",
@@ -231,6 +241,9 @@ const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
     "civilStatus",
     "placeOfBirth",
     "dateOfBirth",
+    "occupation",
+  ],
+  [
     "currentAddress",
     "barangay",
     "municipality",
@@ -238,10 +251,10 @@ const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
     "fatherName",
     "motherName",
     "spouseName",
-    "occupation",
+    "beneficiaries",
   ],
-  ["beneficiaries"],
   [
+    "requestedMembershipType",
     "orientationCommitmentAccepted",
     "membershipFeeCommitmentAccepted",
     "shareSubscriptionCommitmentAccepted",
@@ -251,11 +264,13 @@ const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
     "patronageRefundAcknowledged",
     "privacyConsentAccepted",
   ],
-  ["signedPlace", "signedAt", "finalConfirmation"],
+  ["signedPlace", "signedAt"],
+  ["finalConfirmation"],
 ];
 
 export function MembershipApplicationForm() {
   const [currentStep, setCurrentStep] = useState(0);
+  const [stepDirection, setStepDirection] = useState<1 | -1>(1);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
@@ -268,18 +283,9 @@ export function MembershipApplicationForm() {
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [signatureError, setSignatureError] = useState<string | null>(null);
 
-  const restoredDefaults = useMemo(() => {
-    if (typeof window === "undefined") return defaultValues;
-
-    const rawDraft = window.localStorage.getItem(draftKey);
-    if (!rawDraft) return defaultValues;
-
-    try {
-      return { ...defaultValues, ...JSON.parse(rawDraft), signedAt: defaultValues.signedAt };
-    } catch {
-      return defaultValues;
-    }
-  }, []);
+  const hasLoadedDraftRef = useRef(false);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const {
     register,
@@ -288,10 +294,11 @@ export function MembershipApplicationForm() {
     trigger,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<MembershipApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
-    defaultValues: restoredDefaults,
+    defaultValues,
     mode: "onBlur",
   });
 
@@ -302,6 +309,24 @@ export function MembershipApplicationForm() {
   const draftValues = useWatch({ control });
 
   useEffect(() => {
+    try {
+      const rawDraft = window.localStorage.getItem(draftKey);
+      if (rawDraft) {
+        reset({
+          ...defaultValues,
+          ...JSON.parse(rawDraft),
+          signedAt: defaultValues.signedAt,
+        });
+      }
+    } catch {
+      // Ignore corrupted drafts and keep the default application state.
+    } finally {
+      hasLoadedDraftRef.current = true;
+    }
+  }, [reset]);
+
+  useEffect(() => {
+    if (!hasLoadedDraftRef.current) return;
     if (submissionResult) return;
 
     const draft = { ...draftValues };
@@ -310,7 +335,6 @@ export function MembershipApplicationForm() {
   }, [draftValues, submissionResult]);
 
   useEffect(() => {
-    setIsOnline(navigator.onLine);
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener("online", handleOnline);
@@ -331,13 +355,32 @@ export function MembershipApplicationForm() {
     return () => window.removeEventListener("beforeunload", warnBeforeLeave);
   }, [isSubmittingApplication]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      stepHeadingRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+      stepHeadingRef.current?.focus({ preventScroll: true });
+    }, prefersReducedMotion ? 40 : 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentStep, prefersReducedMotion]);
+
+  const goToStep = (nextStep: number) => {
+    const clampedStep = Math.min(Math.max(nextStep, 0), stepFields.length - 1);
+    if (clampedStep === currentStep) return;
+    setStepDirection(clampedStep > currentStep ? 1 : -1);
+    setCurrentStep(clampedStep);
+  };
+
   const advanceStep = async () => {
     const valid = await trigger(stepFields[currentStep], { shouldFocus: true });
-    if (valid) setCurrentStep((step) => Math.min(step + 1, stepFields.length - 1));
+    if (valid) goToStep(currentStep + 1);
   };
 
   const goBack = () => {
-    setCurrentStep((step) => Math.max(step - 1, 0));
+    goToStep(currentStep - 1);
   };
 
   const onSubmit = async (values: MembershipApplicationFormValues) => {
@@ -419,6 +462,83 @@ export function MembershipApplicationForm() {
     ]);
   };
 
+  const viewTransition = prefersReducedMotion
+    ? { duration: 0.08 }
+    : { duration: 0.28, ease: motionEase };
+  const exitTransition = prefersReducedMotion
+    ? { duration: 0.06 }
+    : { duration: 0.16, ease: "easeIn" as const };
+  const stepContent = (() => {
+    if (currentStep === 0) {
+      return <PersonalInfoStep register={register} watch={watch} errors={errors} setValue={setValue} />;
+    }
+
+    if (currentStep === 1) {
+      return (
+        <FamilyStep
+          count={fields.length}
+          register={register}
+          watch={watch}
+          setValue={setValue}
+          errors={errors}
+          onAdd={() => append({ fullName: "", relationship: "", age: "", birthDate: "" })}
+          onRemove={remove}
+        />
+      );
+    }
+
+    if (currentStep === 2) {
+      return (
+        <MembershipStep
+          register={register}
+          watch={watch}
+          setValue={setValue}
+          errors={errors}
+        />
+      );
+    }
+
+    if (currentStep === 3) {
+      return (
+        <DocumentsSignatureStep
+          register={register}
+          watch={watch}
+          setValue={setValue}
+          errors={errors}
+          signatureMode={signatureMode}
+          signatureFile={signatureFile}
+          signatureError={signatureError}
+          onSignatureModeChange={(mode) => {
+            setSignatureMode(mode);
+            setSignatureError(null);
+            setSignatureFile(null);
+          }}
+          onSignatureChange={(file, error) => {
+            setSignatureFile(file);
+            setSignatureError(error);
+          }}
+          uploads={uploads}
+          addUpload={addUpload}
+          updateUpload={updateUpload}
+          removeUpload={(index) =>
+            setUploads((current) => current.filter((_, uploadIndex) => uploadIndex !== index))
+          }
+        />
+      );
+    }
+
+    return (
+      <FinalReviewStep
+        register={register}
+        watch={watch}
+        errors={errors}
+        uploads={uploads}
+        signatureFile={signatureFile}
+        onEditStep={goToStep}
+      />
+    );
+  })();
+
   if (submissionResult) {
     return (
       <ApplicationSuccess
@@ -434,73 +554,122 @@ export function MembershipApplicationForm() {
     <form
       onSubmit={handleSubmit(onSubmit)}
       aria-busy={isSubmittingApplication}
-      className="rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-8"
+      className="grid gap-6"
     >
-      {!isOnline ? (
-        <div role="status" aria-live="polite" className="mb-5 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-          You are offline. Your draft is saved, but submission will work after your connection returns.
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p className="text-sm font-black text-[#D8A011]">Membership Application</p>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.h2
+                key={currentStep}
+                ref={stepHeadingRef}
+                tabIndex={-1}
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                transition={viewTransition}
+                className="mt-2 scroll-mt-28 text-3xl font-black leading-tight tracking-normal text-[#123D2A] outline-none"
+              >
+                {applicationStepTitle(currentStep)}
+              </motion.h2>
+            </AnimatePresence>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+              Complete the current section. Payment is not required until NFFAC approves the application for payment.
+            </p>
+          </div>
+          <motion.div
+            layout
+            transition={viewTransition}
+            className="rounded-2xl border border-[#DDE8D8] bg-[#F8F1E5] px-4 py-3 text-sm font-bold text-[#365F4A]"
+          >
+            Step {currentStep + 1} of 5
+          </motion.div>
         </div>
-      ) : null}
+      </section>
+
+      <AnimatePresence initial={false}>
+        {!isOnline ? (
+          <motion.div
+            key="offline-alert"
+            role="status"
+            aria-live="polite"
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+            transition={exitTransition}
+            className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900"
+          >
+            <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+            You are offline. Your draft is saved, but submission will work after your connection returns.
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <ApplicationProgress currentStep={currentStep} />
 
-      <div className="mt-8 rounded-[1.5rem] bg-[#FFFAF2] p-4 ring-1 ring-[#E7DCC7] sm:p-6">
-        {currentStep === 0 ? (
-          <PersonalInfoStep register={register} watch={watch} errors={errors} setValue={setValue} />
-        ) : null}
+      <motion.div layout className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
+        <motion.div
+          layout
+          transition={viewTransition}
+          className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-7"
+        >
+          <AnimatePresence mode="wait" custom={stepDirection} initial={false}>
+            <motion.div
+              key={currentStep}
+              custom={stepDirection}
+              initial={
+                prefersReducedMotion
+                  ? { opacity: 0 }
+                  : {
+                      opacity: 0,
+                      x: stepDirection > 0 ? 10 : -10,
+                      y: stepDirection > 0 ? 6 : 0,
+                      filter: "blur(2px)",
+                    }
+              }
+              animate={{ opacity: 1, x: 0, y: 0, filter: "blur(0px)" }}
+              exit={
+                prefersReducedMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, y: -6, filter: "blur(1px)" }
+              }
+              transition={viewTransition}
+            >
+              {stepContent}
+            </motion.div>
+          </AnimatePresence>
+        </motion.div>
 
-        {currentStep === 1 ? (
-          <BeneficiaryFields
-            count={fields.length}
-            register={register}
-            watch={watch}
-            setValue={setValue}
-            errors={errors}
-            onAdd={() => append({ fullName: "", relationship: "", age: "", birthDate: "" })}
-            onRemove={remove}
-          />
-        ) : null}
-
-        {currentStep === 2 ? (
-          <CommitmentReview setValue={setValue} watch={watch} errors={errors} />
-        ) : null}
-
-        {currentStep === 3 ? (
-          <ReviewStep
-            register={register}
-            watch={watch}
-            setValue={setValue}
-            errors={errors}
-            signatureMode={signatureMode}
-            signatureFile={signatureFile}
-            signatureError={signatureError}
-            onSignatureModeChange={(mode) => {
-              setSignatureMode(mode);
-              setSignatureError(null);
-              setSignatureFile(null);
-            }}
-            onSignatureChange={(file, error) => {
-              setSignatureFile(file);
-              setSignatureError(error);
-            }}
+        <motion.div layout transition={viewTransition}>
+          <ApplicationSummaryRail
+            values={draftValues}
+            currentStep={currentStep}
             uploads={uploads}
-            addUpload={addUpload}
-            updateUpload={updateUpload}
-            removeUpload={(index) =>
-              setUploads((current) => current.filter((_, uploadIndex) => uploadIndex !== index))
-            }
+            signatureFile={signatureFile}
           />
+        </motion.div>
+      </motion.div>
+
+      <AnimatePresence initial={false}>
+        {submitError ? (
+          <motion.div
+            key="submit-error"
+            role="alert"
+            aria-live="assertive"
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+            transition={exitTransition}
+            className="mt-6 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"
+          >
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <div><p>{submitError}</p><p className="mt-1 font-semibold">Your entries are still here. Review the message, then try submitting again.</p></div>
+          </motion.div>
         ) : null}
-      </div>
+      </AnimatePresence>
 
-      {submitError ? (
-        <div role="alert" aria-live="assertive" className="mt-6 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <div><p>{submitError}</p><p className="mt-1 font-semibold">Your entries are still here. Review the message, then try submitting again.</p></div>
-        </div>
-      ) : null}
-
-      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[#DDE8D8] pt-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col-reverse gap-3 rounded-[1.5rem] border border-[#DDE8D8] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
           onClick={goBack}
@@ -511,27 +680,143 @@ export function MembershipApplicationForm() {
           Back
         </Button>
 
-        {currentStep < stepFields.length - 1 ? (
-          <Button
-            type="button"
-            onClick={advanceStep}
-            className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43]"
-          >
-            Continue
-            <ArrowRight className="size-4" />
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            disabled={isSubmittingApplication || !isOnline}
-            className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43]"
-          >
-            {isSubmittingApplication ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {isSubmittingApplication ? "Submitting..." : "Submit Application"}
-          </Button>
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          {currentStep < stepFields.length - 1 ? (
+            <motion.div
+              key="continue"
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={exitTransition}
+            >
+              <Button
+                type="button"
+                onClick={advanceStep}
+                className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43] active:scale-[0.98]"
+              >
+                Continue
+                <ArrowRight className="size-4" />
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="submit"
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={exitTransition}
+            >
+              <Button
+                type="submit"
+                disabled={isSubmittingApplication || !isOnline}
+                className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43] active:scale-[0.98]"
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  {isSubmittingApplication ? (
+                    <motion.span
+                      key="loader"
+                      initial={{ opacity: 0, scale: 0.92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.92 }}
+                      transition={{ duration: prefersReducedMotion ? 0.05 : 0.12 }}
+                    >
+                      <Loader2 className="size-4 animate-spin" />
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="send"
+                      initial={{ opacity: 0, scale: 0.92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.92 }}
+                      transition={{ duration: prefersReducedMotion ? 0.05 : 0.12 }}
+                    >
+                      <Send className="size-4" />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                {isSubmittingApplication ? "Submitting..." : "Submit Membership Application"}
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </form>
+  );
+}
+
+function applicationStepTitle(step: number) {
+  return ["About You", "Address & Family", "Membership", "Documents & Signature", "Review & Submit"][step] ?? "Membership Application";
+}
+
+function ApplicationSummaryRail({
+  values,
+  currentStep,
+  uploads,
+  signatureFile,
+}: {
+  values: {
+    requestedMembershipType?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  currentStep: number;
+  uploads: DocumentUploadDraft[];
+  signatureFile: File | null;
+}) {
+  const membershipPath = values.requestedMembershipType ?? "Associate";
+  const completed = currentStep + 1;
+  const namedApplicant = [values.firstName, values.lastName].filter(Boolean).join(" ");
+
+  return (
+    <aside className="sticky top-24 grid gap-4 self-start">
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-[0_18px_42px_rgba(18,61,42,0.08)]">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f4b62a]">
+          Your Application
+        </p>
+        <h3 className="mt-3 text-xl font-black text-[#123D2A]">
+          {namedApplicant || "New applicant"}
+        </h3>
+        <dl className="mt-5 grid gap-4 text-sm">
+          <SummaryMetric label="Membership Path" value={membershipPath} />
+          <SummaryMetric label="Required Share Capital" value={membershipPath === "True Member" ? "PHP 3,000" : "Not required yet"} />
+          <SummaryMetric label="Payment" value="Not required yet" />
+          <SummaryMetric label="Progress" value={`${completed} of 5 sections active`} />
+          <SummaryMetric label="Documents" value={`${uploads.filter((upload) => upload.file).length} ready`} />
+          <SummaryMetric label="Signature" value={signatureFile ? "Ready" : "Needed"} />
+        </dl>
+      </section>
+    </aside>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-[#EEF2EC] pb-3 last:border-b-0 last:pb-0">
+      <dt className="text-[#5D6D63]">{label}</dt>
+      <dd className="text-right font-black text-[#123D2A]">{value}</dd>
+    </div>
+  );
+}
+
+function ApplicationFieldGroup({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: typeof UserRound;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#FFFAF2] p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid size-9 place-items-center rounded-full bg-white text-[#1F6B43] shadow-sm">
+          <Icon className="size-4" />
+        </span>
+        <h3 className="text-base font-black text-[#123D2A]">{title}</h3>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">{children}</div>
+    </section>
   );
 }
 
@@ -549,12 +834,8 @@ function PersonalInfoStep({
   const civilStatus = watch("civilStatus");
   const occupation = watch("occupation");
   const isOtherOccupation = Boolean(occupation) && !occupationOptions.includes(occupation as (typeof occupationOptions)[number]);
-  const [showOtherOccupation, setShowOtherOccupation] = useState(false);
+  const [showOtherOccupation, setShowOtherOccupation] = useState(isOtherOccupation);
   const [placeSuggestions, setPlaceSuggestions] = useState<string[]>(["Batangas City, Batangas", "Lipa City, Batangas", "Manila, Metro Manila", "Quezon City, Metro Manila", "Cebu City, Cebu", "Davao City, Davao del Sur"]);
-
-  useEffect(() => {
-    if (isOtherOccupation) setShowOtherOccupation(true);
-  }, [isOtherOccupation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -590,45 +871,33 @@ function PersonalInfoStep({
     if (civilStatus !== "Married") setValue("spouseName", "");
   }, [civilStatus, setValue]);
 
-  function handleCurrentAddressChange(value: string) {
-    setValue("currentAddress", value, { shouldDirty: true, shouldValidate: true });
-
-    // Location suggestions use: Barangay, Municipality, Province.
-    // Copy the structured parts into their matching fields when a suggestion is chosen.
-    const parts = value.split(",").map((part) => part.trim()).filter(Boolean);
-    if (parts.length >= 3) {
-      setValue("barangay", parts[0], { shouldDirty: true, shouldValidate: true });
-      setValue("municipality", parts[1], { shouldDirty: true, shouldValidate: true });
-      setValue("province", parts.slice(2).join(", "), { shouldDirty: true, shouldValidate: true });
-    } else if (parts.length === 2) {
-      setValue("municipality", parts[0], { shouldDirty: true, shouldValidate: true });
-      setValue("province", parts[1], { shouldDirty: true, shouldValidate: true });
-    }
-  }
-
   return (
     <div className="grid gap-5">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
-          Personal Information
-        </p>
-        <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
-          Applicant details
-        </h2>
+      <div className="flex items-start gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+          <UserRound className="size-6" />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
+            About You
+          </p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+            Tell us who is applying.
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+            Use the applicant legal name and reachable contact details. Payment is not requested in this step.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
-          {requestedMembershipTypes.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </SelectField>
+      <ApplicationFieldGroup icon={UserRound} title="Name">
         <TextField label="First name" error={errors.firstName?.message} inputProps={register("firstName")} />
         <TextField label="Middle name (optional)" error={errors.middleName?.message} inputProps={register("middleName")} />
         <TextField label="Last name" error={errors.lastName?.message} inputProps={register("lastName")} />
         <TextField label="Suffix (optional)" error={errors.suffix?.message} inputProps={register("suffix")} />
+      </ApplicationFieldGroup>
+
+      <ApplicationFieldGroup icon={Mail} title="Contact information">
         <TextField label="Email" required type="email" error={errors.email?.message} inputProps={register("email")} />
         <TextField
           label="Contact number"
@@ -641,6 +910,9 @@ function PersonalInfoStep({
           maxLength={10}
           placeholder="9171234567"
         />
+      </ApplicationFieldGroup>
+
+      <ApplicationFieldGroup icon={CalendarDays} title="Personal details">
         <StyledOptionSelect
           label="Civil status"
           value={watch("civilStatus") || ""}
@@ -648,21 +920,6 @@ function PersonalInfoStep({
           error={errors.civilStatus?.message}
           onChange={(value) => setValue("civilStatus", value as typeof civilStatuses[number], { shouldDirty: true, shouldValidate: true })}
         />
-        {showOtherOccupation ? (
-          <div className="relative">
-            <TextField label="Occupation" error={errors.occupation?.message} inputProps={register("occupation")} placeholder="Type your occupation" className="[&_input]:pr-36" />
-            <button type="button" onClick={() => { setShowOtherOccupation(false); setValue("occupation", "", { shouldDirty: true }); }} className="absolute right-4 top-[3.4rem] -translate-y-1/2 text-xs font-bold text-[#1F6B43] underline">Choose from list</button>
-          </div>
-        ) : (
-          <OccupationSelect
-          value={occupationOptions.includes(occupation as (typeof occupationOptions)[number]) ? occupation ?? "" : ""}
-            error={errors.occupation?.message}
-            onChange={(value) => {
-              setShowOtherOccupation(value === "Other");
-              setValue("occupation", value === "Other" ? "" : value, { shouldDirty: true, shouldValidate: true });
-            }}
-          />
-        )}
         <PlaceOfBirthField value={watch("placeOfBirth") || ""} error={errors.placeOfBirth?.message} suggestions={placeSuggestions} onChange={(value) => setValue("placeOfBirth", value, { shouldDirty: true, shouldValidate: true })} />
         <div>
           <input type="hidden" {...register("dateOfBirth")} />
@@ -682,28 +939,169 @@ function PersonalInfoStep({
             error={errors.dateOfBirth?.message}
           />
         </div>
-        <PlaceOfBirthField
-          label="Current address"
-          value={watch("currentAddress") || ""}
-          error={errors.currentAddress?.message}
-          suggestions={placeSuggestions}
-          placeholder="Search or enter your address"
-          onChange={handleCurrentAddressChange}
-        />
-        <TextField label="Barangay" error={errors.barangay?.message} inputProps={register("barangay")} />
-        <TextField label="Municipality" error={errors.municipality?.message} inputProps={register("municipality")} />
-        <TextField label="Province" error={errors.province?.message} inputProps={register("province")} />
-        <TextField label="Father name" error={errors.fatherName?.message} inputProps={register("fatherName")} />
-        <TextField label="Mother name" error={errors.motherName?.message} inputProps={register("motherName")} />
-        {civilStatus === "Married" ? (
-          <TextField label="Spouse name" error={errors.spouseName?.message} inputProps={register("spouseName")} />
-        ) : null}
-      </div>
+      </ApplicationFieldGroup>
+
+      <ApplicationFieldGroup icon={BadgeCheck} title="Occupation">
+        {showOtherOccupation ? (
+          <div className="relative md:col-span-2">
+            <TextField label="Occupation" error={errors.occupation?.message} inputProps={register("occupation")} placeholder="Type your occupation" className="[&_input]:pr-36" />
+            <button type="button" onClick={() => { setShowOtherOccupation(false); setValue("occupation", "", { shouldDirty: true }); }} className="absolute right-4 top-[3.4rem] -translate-y-1/2 text-xs font-bold text-[#1F6B43] underline">Choose from list</button>
+          </div>
+        ) : (
+          <OccupationSelect
+            value={occupationOptions.includes(occupation as (typeof occupationOptions)[number]) ? occupation ?? "" : ""}
+            error={errors.occupation?.message}
+            onChange={(value) => {
+              setShowOtherOccupation(value === "Other");
+              setValue("occupation", value === "Other" ? "" : value, { shouldDirty: true, shouldValidate: true });
+            }}
+          />
+        )}
+      </ApplicationFieldGroup>
     </div>
   );
 }
 
-function ReviewStep({
+function FamilyStep({
+  count,
+  register,
+  watch,
+  setValue,
+  errors,
+  onAdd,
+  onRemove,
+}: {
+  count: number;
+  register: UseFormRegister<MembershipApplicationFormValues>;
+  watch: UseFormWatch<MembershipApplicationFormValues>;
+  setValue: UseFormSetValue<MembershipApplicationFormValues>;
+  errors: FieldErrors<MembershipApplicationFormValues>;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+}) {
+  const civilStatus = watch("civilStatus");
+
+  return (
+    <div className="grid gap-5">
+      <div className="flex items-start gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+          <Home className="size-6" />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
+            Address & Family
+          </p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+            Household and beneficiary details.
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+            This helps the cooperative identify the applicant and prepare records after approval.
+          </p>
+        </div>
+      </div>
+
+      <ApplicationFieldGroup icon={MapPin} title="Current address">
+        <TextField label="Current address" error={errors.currentAddress?.message} inputProps={register("currentAddress")} className="md:col-span-2" />
+        <TextField label="Barangay" error={errors.barangay?.message} inputProps={register("barangay")} />
+        <TextField label="Municipality" error={errors.municipality?.message} inputProps={register("municipality")} />
+        <TextField label="Province" error={errors.province?.message} inputProps={register("province")} />
+      </ApplicationFieldGroup>
+
+      <ApplicationFieldGroup icon={UsersRound} title="Family">
+        <TextField label="Father name" error={errors.fatherName?.message} inputProps={register("fatherName")} />
+        <TextField label="Mother name" error={errors.motherName?.message} inputProps={register("motherName")} />
+        {civilStatus === "Married" ? (
+          <TextField label="Spouse name" error={errors.spouseName?.message} inputProps={register("spouseName")} className="md:col-span-2" />
+        ) : (
+          <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#5D6D63] md:col-span-2">
+            Spouse information appears when civil status is set to Married.
+          </div>
+        )}
+      </ApplicationFieldGroup>
+
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-4 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-black text-[#123D2A]">Beneficiaries</h3>
+            <p className="mt-1 text-sm text-[#5D6D63]">Add people connected to the applicant record.</p>
+          </div>
+        </div>
+        <BeneficiaryFields
+          count={count}
+          register={register}
+          watch={watch}
+          setValue={setValue}
+          errors={errors}
+          onAdd={onAdd}
+          onRemove={onRemove}
+        />
+      </section>
+    </div>
+  );
+}
+
+function MembershipStep({
+  register,
+  watch,
+  setValue,
+  errors,
+}: {
+  register: UseFormRegister<MembershipApplicationFormValues>;
+  watch: UseFormWatch<MembershipApplicationFormValues>;
+  setValue: UseFormSetValue<MembershipApplicationFormValues>;
+  errors: FieldErrors<MembershipApplicationFormValues>;
+}) {
+  const membershipType = watch("requestedMembershipType");
+
+  return (
+    <div className="grid gap-5">
+      <div className="flex items-start gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+          <WalletCards className="size-6" />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
+            Membership
+          </p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+            Choose a path and confirm the commitments.
+          </h2>
+        </div>
+      </div>
+
+      <section className="overflow-hidden rounded-[1.5rem] border border-[#DDE8D8] bg-white">
+        <div className="grid gap-5 bg-[#F8F1E5] p-5 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#D8A011]">
+              {membershipType} Membership
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-[#123D2A]">Required Share Capital: PHP 3,000</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+              You do not pay now. Your application must first be reviewed and accepted by NFFAC.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-bold text-[#365F4A]">
+            Membership Fee
+            <span className="mt-1 block text-2xl font-black text-[#123D2A]">PHP 200</span>
+          </div>
+        </div>
+        <div className="p-5">
+          <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
+            {requestedMembershipTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </section>
+
+      <CommitmentReview setValue={setValue} watch={watch} errors={errors} />
+    </div>
+  );
+}
+
+function DocumentsSignatureStep({
   register,
   watch,
   setValue,
@@ -734,10 +1132,23 @@ function ReviewStep({
 }) {
   return (
     <div className="grid gap-6">
-      <ReviewSummary watch={watch} />
-
       <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-[#123D2A]">Signature</h3>
+        <div className="flex items-start gap-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+            <FileUp className="size-6" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
+              Documents & Signature
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+              Upload documents and prepare your signature.
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+              The signature becomes part of the submitted application.
+            </p>
+          </div>
+        </div>
         <div className="mt-4 grid gap-5 md:grid-cols-2">
           <TextField label="Signed place" error={errors.signedPlace?.message} inputProps={register("signedPlace")} />
           <div>
@@ -766,22 +1177,6 @@ function ReviewStep({
           onModeChange={onSignatureModeChange}
           onChange={onSignatureChange}
         />
-        <label className="mt-5 flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
-          <input
-            type="checkbox"
-            className="mt-1 size-4 accent-[#1F6B43]"
-            {...register("finalConfirmation")}
-          />
-          <span>
-            I confirm that the information in this application is true and ready
-            for cooperative review.
-            {errors.finalConfirmation ? (
-              <span className="mt-1 block text-xs text-red-700">
-                {errors.finalConfirmation.message}
-              </span>
-            ) : null}
-          </span>
-        </label>
       </section>
 
       <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
@@ -814,6 +1209,141 @@ function ReviewStep({
         </div>
       </section>
     </div>
+  );
+}
+
+function FinalReviewStep({
+  register,
+  watch,
+  errors,
+  uploads,
+  signatureFile,
+  onEditStep,
+}: {
+  register: UseFormRegister<MembershipApplicationFormValues>;
+  watch: UseFormWatch<MembershipApplicationFormValues>;
+  errors: FieldErrors<MembershipApplicationFormValues>;
+  uploads: DocumentUploadDraft[];
+  signatureFile: File | null;
+  onEditStep: (step: number) => void;
+}) {
+  const values = watch();
+  const fullName = [values.firstName, values.middleName, values.lastName, values.suffix]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  const beneficiaries = values.beneficiaries.filter((item) => item.fullName?.trim());
+
+  return (
+    <div className="grid gap-5">
+      <div className="flex items-start gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+          <ClipboardCheck className="size-6" />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
+            Review & Submit
+          </p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+            Confirm the application before sending.
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
+            This is a review dashboard, not another form. Use Edit to jump back to a section.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ReviewDashboardCard title="Applicant" onEdit={() => onEditStep(0)}>
+          <strong className="text-lg text-[#123D2A]">{fullName || "Applicant name missing"}</strong>
+          <span>{values.email || "Email missing"}</span>
+          <span>{values.contactNumber ? `+63 ${values.contactNumber}` : "Contact number missing"}</span>
+          <span>{values.dateOfBirth || "Date of birth missing"}</span>
+        </ReviewDashboardCard>
+
+        <ReviewDashboardCard title="Address" onEdit={() => onEditStep(1)}>
+          <strong className="text-[#123D2A]">{values.currentAddress || "Address missing"}</strong>
+          <span>{[values.barangay, values.municipality, values.province].filter(Boolean).join(", ") || "Location missing"}</span>
+          <span>Parents: {[values.fatherName, values.motherName].filter(Boolean).join(" / ") || "Missing"}</span>
+        </ReviewDashboardCard>
+
+        <ReviewDashboardCard title="Family / Beneficiaries" onEdit={() => onEditStep(1)}>
+          {beneficiaries.length ? (
+            beneficiaries.slice(0, 3).map((beneficiary, index) => (
+              <span key={`${beneficiary.fullName}-${index}`}>
+                {beneficiary.fullName} - {beneficiary.relationship || "Beneficiary"}
+              </span>
+            ))
+          ) : (
+            <span>No beneficiaries listed.</span>
+          )}
+        </ReviewDashboardCard>
+
+        <ReviewDashboardCard title="Membership" onEdit={() => onEditStep(2)}>
+          <strong className="text-[#123D2A]">{values.requestedMembershipType}</strong>
+          <span>Share Capital Requirement: PHP 3,000</span>
+          <span>Payment: Not required until application review</span>
+        </ReviewDashboardCard>
+
+        <ReviewDashboardCard title="Documents" onEdit={() => onEditStep(3)}>
+          <span className="inline-flex items-center gap-2 font-black text-[#1F6B43]">
+            <CheckCircle2 className="size-4" />
+            {uploads.filter((upload) => upload.file).length} upload(s) selected
+          </span>
+          <span className={signatureFile ? "font-black text-[#1F6B43]" : "font-black text-[#8A6200]"}>
+            {signatureFile ? "Signature ready" : "Signature needed"}
+          </span>
+        </ReviewDashboardCard>
+
+        <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5">
+          <h3 className="text-lg font-black text-[#123D2A]">Ready to submit?</h3>
+          <p className="mt-2 text-sm leading-6 text-[#5D6D63]">
+            NFFAC will review the application and email you if payment becomes available.
+          </p>
+          <label className="mt-5 flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
+            <input
+              type="checkbox"
+              className="mt-1 size-4 accent-[#1F6B43]"
+              {...register("finalConfirmation")}
+            />
+            <span>
+              I confirm that the information in this application is true and ready for cooperative review.
+              {errors.finalConfirmation ? (
+                <span className="mt-1 block text-xs text-red-700">
+                  {errors.finalConfirmation.message}
+                </span>
+              ) : null}
+            </span>
+          </label>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ReviewDashboardCard({
+  title,
+  children,
+  onEdit,
+}: {
+  title: string;
+  children: ReactNode;
+  onEdit: () => void;
+}) {
+  return (
+    <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#123D2A]">{title}</h3>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="rounded-full border border-[#DDE8D8] px-3 py-1 text-xs font-black text-[#1F6B43] transition hover:bg-[#EAF3E8]"
+        >
+          Edit
+        </button>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm leading-6 text-[#365F4A]">{children}</div>
+    </section>
   );
 }
 
@@ -1257,15 +1787,17 @@ function PlaceOfBirthField({
         onBlur={() => window.setTimeout(() => setOpen(false), 120)}
         placeholder={placeholder}
         autoComplete="off"
+        role="combobox"
         aria-autocomplete="list"
+        aria-controls="place-of-birth-suggestions"
         aria-expanded={open && matches.length > 0}
         aria-invalid={Boolean(error)}
         className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
       />
       {open && matches.length > 0 ? (
-        <div role="listbox" className="absolute inset-x-0 top-[4.5rem] z-50 max-h-64 overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+        <div id="place-of-birth-suggestions" role="listbox" className="absolute inset-x-0 top-[4.5rem] z-50 max-h-64 overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
           {matches.map((suggestion) => (
-            <button key={suggestion} type="button" role="option" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(suggestion); setOpen(false); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A]">
+            <button key={suggestion} type="button" role="option" aria-selected={suggestion === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(suggestion); setOpen(false); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A]">
               {suggestion}
             </button>
           ))}

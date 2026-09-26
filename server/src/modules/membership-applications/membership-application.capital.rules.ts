@@ -81,7 +81,7 @@ export function decideApprovalMembership(input: {
 
   if (validatedCapital < capitalMoney(input.settings.initialShareCapital)) {
     throw new AppError(
-      "At least PHP 1,500 validated initial share capital is required",
+      `At least PHP ${input.settings.initialShareCapital.toLocaleString("en-US")} validated initial share capital is required`,
       409,
       "INITIAL_SHARE_CAPITAL_INCOMPLETE",
     );

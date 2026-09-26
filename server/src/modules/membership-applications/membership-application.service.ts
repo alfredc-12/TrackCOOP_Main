@@ -41,6 +41,11 @@ import {
   requireApplicationBirthDateCredential,
   verifyApplicationBirthDate,
 } from "./public-tracking-token";
+import {
+  buildStatusEmail,
+  buildSubmittedEmail,
+  triggerMembershipEmail,
+} from "./membership-application-email";
 
 const duplicateWarningMessage =
   "A recent application with matching applicant details already exists. The new application was still submitted for Chairman review.";
@@ -314,6 +319,7 @@ export interface MembershipApplicationService {
   history(applicationId: string, auth: AuthContext): Promise<ChairmanApplicationHistoryEntry[]>;
   startReview(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
   requestInformation(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
+  approveForPayment(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
   reject(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
   withdraw(applicationId: string, input: StatusTransitionInput, auth: AuthContext): Promise<ChairmanApplicationDetail>;
   approve(applicationId: string, input: ApprovalInput, auth: AuthContext): Promise<ApprovalResult>;
@@ -366,6 +372,11 @@ export function createMembershipApplicationService(
         duplicateWarning,
         warnings,
       });
+
+      void triggerMembershipEmail(buildSubmittedEmail({
+        application: normalizedInput,
+        applicationCode: result.applicationCode,
+      }));
 
       return result;
     },
@@ -549,12 +560,52 @@ export function createMembershipApplicationService(
       return repository.transitionStatus(applicationId, "Under Review", input, auth);
     },
 
-    requestInformation(applicationId, input, auth) {
-      return repository.transitionStatus(applicationId, "Needs Information", input, auth);
+    async requestInformation(applicationId, input, auth) {
+      const detail = await repository.transitionStatus(applicationId, "Needs Information", input, auth);
+      void triggerMembershipEmail(buildStatusEmail({
+        event: "membership.application.needs_information",
+        email: detail.email,
+        name: detail.fullName,
+        applicationCode: detail.applicationCode,
+        status: detail.applicationStatus,
+        subject: `Membership application needs information: ${detail.applicationCode}`,
+        message: input.applicantMessage
+          ?? "The cooperative needs more information to continue reviewing your membership application.",
+      }));
+      return detail;
     },
 
-    reject(applicationId, input, auth) {
-      return repository.transitionStatus(applicationId, "Rejected", input, auth);
+    async approveForPayment(applicationId, input, auth) {
+      const detail = await repository.transitionStatus(applicationId, "Payment Required", {
+        ...input,
+        applicantMessage: input.applicantMessage
+          ?? "Your application was approved for payment. Please complete the required membership payment from your application status page.",
+      }, auth);
+      void triggerMembershipEmail(buildStatusEmail({
+        event: "membership.application.ready_for_payment",
+        email: detail.email,
+        name: detail.fullName,
+        applicationCode: detail.applicationCode,
+        status: detail.applicationStatus,
+        subject: `Membership payment is ready: ${detail.applicationCode}`,
+        message: "Your membership application was approved for payment. Please complete the required PayMongo checkout from your application status page.",
+      }));
+      return detail;
+    },
+
+    async reject(applicationId, input, auth) {
+      const detail = await repository.transitionStatus(applicationId, "Rejected", input, auth);
+      void triggerMembershipEmail(buildStatusEmail({
+        event: "membership.application.rejected",
+        email: detail.email,
+        name: detail.fullName,
+        applicationCode: detail.applicationCode,
+        status: detail.applicationStatus,
+        subject: `Membership application update: ${detail.applicationCode}`,
+        message: input.applicantMessage
+          ?? "Your membership application was reviewed and was not approved at this time.",
+      }));
+      return detail;
     },
 
     withdraw(applicationId, input, auth) {
@@ -579,6 +630,7 @@ export function createMembershipApplicationService(
         ? await hash(generateActivationToken(), env.BCRYPT_ROUNDS)
         : null;
 
+      const beforeApproval = await repository.findChairmanApplicationById(applicationId);
       const result = await repository.approveApplication({
         applicationId,
         approval: normalizedApproval,
@@ -589,10 +641,22 @@ export function createMembershipApplicationService(
         unusablePasswordHash,
       });
 
-      return {
+      const approvalResult = {
         ...result,
         activationUrl: rawActivationToken ? activationUrl(rawActivationToken) : null,
       };
+      void triggerMembershipEmail(buildStatusEmail({
+        event: "membership.application.approved",
+        email: beforeApproval?.email ?? normalizedApproval.accountEmail ?? null,
+        name: beforeApproval?.fullName ?? result.applicationCode,
+        applicationCode: result.applicationCode,
+        status: "Approved",
+        subject: `Membership approved: ${result.applicationCode}`,
+        message: approvalResult.activationUrl
+          ? `Your membership was approved. Activate your member portal account here: ${approvalResult.activationUrl}`
+          : "Your membership was approved. Welcome to the cooperative.",
+      }));
+      return approvalResult;
     },
 
     async printablePdf(applicationId) {
