@@ -24,6 +24,7 @@ import type {
   ServiceVisibility,
 } from "@/app/rental/_types/rental";
 import { env } from "@/config/env";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 
 const ASSET_CATEGORIES = [
   "Land Preparation",
@@ -288,7 +289,13 @@ export function ChairmanRentalAssetEditor({
         ) as Omit<RentalService, "updatedAt">;
         await rentalApiRepository.createRentalService(createPayload);
       }
-      toast.success(visibility === "Public" ? "Rental asset published." : "Rental asset saved.");
+      toast.success(
+        visibility === "Public"
+          ? "Rental asset published."
+          : serviceId
+            ? "Rental asset changes saved."
+            : "Rental asset draft added.",
+      );
       router.push("/portal/chairman/rentals/assets");
       router.refresh();
     } catch (caught) {
@@ -332,7 +339,7 @@ export function ChairmanRentalAssetEditor({
       >
         <Section title="Equipment details" icon={Tractor}>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Asset name" required error={fieldErrors.name}>
+            <Field label="Rental asset name" required error={fieldErrors.name}>
               <input
                 required
                 value={form.name}
@@ -341,7 +348,7 @@ export function ChairmanRentalAssetEditor({
                 placeholder="Example: Four-wheel farm tractor"
               />
             </Field>
-            <Field label="Asset code" required error={fieldErrors.serviceId}>
+            <Field label="Rental asset code" required error={fieldErrors.serviceId}>
               <input
                 required
                 disabled={Boolean(serviceId)}
@@ -357,17 +364,7 @@ export function ChairmanRentalAssetEditor({
               />
             </Field>
             <Field label="Category" required error={fieldErrors.category}>
-              <select
-                value={form.category}
-                onChange={(event) => update("category", event.target.value)}
-              >
-                {!ASSET_CATEGORIES.includes(form.category) ? (
-                  <option>{form.category}</option>
-                ) : null}
-                {ASSET_CATEGORIES.map((category) => (
-                  <option key={category}>{category}</option>
-                ))}
-              </select>
+              <StyledSelect value={form.category} options={ASSET_CATEGORIES} onChange={(value) => update("category", value)} />
             </Field>
             <Field label="Short description" required error={fieldErrors.shortDescription}>
               <input
@@ -453,16 +450,7 @@ export function ChairmanRentalAssetEditor({
         <Section title="Rental setup">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Unit of usage" required error={fieldErrors.unitOfUsage}>
-              <select
-                value={form.unitOfUsage}
-                onChange={(event) => update("unitOfUsage", event.target.value)}
-              >
-                <option value="">Choose a charging unit</option>
-                {form.unitOfUsage && !USAGE_UNITS.includes(form.unitOfUsage) ? (
-                  <option>{form.unitOfUsage}</option>
-                ) : null}
-                {USAGE_UNITS.map((unit) => <option key={unit}>{unit}</option>)}
-              </select>
+              <StyledSelect value={form.unitOfUsage || "Choose a charging unit"} options={["Choose a charging unit", ...USAGE_UNITS]} onChange={(value) => update("unitOfUsage", value === "Choose a charging unit" ? "" : value)} />
             </Field>
             <Field label="Capacity" error={fieldErrors.capacity}>
               <input
@@ -490,54 +478,13 @@ export function ChairmanRentalAssetEditor({
               />
             </Field>
             <Field label="Operator needed" required error={fieldErrors.operatorRequirement}>
-              <select
-                value={form.operatorRequirement}
-                onChange={(event) =>
-                  update("operatorRequirement", event.target.value)
-                }
-              >
-                {form.operatorRequirement &&
-                !OPERATOR_REQUIREMENTS.includes(form.operatorRequirement) ? (
-                  <option>{form.operatorRequirement}</option>
-                ) : null}
-                {OPERATOR_REQUIREMENTS.map((requirement) => (
-                  <option key={requirement}>{requirement}</option>
-                ))}
-              </select>
+              <StyledSelect value={form.operatorRequirement} options={OPERATOR_REQUIREMENTS} onChange={(value) => update("operatorRequirement", value)} />
             </Field>
             <Field label="Assigned operator or custodian" error={fieldErrors.assignedCustodian}>
-              <select
-                value={form.assignedCustodian ?? ""}
-                onChange={(event) =>
-                  update("assignedCustodian", event.target.value)
-                }
-              >
-                <option value="">Choose who usually handles this asset</option>
-                {form.assignedCustodian &&
-                !ASSIGNED_CUSTODIANS.includes(form.assignedCustodian) ? (
-                  <option>{form.assignedCustodian}</option>
-                ) : null}
-                {ASSIGNED_CUSTODIANS.map((custodian) => (
-                  <option key={custodian}>{custodian}</option>
-                ))}
-              </select>
+              <StyledSelect value={form.assignedCustodian || "Choose who usually handles this asset"} options={["Choose who usually handles this asset", ...ASSIGNED_CUSTODIANS]} onChange={(value) => update("assignedCustodian", value === "Choose who usually handles this asset" ? "" : value)} />
             </Field>
             <Field label="Use rule" wide error={fieldErrors.operationalNotes}>
-              <select
-                value={form.operationalNotes}
-                onChange={(event) =>
-                  update("operationalNotes", event.target.value)
-                }
-              >
-                <option value="">Choose a simple rule</option>
-                {form.operationalNotes &&
-                !OPERATING_RULES.includes(form.operationalNotes) ? (
-                  <option>{form.operationalNotes}</option>
-                ) : null}
-                {OPERATING_RULES.map((rule) => (
-                  <option key={rule}>{rule}</option>
-                ))}
-              </select>
+              <StyledSelect value={form.operationalNotes || "Choose a simple rule"} options={["Choose a simple rule", ...OPERATING_RULES]} onChange={(value) => update("operationalNotes", value === "Choose a simple rule" ? "" : value)} />
             </Field>
             <Field label="Safety reminders" wide error={fieldErrors.safetyReminders} hint="Tick the reminders that apply.">
               <CheckboxGroup
@@ -644,7 +591,7 @@ export function ChairmanRentalAssetEditor({
             onClick={() => void save("Hidden")}
             className="min-h-11 rounded-md border border-[#CAD8CB] px-5 text-sm font-bold text-[#123D2A]"
           >
-            Save Draft
+            {saving ? (serviceId ? "Saving changes..." : "Adding rental asset...") : "Save Draft"}
           </button>
           {serviceId ? (
             <Link
@@ -662,7 +609,9 @@ export function ChairmanRentalAssetEditor({
           >
             <Save className="size-4" />
             {saving
-              ? "Saving..."
+              ? serviceId
+                ? "Saving changes..."
+                : "Adding rental asset..."
               : serviceId
                 ? "Save and Publish"
                 : "Publish Equipment"}
@@ -797,11 +746,7 @@ function SelectField({
 }) {
   return (
     <Field label={label} error={error}>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
+      <StyledSelect value={value} options={options} onChange={onChange} />
     </Field>
   );
 }

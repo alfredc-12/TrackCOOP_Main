@@ -206,6 +206,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "Confirm",
+  loading = false,
   cancelLabel = "Cancel",
   variant = "warning",
   onConfirm,
@@ -217,6 +218,7 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel?: string;
+  loading?: boolean;
   cancelLabel?: string;
   variant?: "warning" | "danger";
   onConfirm: () => void;
@@ -233,7 +235,7 @@ export function ConfirmDialog({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[#061B11]/45 backdrop-blur-sm" />
         <Dialog.Content className="fixed inset-0 z-[60] overflow-y-auto custom-scrollbar bg-transparent focus:outline-none">
           <div className="relative flex min-h-full items-center justify-center p-4 py-12">
-            <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
+            <Dialog.Close disabled={loading} className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent disabled:pointer-events-none" aria-label="Close modal" />
             <div
               className={cn(
                 "relative z-10 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border bg-white text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
@@ -268,12 +270,13 @@ export function ConfirmDialog({
               </Dialog.Description>
               {children ? <div className="mt-4 text-left">{children}</div> : null}
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <Dialog.Close className="min-h-12 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-black text-[#294B39] transition hover:border-[#9FB7A4] hover:bg-[#EEF2EC] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20">
+                <Dialog.Close disabled={loading} className="min-h-12 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-black text-[#294B39] transition hover:border-[#9FB7A4] hover:bg-[#EEF2EC] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20 disabled:cursor-not-allowed disabled:opacity-50">
                   {cancelLabel}
                 </Dialog.Close>
                 <button
                   type="button"
                   onClick={onConfirm}
+                  disabled={loading}
                   className={cn(
                     "min-h-12 rounded-lg px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_24px_rgba(18,61,42,0.18)] transition focus:outline-none focus:ring-2",
                     isDanger
@@ -281,7 +284,7 @@ export function ConfirmDialog({
                       : "bg-[#123D2A] hover:bg-[#1F6B43] focus:ring-[#1F6B43]/25",
                   )}
                 >
-                  {confirmLabel}
+                  {loading ? "Processing..." : confirmLabel}
                 </button>
               </div>
               </div>

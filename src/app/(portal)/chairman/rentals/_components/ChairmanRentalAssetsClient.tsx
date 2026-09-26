@@ -44,6 +44,7 @@ import {
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { env } from "@/config/env";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 
 const fieldClass =
   "min-h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
@@ -197,11 +198,11 @@ function ChairmanAddAssetModal({
         bufferMinutes: 30,
         featured: false,
       });
-      toast.success("Asset added successfully.");
+      toast.success("Rental asset added successfully.");
       onAdded();
       onClose();
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "Could not add asset.");
+      toast.error(caught instanceof Error ? caught.message : "Could not add rental asset.");
     } finally {
       setSaving(false);
     }
@@ -213,11 +214,11 @@ function ChairmanAddAssetModal({
       onOpenChange={(isOpen) => {
         if (!isOpen) onClose();
       }}
-      title="Quick Add Asset"
-      description="Add the asset name, photos, and one rental rate. Members automatically get 20% off."
+      title="Add Rental Asset"
+      description="Add the equipment name, photos, and one rental rate. Members automatically get 20% off."
     >
       <form onSubmit={submit} noValidate className="grid gap-4 py-4">
-        <FormField label="Asset Code (ID)" required>
+        <FormField label="Rental Asset Code (ID)" required>
           <input
             required
             readOnly
@@ -227,7 +228,7 @@ function ChairmanAddAssetModal({
             onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
           />
         </FormField>
-        <FormField label="Asset Name" required error={errors.name}>
+        <FormField label="Rental Asset Name" required error={errors.name}>
           <input
             required
             autoFocus
@@ -242,21 +243,16 @@ function ChairmanAddAssetModal({
           />
         </FormField>
         <FormField label="Category" required error={errors.category}>
-          <select
-            required
-            className={errors.category ? errorFieldClass : fieldClass}
-            value={form.category}
-            onChange={(e) => {
-              setForm({ ...form, category: e.target.value });
-              if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
-            }}
-          >
-            <option value="Land Preparation">Land Preparation</option>
-            <option value="Harvesting">Harvesting</option>
-            <option value="Transportation">Transportation</option>
-            <option value="Processing">Processing</option>
-            <option value="Other">Other</option>
-          </select>
+          <div className={errors.category ? "rounded-md ring-2 ring-[#FF4D4F]/30" : ""}>
+            <StyledSelect
+              value={form.category}
+              options={["Land Preparation", "Harvesting", "Transportation", "Processing", "Other"]}
+              onChange={(value) => {
+                setForm({ ...form, category: value });
+                if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
+              }}
+            />
+          </div>
         </FormField>
         <FormField label="Short Description" required error={errors.shortDescription}>
           <textarea
@@ -319,7 +315,7 @@ function ChairmanAddAssetModal({
           </div>
         ) : null}
         <FormField
-          label="Asset photos"
+          label="Rental asset photos"
           required
           error={errors.imageUrls}
           hint="Upload 1 to 5 photos. The first photo appears on the public rental page."
@@ -380,7 +376,7 @@ function ChairmanAddAssetModal({
             disabled={saving}
             className="rounded-md bg-[#123D2A] px-4 py-2 text-sm font-bold text-white hover:bg-[#1F6B43] disabled:opacity-50"
           >
-            {saving ? "Creating..." : "Create Asset"}
+            {saving ? "Adding rental asset..." : "Add Rental Asset"}
           </button>
         </div>
       </form>
@@ -469,7 +465,9 @@ export function ChairmanRentalAssetsClient() {
   const [visibility, setVisibility] = useState("All");
   const [statusFilter, setStatusFilter] = useState<AssetStatusFilter>("All");
   const [sort, setSort] = useState("updated-desc");
+  const [page, setPage] = useState(1);
   const [pending, setPending] = useState<PendingAction>();
+  const [pendingRunning, setPendingRunning] = useState(false);
   const [maintenanceAsset, setMaintenanceAsset] = useState<RentalService>();
   const [addModalOpen, setAddModalOpen] = useState(false);
 
@@ -587,6 +585,18 @@ export function ChairmanRentalAssetsClient() {
     visibility,
   ]);
 
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visibleAssets = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, category, visibility, statusFilter, sort]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   function queueAction(action: PendingAction) {
     setPending(action);
   }
@@ -594,13 +604,16 @@ export function ChairmanRentalAssetsClient() {
   async function runPending() {
     if (!pending) return;
     const action = pending;
-    setPending(undefined);
+    setPendingRunning(true);
     try {
       await action.run();
       toast.success(`${action.label} completed.`);
       await load();
+      setPending(undefined);
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Action failed.");
+    } finally {
+      setPendingRunning(false);
     }
   }
 
@@ -621,7 +634,7 @@ export function ChairmanRentalAssetsClient() {
 
   return (
     <div className="grid gap-6">
-      <PageHeader
+        <PageHeader
         eyebrow="Operations"
         title="Rental Assets"
         description="Manage equipment availability, public visibility, maintenance, and upcoming rental use."
@@ -630,10 +643,12 @@ export function ChairmanRentalAssetsClient() {
             <button
               type="button"
               onClick={() => void load()}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
+              disabled={loading}
+              aria-busy={loading}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] disabled:cursor-wait disabled:opacity-60"
             >
               <RefreshCcw className="size-4" />
-              Refresh
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
             <button
               type="button"
@@ -703,7 +718,7 @@ export function ChairmanRentalAssetsClient() {
         />
       </section>
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {loading ? (
         <LoadingSkeleton />
       ) : filtered.length === 0 ? (
@@ -739,7 +754,7 @@ export function ChairmanRentalAssetsClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-                  {filtered.map((asset) => (
+                  {visibleAssets.map((asset) => (
                     <AssetRow
                       key={asset.serviceId}
                       asset={asset}
@@ -756,7 +771,7 @@ export function ChairmanRentalAssetsClient() {
             </DataTable>
           </div>
           <div className="grid gap-3 xl:hidden">
-            {filtered.map((asset) => (
+            {visibleAssets.map((asset) => (
               <AssetMobileCard
                 key={asset.serviceId}
                 asset={asset}
@@ -768,17 +783,28 @@ export function ChairmanRentalAssetsClient() {
               />
             ))}
           </div>
+          {filtered.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-4 py-3 text-xs text-[#5D6D63]">
+              <span>Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} assets</span>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <span className="font-bold text-[#123D2A]">Page {page} of {totalPages}</span>
+                <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+              </div>
+            </div>
+          ) : null}
         </>
       )}
 
       <ConfirmDialog
         open={Boolean(pending)}
         onOpenChange={(open) => {
-          if (!open) setPending(undefined);
+          if (!open && !pendingRunning) setPending(undefined);
         }}
-        title={pending?.title ?? "Confirm rental asset action"}
-        description={pending?.description ?? "Confirm this asset change."}
+          title={pending?.title ?? "Confirm Rental Asset Action"}
+          description={pending?.description ?? "Confirm this rental asset change."}
         confirmLabel={pending?.label ?? "Confirm"}
+        loading={pendingRunning}
         onConfirm={() => void runPending()}
       />
       <MaintenanceDialog
@@ -979,7 +1005,15 @@ function AssetActions({
 }) {
   const archived = asset.operationalStatus === "Archived";
   return (
-    <details className="relative">
+    <details
+      className="relative"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          (event.currentTarget as HTMLDetailsElement).open = false;
+          (event.currentTarget.querySelector("summary") as HTMLElement | null)?.focus();
+        }
+      }}
+    >
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-md border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A]">
         Actions
       </summary>
@@ -987,12 +1021,12 @@ function AssetActions({
         <ActionLink
           href={`/portal/chairman/rentals/assets/${asset.serviceId}`}
           icon={Eye}
-          label="Open Details"
+          label="View Rental Asset"
         />
         <ActionLink
           href={`/portal/chairman/rentals/assets/${asset.serviceId}/edit`}
           icon={Pencil}
-          label="Edit Asset"
+          label="Edit Rental Asset"
         />
         <button
           type="button"
@@ -1117,17 +1151,14 @@ function Filter({
   return (
     <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
       {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#294B39]"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {labels?.[option] ?? option}
-          </option>
-        ))}
-      </select>
+      <StyledSelect
+        value={labels?.[value] ?? value}
+        options={options.map((option) => labels?.[option] ?? option)}
+        onChange={(selected) => {
+          const option = options.find((item) => (labels?.[item] ?? item) === selected) ?? selected;
+          onChange(option);
+        }}
+      />
     </label>
   );
 }
@@ -1198,14 +1229,7 @@ function MaintenanceDialog({
           </div>
         ) : null}
         <Field label="Maintenance type">
-          <select required value={type} onChange={(event) => setType(event.target.value)}>
-            <option>Preventive Maintenance</option>
-            <option>Repair</option>
-            <option>Cleaning</option>
-            <option>Inspection</option>
-            <option>Parts replacement</option>
-            <option>Other Maintenance</option>
-          </select>
+          <StyledSelect value={type} options={["Preventive Maintenance", "Repair", "Cleaning", "Inspection", "Parts replacement", "Other Maintenance"]} onChange={setType} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Start date">
@@ -1231,18 +1255,11 @@ function MaintenanceDialog({
           </Field>
         </div>
         <Field label="Operational impact">
-          <select
+          <StyledSelect
             value={impact}
-            onChange={(event) =>
-              setImpact(
-                event.target.value as RentalMaintenanceRecord["operationalImpact"],
-              )
-            }
-          >
-            <option>Limited Availability</option>
-            <option>Unavailable</option>
-            <option>Out of Service</option>
-          </select>
+            options={["Limited Availability", "Unavailable", "Out of Service"]}
+            onChange={(value) => setImpact(value as RentalMaintenanceRecord["operationalImpact"])}
+          />
         </Field>
         <Field label="Description">
           <textarea
