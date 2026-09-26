@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { cssUploadUrl } from "@/lib/upload-url";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import { getMemberDiscountedRate } from "@/app/rental/_lib/rentalEstimate";
 import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
@@ -335,7 +336,7 @@ function ChairmanAddAssetModal({
                       <span
                         className="size-12 rounded-md bg-[#E7F2E4] bg-cover bg-center"
                         style={{
-                          backgroundImage: `url("${url.replaceAll('"', "%22")}")`,
+                          backgroundImage: cssUploadUrl(url),
                         }}
                       />
                       <span className="text-xs font-semibold text-[#294B39]">
@@ -950,7 +951,7 @@ function AssetImage({ asset }: { asset: RentalService }) {
       role="img"
       aria-label={`${asset.name} image`}
       className="block size-14 shrink-0 rounded-md bg-[#E7F2E4] bg-cover bg-center"
-      style={{ backgroundImage: `url("${asset.imageUrl.replaceAll('"', "%22")}")` }}
+      style={{ backgroundImage: cssUploadUrl(asset.imageUrl) }}
     />
   ) : (
     <span className="grid size-14 shrink-0 place-items-center rounded-md bg-[#E7F2E4] text-[#1F6B43]">

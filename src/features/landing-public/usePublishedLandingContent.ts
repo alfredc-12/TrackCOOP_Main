@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { env } from "@/config/env";
+import { resolveUploadUrl } from "@/lib/upload-url";
 
 export type PublishedLandingRow = Record<string, unknown> & {
   id: string;
@@ -22,9 +23,7 @@ function asString(value: unknown, fallback = "") {
 }
 
 function resolveMediaPath(path: string) {
-  if (!path) return path;
-  if (path.startsWith("http") || path.startsWith("/images/")) return path;
-  return `${env.apiUrl}${path}`;
+  return resolveUploadUrl(path);
 }
 
 function isPdfPath(path: string) {

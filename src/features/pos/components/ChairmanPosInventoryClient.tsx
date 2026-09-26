@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
+import { normalizeProductImage } from "../product-image-url";
 
 type StockHistory = {
     type: "add" | "deduct";
@@ -241,7 +242,7 @@ export default function ChairmanPosInventoryClient() {
             const res = await expressFetch("/api/inventory");
             if (res.ok) {
                 const data = await res.json();
-                setInventory(data as InventoryItem[]);
+                setInventory((data as InventoryItem[]).map(normalizeProductImage));
                 setLastUpdated(new Date());
                 setInventoryError(null);
             } else {
@@ -315,7 +316,10 @@ export default function ChairmanPosInventoryClient() {
             const res = await expressFetch("/api/inventory/history");
             if (res.ok) {
                 const data = await res.json();
-                setGlobalHistory(data as StockActivityLog[]);
+                setGlobalHistory((data as StockActivityLog[]).map((log) => ({
+                    ...log,
+                    inventoryItem: log.inventoryItem ? normalizeProductImage(log.inventoryItem) : log.inventoryItem,
+                })));
                 setActivityCurrentPage(1);
                 setIsGlobalHistoryModalOpen(true);
             }

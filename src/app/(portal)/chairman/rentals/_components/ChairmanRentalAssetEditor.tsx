@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { cssUploadUrl } from "@/lib/upload-url";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { ErrorState, LoadingSkeleton } from "@/components/portal/PortalPrimitives";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
@@ -350,7 +351,7 @@ export function ChairmanRentalAssetEditor({
                         <div
                           className="h-28 bg-[#E7F2E4] bg-cover bg-center"
                           style={{
-                            backgroundImage: `url("${url.replaceAll('"', "%22")}")`,
+                            backgroundImage: cssUploadUrl(url),
                           }}
                         />
                         <div className="flex items-center justify-between gap-2 p-2 text-xs">

@@ -27,8 +27,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { ConfirmDialog, DataTable, EmptyState, ErrorState, FormDialog, LoadingSkeleton, StatusBadge } from "@/components/portal/PortalPrimitives";
-import { env } from "@/config/env";
 import { ApiClientError } from "@/lib/api-client";
+import { resolveUploadUrl } from "@/lib/upload-url";
 import {
   createLandingRecord,
   listAuditLogs,
@@ -86,9 +86,7 @@ function isPdfPath(path: string) {
 }
 
 function resolveUploadPath(path: string) {
-  if (!path) return "";
-  if (path.startsWith("http") || path.startsWith("blob:") || path.startsWith("data:") || path.startsWith("/images/")) return path;
-  return `${env.apiUrl}${path}`;
+  return resolveUploadUrl(path);
 }
 
 function isAllowedPartnerFile(file: File) {

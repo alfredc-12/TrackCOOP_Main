@@ -13,11 +13,10 @@ import {
   Copy,
   Check
 } from "lucide-react";
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { env } from "@/config/env";
 import { expressFetch } from "@/lib/express-api";
+import { resolveUploadUrl } from "@/lib/upload-url";
 
 function getPreview(content?: string | null) {
   if (!content) return "";
@@ -37,20 +36,7 @@ function formatDate(date?: string) {
 }
 
 function resolveArchiveImagePath(image: string) {
-  let path = image;
-  try {
-    if (path.startsWith("[")) {
-      const parsed = JSON.parse(path) as unknown;
-      if (Array.isArray(parsed) && typeof parsed[0] === "string") {
-        path = parsed[0];
-      }
-    }
-  } catch {
-    path = image;
-  }
-
-  if (path.startsWith("http") || path.startsWith("/images/")) return path;
-  return path.startsWith("/") ? `${env.apiUrl}${path}` : `${env.apiUrl}/${path}`;
+  return resolveUploadUrl(image);
 }
 
 export default function AnnouncementsArchiveSection() {
@@ -248,13 +234,10 @@ export default function AnnouncementsArchiveSection() {
                         className="group relative min-h-[340px] overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_18px_52px_rgba(31,107,67,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(31,107,67,0.34)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
                       >
                         {coverImage ? (
-                          <Image
-                            src={`${env.apiUrl}${coverImage}`}
+                          <img
+                            src={resolveArchiveImagePath(coverImage)}
                             alt=""
-                            fill
-                            unoptimized
-                            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                            className="object-cover transition duration-700 group-hover:scale-105"
+                            className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
                           />
                         ) : (
                           <div className="absolute inset-0 bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]" />

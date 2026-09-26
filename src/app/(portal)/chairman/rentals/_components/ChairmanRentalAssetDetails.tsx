@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { cssUploadUrl } from "@/lib/upload-url";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
   EmptyState,
@@ -195,7 +196,7 @@ export function ChairmanRentalAssetDetails({
             className="grid min-h-72 place-items-center rounded-lg bg-[#E7F2E4] bg-cover bg-center"
             style={
               mainPhoto
-                ? { backgroundImage: `url("${mainPhoto.replaceAll('"', "%22")}")` }
+                ? { backgroundImage: cssUploadUrl(mainPhoto) }
                 : undefined
             }
           >
@@ -212,7 +213,7 @@ export function ChairmanRentalAssetDetails({
                     index === 0 ? "border-2 border-[#1F6B43]" : ""
                   }`}
                   style={{
-                    backgroundImage: `url("${url.replaceAll('"', "%22")}")`,
+                    backgroundImage: cssUploadUrl(url),
                   }}
                 />
               ))}

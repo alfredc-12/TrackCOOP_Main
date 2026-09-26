@@ -10,6 +10,7 @@ import {
   Tractor,
 } from "lucide-react";
 import Link from "next/link";
+import { cssUploadUrl } from "@/lib/upload-url";
 import { useRental } from "../_context/RentalProvider";
 import { getRentalServiceImages } from "../_lib/rentalPhotos";
 import { BookRentalModal } from "./BookRentalModal";
@@ -66,7 +67,7 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
             className="grid min-h-80 place-items-center rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)] bg-cover bg-center"
             style={
               mainImage
-                ? { backgroundImage: `url("${mainImage.replaceAll('"', "%22")}")` }
+                ? { backgroundImage: cssUploadUrl(mainImage) }
                 : undefined
             }
           >
@@ -89,7 +90,7 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
                     index === 0 ? "border-2 border-[#1f6b43]" : ""
                   }`}
                   style={{
-                    backgroundImage: `url("${image.replaceAll('"', "%22")}")`,
+                    backgroundImage: cssUploadUrl(image),
                   }}
                 />
               ))

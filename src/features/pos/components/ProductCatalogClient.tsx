@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image as ImageIcon, Package, Search, LayoutGrid, List, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, AlertCircle, Sprout, Eye, X, History } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
+import { normalizeProductImage } from "../product-image-url";
 
 type InventoryItem = {
   id: number;
@@ -52,7 +53,7 @@ export default function ProductCatalogClient() {
 
       const payload = await response.json();
       if (!Array.isArray(payload)) throw new Error("Products could not be loaded.");
-      setInventory(payload as InventoryItem[]);
+      setInventory((payload as InventoryItem[]).map(normalizeProductImage));
       setLoadError("");
       setLastUpdated(new Date());
     } catch (error) {
