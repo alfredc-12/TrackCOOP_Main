@@ -12,9 +12,9 @@ const requiredPaymongoTables = [
   "financial_records",
 ] as const;
 
-test("final TrackCOOP schema requires 50 unique base tables", () => {
-  assert.equal(expectedDatabaseTables.length, 50);
-  assert.equal(new Set(expectedDatabaseTables).size, 50);
+test("final TrackCOOP schema requires 52 unique base tables", () => {
+  assert.equal(expectedDatabaseTables.length, 52);
+  assert.equal(new Set(expectedDatabaseTables).size, 52);
 });
 
 test("final schema includes PayMongo lifecycle and receipt tables", () => {
@@ -31,4 +31,6 @@ test("expected table list matches authoritative schema naming", () => {
   assert.ok(expectedDatabaseTables.includes("membership_application_notes"));
   assert.ok(expectedDatabaseTables.includes("membership_application_payments"));
   assert.ok(expectedDatabaseTables.includes("membership_account_activations"));
+  assert.ok(expectedDatabaseTables.includes("patronage_periods"));
+  assert.ok(expectedDatabaseTables.includes("patronage_allocations"));
 });

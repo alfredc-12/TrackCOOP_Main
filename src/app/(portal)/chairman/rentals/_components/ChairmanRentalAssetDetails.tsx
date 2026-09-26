@@ -26,7 +26,9 @@ import {
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import { getMemberDiscountedRate } from "@/app/rental/_lib/rentalEstimate";
 import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
-import { getRentalServiceImages } from "@/app/rental/_lib/rentalPhotos";
+import {
+  getRentalServiceImages,
+} from "@/app/rental/_lib/rentalPhotos";
 import type {
   RentalInquiry,
   RentalMaintenanceRecord,

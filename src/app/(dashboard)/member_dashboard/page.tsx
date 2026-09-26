@@ -64,6 +64,10 @@ import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberReque
 import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
 import ActivityModal from "./components/ActivityModal";
+import {
+  getMemberPatronage,
+  type MemberPatronageSummary,
+} from "@/features/patronage/patronage-api";
 
 function getPreview(content?: string | null) {
   if (!content) return "";
@@ -98,6 +102,9 @@ export default function MemberDashboardPage() {
 
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isFetchingDashboard, setIsFetchingDashboard] = useState(true);
+  const [patronageData, setPatronageData] = useState<MemberPatronageSummary | null>(null);
+  const [isFetchingPatronage, setIsFetchingPatronage] = useState(true);
+  const [patronageLoadError, setPatronageLoadError] = useState(false);
 
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -114,6 +121,17 @@ export default function MemberDashboardPage() {
       .then(setDashboardData)
       .catch(console.error)
       .finally(() => setIsFetchingDashboard(false));
+
+    getMemberPatronage()
+      .then((data) => {
+        setPatronageData(data);
+        setPatronageLoadError(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        setPatronageLoadError(true);
+      })
+      .finally(() => setIsFetchingPatronage(false));
   }, []);
 
   const fetchAnnouncements = () => {
@@ -821,10 +839,39 @@ export default function MemberDashboardPage() {
                         <Star className="h-5 w-5 text-blue-500" />
                       </div>
                       <div className="mt-3 flex items-center justify-between">
-                        <h3 className="text-2xl font-bold text-[#173626]">₱0.00</h3>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Coming Soon</span>
+                        <h3 className="text-2xl font-bold text-[#173626]">
+                          {isFetchingPatronage
+                            ? "..."
+                            : `₱${(patronageData?.refunds.allocatedTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        </h3>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+                          patronageLoadError
+                            ? "bg-red-50 text-red-600"
+                            : (patronageData?.refunds.pendingTotal || 0) > 0
+                              ? "bg-amber-50 text-amber-700"
+                              : (patronageData?.refunds.paidTotal || 0) > 0
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {isFetchingPatronage
+                            ? "Loading"
+                            : patronageLoadError
+                              ? "Unavailable"
+                              : (patronageData?.refunds.pendingTotal || 0) > 0
+                                ? "Pending"
+                                : (patronageData?.refunds.paidTotal || 0) > 0
+                                  ? "Paid"
+                                  : "No refund yet"}
+                        </span>
                       </div>
-                      <p className="mt-2 text-xs font-semibold text-slate-500 flex items-center gap-1">Based on purchases</p>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">
+                        {patronageLoadError
+                          ? "Could not load your refund balance"
+                          : `Balance: ₱${(patronageData?.refunds.pendingTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Received: ₱${(patronageData?.refunds.paidTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      </p>
+                      <Link href="/portal/member/patronage" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#1F6B43] hover:underline">
+                        View patronage details <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
                     </div>
                   </div>
                 </div>

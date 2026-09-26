@@ -8,11 +8,16 @@ import {
   MapPin,
   ShieldCheck,
   Tractor,
+  ZoomIn,
 } from "lucide-react";
 import Link from "next/link";
-import { cssUploadUrl } from "@/lib/upload-url";
+import { useState } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { cssUploadUrl, resolveUploadUrl } from "@/lib/upload-url";
 import { useRental } from "../_context/RentalProvider";
-import { getRentalServiceImages } from "../_lib/rentalPhotos";
+import {
+  getRentalServiceImages,
+} from "../_lib/rentalPhotos";
 import { BookRentalModal } from "./BookRentalModal";
 import { RentalPolicyNotice } from "./RentalPolicyNotice";
 import { RentalLoadingState } from "./RentalStates";
@@ -20,6 +25,8 @@ import { RentalLoadingState } from "./RentalStates";
 export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
   const { services, loading } = useRental();
   const service = services.find((item) => item.serviceId === serviceId);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl p-6">
@@ -50,7 +57,10 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
       service.operationalStatus,
     );
   const images = getRentalServiceImages(service);
-  const mainImage = images[0];
+  const mainImage = images[selectedImageIndex] ?? images[0];
+  const mainImageUrl = mainImage
+    ? resolveUploadUrl(mainImage)
+    : undefined;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -63,31 +73,59 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
       </Link>
       <div className="mt-4 grid gap-8 lg:grid-cols-[1.05fr_.95fr]">
         <section>
-          <div
-            className="grid min-h-80 place-items-center rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)] bg-cover bg-center"
-            style={
-              mainImage
-                ? { backgroundImage: cssUploadUrl(mainImage) }
-                : undefined
-            }
-          >
-            {!mainImage ? (
+          {mainImageUrl ? (
+            <Modal
+              open={previewOpen}
+              onOpenChange={setPreviewOpen}
+              maxWidth="max-w-6xl"
+              title={`${service.publicTitle || service.name} image preview`}
+              trigger={
+                <button
+                  type="button"
+                  className="group relative grid min-h-80 w-full cursor-zoom-in place-items-center overflow-hidden rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)] bg-cover bg-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1f6b43]"
+                  style={{
+                    backgroundImage: cssUploadUrl(mainImageUrl),
+                  }}
+                  aria-label={`Preview ${service.publicTitle || service.name} image ${selectedImageIndex + 1}`}
+                >
+                  <span className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-[#123d2a]/90 px-4 py-2 text-xs font-bold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <ZoomIn className="size-4" />
+                    Click to enlarge
+                  </span>
+                </button>
+              }
+            >
+              <div
+                className="min-h-[60vh] w-full rounded-xl bg-black/95 bg-contain bg-center bg-no-repeat"
+                style={{
+                  backgroundImage: cssUploadUrl(mainImageUrl),
+                }}
+                role="img"
+                aria-label={`${service.publicTitle || service.name}, enlarged image ${selectedImageIndex + 1}`}
+              />
+            </Modal>
+          ) : (
+            <div className="grid min-h-80 place-items-center rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)]">
               <Tractor
                 className="size-36 text-[#1f6b43]"
                 strokeWidth={1.1}
               />
-            ) : null}
-          </div>
+            </div>
+          )}
           <div
             className="mt-3 grid grid-cols-3 gap-3"
             aria-label="Equipment image gallery"
           >
             {images.length ? (
               images.map((image, index) => (
-                <div
-                  key={image}
-                  className={`h-24 rounded-2xl bg-[#e4efdf] bg-cover bg-center ${
-                    index === 0 ? "border-2 border-[#1f6b43]" : ""
+                <button
+                  type="button"
+                  key={`${image}-${index}`}
+                  onClick={() => setSelectedImageIndex(index)}
+                  aria-label={`Show ${service.publicTitle || service.name} image ${index + 1}`}
+                  aria-pressed={mainImage === image}
+                  className={`h-24 cursor-pointer rounded-2xl bg-[#e4efdf] bg-cover bg-center transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f6b43] ${
+                    mainImage === image ? "border-2 border-[#1f6b43]" : "border-2 border-transparent"
                   }`}
                   style={{
                     backgroundImage: cssUploadUrl(image),

@@ -32,6 +32,7 @@ import { createPaymongoRouter } from "./modules/paymongo/paymongo.routes";
 import { createPaymongoWebhookRouter } from "./modules/paymongo/paymongo.webhook.routes";
 import type { PaymongoWebhookService } from "./modules/paymongo/paymongo.webhook.service";
 import { createPaymentReferenceRouter } from "./modules/payment-references/payment-reference.routes";
+import { createPatronageRouter } from "./modules/patronage/patronage.routes";
 import { createPosRouter } from "./modules/pos/pos.routes";
 import { createRecordsRouter } from "./modules/records/records.routes";
 import { createRentalRouter } from "./modules/rental/rental.routes";
@@ -161,6 +162,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createMemberSelfRouter(options.authService));
   app.use("/api", createPaymongoRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
+  app.use("/api", createPatronageRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
   app.use("/api", createInventoryRouter(options.authService));

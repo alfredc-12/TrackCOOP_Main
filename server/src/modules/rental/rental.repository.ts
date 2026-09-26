@@ -57,6 +57,12 @@ import {
   storeProtectedDocument,
   type ValidatedDocumentFile,
 } from "./rental-document-security";
+import {
+  rentalDatePart,
+  rentalIsoDateTime,
+  rentalTimePart,
+  type RentalDatabaseDate,
+} from "./rental-db-date";
 
 const db = getPool();
 
@@ -90,8 +96,8 @@ interface AssetRow extends RowDataPacket {
   deposit_amount: string | null;
   asset_status: "Available" | "Reserved" | "In Use" | "Maintenance" | "Unavailable" | "Archived";
   public_visibility: 0 | 1;
-  created_at: string;
-  updated_at: string;
+  created_at: RentalDatabaseDate;
+  updated_at: RentalDatabaseDate;
   upcoming_bookings: number;
 }
 
@@ -103,19 +109,19 @@ interface BookingRow extends RowDataPacket {
   requester_name: string | null;
   requester_contact: string | null;
   purpose: string | null;
-  start_datetime: string;
-  end_datetime: string;
+  start_datetime: RentalDatabaseDate;
+  end_datetime: RentalDatabaseDate;
   booking_status: "Inquiry" | "Pending" | "Approved" | "Scheduled" | "In Use" | "Completed" | "Rescheduled" | "Cancelled" | "Rejected";
   rate_amount: string | null;
   deposit_amount: string;
   total_amount: string;
   payment_status: "Unpaid" | "Partially Paid" | "Paid" | "Refunded";
-  approved_at: string | null;
-  completed_at: string | null;
+  approved_at: RentalDatabaseDate | null;
+  completed_at: RentalDatabaseDate | null;
   cancellation_reason: string | null;
   completion_notes: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: RentalDatabaseDate;
+  updated_at: RentalDatabaseDate;
   asset_code: string;
   asset_name: string;
   asset_status: AssetRow["asset_status"];
@@ -141,12 +147,12 @@ interface PaymentRow extends RowDataPacket {
   proof_file_path: string | null;
   validation_status: "Pending" | "Validated" | "Rejected" | "Needs Clarification";
   notes: string | null;
-  submitted_at: string;
-  updated_at: string;
+  submitted_at: RentalDatabaseDate;
+  updated_at: RentalDatabaseDate;
   booking_number: string;
   requester_name: string | null;
   requester_contact: string | null;
-  start_datetime: string;
+  start_datetime: RentalDatabaseDate;
   purpose: string | null;
   asset_name: string;
   member_code: string | null;
@@ -157,7 +163,7 @@ interface ExpenseRow extends RowDataPacket {
   record_number: string;
   source_record_id: number | null;
   amount: string;
-  record_date: string;
+  record_date: RentalDatabaseDate;
   remarks: string | null;
   category_name: string;
   booking_number: string | null;
@@ -172,7 +178,7 @@ interface NotificationRow extends RowDataPacket {
   related_entity_type: string | null;
   related_entity_id: number | null;
   is_read: 0 | 1;
-  created_at: string;
+  created_at: RentalDatabaseDate;
   booking_number: string | null;
   payment_notes: string | null;
 }
@@ -185,7 +191,7 @@ interface AuditRow extends RowDataPacket {
   description: string | null;
   old_values: string | null;
   new_values: string | null;
-  action_time: string;
+  action_time: RentalDatabaseDate;
   display_name: string | null;
 }
 
@@ -195,7 +201,7 @@ interface StatusHistoryRow extends RowDataPacket {
   old_status: string | null;
   new_status: string;
   remarks: string | null;
-  changed_at: string;
+  changed_at: RentalDatabaseDate;
   display_name: string | null;
 }
 
@@ -214,8 +220,8 @@ interface MaintenanceRow extends RowDataPacket {
   asset_code: string;
   asset_name: string;
   maintenance_type: string;
-  start_datetime: string;
-  end_datetime: string;
+  start_datetime: RentalDatabaseDate;
+  end_datetime: RentalDatabaseDate;
   description: string;
   technician_provider: string | null;
   cost: string | null;
@@ -224,8 +230,8 @@ interface MaintenanceRow extends RowDataPacket {
   maintenance_status: RentalMaintenanceRecord["status"];
   created_by: number;
   created_by_name: string | null;
-  completed_at: string | null;
-  created_at: string;
+  completed_at: RentalDatabaseDate | null;
+  created_at: RentalDatabaseDate;
 }
 
 const defaultSafetyReminders = [
@@ -396,10 +402,6 @@ function rescheduleRequestValue(
   };
 }
 
-function datePart(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : "";
-}
-
 function localDateFromKey(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -420,15 +422,6 @@ function dateKeysBetween(startDate: string, endDate: string) {
     );
   }
   return dates;
-}
-
-function timePart(value: string | null | undefined) {
-  return value && value.length >= 16 ? value.slice(11, 16) : "";
-}
-
-function isoDateTime(value: string | null | undefined) {
-  if (!value) return new Date().toISOString();
-  return value.includes("T") ? value : `${value.replace(" ", "T")}+08:00`;
 }
 
 function toMysqlDateTime(date: string, time: string) {
@@ -663,7 +656,7 @@ function mapAsset(row: AssetRow): RentalService {
     operationalNotes: stringValue(meta, "operationalNotes", "Final operating arrangements are confirmed during cooperative review."),
     safetyReminders: stringArrayValue(meta, "safetyReminders", defaultSafetyReminders),
     upcomingBookings: Number(row.upcoming_bookings ?? 0),
-    createdAt: isoDateTime(row.created_at),
+    createdAt: rentalIsoDateTime(row.created_at),
     lastMaintenanceDate: stringValue(meta, "lastMaintenanceDate") || undefined,
     nextMaintenanceDate: stringValue(meta, "nextMaintenanceDate") || undefined,
     assetCondition: stringValue(meta, "assetCondition") || undefined,
@@ -706,7 +699,7 @@ function mapAsset(row: AssetRow): RentalService {
     cancellationPolicy: stringValue(meta, "cancellationPolicy") || null,
     reschedulingPolicy: stringValue(meta, "reschedulingPolicy") || null,
     paymentDeadline: stringValue(meta, "paymentDeadline") || null,
-    updatedAt: isoDateTime(row.updated_at),
+    updatedAt: rentalIsoDateTime(row.updated_at),
   };
 }
 
@@ -717,11 +710,11 @@ function mapBooking(row: BookingRow): RentalInquiry {
   const requesterName = row.requester_name ?? row.member_full_name ?? "Rental requester";
   const barangay = stringValue(meta, "barangay", row.member_barangay ?? stringValue(meta, "serviceBarangay", ""));
   const municipality = stringValue(meta, "municipality", row.member_municipality ?? "Nasugbu");
-  const preferredDate = stringValue(meta, "preferredDate", datePart(row.start_datetime));
+  const preferredDate = stringValue(meta, "preferredDate", rentalDatePart(row.start_datetime));
   const preferredEndDate = stringValue(
     meta,
     "preferredEndDate",
-    datePart(row.end_datetime) || preferredDate,
+    rentalDatePart(row.end_datetime) || preferredDate,
   );
   return {
     inquiryId: row.booking_number,
@@ -744,8 +737,8 @@ function mapBooking(row: BookingRow): RentalInquiry {
     preferredEndDate,
     alternativeDate: stringValue(meta, "alternativeDate") || undefined,
     alternativeEndDate: stringValue(meta, "alternativeEndDate") || undefined,
-    preferredStartTime: stringValue(meta, "preferredStartTime", timePart(row.start_datetime)) || undefined,
-    preferredEndTime: stringValue(meta, "preferredEndTime", timePart(row.end_datetime)) || undefined,
+    preferredStartTime: stringValue(meta, "preferredStartTime", rentalTimePart(row.start_datetime)) || undefined,
+    preferredEndTime: stringValue(meta, "preferredEndTime", rentalTimePart(row.end_datetime)) || undefined,
     estimatedDuration: stringValue(meta, "estimatedDuration", "2 hours"),
     estimatedUsage: stringValue(meta, "estimatedUsage", "To be confirmed"),
     estimatedFee: rentalFeeEstimateValue(meta),
@@ -770,8 +763,8 @@ function mapBooking(row: BookingRow): RentalInquiry {
     preferredPaymentMethod: (stringValue(meta, "preferredPaymentMethod") as "Cash" | "Online") || undefined,
     publicNote: stringValue(meta, "publicNote", "NFFAC received your inquiry and will review availability, schedule, pricing, and rental conditions."),
     internalNote: stringValue(meta, "internalNote") || undefined,
-    submittedAt: isoDateTime(row.created_at),
-    updatedAt: isoDateTime(row.updated_at),
+    submittedAt: rentalIsoDateTime(row.created_at),
+    updatedAt: rentalIsoDateTime(row.updated_at),
   };
 }
 
@@ -786,10 +779,10 @@ function mapSchedule(row: BookingRow): RentalSchedule {
     equipmentName: row.asset_name,
     requesterName: row.requester_name ?? "Rental requester",
     requesterType: requesterType(stringValue(meta, "requesterType", row.member_id ? "Member" : "Public or Non-member")),
-    date: datePart(row.start_datetime),
-    endDate: datePart(row.end_datetime) || datePart(row.start_datetime),
-    startTime: timePart(row.start_datetime),
-    endTime: timePart(row.end_datetime),
+    date: rentalDatePart(row.start_datetime),
+    endDate: rentalDatePart(row.end_datetime) || rentalDatePart(row.start_datetime),
+    startTime: rentalTimePart(row.start_datetime),
+    endTime: rentalTimePart(row.end_datetime),
     assignedOperator: stringValue(meta, "assignedOperator") || undefined,
     serviceLocation: stringValue(meta, "serviceLocation", "Nasugbu service area"),
     barangay: stringValue(meta, "serviceBarangay", stringValue(meta, "barangay")),
@@ -811,9 +804,9 @@ function mapPayment(row: PaymentRow): RentalPayment {
     rentalId: row.booking_number,
     requesterName: row.payer_name ?? row.requester_name ?? "Rental requester",
     equipmentName: row.asset_name,
-    scheduleDate: stringValue(meta, "scheduleDate", datePart(row.start_datetime)),
+    scheduleDate: stringValue(meta, "scheduleDate", rentalDatePart(row.start_datetime)),
     amount: numberValue(row.amount),
-    paymentDate: stringValue(meta, "paymentDate", datePart(row.submitted_at)),
+    paymentDate: stringValue(meta, "paymentDate", rentalDatePart(row.submitted_at)),
     paymentMethod: paymentMethod(stringValue(meta, "paymentMethod", row.provider)),
     gcashReference: row.reference_number || undefined,
     receiptNumber: stringValue(meta, "receiptNumber") || undefined,
@@ -821,7 +814,7 @@ function mapPayment(row: PaymentRow): RentalPayment {
     notes: stringValue(meta, "notes") || undefined,
     proofFileName: row.proof_file_path ?? undefined,
     recordedBy: stringValue(meta, "recordedBy", row.member_id ? row.payer_name ?? "Member upload" : "NFFAC Bookkeeper"),
-    submittedAt: isoDateTime(row.submitted_at || stringValue(bookingMeta, "submittedAt")),
+    submittedAt: rentalIsoDateTime(row.submitted_at || stringValue(bookingMeta, "submittedAt")),
   };
 }
 
@@ -830,7 +823,7 @@ function mapExpense(row: ExpenseRow): RentalExpense {
   return {
     expenseId: stringValue(meta, "expenseId", `EXP-${String(row.financial_record_id).padStart(3, "0")}`),
     rentalId: stringValue(meta, "rentalId", row.booking_number ?? ""),
-    expenseDate: datePart(row.record_date),
+    expenseDate: rentalDatePart(row.record_date),
     equipmentName: stringValue(meta, "equipmentName", row.asset_name ?? "Rental asset"),
     category: stringValue(meta, "category", row.category_name),
     amount: numberValue(row.amount),
@@ -858,7 +851,7 @@ function mapNotification(row: NotificationRow): RentalNotification {
     type: row.title.includes("Payment") ? "Payment Proof Received" : row.title.includes("schedule") ? "Schedule Confirmed" : "Inquiry Received",
     title: row.title,
     message: row.message,
-    createdAt: isoDateTime(row.created_at),
+    createdAt: rentalIsoDateTime(row.created_at),
     rentalId: relatedRental || undefined,
     read: Boolean(row.is_read),
     href,
@@ -871,7 +864,7 @@ function mapAudit(row: AuditRow): RentalAuditEntry {
   const rentalId = stringValue(newValues, "booking_number") || stringValue(oldValues, "booking_number") || undefined;
   return {
     auditId: `AUD-${String(row.audit_log_id).padStart(3, "0")}`,
-    createdAt: isoDateTime(row.action_time),
+    createdAt: rentalIsoDateTime(row.action_time),
     user: row.display_name ?? "NFFAC Chairman",
     role: row.action.toLowerCase().includes("payment") ? "Bookkeeper" : "Chairman",
     action: row.action,
@@ -893,7 +886,7 @@ function mapStatusHistory(row: StatusHistoryRow): RentalStatusHistoryEntry {
     newStatus: row.new_status,
     remarks: row.remarks ?? undefined,
     changedBy: row.display_name ?? "NFFAC staff",
-    changedAt: isoDateTime(row.changed_at),
+    changedAt: rentalIsoDateTime(row.changed_at),
   };
 }
 
@@ -903,8 +896,8 @@ function mapMaintenance(row: MaintenanceRow): RentalMaintenanceRecord {
     serviceId: row.asset_code,
     equipmentName: row.asset_name,
     maintenanceType: row.maintenance_type,
-    startAt: isoDateTime(row.start_datetime),
-    endAt: isoDateTime(row.end_datetime),
+    startAt: rentalIsoDateTime(row.start_datetime),
+    endAt: rentalIsoDateTime(row.end_datetime),
     description: row.description,
     technician: row.technician_provider ?? undefined,
     cost: row.cost === null ? undefined : Number(row.cost),
@@ -912,9 +905,9 @@ function mapMaintenance(row: MaintenanceRow): RentalMaintenanceRecord {
     operationalImpact: row.operational_impact,
     status: row.maintenance_status,
     createdBy: row.created_by_name ?? `User ${row.created_by}`,
-    createdAt: isoDateTime(row.created_at),
+    createdAt: rentalIsoDateTime(row.created_at),
     completedAt: row.completed_at
-      ? isoDateTime(row.completed_at)
+      ? rentalIsoDateTime(row.completed_at)
       : undefined,
   };
 }
@@ -1177,8 +1170,8 @@ async function persistedScheduleConflict(
   const maintenanceRows = await queryRows<
     Array<RowDataPacket & {
       maintenance_type: string;
-      start_datetime: string;
-      end_datetime: string;
+      start_datetime: RentalDatabaseDate;
+      end_datetime: RentalDatabaseDate;
     }>
   >(
     `SELECT m.maintenance_type, m.start_datetime, m.end_datetime
@@ -1200,7 +1193,7 @@ async function persistedScheduleConflict(
   const reasons = [...base.reasons];
   for (const maintenance of maintenanceRows) {
     reasons.push(
-      `${schedule.equipmentName} has ${maintenance.maintenance_type} maintenance from ${isoDateTime(maintenance.start_datetime)} to ${isoDateTime(maintenance.end_datetime)}.`,
+      `${schedule.equipmentName} has ${maintenance.maintenance_type} maintenance from ${rentalIsoDateTime(maintenance.start_datetime)} to ${rentalIsoDateTime(maintenance.end_datetime)}.`,
     );
   }
   const service = services.find((item) => item.serviceId === schedule.serviceId);
@@ -1405,8 +1398,8 @@ export const rentalDatabase = {
       queryRows<
         Array<
           RowDataPacket & {
-            start_date: string;
-            end_date: string;
+            start_date: RentalDatabaseDate;
+            end_date: RentalDatabaseDate;
             booking_status: "Approved" | "Scheduled" | "In Use" | "Rescheduled";
           }
         >
@@ -1428,8 +1421,8 @@ export const rentalDatabase = {
       queryRows<
         Array<
           RowDataPacket & {
-            start_date: string;
-            end_date: string;
+            start_date: RentalDatabaseDate;
+            end_date: RentalDatabaseDate;
             maintenance_status: RentalMaintenanceRecord["status"];
           }
         >
@@ -1452,8 +1445,8 @@ export const rentalDatabase = {
 
     const blocked = new Map<string, PublicRentalBlockedDate>();
     for (const row of bookingRows) {
-      const startDate = datePart(row.start_date);
-      const endDate = datePart(row.end_date);
+      const startDate = rentalDatePart(row.start_date);
+      const endDate = rentalDatePart(row.end_date);
       for (const date of dateKeysBetween(startDate, endDate)) {
         blocked.set(date, {
           date,
@@ -1465,8 +1458,8 @@ export const rentalDatabase = {
       }
     }
     for (const row of maintenanceRows) {
-      const startDate = datePart(row.start_date);
-      const endDate = datePart(row.end_date);
+      const startDate = rentalDatePart(row.start_date);
+      const endDate = rentalDatePart(row.end_date);
       for (const date of dateKeysBetween(startDate, endDate)) {
         if (!blocked.has(date)) {
           blocked.set(date, {
