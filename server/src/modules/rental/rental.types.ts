@@ -40,7 +40,7 @@ export type OperationalStatus =
   | "Under Maintenance"
   | "Out of Service"
   | "Archived";
-export type ServiceVisibility = "Public" | "Member-only" | "Internal only" | "Hidden";
+export type ServiceVisibility = "Public" | "Member-only" | "Hidden";
 
 export const VALID_ID_TYPES = [
   "Philippine National ID",

@@ -51,6 +51,15 @@ const bookingViews: BookingView[] = [
   "Done",
 ];
 
+const bookingViewLabels: Record<BookingView, string> = {
+  All: "All requests",
+  New: "Needs review",
+  "To Schedule": "Ready to schedule",
+  Payments: "Waiting for payment",
+  Active: "In use",
+  Done: "Finished",
+};
+
 function matchesBookingView(item: RentalInquiry, view: BookingView) {
   if (view === "All") return true;
   if (view === "New") {
@@ -173,15 +182,15 @@ export function ChairmanRentalBookingsClient() {
 
   const metrics = useMemo(
     () => [
-      { label: "All Bookings", value: inquiries.length, icon: ListChecks },
-      { label: "For Review", value: viewCounts.get("New") ?? 0, icon: FileSearch },
+      { label: "All requests", value: inquiries.length, icon: ListChecks },
+      { label: "Needs review", value: viewCounts.get("New") ?? 0, icon: FileSearch },
       {
-        label: "To Schedule",
+        label: "Ready to schedule",
         value: viewCounts.get("To Schedule") ?? 0,
         icon: CalendarCheck2,
       },
       {
-        label: "Payment Watch",
+        label: "Waiting for payment",
         value: viewCounts.get("Payments") ?? 0,
         icon: WalletCards,
       },
@@ -286,8 +295,8 @@ export function ChairmanRentalBookingsClient() {
     <div className="grid gap-6">
       <PageHeader
         eyebrow="Operations"
-        title="Rental Bookings"
-        description="Review, approve, schedule, reschedule, cancel, start, and complete rentals. Payment validation and receipts remain with the Bookkeeper."
+        title="Rental Requests"
+        description="Open a request and follow the next action shown. The Chairman reviews and schedules; the Bookkeeper confirms payments and receipts."
         actions={
           <>
             <button
@@ -319,11 +328,15 @@ export function ChairmanRentalBookingsClient() {
               className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white"
             >
               <Plus className="size-4" />
-              New Booking
+              Create Request
             </Link>
           </>
         }
       />
+
+      <div className="rounded-lg border border-[#B9CABD] bg-[#E7F2E4] p-4 text-sm leading-6 text-[#294B39]">
+        <strong className="text-[#123D2A]">Simple process:</strong> 1. Review the request. 2. Approve and check the schedule. 3. Wait for the Bookkeeper to confirm payment. 4. Mark the rental in use, then completed.
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
@@ -352,7 +365,7 @@ export function ChairmanRentalBookingsClient() {
                   : "border border-[#CAD8CB] bg-white text-[#294B39]"
               }`}
             >
-              {item}
+              {bookingViewLabels[item]}
               <span className="ml-2 opacity-70">{viewCounts.get(item) ?? 0}</span>
             </button>
           ))}

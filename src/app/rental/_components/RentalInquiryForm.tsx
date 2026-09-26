@@ -21,10 +21,12 @@ import {
 import { BARANGAYS } from "../_lib/rentalConstants";
 import {
   BookingSchema,
+  normalizePhilippineMobile,
+  PERSON_NAME_PATTERN,
   validateUpload,
 } from "../_lib/rentalValidation";
 import { estimateRentalFee } from "../_lib/rentalEstimate";
-import { formatPeso } from "../_lib/rentalFormatting";
+import { formatPeso, formatRentalDateRange } from "../_lib/rentalFormatting";
 import { z } from "zod";
 import { useRental } from "../_context/RentalProvider";
 import { rentalApiRepository } from "../_lib/rentalApi";
@@ -37,8 +39,8 @@ import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 
 const ClientBookingSchema = BookingSchema.safeExtend({
-  firstName: z.string().trim().min(2, "Enter your first name."),
-  lastName: z.string().trim().min(2, "Enter your last name."),
+  firstName: z.string().trim().min(2, "Enter your first name.").max(60, "First name must be 60 characters or fewer.").regex(PERSON_NAME_PATTERN, "Use letters, spaces, apostrophes, or hyphens only."),
+  lastName: z.string().trim().min(2, "Enter your last name.").max(60, "Last name must be 60 characters or fewer.").regex(PERSON_NAME_PATTERN, "Use letters, spaces, apostrophes, or hyphens only."),
 });
 type ClientFormValues = z.infer<typeof ClientBookingSchema>;
 
@@ -53,12 +55,12 @@ const defaultValues: ClientFormValues = {
   barangay: "",
   municipality: "Nasugbu",
   serviceId: "",
-  intendedUse: "Not specified",
+  intendedUse: "",
   preferredDate: "",
   preferredEndDate: "",
   preferredStartTime: "08:00",
   preferredEndTime: "17:00",
-  requestDescription: "No additional details provided.",
+  requestDescription: "",
   notes: "",
   validIdType: "",
   attachmentName: "",
@@ -101,6 +103,18 @@ const confirmationFields: FieldPath<ClientFormValues>[] = [
   "preferredPaymentMethod",
 ];
 
+const FARM_WORK_OPTIONS = [
+  "Plowing",
+  "Harrowing",
+  "Land preparation",
+  "Planting support",
+  "Irrigation",
+  "Spraying",
+  "Harvesting",
+  "Hauling or transport",
+] as const;
+const OTHER_FARM_WORK = "Other";
+
 export function RentalInquiryForm({
   member = false,
   hideBackButton = false,
@@ -128,6 +142,8 @@ export function RentalInquiryForm({
   const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
   const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
   const [blockedDatesError, setBlockedDatesError] = useState<string>();
+  const [selectedFarmWork, setSelectedFarmWork] = useState("");
+  const [otherFarmWork, setOtherFarmWork] = useState("");
   const {
     register,
     reset,
@@ -201,6 +217,25 @@ export function RentalInquiryForm({
       shouldValidate: true,
     });
   }, [firstName, lastName, setValue]);
+
+  const intendedUse = useWatch({ control, name: "intendedUse" });
+  useEffect(() => {
+    setValue("requestDescription", intendedUse || "", {
+      shouldValidate: Boolean(intendedUse),
+    });
+  }, [intendedUse, setValue]);
+  function updateFarmWork(nextSelected: string, nextOther = otherFarmWork) {
+    const cleanOther = nextOther.trim();
+    const nextValue =
+      nextSelected === OTHER_FARM_WORK ? cleanOther : nextSelected;
+    setSelectedFarmWork(nextSelected);
+    setOtherFarmWork(nextOther);
+    setValue("intendedUse", nextValue, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -449,15 +484,15 @@ export function RentalInquiryForm({
         {currentStep === 1 && (
         <FormSection
           step="Step 1 of 3"
-          title="Requester Information"
-          description="Tell NFFAC who is making the rental booking and how we can contact you."
+          title="Your information"
+          description="Enter your name, mobile number, address, and one valid ID. We will use these only to review this request."
         >
           <div className="grid gap-5 sm:grid-cols-2">
               <Field label="First name" required error={errors.firstName?.message}>
-                <input {...register("firstName")} autoComplete="given-name" />
+                <input {...register("firstName")} autoComplete="given-name" maxLength={60} />
               </Field>
               <Field label="Last name" required error={errors.lastName?.message}>
-                <input {...register("lastName")} autoComplete="family-name" />
+                <input {...register("lastName")} autoComplete="family-name" maxLength={60} />
               </Field>
             <Field
               label="Contact number"
@@ -466,18 +501,28 @@ export function RentalInquiryForm({
               error={errors.contactNumber?.message}
             >
               <input
-                {...register("contactNumber")}
+                {...register("contactNumber", {
+                  onBlur: (event) => {
+                    setValue(
+                      "contactNumber",
+                      normalizePhilippineMobile(event.target.value),
+                      { shouldValidate: true },
+                    );
+                  },
+                })}
                 inputMode="tel"
                 autoComplete="tel"
                 placeholder="09XXXXXXXXX"
+                maxLength={16}
               />
             </Field>
-            <Field label="Email" required error={errors.email?.message}>
+            <Field label="Email (optional)" hint="Leave blank if you prefer SMS updates." error={errors.email?.message}>
               <input
                 {...register("email")}
                 type="email"
                 autoComplete="email"
                 placeholder="name@example.com"
+                maxLength={190}
               />
             </Field>
             <Field
@@ -486,7 +531,7 @@ export function RentalInquiryForm({
               error={errors.completeAddress?.message}
               wide
             >
-              <input {...register("completeAddress")} autoComplete="street-address" />
+              <input {...register("completeAddress")} autoComplete="street-address" maxLength={250} placeholder="House or sitio, street, barangay" />
             </Field>
             <Field label="Barangay" required error={errors.barangay?.message}>
               <select {...register("barangay")}>
@@ -497,7 +542,7 @@ export function RentalInquiryForm({
               </select>
             </Field>
             <Field label="Municipality" required error={errors.municipality?.message}>
-              <input {...register("municipality")} />
+              <input {...register("municipality")} maxLength={100} readOnly className="bg-[#f1f4ef]" />
             </Field>
             <Field label="Valid ID type" required error={errors.validIdType?.message}>
               <select {...register("validIdType")}>
@@ -541,7 +586,7 @@ export function RentalInquiryForm({
         {currentStep === 2 && (
         <FormSection
           step="Step 2 of 3"
-          title="Rental Details"
+          title="Equipment and dates"
           description={preselectedServiceId
             ? "Review the selected equipment and check its availability schedule."
             : "Select the equipment and check its availability schedule."}
@@ -582,6 +627,13 @@ export function RentalInquiryForm({
                 </select>
               </Field>
             )}
+            <FarmWorkField
+              selected={selectedFarmWork}
+              otherValue={otherFarmWork}
+              error={errors.intendedUse?.message}
+              onChange={(work) => updateFarmWork(work)}
+              onOtherChange={(value) => updateFarmWork(selectedFarmWork, value)}
+            />
             <input type="hidden" {...register("intendedUse")} />
             <div className="sm:col-span-2">
               <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -714,26 +766,43 @@ export function RentalInquiryForm({
         {currentStep === 3 && (
         <FormSection
           step="Step 3 of 3"
-          title="Review & Consent"
-          description="Acknowledge the policies and finalize your booking request."
+          title="Review and send"
+          description="Check the request below. This is not yet a confirmed schedule; NFFAC will contact you after reviewing availability."
         >
-          <div className="grid gap-3">
-            <ConsentField error={errors.dataPrivacyConsent?.message}>
-              <input type="checkbox" className="mt-0.5" {...register("dataPrivacyConsent")} />
-              <span>I consent to NFFAC collecting and processing my data in accordance with the Data Privacy Act for the purpose of this rental booking.</span>
-            </ConsentField>
-            <ConsentField error={errors.accuracyConfirmation?.message}>
-              <input type="checkbox" className="mt-0.5" {...register("accuracyConfirmation")} />
-              <span>I confirm that the information provided is accurate, and I agree to use the equipment only for the stated agricultural purpose.</span>
-            </ConsentField>
-            <ConsentField error={errors.contactConsent?.message}>
-              <input type="checkbox" className="mt-0.5" {...register("contactConsent")} />
-              <span>I agree to be contacted by NFFAC via SMS or email regarding my booking schedule, payment, and policy updates.</span>
-            </ConsentField>
+          <div className="mb-5 rounded-xl border border-[#cfd9d2] bg-white p-4 text-sm text-[#334b3d]">
+            <h3 className="font-extrabold text-[#123d2a]">Request summary</h3>
+            <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div><dt className="font-bold">Requester</dt><dd>{`${firstName || ""} ${lastName || ""}`.trim()}</dd></div>
+              <div><dt className="font-bold">Equipment</dt><dd>{selectedService?.name ?? "Not selected"}</dd></div>
+              <div><dt className="font-bold">Requested dates</dt><dd>{formatRentalDateRange(preferredDate, preferredEndDate, true)}</dd></div>
+              <div><dt className="font-bold">Farm work</dt><dd>{intendedUse || "Not provided"}</dd></div>
+            </dl>
           </div>
+          <ConsentField
+            error={
+              errors.dataPrivacyConsent?.message ||
+              errors.accuracyConfirmation?.message ||
+              errors.contactConsent?.message
+            }
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 size-5"
+              {...register("dataPrivacyConsent", {
+                onChange: (event) => {
+                  const checked = event.target.checked;
+                  setValue("accuracyConfirmation", checked, { shouldValidate: true });
+                  setValue("contactConsent", checked, { shouldValidate: true });
+                },
+              })}
+            />
+            <span>I confirm that my information is correct, I will use the equipment only for the stated farm work, and NFFAC may contact me about this request.</span>
+          </ConsentField>
+          <input type="hidden" {...register("accuracyConfirmation")} />
+          <input type="hidden" {...register("contactConsent")} />
           
           <div className="mt-6 border-t border-[#e3e9e5] pt-6">
-            <h3 className="mb-3 text-sm font-bold text-[#123d2a]">Preferred Payment Method</h3>
+            <h3 className="mb-3 text-sm font-bold text-[#123d2a]">How do you prefer to pay?</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${preferredPaymentMethod === "Cash" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
                 <input type="radio" value="Cash" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
@@ -769,7 +838,7 @@ export function RentalInquiryForm({
               type="submit"
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Submitting..." : "Submit Booking"}
+              {submitting ? "Sending request..." : "Send Rental Request"}
             </button>
           </FormActions>
         </FormSection>
@@ -815,6 +884,65 @@ function FormActions({ children, center }: { children: React.ReactNode; center?:
   );
 }
 
+function FarmWorkField({
+  selected,
+  otherValue,
+  error,
+  onChange,
+  onOtherChange,
+}: {
+  selected: string;
+  otherValue: string;
+  error?: string;
+  onChange: (work: string) => void;
+  onOtherChange: (value: string) => void;
+}) {
+  const otherSelected = selected === OTHER_FARM_WORK;
+
+  return (
+    <div className="grid gap-2 text-sm font-bold text-[#334b3d] sm:col-span-2">
+      <span>
+        What farm work will you do? <span className="text-red-700">*</span>
+      </span>
+      <div className="grid gap-3">
+        <select
+          value={selected}
+          onChange={(event) => onChange(event.target.value)}
+          className={`min-h-12 rounded-xl border bg-white px-3.5 py-2.5 text-sm font-normal text-[#17211c] outline-none transition focus:ring-4 ${
+            error
+              ? "border-red-400 focus:border-red-600 focus:ring-red-100"
+              : "border-[#cfd9d2] hover:border-[#aebdb3] focus:border-[#168046] focus:ring-[#168046]/10"
+          }`}
+        >
+          <option value="">Select farm work</option>
+          {FARM_WORK_OPTIONS.map((work) => (
+            <option key={work} value={work}>
+              {work}
+            </option>
+          ))}
+          <option value={OTHER_FARM_WORK}>{OTHER_FARM_WORK}</option>
+        </select>
+        {otherSelected ? (
+          <input
+            value={otherValue}
+            onChange={(event) => onOtherChange(event.target.value)}
+            maxLength={80}
+            placeholder="Please specify other farm work"
+            className="min-h-12 rounded-xl border border-[#cfd9d2] bg-white px-3.5 py-2.5 text-sm font-normal text-[#17211c] outline-none transition placeholder:text-[#98a39d] focus:border-[#168046] focus:ring-4 focus:ring-[#168046]/10"
+          />
+        ) : null}
+      </div>
+      {!error ? (
+        <span className="text-xs font-normal text-[#7a877f]">
+          Choose Other if the work is not listed.
+        </span>
+      ) : (
+        <span className="text-xs font-semibold text-red-700">{error}</span>
+      )}
+    </div>
+  );
+}
+
 function Field({
   label,
   required,
@@ -854,6 +982,7 @@ function Field({
     </label>
   );
 }
+
 
 function withFieldStyles(
   element: React.ReactElement<{
@@ -980,6 +1109,12 @@ function AvailabilityCalendar({
       parseDateKey(item.date).getFullYear() === month.getFullYear() &&
       parseDateKey(item.date).getMonth() === month.getMonth(),
   ).length;
+  const maintenanceCount = blockedDates.filter(
+    (item) =>
+      item.status === "Maintenance" &&
+      parseDateKey(item.date).getFullYear() === month.getFullYear() &&
+      parseDateKey(item.date).getMonth() === month.getMonth(),
+  ).length;
 
   return (
     <section className="rounded-2xl border border-[#d7e2dc] bg-[#fbfdfb] p-3">
@@ -991,7 +1126,7 @@ function AvailabilityCalendar({
           </div>
           <p className="mt-1 text-xs leading-5 text-[#6b786f]">
             {serviceName
-              ? `${serviceName}: crossed-out dates already have approved rental use.`
+              ? `${serviceName}: unavailable dates show approved rentals or maintenance.`
               : "Select equipment first to load unavailable dates."}
           </p>
         </div>
@@ -1044,17 +1179,26 @@ function AvailabilityCalendar({
             key >= selectedDate &&
             key <= selectedEndDate;
           const disabled = Boolean(blocked) || past || !serviceName;
+          const maintenance = blocked?.status === "Maintenance";
 
           return (
             <button
               key={key}
               type="button"
               disabled={disabled}
-              title={blocked ? blocked.reason : undefined}
+              title={
+                blocked
+                  ? maintenance
+                    ? "Unavailable: scheduled maintenance"
+                    : blocked.reason
+                  : undefined
+              }
               onClick={() => onSelect(key)}
               className={`relative min-h-9 rounded-xl border px-1 font-bold transition ${
                 blocked
-                  ? "border-red-200 bg-red-50 text-red-800 line-through"
+                  ? maintenance
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-red-200 bg-red-50 text-red-800 line-through"
                   : selected
                     ? "border-[#08753a] bg-[#08753a] text-white"
                     : inSelectedRange
@@ -1066,7 +1210,13 @@ function AvailabilityCalendar({
             >
               {date.getDate()}
               {blocked ? (
-                <span className="absolute inset-x-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-700/70" />
+                maintenance ? (
+                  <span className="absolute right-1 top-1 rounded bg-amber-200 px-1 text-[9px] font-black leading-3 text-amber-950">
+                    M
+                  </span>
+                ) : (
+                  <span className="absolute inset-x-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-700/70" />
+                )
               ) : null}
             </button>
           );
@@ -1080,7 +1230,11 @@ function AvailabilityCalendar({
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="size-3 rounded bg-red-50 ring-1 ring-red-200" />
-          Booked or maintenance
+          Booked
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="size-3 rounded bg-amber-50 ring-1 ring-amber-300" />
+          Maintenance
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="size-3 rounded bg-[#def0e2] ring-1 ring-[#9bc9aa]" />
@@ -1090,6 +1244,7 @@ function AvailabilityCalendar({
         {!loading && serviceName ? (
           <span>
             {unavailableCount} unavailable date{unavailableCount === 1 ? "" : "s"} this month
+            {maintenanceCount ? `, including ${maintenanceCount} maintenance` : ""}
           </span>
         ) : null}
       </div>

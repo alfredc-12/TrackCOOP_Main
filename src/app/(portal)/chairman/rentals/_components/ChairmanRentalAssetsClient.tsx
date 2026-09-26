@@ -682,7 +682,7 @@ export function ChairmanRentalAssetsClient() {
           label="Visibility"
           value={visibility}
           onChange={setVisibility}
-          options={["All", "Public", "Member-only", "Internal only", "Hidden"]}
+          options={["All", "Public", "Member-only", "Hidden"]}
         />
         <Filter
           label="Status"
@@ -1142,8 +1142,8 @@ function MaintenanceDialog({
   onSaved: () => Promise<void>;
 }) {
   const [type, setType] = useState("Preventive Maintenance");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [description, setDescription] = useState("");
   const [impact, setImpact] =
     useState<RentalMaintenanceRecord["operationalImpact"]>("Unavailable");
@@ -1156,11 +1156,15 @@ function MaintenanceDialog({
     setSaving(true);
     setError("");
     try {
+      const finalEndDate = endDate || startDate;
+      if (!startDate || !finalEndDate || finalEndDate < startDate) {
+        throw new Error("Choose a valid maintenance date range.");
+      }
       await rentalApiRepository.createRentalMaintenanceRecord({
         serviceId: asset.serviceId,
         maintenanceType: type,
-        startAt,
-        endAt,
+        startAt: `${startDate}T00:00:00`,
+        endAt: `${finalEndDate}T23:59:59`,
         description,
         operationalImpact: impact,
         status: "Scheduled",
@@ -1168,8 +1172,8 @@ function MaintenanceDialog({
       toast.success("Maintenance period added.");
       await onSaved();
       setType("Preventive Maintenance");
-      setStartAt("");
-      setEndAt("");
+      setStartDate("");
+      setEndDate("");
       setDescription("");
       setImpact("Unavailable");
     } catch (caught) {
@@ -1185,7 +1189,7 @@ function MaintenanceDialog({
         if (!open) onClose();
       }}
       title={asset ? `Add Maintenance - ${asset.name}` : "Add Maintenance"}
-      description="Blocking maintenance is checked against existing bookings before it is saved."
+      description="Choose the day or date range when the equipment should be unavailable."
     >
       <form onSubmit={submit} className="grid gap-4">
         {error ? (
@@ -1194,23 +1198,35 @@ function MaintenanceDialog({
           </div>
         ) : null}
         <Field label="Maintenance type">
-          <input required value={type} onChange={(event) => setType(event.target.value)} />
+          <select required value={type} onChange={(event) => setType(event.target.value)}>
+            <option>Preventive Maintenance</option>
+            <option>Repair</option>
+            <option>Cleaning</option>
+            <option>Inspection</option>
+            <option>Parts replacement</option>
+            <option>Other Maintenance</option>
+          </select>
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Starts">
+          <Field label="Start date">
             <input
               required
-              type="datetime-local"
-              value={startAt}
-              onChange={(event) => setStartAt(event.target.value)}
+              type="date"
+              value={startDate}
+              onChange={(event) => {
+                const date = event.target.value;
+                setStartDate(date);
+                if (!endDate || endDate < date) setEndDate(date);
+              }}
             />
           </Field>
-          <Field label="Ends">
+          <Field label="End date">
             <input
               required
-              type="datetime-local"
-              value={endAt}
-              onChange={(event) => setEndAt(event.target.value)}
+              type="date"
+              min={startDate}
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
             />
           </Field>
         </div>

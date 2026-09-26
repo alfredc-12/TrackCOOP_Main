@@ -575,7 +575,8 @@ function operationalStatus(row: AssetRow, meta: JsonRecord): OperationalStatus {
 
 function visibility(row: AssetRow, meta: JsonRecord): ServiceVisibility {
   const stored = stringValue(meta, "visibility");
-  if (["Public", "Member-only", "Internal only", "Hidden"].includes(stored)) return stored as ServiceVisibility;
+  if (stored === "Internal only") return "Hidden";
+  if (["Public", "Member-only", "Hidden"].includes(stored)) return stored as ServiceVisibility;
   return row.public_visibility ? "Public" : "Hidden";
 }
 
@@ -664,10 +665,13 @@ function mapAsset(row: AssetRow): RentalService {
     availableDays: stringArrayValue(meta, "availableDays"),
     availableStartTime: stringValue(meta, "availableStartTime") || undefined,
     availableEndTime: stringValue(meta, "availableEndTime") || undefined,
-    maximumBookingsPerDay: numberValue(
-      typeof meta.maximumBookingsPerDay === "number"
-        ? meta.maximumBookingsPerDay
-        : undefined,
+    maximumBookingsPerDay: Math.max(
+      1,
+      numberValue(
+        typeof meta.maximumBookingsPerDay === "number"
+          ? meta.maximumBookingsPerDay
+          : 1,
+      ),
     ),
     preparationMinutes: numberValue(
       typeof meta.preparationMinutes === "number"
@@ -701,6 +705,10 @@ function mapAsset(row: AssetRow): RentalService {
     paymentDeadline: stringValue(meta, "paymentDeadline") || null,
     updatedAt: rentalIsoDateTime(row.updated_at),
   };
+}
+
+function rentalOperatorIsRequired(service: RentalService) {
+  return !/not required|self[- ]?operated/i.test(service.operatorRequirement);
 }
 
 function mapBooking(row: BookingRow): RentalInquiry {
@@ -1423,6 +1431,7 @@ export const rentalDatabase = {
           RowDataPacket & {
             start_date: RentalDatabaseDate;
             end_date: RentalDatabaseDate;
+            maintenance_type: string;
             maintenance_status: RentalMaintenanceRecord["status"];
           }
         >
@@ -1430,6 +1439,7 @@ export const rentalDatabase = {
         `SELECT
             DATE(m.start_datetime) AS start_date,
             DATE(m.end_datetime) AS end_date,
+            m.maintenance_type,
             m.maintenance_status
            FROM rental_maintenance_periods m
            JOIN rental_assets a
@@ -1467,7 +1477,7 @@ export const rentalDatabase = {
             startDate,
             endDate,
             status: "Maintenance",
-            reason: "Equipment is blocked for maintenance.",
+            reason: `${row.maintenance_type} maintenance.`,
           });
         }
       }
@@ -2040,7 +2050,16 @@ export const rentalDatabase = {
     internalNote?: string,
     actor?: RentalActor,
   ) {
-    if (!publicNote.trim()) throw new Error("A public response is required.");
+    if (!isRentalStatus(decision)) throw new Error("Choose a valid rental decision.");
+    if (publicNote.trim().length < 10) {
+      throw new Error("Write a clear public response of at least 10 characters.");
+    }
+    if (publicNote.trim().length > 500) {
+      throw new Error("Public response must be 500 characters or fewer.");
+    }
+    if ((internalNote?.trim().length ?? 0) > 1000) {
+      throw new Error("Internal note must be 1,000 characters or fewer.");
+    }
     return withRentalTransaction(async (connection) => {
       await queryRows(
         "SELECT rental_booking_id FROM rental_bookings WHERE booking_number = ? FOR UPDATE",
@@ -2191,6 +2210,24 @@ export const rentalDatabase = {
         connection,
       );
       if (!assetLocks[0]) throw new Error("Rental asset was not found.");
+      const selectedAssetRows = await assetRows(
+        "WHERE a.asset_code = ?",
+        [schedule.serviceId],
+        connection,
+      );
+      const selectedAsset = selectedAssetRows[0]
+        ? mapAsset(selectedAssetRows[0])
+        : undefined;
+      if (
+        schedule.status === "Confirmed" &&
+        selectedAsset &&
+        rentalOperatorIsRequired(selectedAsset) &&
+        !schedule.assignedOperator?.trim()
+      ) {
+        throw new Error(
+          "Assign the cooperative operator before confirming this schedule.",
+        );
+      }
       await queryRows(
         `SELECT rental_booking_id
            FROM rental_bookings
