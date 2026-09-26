@@ -366,7 +366,7 @@ CREATE TABLE membership_applications (
     membership_fee_amount DECIMAL(12, 2) NOT NULL DEFAULT 200.00,
     share_subscription_commitment_accepted TINYINT(1) NOT NULL DEFAULT 0,
     subscribed_shares SMALLINT UNSIGNED NULL,
-    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 1500.00,
+    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
     target_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
     share_capital_deadline_months SMALLINT UNSIGNED NOT NULL DEFAULT 12,
     annual_interest_rate DECIMAL(5, 2) NULL,
@@ -381,6 +381,8 @@ CREATE TABLE membership_applications (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -447,6 +449,8 @@ CREATE TABLE membership_application_status_history (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -455,6 +459,8 @@ CREATE TABLE membership_application_status_history (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -2171,7 +2177,7 @@ VALUES (
     (
         'Business Rules',
         'business.initial_share_capital_payment',
-        '1500.00',
+        '3000.00',
         'Number',
         'Confirmed initial share capital payment amount.',
         0,
@@ -2261,7 +2267,7 @@ VALUES (
     (
         'membership',
         'membership.initial_share_capital',
-        '1500',
+        '3000',
         'Number',
         'Initial share-capital payment in Philippine pesos.',
         0,
@@ -2421,7 +2427,7 @@ SELECT
                         setting_key = 'business.initial_share_capital_payment'
                     LIMIT 1
                 ),
-                '1500.00'
+                '3000.00'
             ) AS DECIMAL(12, 2)
         ) THEN 1
         ELSE 0

@@ -59,6 +59,7 @@ export async function selectSettlementApplication(
             a.requested_membership_type AS requestedMembershipType,
             CAST(a.converted_member_id AS CHAR) AS convertedMemberId,
             CAST(m.user_id AS CHAR) AS memberUserId,
+            a.email,
             TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''),
                            a.last_name, NULLIF(a.suffix, ''))) AS fullName
        FROM membership_applications a

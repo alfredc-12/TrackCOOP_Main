@@ -69,7 +69,7 @@ const settingKeys = [
 ];
 const defaults: MembershipSettings = {
   associateFee: 200,
-  initialShareCapital: 1500,
+  initialShareCapital: 3000,
   trueMemberRequiredCapital: 3000,
   maximumShareCapital: 15000,
   shareCapitalDeadlineMonths: 12,

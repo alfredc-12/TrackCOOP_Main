@@ -19,9 +19,9 @@ export function validateApplicationForApproval(
   application: ApplicationRow,
   approval: ApprovalInput,
 ) {
-  if (application.applicationStatus !== "Under Review") {
+  if (application.applicationStatus !== "Payment Confirmed") {
     throw new AppError(
-      "Only applications under review can be approved",
+      "Only applications with confirmed payment can be approved",
       409,
       "MEMBERSHIP_APPLICATION_APPROVAL_STATUS_INVALID",
     );

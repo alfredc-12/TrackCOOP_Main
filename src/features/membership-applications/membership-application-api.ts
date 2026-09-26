@@ -272,6 +272,7 @@ export function transitionApplication(
   action:
     | "start-review"
     | "request-information"
+    | "approve-for-payment"
     | "reject"
     | "withdraw",
   input: StatusTransitionInput,

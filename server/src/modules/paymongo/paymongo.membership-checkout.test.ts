@@ -38,7 +38,7 @@ const application: PaymongoMembershipApplicationRecord = {
   fullName: "Public Applicant",
   email: "applicant@example.test",
   contactNumber: "09170000300",
-  applicationStatus: "Submitted",
+  applicationStatus: "Payment Required",
 };
 
 const paymentReference: PaymongoPaymentReferenceRecord = {
@@ -114,7 +114,7 @@ function makeMembershipService(options: {
       async getMembershipPaymentSettings() {
         return {
           associateFee: 200,
-          initialShareCapital: 1500,
+            initialShareCapital: 3000,
           trueMemberRequiredCapital: 3000,
           maximumShareCapital: 15000,
         };
@@ -293,12 +293,12 @@ test("createMembershipApplicationCheckout supports True Member share capital", a
   const result = await service.createMembershipApplicationCheckout(
     application.applicationCode,
     dateOfBirth,
-    { paymentPurpose: "Share Capital", requestedAmount: 1500 },
+    { paymentPurpose: "Share Capital", requestedAmount: 3000 },
   );
 
   assert.equal(result.paymentPurpose, "Share Capital");
-  assert.equal(result.amount, 1500);
-  assert.equal(checkoutCalls[0].input.lineItems[0].amount, 150_000);
+  assert.equal(result.amount, 3000);
+  assert.equal(checkoutCalls[0].input.lineItems[0].amount, 300_000);
 });
 
 test("createMembershipApplicationCheckout prevents exceeding maximum share capital", async () => {

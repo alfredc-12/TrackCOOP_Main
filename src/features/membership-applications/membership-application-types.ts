@@ -14,6 +14,8 @@ export const membershipApplicationStatuses = [
   "Submitted",
   "Under Review",
   "Needs Information",
+  "Payment Required",
+  "Payment Confirmed",
   "Approved",
   "Rejected",
   "Withdrawn",
@@ -154,6 +156,8 @@ export type ChairmanApplicationSummary = {
   submitted: number;
   underReview: number;
   needsInformation: number;
+  paymentRequired: number;
+  paymentConfirmed: number;
   approved: number;
   rejected: number;
   withdrawn: number;

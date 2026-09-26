@@ -313,7 +313,7 @@ export function MembershipApplicationForm() {
               value: "TRUE_MEMBER",
               title: "True Member",
               detail:
-                "₱1,500.00 initial payment; ₱3,000.00 per share; one year; ₱15,000.00 maximum.",
+                "PHP 3,000.00 initial share capital; one year; PHP 15,000.00 maximum.",
             },
             {
               value: "NOT_SURE",

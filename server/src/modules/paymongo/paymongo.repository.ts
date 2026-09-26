@@ -235,7 +235,7 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
 
       return {
         associateFee: numberSetting(rows, "membership.associate_fee", 200),
-        initialShareCapital: numberSetting(rows, "membership.initial_share_capital", 1500),
+        initialShareCapital: numberSetting(rows, "membership.initial_share_capital", 3000),
         trueMemberRequiredCapital: numberSetting(
           rows,
           "membership.true_member_required_capital",

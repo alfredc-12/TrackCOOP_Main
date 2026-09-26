@@ -283,7 +283,7 @@ export const REPORT_CATALOG: ReportDefinition[] = [
     "incomplete-initial-capital",
     "Members with Incomplete Initial Capital",
     "MEMBERSHIP",
-    "True members below the confirmed ₱1,500 initial requirement.",
+    "True members below the confirmed PHP 3,000 initial requirement.",
     "Members and share capital",
     [],
   ),

@@ -24,7 +24,7 @@ const commitments = [
   },
   {
     name: "initialShareCapitalAcknowledged",
-    text: "When pursuing True Member status, I acknowledge the configured PHP 1,500 initial share-capital amount.",
+    text: "When pursuing True Member status, I acknowledge the configured PHP 3,000 initial share-capital amount.",
   },
   {
     name: "trueMemberRequirementAcknowledged",
@@ -55,14 +55,23 @@ export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewPr
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-[#DDE8D8] bg-[#EAF3E8] p-4 text-sm leading-6 text-[#365F4A] shadow-sm">
-        The cooperative caps validated share capital at PHP 15,000. Annual interest
-        rate and required share count are not shown until officially configured.
+    <div className="space-y-5">
+      <div className="grid gap-4 rounded-[1.5rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm md:grid-cols-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b62a]">Required Share Capital</p>
+          <p className="mt-2 text-2xl font-black text-[#123D2A]">PHP 3,000</p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b62a]">Membership Fee</p>
+          <p className="mt-2 text-2xl font-black text-[#123D2A]">PHP 200</p>
+        </div>
+        <div className="rounded-2xl bg-white p-4 text-sm font-semibold leading-6 text-[#365F4A]">
+          You do not pay now. Payment is only requested after NFFAC completes the first review.
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-[#DDE8D8] bg-white p-5 text-sm leading-6 text-[#123D2A] shadow-sm">
-        <label className="flex cursor-pointer gap-3 rounded-xl border border-[#1F6B43]/40 bg-[#FFFAF2] px-4 py-3 font-semibold transition hover:border-[#1F6B43]">
+      <div className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 text-sm leading-6 text-[#123D2A] shadow-sm">
+        <label className="flex cursor-pointer gap-3 rounded-2xl border border-[#1F6B43]/40 bg-[#EAF3E8] px-4 py-3 font-semibold transition hover:border-[#1F6B43]">
           <input
             type="checkbox"
             checked={allAccepted}
@@ -79,9 +88,13 @@ export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewPr
             ) : null}
           </span>
         </label>
-        <ul className="mt-4 list-disc space-y-1.5 pl-5 font-semibold marker:text-[#1F6B43]">
-          {commitments.map((item) => <li key={item.name}>{item.text}</li>)}
-        </ul>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {commitments.map((item) => (
+            <div key={item.name} className="rounded-2xl border border-[#EEF2EC] bg-[#FFFAF2] p-4">
+              <p className="text-sm font-semibold leading-6 text-[#365F4A]">{item.text}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

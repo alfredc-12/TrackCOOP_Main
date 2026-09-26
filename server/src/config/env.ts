@@ -145,6 +145,8 @@ const envSchema = z.object({
   PAYMENT_CANCEL_URL: z.string().url().default("http://localhost:3000/payment/cancelled"),
   RENTAL_STATUS_EMAIL_WEBHOOK_URL: optionalTrimmedUrl,
   RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN: optionalTrimmedString,
+  MEMBERSHIP_EMAIL_WEBHOOK_URL: optionalTrimmedUrl,
+  MEMBERSHIP_EMAIL_WEBHOOK_TOKEN: optionalTrimmedString,
 }).superRefine((value, context) => {
   const secretKey = activePaymongoSecret(value);
   const webhookSecret = activePaymongoWebhookSecret(value);

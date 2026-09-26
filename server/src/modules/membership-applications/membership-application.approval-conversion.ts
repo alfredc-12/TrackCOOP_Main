@@ -188,7 +188,7 @@ export function createMembershipApprovalConversionService(
           `INSERT INTO membership_application_status_history
              (membership_application_id, old_status, new_status,
               internal_note, applicant_message, changed_by)
-           VALUES (?, 'Under Review', 'Approved', ?,
+           VALUES (?, 'Payment Confirmed', 'Approved', ?,
                    'Your membership application was approved.', ?)`,
           [applicationId, approval.decisionReason, auth.user.id],
         );

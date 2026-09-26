@@ -704,14 +704,14 @@ function reportQuery(
     case "incomplete-initial-capital": {
       const having =
         definition.key === "incomplete-initial-capital"
-          ? "HAVING validatedCapital < 1500"
+          ? "HAVING validatedCapital < 3000"
           : "";
       return {
         sql: `SELECT mp.member_code AS memberCode,
                      mp.full_name AS memberName,
                      mp.membership_type AS membershipType,
                      COALESCE(SUM(CASE WHEN scp.payment_status = 'Validated' THEN scp.amount ELSE 0 END), 0) AS validatedCapital,
-                     GREATEST(1500 - COALESCE(SUM(CASE WHEN scp.payment_status = 'Validated' THEN scp.amount ELSE 0 END), 0), 0) AS initialBalance,
+                     GREATEST(3000 - COALESCE(SUM(CASE WHEN scp.payment_status = 'Validated' THEN scp.amount ELSE 0 END), 0), 0) AS initialBalance,
                      mp.share_capital_deadline AS deadline
                 FROM member_profiles mp
                 LEFT JOIN share_capital_payments scp ON scp.member_id = mp.member_id

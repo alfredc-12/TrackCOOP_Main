@@ -1,6 +1,10 @@
 import type { PoolConnection } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import { synchronizedInitialCapitalRequirementStatus } from "../membership-applications/membership-application.capital";
+import {
+  buildStatusEmail,
+  triggerMembershipEmail,
+} from "../membership-applications/membership-application-email";
 import { insertSettlementFinanceRecord } from "./paymongo.settlement.finance";
 import {
   memberCapitalOutsideApplication,
@@ -77,7 +81,7 @@ async function synchronizeCapitalRequirement(input: {
     membershipNumberSetting(
       input.connection,
       "membership.initial_share_capital",
-      1500,
+      3000,
     ),
     validatedApplicationPaymentTotal(
       input.connection,
@@ -150,6 +154,77 @@ async function synchronizeMembershipRequirement(input: {
   await synchronizeCapitalRequirement(input);
 }
 
+async function maybeMarkApplicationPaymentConfirmed(input: {
+  connection: PoolConnection;
+  application: MembershipApplicationSettlementRow;
+  actorUserId: string;
+}) {
+  if (input.application.applicationStatus !== "Payment Required") return;
+
+  const expectedFee = await membershipNumberSetting(
+    input.connection,
+    "membership.associate_fee",
+    200,
+  );
+  const [feeTotal, initialCapital] = await Promise.all([
+    validatedApplicationPaymentTotal(
+      input.connection,
+      input.application.id,
+      "Associate Membership Fee",
+    ),
+    membershipNumberSetting(
+      input.connection,
+      "membership.initial_share_capital",
+      3000,
+    ),
+  ]);
+  const capitalTotal = input.application.requestedMembershipType === "True Member"
+    ? await validatedApplicationPaymentTotal(
+        input.connection,
+        input.application.id,
+        "Share Capital",
+      )
+    : initialCapital;
+
+  if (
+    settlementMoney(feeTotal) < settlementMoney(expectedFee)
+    || settlementMoney(capitalTotal) < settlementMoney(initialCapital)
+  ) {
+    return;
+  }
+
+  await input.connection.execute(
+    `UPDATE membership_applications
+        SET application_status = 'Payment Confirmed',
+            reviewed_at = COALESCE(reviewed_at, UTC_TIMESTAMP()),
+            updated_at = UTC_TIMESTAMP()
+      WHERE membership_application_id = ?
+        AND application_status = 'Payment Required'`,
+    [input.application.id],
+  );
+  await input.connection.execute(
+    `INSERT INTO membership_application_status_history
+       (membership_application_id, old_status, new_status,
+        internal_note, applicant_message, changed_by)
+     VALUES (?, 'Payment Required', 'Payment Confirmed', ?,
+             'Your payment was confirmed. The Chairman can now finalize your membership approval.', ?)`,
+    [
+      input.application.id,
+      "Required membership payment references were validated by PayMongo settlement.",
+      input.actorUserId,
+    ],
+  );
+  void triggerMembershipEmail(buildStatusEmail({
+    event: "membership.application.payment_confirmed",
+    email: input.application.email,
+    name: input.application.fullName,
+    applicationCode: input.application.applicationCode,
+    status: "Payment Confirmed",
+    subject: `Membership payment confirmed: ${input.application.applicationCode}`,
+    message: "Your membership payment was confirmed. The Chairman can now finalize your membership approval.",
+  }));
+}
+
 export async function postMembershipSettlement(input: {
   connection: PoolConnection;
   payment: PaymentReferenceForSettlement;
@@ -196,6 +271,11 @@ export async function postMembershipSettlement(input: {
     application,
     payment: input.payment,
     requirement,
+    actorUserId: input.actorUserId,
+  });
+  await maybeMarkApplicationPaymentConfirmed({
+    connection: input.connection,
+    application,
     actorUserId: input.actorUserId,
   });
 
@@ -257,7 +337,9 @@ export async function postMembershipSettlement(input: {
     memberId: application.convertedMemberId,
     memberUserId: application.memberUserId,
     applicationId: application.id,
-    applicationStatus: application.applicationStatus,
+    applicationStatus: application.applicationStatus === "Payment Required"
+      ? "Payment Confirmed"
+      : application.applicationStatus,
     subjectReference: application.applicationCode,
     subjectName: application.fullName,
   };
