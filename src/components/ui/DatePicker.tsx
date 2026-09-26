@@ -110,6 +110,7 @@ export function DatePicker({
   );
   const [pendingDateKey, setPendingDateKey] = useState(value);
   const [openDirection, setOpenDirection] = useState<"down" | "up">("down");
+  const [openSelector, setOpenSelector] = useState<"month" | "year" | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -193,6 +194,7 @@ export function DatePicker({
       }
     }
 
+    setOpenSelector(null);
     setIsOpen((current) => !current);
   }
 
@@ -257,31 +259,65 @@ export function DatePicker({
           )}
         >
           <div className="grid grid-cols-2 gap-2">
-            <select
-              aria-label="Month"
-              value={viewMonth}
-              onChange={(event) => setViewMonth(Number(event.target.value))}
-              className="h-7 min-w-0 rounded-lg border border-[#EEF2EC] bg-[#FBFBFA] px-3 text-[0.68rem] font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
-            >
-              {monthNames.map((month, index) => (
-                <option key={month} value={index}>
-                  {month}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Month"
+                aria-haspopup="listbox"
+                aria-expanded={openSelector === "month"}
+                onClick={() => setOpenSelector((current) => current === "month" ? null : "month")}
+                className="flex h-9 w-full items-center justify-between gap-1 rounded-xl border border-[#DDE8D8] bg-[#FBFBFA] px-3 text-left text-[0.72rem] font-black text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
+              >
+                <span className="truncate">{monthNames[viewMonth]}</span>
+                <ChevronDown className={cn("size-3.5 shrink-0 text-[#1F6B43] transition-transform", openSelector === "month" && "rotate-180")} />
+              </button>
+              {openSelector === "month" ? (
+                <div role="listbox" aria-label="Month options" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#DDE8D8] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+                  {monthNames.map((month, index) => (
+                    <button
+                      key={month}
+                      type="button"
+                      role="option"
+                      aria-selected={viewMonth === index}
+                      onClick={() => { setViewMonth(index); setOpenSelector(null); }}
+                      className={cn("flex min-h-8 w-full items-center rounded-lg px-2.5 text-left text-[0.72rem] font-bold text-[#365F4A] transition hover:bg-[#EAF3E8]", viewMonth === index && "bg-[#1F6B43] text-white hover:bg-[#1F6B43]")}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
 
-            <select
-              aria-label="Year"
-              value={viewYear}
-              onChange={(event) => setViewYear(Number(event.target.value))}
-              className="h-7 min-w-0 rounded-lg border border-[#EEF2EC] bg-[#FBFBFA] px-3 text-[0.68rem] font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
-            >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Year"
+                aria-haspopup="listbox"
+                aria-expanded={openSelector === "year"}
+                onClick={() => setOpenSelector((current) => current === "year" ? null : "year")}
+                className="flex h-9 w-full items-center justify-between gap-1 rounded-xl border border-[#DDE8D8] bg-[#FBFBFA] px-3 text-left text-[0.72rem] font-black text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
+              >
+                <span>{viewYear}</span>
+                <ChevronDown className={cn("size-3.5 shrink-0 text-[#1F6B43] transition-transform", openSelector === "year" && "rotate-180")} />
+              </button>
+              {openSelector === "year" ? (
+                <div role="listbox" aria-label="Year options" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#DDE8D8] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+                  {years.map((year) => (
+                    <button
+                      key={year}
+                      type="button"
+                      role="option"
+                      aria-selected={viewYear === year}
+                      onClick={() => { setViewYear(year); setOpenSelector(null); }}
+                      className={cn("flex min-h-8 w-full items-center rounded-lg px-2.5 text-left text-[0.72rem] font-bold text-[#365F4A] transition hover:bg-[#EAF3E8]", viewYear === year && "bg-[#1F6B43] text-white hover:bg-[#1F6B43]")}
+                    >
+                      {year}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[0.5rem] font-black uppercase tracking-[0.05em] text-[#5D6D63]">

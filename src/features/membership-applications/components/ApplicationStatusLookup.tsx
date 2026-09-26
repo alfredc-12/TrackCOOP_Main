@@ -35,6 +35,7 @@ export function ApplicationStatusLookup() {
     "Associate Membership Fee" | "Share Capital" | null
   >(null);
   const [shareCapitalAmount, setShareCapitalAmount] = useState("1500");
+  const [lastLookup, setLastLookup] = useState<StatusFormValues | null>(null);
 
   const {
     register,
@@ -56,6 +57,7 @@ export function ApplicationStatusLookup() {
     setCheckoutError(null);
     setStatus(null);
     setVerifiedLookup(null);
+    setLastLookup(values);
 
     try {
       const response = await getMembershipApplicationStatus(values);
@@ -90,8 +92,10 @@ export function ApplicationStatusLookup() {
           <Field
             label="Application code"
             error={errors.applicationCode?.message}
+            placeholder="MEM-APP-2026-000034"
             inputProps={register("applicationCode")}
           />
+          <p className="-mt-3 text-xs text-[#5D6D63]">Use the application code shown after your membership application was submitted.</p>
           <div>
             <input type="hidden" {...register("dateOfBirth")} />
             <DatePicker
@@ -114,7 +118,14 @@ export function ApplicationStatusLookup() {
         {error ? (
           <div className="mt-5 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <p>{error}</p>
+            <div className="min-w-0 flex-1">
+              <p>{error}</p>
+              {lastLookup ? (
+                <button type="button" onClick={() => void onSubmit(lastLookup)} disabled={isSubmitting} className="mt-2 font-bold text-red-900 underline disabled:opacity-50">
+                  Try again
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -123,7 +134,7 @@ export function ApplicationStatusLookup() {
           disabled={isSubmitting}
           className="mt-6 h-11 w-full rounded-full bg-[#123D2A] text-white hover:bg-[#1F6B43]"
         >
-          <Search className="size-4" />
+          {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
           {isSubmitting ? "Checking..." : "Check Status"}
         </Button>
       </form>
@@ -131,6 +142,10 @@ export function ApplicationStatusLookup() {
       <section className="rounded-[2rem] border border-[#DDE8D8] bg-[#F8F1E5] p-6 shadow-sm sm:p-8">
         {status ? (
           <div>
+            <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#B9D1B6] bg-[#EAF3E8] px-4 py-3 text-sm font-semibold text-[#1F6B43]" role="status" aria-live="polite">
+              <CheckCircle2 className="size-4 shrink-0" />
+              Application status loaded successfully.
+            </div>
             <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
               {status.applicationStatus}
             </p>
@@ -393,11 +408,13 @@ function Field({
   label,
   error,
   inputProps,
+  placeholder,
   type = "text",
 }: {
   label: string;
   error?: string;
   inputProps: UseFormRegisterReturn;
+  placeholder?: string;
   type?: string;
 }) {
   return (
@@ -405,7 +422,8 @@ function Field({
       {label}
       <input
         type={type}
-        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        placeholder={placeholder}
+        className={`mt-2 h-12 w-full rounded-2xl border bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 ${error ? "border-red-400 ring-2 ring-red-100" : "border-[#DDE8D8]"}`}
         aria-invalid={Boolean(error)}
         {...inputProps}
       />

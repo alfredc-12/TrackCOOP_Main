@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as Select from "@radix-ui/react-select";
 import {
   AlertCircle,
   ArrowLeft,
@@ -14,6 +15,8 @@ import {
   Send,
   UploadCloud,
   X,
+  ChevronDown,
+  Check as SelectCheck,
 } from "lucide-react";
 import {
   useEffect,
@@ -21,6 +24,7 @@ import {
   useRef,
   useState,
   type PointerEvent,
+  type ChangeEvent,
   type ReactNode,
 } from "react";
 import {
@@ -59,6 +63,13 @@ const draftKey = "trackcoop.membershipApplicationDraft.v1";
 const maxUploadBytes = 5 * 1024 * 1024;
 const allowedUploadTypes = ["application/pdf", "image/jpeg", "image/png"];
 const allowedUploadExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
+const occupationOptions = ["Farmer", "Fisherfolk", "Entrepreneur", "Government employee", "Private employee", "Self-employed", "Student", "Retired", "Unemployed"] as const;
+
+function formatLocationName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/(^|[\s-])([a-z])/g, (_, separator: string, letter: string) => `${separator}${letter.toUpperCase()}`);
+}
 type SignatureMode = "draw" | "upload";
 
 const requiredText = (label: string) => z.string().trim().min(1, `${label} is required.`);
@@ -75,8 +86,8 @@ function todayDateKey() {
 
 const beneficiarySchema = z
   .object({
-    fullName: z.string().trim().optional().or(z.literal("")),
-    relationship: z.string().trim().optional().or(z.literal("")),
+    fullName: requiredText("Beneficiary full name"),
+    relationship: requiredText("Beneficiary relationship"),
     age: z
       .string()
       .trim()
@@ -123,8 +134,8 @@ const applicationSchema = z
     middleName: optionalText,
     lastName: requiredText("Last name"),
     suffix: optionalText,
-    email: z.string().trim().email("Enter a valid email.").optional().or(z.literal("")),
-    contactNumber: requiredText("Contact number"),
+    email: z.string().trim().min(1, "Email is required.").email("Enter a valid email."),
+    contactNumber: requiredText("Contact number").regex(/^9\d{9}$/, "Enter 10 digits starting with 9 after +63."),
     civilStatus: z.enum(civilStatuses),
     placeOfBirth: optionalText,
     dateOfBirth: requiredText("Date of birth"),
@@ -132,8 +143,8 @@ const applicationSchema = z
     barangay: optionalText,
     municipality: requiredText("Municipality"),
     province: requiredText("Province"),
-    fatherName: optionalText,
-    motherName: optionalText,
+    fatherName: requiredText("Father name"),
+    motherName: requiredText("Mother name"),
     spouseName: optionalText,
     occupation: optionalText,
     beneficiaries: z.array(beneficiarySchema),
@@ -249,6 +260,7 @@ export function MembershipApplicationForm() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [isRetryingUploads, setIsRetryingUploads] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [submissionResult, setSubmissionResult] = useState<PublicSubmissionResult | null>(null);
   const [submissionDateOfBirth, setSubmissionDateOfBirth] = useState("");
   const [uploads, setUploads] = useState<DocumentUploadDraft[]>([]);
@@ -296,6 +308,28 @@ export function MembershipApplicationForm() {
     delete draft.website;
     window.localStorage.setItem(draftKey, JSON.stringify(draft));
   }, [draftValues, submissionResult]);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSubmittingApplication) return;
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeave);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeave);
+  }, [isSubmittingApplication]);
 
   const advanceStep = async () => {
     const valid = await trigger(stepFields[currentStep], { shouldFocus: true });
@@ -399,8 +433,15 @@ export function MembershipApplicationForm() {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
+      aria-busy={isSubmittingApplication}
       className="rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-8"
     >
+      {!isOnline ? (
+        <div role="status" aria-live="polite" className="mb-5 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          You are offline. Your draft is saved, but submission will work after your connection returns.
+        </div>
+      ) : null}
       <ApplicationProgress currentStep={currentStep} />
 
       <div className="mt-8 rounded-[1.5rem] bg-[#FFFAF2] p-4 ring-1 ring-[#E7DCC7] sm:p-6">
@@ -421,7 +462,7 @@ export function MembershipApplicationForm() {
         ) : null}
 
         {currentStep === 2 ? (
-          <CommitmentReview register={register} watch={watch} errors={errors} />
+          <CommitmentReview setValue={setValue} watch={watch} errors={errors} />
         ) : null}
 
         {currentStep === 3 ? (
@@ -453,9 +494,9 @@ export function MembershipApplicationForm() {
       </div>
 
       {submitError ? (
-        <div className="mt-6 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+        <div role="alert" aria-live="assertive" className="mt-6 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <p>{submitError}</p>
+          <div><p>{submitError}</p><p className="mt-1 font-semibold">Your entries are still here. Review the message, then try submitting again.</p></div>
         </div>
       ) : null}
 
@@ -482,7 +523,7 @@ export function MembershipApplicationForm() {
         ) : (
           <Button
             type="submit"
-            disabled={isSubmittingApplication}
+            disabled={isSubmittingApplication || !isOnline}
             className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43]"
           >
             {isSubmittingApplication ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
@@ -506,10 +547,64 @@ function PersonalInfoStep({
   setValue: UseFormSetValue<MembershipApplicationFormValues>;
 }) {
   const civilStatus = watch("civilStatus");
+  const occupation = watch("occupation");
+  const isOtherOccupation = Boolean(occupation) && !occupationOptions.includes(occupation as (typeof occupationOptions)[number]);
+  const [showOtherOccupation, setShowOtherOccupation] = useState(false);
+  const [placeSuggestions, setPlaceSuggestions] = useState<string[]>(["Batangas City, Batangas", "Lipa City, Batangas", "Manila, Metro Manila", "Quezon City, Metro Manila", "Cebu City, Cebu", "Davao City, Davao del Sur"]);
+
+  useEffect(() => {
+    if (isOtherOccupation) setShowOtherOccupation(true);
+  }, [isOtherOccupation]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBatangasLocations = async () => {
+      try {
+        const [provinceResponse, cityResponse, barangayResponse] = await Promise.all([
+          fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refprovince.json"),
+          fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refcitymun.json"),
+          fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refbrgy.json"),
+        ]);
+        if (!provinceResponse.ok || !cityResponse.ok || !barangayResponse.ok) return;
+        const provinces = (await provinceResponse.json()) as { RECORDS?: { provCode: string; provDesc: string }[] };
+        const cities = (await cityResponse.json()) as { RECORDS?: { provCode: string; citymunCode: string; citymunDesc: string }[] };
+        const barangays = (await barangayResponse.json()) as { RECORDS?: { provCode: string; citymunCode: string; brgyDesc: string }[] };
+        if (cancelled) return;
+        const provinceNames = new Map((provinces.RECORDS ?? []).map((item) => [item.provCode, item.provDesc]));
+        const cityNames = new Map((cities.RECORDS ?? []).map((item) => [item.citymunCode, item.citymunDesc]));
+        const locations = [
+          ...(provinces.RECORDS ?? []).map((item) => formatLocationName(item.provDesc)),
+          ...(cities.RECORDS ?? []).map((item) => `${formatLocationName(item.citymunDesc)}, ${formatLocationName(provinceNames.get(item.provCode) ?? "")}`),
+          ...(barangays.RECORDS ?? []).map((item) => `${formatLocationName(item.brgyDesc)}, ${formatLocationName(cityNames.get(item.citymunCode) ?? "")}, ${formatLocationName(provinceNames.get(item.provCode) ?? "")}`),
+        ];
+        setPlaceSuggestions([...new Set(locations.filter((location) => !location.includes(", ,")).map((location) => formatLocationName(location)))].sort((a, b) => a.localeCompare(b)));
+      } catch {
+        // Keep the local Batangas fallback suggestions when the dataset is unavailable.
+      }
+    };
+    void loadBatangasLocations();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (civilStatus !== "Married") setValue("spouseName", "");
   }, [civilStatus, setValue]);
+
+  function handleCurrentAddressChange(value: string) {
+    setValue("currentAddress", value, { shouldDirty: true, shouldValidate: true });
+
+    // Location suggestions use: Barangay, Municipality, Province.
+    // Copy the structured parts into their matching fields when a suggestion is chosen.
+    const parts = value.split(",").map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      setValue("barangay", parts[0], { shouldDirty: true, shouldValidate: true });
+      setValue("municipality", parts[1], { shouldDirty: true, shouldValidate: true });
+      setValue("province", parts.slice(2).join(", "), { shouldDirty: true, shouldValidate: true });
+    } else if (parts.length === 2) {
+      setValue("municipality", parts[0], { shouldDirty: true, shouldValidate: true });
+      setValue("province", parts[1], { shouldDirty: true, shouldValidate: true });
+    }
+  }
 
   return (
     <div className="grid gap-5">
@@ -534,17 +629,41 @@ function PersonalInfoStep({
         <TextField label="Middle name (optional)" error={errors.middleName?.message} inputProps={register("middleName")} />
         <TextField label="Last name" error={errors.lastName?.message} inputProps={register("lastName")} />
         <TextField label="Suffix (optional)" error={errors.suffix?.message} inputProps={register("suffix")} />
-        <TextField label="Email (optional)" type="email" error={errors.email?.message} inputProps={register("email")} />
-        <TextField label="Contact number" error={errors.contactNumber?.message} inputProps={register("contactNumber")} />
-        <SelectField label="Civil status" error={errors.civilStatus?.message} inputProps={register("civilStatus")}>
-          {civilStatuses.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </SelectField>
-        <TextField label="Occupation" error={errors.occupation?.message} inputProps={register("occupation")} />
-        <TextField label="Place of birth" error={errors.placeOfBirth?.message} inputProps={register("placeOfBirth")} />
+        <TextField label="Email" required type="email" error={errors.email?.message} inputProps={register("email")} />
+        <TextField
+          label="Contact number"
+          prefix="+63"
+          error={errors.contactNumber?.message}
+          inputProps={register("contactNumber", {
+            setValueAs: (value) => String(value ?? "").replace(/\D/g, "").replace(/^63/, "").replace(/^0/, "").slice(0, 10),
+          })}
+          inputMode="numeric"
+          maxLength={10}
+          placeholder="9171234567"
+        />
+        <StyledOptionSelect
+          label="Civil status"
+          value={watch("civilStatus") || ""}
+          options={civilStatuses as readonly string[]}
+          error={errors.civilStatus?.message}
+          onChange={(value) => setValue("civilStatus", value as typeof civilStatuses[number], { shouldDirty: true, shouldValidate: true })}
+        />
+        {showOtherOccupation ? (
+          <div className="relative">
+            <TextField label="Occupation" error={errors.occupation?.message} inputProps={register("occupation")} placeholder="Type your occupation" className="[&_input]:pr-36" />
+            <button type="button" onClick={() => { setShowOtherOccupation(false); setValue("occupation", "", { shouldDirty: true }); }} className="absolute right-4 top-[3.4rem] -translate-y-1/2 text-xs font-bold text-[#1F6B43] underline">Choose from list</button>
+          </div>
+        ) : (
+          <OccupationSelect
+          value={occupationOptions.includes(occupation as (typeof occupationOptions)[number]) ? occupation ?? "" : ""}
+            error={errors.occupation?.message}
+            onChange={(value) => {
+              setShowOtherOccupation(value === "Other");
+              setValue("occupation", value === "Other" ? "" : value, { shouldDirty: true, shouldValidate: true });
+            }}
+          />
+        )}
+        <PlaceOfBirthField value={watch("placeOfBirth") || ""} error={errors.placeOfBirth?.message} suggestions={placeSuggestions} onChange={(value) => setValue("placeOfBirth", value, { shouldDirty: true, shouldValidate: true })} />
         <div>
           <input type="hidden" {...register("dateOfBirth")} />
           <DatePicker
@@ -563,7 +682,14 @@ function PersonalInfoStep({
             error={errors.dateOfBirth?.message}
           />
         </div>
-        <TextField label="Current address" className="md:col-span-2" error={errors.currentAddress?.message} inputProps={register("currentAddress")} />
+        <PlaceOfBirthField
+          label="Current address"
+          value={watch("currentAddress") || ""}
+          error={errors.currentAddress?.message}
+          suggestions={placeSuggestions}
+          placeholder="Search or enter your address"
+          onChange={handleCurrentAddressChange}
+        />
         <TextField label="Barangay" error={errors.barangay?.message} inputProps={register("barangay")} />
         <TextField label="Municipality" error={errors.municipality?.message} inputProps={register("municipality")} />
         <TextField label="Province" error={errors.province?.message} inputProps={register("province")} />
@@ -1010,12 +1136,24 @@ function UploadRow({
 
 function TextField({
   label,
+  required = false,
+  prefix,
+  inputMode,
+  maxLength,
+  placeholder,
+  suggestions,
   error,
   inputProps,
   type = "text",
   className = "",
 }: {
   label: string;
+  required?: boolean;
+  prefix?: string;
+  inputMode?: "numeric" | "text" | "email" | "tel";
+  maxLength?: number;
+  placeholder?: string;
+  suggestions?: string[];
   error?: string;
   inputProps: UseFormRegisterReturn;
   type?: string;
@@ -1023,13 +1161,150 @@ function TextField({
 }) {
   return (
     <label className={`block text-sm font-semibold text-[#365F4A] ${className}`}>
+      {label}{required ? <span className="text-red-700"> *</span> : null}
+      <span className="mt-2 flex h-12 overflow-hidden rounded-2xl border border-[#DDE8D8] bg-white transition focus-within:border-[#1F6B43] focus-within:ring-2 focus-within:ring-[#1F6B43]/20">
+        {prefix ? <span className="inline-flex items-center border-r border-[#DDE8D8] bg-[#F8F1E5] px-3 text-sm font-bold text-[#365F4A]">{prefix}</span> : null}
+        <input
+          type={type}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          list={suggestions?.length ? `${label.toLowerCase().replace(/\s+/g, "-")}-suggestions` : undefined}
+          className="min-w-0 flex-1 bg-transparent px-4 text-base text-[#123D2A] outline-none"
+          aria-invalid={Boolean(error)}
+          {...inputProps}
+        />
+      </span>
+      {suggestions?.length ? (
+        <datalist id={`${label.toLowerCase().replace(/\s+/g, "-")}-suggestions`}>
+          {suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
+        </datalist>
+      ) : null}
+      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
+    </label>
+  );
+}
+
+function OccupationSelect({
+  value,
+  error,
+  onChange,
+}: {
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const options = [...occupationOptions, "Other"];
+  return (
+    <label className="block text-sm font-semibold text-[#365F4A]">
+      Occupation
+      <Select.Root value={value || undefined} onValueChange={onChange}>
+        <Select.Trigger aria-label="Occupation" aria-invalid={Boolean(error)} className="mt-2 flex h-12 w-full items-center justify-between rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
+          <Select.Value placeholder="Select occupation" />
+          <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Content position="popper" sideOffset={6} className="z-[100] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+            <Select.Viewport>
+              {options.map((option) => (
+                <Select.Item key={option} value={option} className="relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                  <Select.ItemText>{option}</Select.ItemText>
+                  <Select.ItemIndicator className="absolute right-3"><SelectCheck className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                </Select.Item>
+              ))}
+            </Select.Viewport>
+          </Select.Content>
+        </Select.Portal>
+      </Select.Root>
+      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
+    </label>
+  );
+}
+
+function PlaceOfBirthField({
+  label = "Place of birth",
+  value,
+  error,
+  suggestions,
+  placeholder = "Search barangay or municipality",
+  onChange,
+}: {
+  label?: string;
+  value: string;
+  error?: string;
+  suggestions: string[];
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const searchTerm = value.trim().toLowerCase();
+  const exactMatches = searchTerm.length >= 2
+    ? suggestions.filter((item) => item.split(",").some((part) => part.trim().toLowerCase() === searchTerm))
+    : [];
+  const matches = searchTerm.length < 2
+    ? []
+    : exactMatches.length > 0
+      ? exactMatches.slice(0, 50)
+      : suggestions.filter((item) => item.toLowerCase().includes(searchTerm)).slice(0, 8);
+  return (
+    <label className="relative block text-sm font-semibold text-[#365F4A]">
       {label}
       <input
-        type={type}
-        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        placeholder={placeholder}
+        autoComplete="off"
+        aria-autocomplete="list"
+        aria-expanded={open && matches.length > 0}
         aria-invalid={Boolean(error)}
-        {...inputProps}
+        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
       />
+      {open && matches.length > 0 ? (
+        <div role="listbox" className="absolute inset-x-0 top-[4.5rem] z-50 max-h-64 overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+          {matches.map((suggestion) => (
+            <button key={suggestion} type="button" role="option" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(suggestion); setOpen(false); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A]">
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
+    </label>
+  );
+}
+
+function StyledOptionSelect({
+  label,
+  value,
+  options,
+  error,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block text-sm font-semibold text-[#365F4A]">
+      {label}
+      <Select.Root value={value || undefined} onValueChange={onChange}>
+        <Select.Trigger aria-label={label} aria-invalid={Boolean(error)} className="mt-2 flex h-12 w-full items-center justify-between rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
+          <Select.Value placeholder={`Select ${label.toLowerCase()}`} />
+          <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Content position="popper" sideOffset={6} className="z-[100] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+            <Select.Viewport>
+              {options.map((option) => <Select.Item key={option} value={option} className="relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]"><Select.ItemText>{option}</Select.ItemText><Select.ItemIndicator className="absolute right-3"><SelectCheck className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator></Select.Item>)}
+            </Select.Viewport>
+          </Select.Content>
+        </Select.Portal>
+      </Select.Root>
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>
   );
@@ -1040,11 +1315,15 @@ function SelectField({
   error,
   inputProps,
   children,
+  value,
+  onChange,
 }: {
   label: string;
   error?: string;
   inputProps: UseFormRegisterReturn;
   children: ReactNode;
+  value?: string;
+  onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
 }) {
   return (
     <label className="block text-sm font-semibold text-[#365F4A]">
@@ -1053,6 +1332,8 @@ function SelectField({
         className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
         aria-invalid={Boolean(error)}
         {...inputProps}
+        value={value}
+        onChange={onChange ?? inputProps.onChange}
       >
         {children}
       </select>

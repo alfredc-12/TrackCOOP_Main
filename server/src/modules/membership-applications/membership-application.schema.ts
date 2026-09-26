@@ -78,7 +78,7 @@ function applicantFullName(value: {
 export const beneficiarySchema = z
   .object({
     fullName: requiredText(190),
-    relationship: optionalText(100),
+    relationship: requiredText(100),
     ageAtApplication: z.coerce.number().int().min(0).max(130).nullable().optional(),
     birthDate: optionalText(10).refine((value) => value === null || isPastDate(value), {
       message: "Birth date must be a valid past date",
@@ -101,8 +101,8 @@ export const publicMembershipApplicationSchema = z
     middleName: optionalText(100),
     lastName: requiredText(100),
     suffix: optionalText(30),
-    email: z.email().max(190).optional().nullable(),
-    contactNumber: requiredText(40),
+    email: z.email().max(190),
+    contactNumber: z.string().trim().regex(/^9\d{9}$/, "Contact number must contain 10 digits starting with 9 after +63."),
     civilStatus: z.enum(civilStatuses).optional().nullable(),
     placeOfBirth: optionalText(255),
     dateOfBirth: requiredText(10).refine(isPastDate, {
@@ -112,8 +112,8 @@ export const publicMembershipApplicationSchema = z
     barangay: optionalText(120),
     municipality: requiredText(120).default("Nasugbu"),
     province: requiredText(120).default("Batangas"),
-    fatherName: optionalText(190),
-    motherName: optionalText(190),
+    fatherName: requiredText(190),
+    motherName: requiredText(190),
     spouseName: optionalText(190),
     occupation: optionalText(190),
     orientationCommitmentAccepted: accepted("Orientation commitment must be accepted"),
@@ -205,8 +205,8 @@ export const chairmanMembershipApplicationUpdateSchema = z
     barangay: optionalText(120),
     municipality: requiredText(120).optional(),
     province: requiredText(120).optional(),
-    fatherName: optionalText(190),
-    motherName: optionalText(190),
+    fatherName: requiredText(190),
+    motherName: requiredText(190),
     spouseName: optionalText(190),
     occupation: optionalText(190),
     orientationCommitmentAccepted: z.boolean().optional(),

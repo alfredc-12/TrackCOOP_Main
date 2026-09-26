@@ -23,7 +23,7 @@ export function ApplicationSuccess({
   )}`;
 
   return (
-    <section className="rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-8">
+    <section aria-live="polite" className="rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-8">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
         <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
           <CheckCircle2 className="size-7" />
@@ -53,7 +53,7 @@ export function ApplicationSuccess({
       ) : null}
 
       {uploadError ? (
-        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+        <div role="alert" aria-live="assertive" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
           <p className="font-bold">Some uploads did not finish.</p>
           <p className="mt-1">{uploadError}</p>
           {onRetryUploads ? (
@@ -64,7 +64,7 @@ export function ApplicationSuccess({
               className="mt-3 h-10 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
             >
               <RefreshCw className={`size-4 ${isRetryingUploads ? "animate-spin" : ""}`} />
-              Retry uploads
+              {isRetryingUploads ? "Uploading documents..." : "Retry document uploads"}
             </Button>
           ) : null}
         </div>

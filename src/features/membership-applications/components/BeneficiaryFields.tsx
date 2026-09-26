@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
+import * as Select from "@radix-ui/react-select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import type {
   FieldErrors,
@@ -8,6 +9,7 @@ import type {
   UseFormSetValue,
   UseFormWatch,
 } from "react-hook-form";
+import { useState } from "react";
 import type { MembershipApplicationFormValues } from "./MembershipApplicationForm";
 
 type BeneficiaryFieldsProps = {
@@ -19,6 +21,8 @@ type BeneficiaryFieldsProps = {
   onAdd: () => void;
   onRemove: (index: number) => void;
 };
+
+const relationshipOptions = ["Spouse", "Child", "Parent", "Sibling", "Guardian", "Other"] as const;
 
 function todayDateKey() {
   const today = new Date();
@@ -70,13 +74,12 @@ export function BeneficiaryFields({
                 </span>
               ) : null}
             </label>
-            <label className="grid gap-2 text-sm font-semibold text-[#365F4A]">
-              Relationship
-              <input
-                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-                {...register(`beneficiaries.${index}.relationship`)}
-              />
-            </label>
+            <RelationshipField
+              value={watch(`beneficiaries.${index}.relationship`) ?? ""}
+              inputProps={register(`beneficiaries.${index}.relationship`)}
+              error={errors.beneficiaries?.[index]?.relationship?.message}
+              onChange={(value) => setValue(`beneficiaries.${index}.relationship`, value, { shouldDirty: true, shouldValidate: true })}
+            />
             <label className="grid gap-2 text-sm font-semibold text-[#365F4A]">
               Age
               <input
@@ -122,6 +125,59 @@ export function BeneficiaryFields({
         <Plus className="size-4" />
         Add beneficiary
       </button>
+    </div>
+  );
+}
+
+function RelationshipField({
+  value,
+  inputProps,
+  error,
+  onChange,
+}: {
+  value: string;
+  inputProps: ReturnType<UseFormRegister<MembershipApplicationFormValues>>;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const [showOther, setShowOther] = useState(() => value !== "" && !relationshipOptions.includes(value as (typeof relationshipOptions)[number]));
+  const isOther = showOther;
+
+  return (
+    <div className="relative text-sm font-semibold text-[#365F4A]">
+      Relationship
+      {isOther ? (
+        <div className="relative">
+          <input
+            className="mt-2 h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 pr-28 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+            placeholder="Type relationship"
+            {...inputProps}
+          />
+          <button type="button" onClick={() => { setShowOther(false); onChange(""); }} className="absolute right-3 top-1/2 mt-1 -translate-y-1/2 text-xs font-bold text-[#1F6B43] underline">
+            Choose from list
+          </button>
+        </div>
+      ) : (
+        <Select.Root value={value || undefined} onValueChange={(selected) => { setShowOther(selected === "Other"); onChange(selected === "Other" ? "" : selected); }}>
+          <Select.Trigger aria-label="Relationship" aria-invalid={Boolean(error)} className="mt-2 flex h-11 w-full items-center justify-between rounded-xl border border-[#DDE8D8] bg-white px-3 text-left text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
+            <Select.Value placeholder="Select relationship" />
+            <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+          </Select.Trigger>
+          <Select.Portal>
+            <Select.Content position="popper" sideOffset={6} className="z-[100] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+              <Select.Viewport>
+                {relationshipOptions.map((option) => (
+                  <Select.Item key={option} value={option} className="relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                    <Select.ItemText>{option}</Select.ItemText>
+                    <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                  </Select.Item>
+                ))}
+              </Select.Viewport>
+            </Select.Content>
+          </Select.Portal>
+        </Select.Root>
+      )}
+      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </div>
   );
 }
