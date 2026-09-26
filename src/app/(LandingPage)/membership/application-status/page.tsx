@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Image from "next/image";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
 import { ApplicationStatusPayments } from "@/features/membership-applications/components/ApplicationStatusPayments";
@@ -8,37 +7,20 @@ export default function MembershipApplicationStatusPage() {
   return (
     <main className="min-h-screen bg-[#F8F1E5] text-[#123D2A]">
       <SiteHeader initialActive="membership" />
-      <section className="px-5 pb-12 pt-28 sm:px-8 lg:pb-16">
+      <section className="px-5 pb-12 pt-24 sm:px-8 lg:pb-16">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-10 grid gap-8 lg:grid-cols-[1fr_0.9fr] lg:items-end">
+          <div className="mb-6 border-b border-[#D9E3D7] pb-5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.42em] text-[#f4b62a]">
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#D8A011]">
                 Membership
               </p>
-              <h1 className="mt-4 text-5xl font-black leading-[0.94] tracking-normal text-[#073f2b] md:text-7xl">
+              <h1 className="mt-2 text-3xl font-black leading-tight tracking-normal text-[#073f2b] sm:text-4xl">
                 Application Status
               </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-9 text-[#365F4A]">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#365F4A]">
                 Use your application code and applicant date of birth to follow
-                the review status and eligible PayMongo Test Mode payments.
+                the review status and eligible PayMongo payments.
               </p>
-            </div>
-
-            <div className="relative min-h-[240px] overflow-hidden rounded-[2rem] shadow-[0_24px_70px_rgba(18,61,42,0.16)] ring-1 ring-white/70 lg:min-h-[320px]">
-              <Image
-                src="/images/Hero%20Page/Main%20Photo%203.jpg"
-                alt="TrackCOOP cooperative field activity"
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 40vw"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#123D2A]/72 via-[#123D2A]/12 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                <p className="text-sm font-black leading-tight">
-                  Safe public tracking for application review and payment progress.
-                </p>
-              </div>
             </div>
           </div>
 

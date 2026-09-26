@@ -1,5 +1,5 @@
-import { FinancialLedgerView } from "@/features/finance/FinanceViews";
+import { DashboardClient } from "../dashboard/DashboardClient";
 
 export default function ChairmanFinancePage() {
-  return <FinancialLedgerView role="chairman" />;
+  return <DashboardClient mode="financial" />;
 }

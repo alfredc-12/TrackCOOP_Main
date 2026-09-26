@@ -79,6 +79,10 @@ DROP TABLE IF EXISTS `documents`;
 
 DROP TABLE IF EXISTS `rental_pos_records`;
 
+DROP TABLE IF EXISTS `patronage_allocations`;
+
+DROP TABLE IF EXISTS `patronage_periods`;
+
 DROP TABLE IF EXISTS `rental_status_history`;
 
 DROP TABLE IF EXISTS `rental_idempotency_keys`;
@@ -362,7 +366,7 @@ CREATE TABLE membership_applications (
     membership_fee_amount DECIMAL(12, 2) NOT NULL DEFAULT 200.00,
     share_subscription_commitment_accepted TINYINT(1) NOT NULL DEFAULT 0,
     subscribed_shares SMALLINT UNSIGNED NULL,
-    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 1500.00,
+    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
     target_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
     share_capital_deadline_months SMALLINT UNSIGNED NOT NULL DEFAULT 12,
     annual_interest_rate DECIMAL(5, 2) NULL,
@@ -377,6 +381,8 @@ CREATE TABLE membership_applications (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -443,6 +449,8 @@ CREATE TABLE membership_application_status_history (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -451,6 +459,8 @@ CREATE TABLE membership_application_status_history (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -1284,6 +1294,56 @@ CREATE INDEX `idx_rental_pos_date_type` ON `rental_pos_records` (
 );
 
 CREATE INDEX `idx_rental_pos_member` ON `rental_pos_records` (member_id, transaction_date);
+
+-- ============================================================================
+-- 6A. PATRONAGE AND PATRONAGE REFUNDS
+-- ============================================================================
+
+CREATE TABLE patronage_periods (
+    patronage_period_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    period_name VARCHAR(120) NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    refund_pool DECIMAL(14, 2) NOT NULL,
+    period_status ENUM('Draft', 'Finalized', 'Paid') NOT NULL DEFAULT 'Draft',
+    notes TEXT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    finalized_by BIGINT UNSIGNED NULL,
+    finalized_at DATETIME NULL,
+    paid_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_patronage_period_name UNIQUE (period_name),
+    CONSTRAINT fk_patronage_period_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_patronage_period_finalizer FOREIGN KEY (finalized_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_patronage_period_dates` ON `patronage_periods` (period_start, period_end, period_status);
+
+CREATE TABLE patronage_allocations (
+    patronage_allocation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    patronage_period_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NOT NULL,
+    purchase_patronage DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    rental_patronage DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    total_patronage DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    patronage_share_percent DECIMAL(9, 6) NOT NULL DEFAULT 0.000000,
+    refund_amount DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    payment_status ENUM('Pending', 'Paid') NOT NULL DEFAULT 'Pending',
+    paid_at DATETIME NULL,
+    paid_by BIGINT UNSIGNED NULL,
+    payment_notes VARCHAR(500) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_patronage_allocation_member UNIQUE (patronage_period_id, member_id),
+    CONSTRAINT fk_patronage_allocation_period FOREIGN KEY (patronage_period_id) REFERENCES patronage_periods (patronage_period_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_patronage_allocation_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_patronage_allocation_payer FOREIGN KEY (paid_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_patronage_allocation_member` ON `patronage_allocations` (member_id, payment_status);
+CREATE INDEX `idx_patronage_allocation_period_status` ON `patronage_allocations` (patronage_period_id, payment_status);
+
 -- ============================================================================
 -- 7. DOCUMENTS, REPORTS, AND PRINTABLE OUTPUTS
 -- ============================================================================
@@ -2117,7 +2177,7 @@ VALUES (
     (
         'Business Rules',
         'business.initial_share_capital_payment',
-        '1500.00',
+        '3000.00',
         'Number',
         'Confirmed initial share capital payment amount.',
         0,
@@ -2207,7 +2267,7 @@ VALUES (
     (
         'membership',
         'membership.initial_share_capital',
-        '1500',
+        '3000',
         'Number',
         'Initial share-capital payment in Philippine pesos.',
         0,
@@ -2367,7 +2427,7 @@ SELECT
                         setting_key = 'business.initial_share_capital_payment'
                     LIMIT 1
                 ),
-                '1500.00'
+                '3000.00'
             ) AS DECIMAL(12, 2)
         ) THEN 1
         ELSE 0

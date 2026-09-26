@@ -1,4 +1,5 @@
 import type { RentalService } from "../_types/rental";
+import { env } from "@/config/env";
 
 export const MAX_RENTAL_ASSET_PHOTOS = 5;
 export const RENTAL_ASSET_PHOTO_MAX_SIZE = 5 * 1024 * 1024;
@@ -46,4 +47,10 @@ export function getRentalServiceImages(
     service.imageUrl,
     ...(service.imageUrls ?? []),
   ]);
+}
+
+export function resolveRentalAssetPhotoUrl(url: string) {
+  const value = url.trim();
+  if (!value || !value.startsWith("/uploads/")) return value;
+  return `${env.apiUrl.replace(/\/$/, "")}${value}`;
 }

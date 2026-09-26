@@ -101,7 +101,7 @@ test("accepts a multi-day inquiry and rejects a reversed date range", () => {
   );
 });
 
-test("validates requester contact, required email, and valid ID type", () => {
+test("normalizes requester contact and allows SMS-only requests", () => {
   assert.equal(
     normalizePhilippineMobile("+63 918 123 4567"),
     normalizePhilippineMobile("09181234567"),
@@ -126,14 +126,14 @@ test("validates requester contact, required email, and valid ID type", () => {
       ...validInquiry,
       contactNumber: "639181234567",
     }).success,
-    false,
+    true,
   );
   assert.equal(
     BookingSchema.safeParse({
       ...validInquiry,
       email: "",
     }).success,
-    false,
+    true,
   );
   assert.equal(
     BookingSchema.safeParse({
@@ -149,6 +149,12 @@ test("validates requester contact, required email, and valid ID type", () => {
     }).success,
     false,
   );
+
+  const normalized = BookingSchema.parse({
+    ...validInquiry,
+    contactNumber: "+63 918 123 4567",
+  });
+  assert.equal(normalized.contactNumber, "09181234567");
 });
 
 test("computes an automatic possible rental fee from the date range and requester type", () => {
@@ -206,7 +212,12 @@ test("requires a public rental asset photo and one rental rate", () => {
     operationalStatus: "Ready for Use" as const,
     visibility: "Public" as const,
     unitOfUsage: "day",
+    suitableActivity: "Land preparation",
     capacity: "Standard",
+    serviceArea: "Nasugbu service barangays",
+    operatorRequirement: "Cooperative operator required",
+    operationalNotes: "Follow the cooperative schedule.",
+    safetyReminders: ["Attend the operator safety briefing."],
     standardRate: null,
   };
 
@@ -224,5 +235,61 @@ test("requires a public rental asset photo and one rental rate", () => {
       standardRate: 300,
     }).success,
     true,
+  );
+
+  assert.equal(
+    rentalServiceSchema.safeParse({
+      ...asset,
+      visibility: "Hidden",
+      operationalStatus: "Under Maintenance",
+      availability: "Available",
+    }).success,
+    false,
+  );
+  assert.equal(
+    rentalServiceSchema.safeParse({
+      ...asset,
+      visibility: "Hidden",
+      availability: "Available",
+      availableStartTime: "17:00",
+      availableEndTime: "08:00",
+    }).success,
+    false,
+  );
+  assert.equal(
+    rentalServiceSchema.safeParse({
+      ...asset,
+      visibility: "Hidden",
+      availability: "Available",
+      lastMaintenanceDate: "2099-08-02",
+      nextMaintenanceDate: "2099-08-01",
+    }).success,
+    false,
+  );
+});
+
+test("requires a usable service location and barangay for scheduling", () => {
+  const schedule = {
+    rentalId: "RNT-2026-0001",
+    serviceId: "RNT-TRACTOR-001",
+    date: "2099-08-01",
+    endDate: "2099-08-01",
+    startTime: "08:00",
+    endTime: "09:00",
+    preparationMinutes: 0,
+    travelMinutes: 0,
+    bufferMinutes: 0,
+    serviceLocation: "Barangay Wawa, Nasugbu",
+    barangay: "Wawa",
+  };
+
+  assert.equal(rentalScheduleSchema.safeParse(schedule).success, true);
+  assert.equal(
+    rentalScheduleSchema.safeParse({ ...schedule, serviceLocation: "" }).success,
+    false,
+  );
+  assert.equal(
+    rentalScheduleSchema.safeParse({ ...schedule, barangay: "" }).success,
+    false,
   );
 });

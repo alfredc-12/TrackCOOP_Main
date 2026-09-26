@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
+import { rentalScheduleSchema } from "@/app/rental/_lib/rentalValidation";
 import {
   type EquipmentAvailability,
   type RentalInquiry,
@@ -66,6 +67,13 @@ type ScheduleDraft = {
   status: ScheduleStatus;
 };
 
+const ASSIGNED_OPERATOR_OPTIONS = [
+  "Cooperative operator",
+  "Equipment custodian",
+  "Barangay coordinator",
+  "Certified member operator",
+  "Chairman to assign",
+];
 function displayDate(value?: string, includeTime = false) {
   if (!value) return "Not provided";
   const date = new Date(value);
@@ -174,6 +182,7 @@ export function ChairmanRentalBookingDetailsModal({
     internalNote: "",
   });
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft>();
+  const [scheduleErrors, setScheduleErrors] = useState<Record<string, string>>({});
   const [conflict, setConflict] = useState<ScheduleConflict>();
   const [confirmAction, setConfirmAction] = useState<
     { kind: "review" | "schedule"; title: string; description: string } | undefined
@@ -194,9 +203,6 @@ export function ChairmanRentalBookingDetailsModal({
         ]);
       const nextSchedule = schedules.find(
         (item) => item.rentalId === nextInquiry.rentalId,
-      );
-      const asset = assets.find(
-        (item) => item.serviceId === nextInquiry.serviceId,
       );
       setInquiry(nextInquiry);
       setSchedule(nextSchedule);
@@ -228,7 +234,6 @@ export function ChairmanRentalBookingDetailsModal({
         startTime:
           nextSchedule?.startTime ??
           nextInquiry.preferredStartTime ??
-          asset?.availableStartTime ??
           "08:00",
         endTime:
           nextSchedule?.endTime ?? nextInquiry.preferredEndTime ?? "17:00",
@@ -236,10 +241,9 @@ export function ChairmanRentalBookingDetailsModal({
         serviceLocation:
           nextSchedule?.serviceLocation ?? nextInquiry.serviceLocation,
         barangay: nextSchedule?.barangay ?? nextInquiry.serviceBarangay,
-        preparationMinutes:
-          nextSchedule?.preparationMinutes ?? asset?.preparationMinutes ?? 0,
-        travelMinutes: nextSchedule?.travelMinutes ?? asset?.travelMinutes ?? 0,
-        bufferMinutes: nextSchedule?.bufferMinutes ?? asset?.bufferMinutes ?? 0,
+        preparationMinutes: 0,
+        travelMinutes: 0,
+        bufferMinutes: 0,
         specialInstructions:
           nextSchedule?.specialInstructions ??
           nextInquiry.specialInstructions ??
@@ -301,20 +305,63 @@ export function ChairmanRentalBookingDetailsModal({
         : current,
     );
     setConflict(undefined);
+    setScheduleErrors({});
     setScheduleOpen(true);
   }
 
   function openScheduleEditor() {
     setActiveAction(undefined);
     setConflict(undefined);
+    setScheduleErrors({});
     setScheduleDraft((current) =>
       current && schedule ? { ...current, status: schedule.status } : current,
     );
     setScheduleOpen(true);
   }
 
+  function updateScheduleDraft<K extends keyof ScheduleDraft>(
+    key: K,
+    value: ScheduleDraft[K],
+  ) {
+    setScheduleDraft((current) => current ? { ...current, [key]: value } : current);
+    setConflict(undefined);
+    setScheduleErrors((current) => {
+      const next = { ...current };
+      delete next[String(key)];
+      return next;
+    });
+  }
+
+  function validateSchedule() {
+    if (!inquiry || !scheduleDraft) return false;
+    const result = rentalScheduleSchema.safeParse({
+      ...scheduleDraft,
+      rentalId: inquiry.rentalId,
+    });
+    const nextErrors: Record<string, string> = {};
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0] ?? "schedule");
+        nextErrors[key] ??= issue.message;
+      }
+    }
+    const selectedAsset = services.find((item) => item.serviceId === scheduleDraft.serviceId);
+    const operatorRequired = selectedAsset?.operatorRequirement &&
+      !/not required|self[- ]?operated/i.test(selectedAsset.operatorRequirement);
+    if (scheduleDraft.status === "Confirmed" && operatorRequired && !scheduleDraft.assignedOperator.trim()) {
+      nextErrors.assignedOperator = "Assign an operator before confirming the schedule.";
+    }
+    setScheduleErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      toast.error("Please fix the highlighted schedule fields.");
+      return false;
+    }
+    return true;
+  }
+
   async function checkConflict() {
     if (!inquiry || !scheduleDraft) return;
+    if (!validateSchedule()) return;
     try {
       const result = await rentalApiRepository.checkScheduleConflict({
         inquiryId: inquiry.inquiryId,
@@ -349,8 +396,12 @@ export function ChairmanRentalBookingDetailsModal({
 
   async function saveReview() {
     if (!inquiry || !activeAction?.targetStatus) return;
-    if (!review.publicNote.trim()) {
-      toast.error("Add a public response before saving the review.");
+    if (review.publicNote.trim().length < 10) {
+      toast.error("Write a clear public response of at least 10 characters.");
+      return;
+    }
+    if (review.publicNote.trim().length > 500 || review.internalNote.trim().length > 1000) {
+      toast.error("Shorten the response or internal note before saving.");
       return;
     }
     setSaving(true);
@@ -377,6 +428,11 @@ export function ChairmanRentalBookingDetailsModal({
 
   async function saveSchedule() {
     if (!inquiry || !scheduleDraft) return;
+    if (!validateSchedule()) return;
+    if (!conflict || conflict.hasConflict) {
+      toast.error("Check availability before saving the schedule.");
+      return;
+    }
     setSaving(true);
     try {
       const equipment =
@@ -846,12 +902,21 @@ export function ChairmanRentalBookingDetailsModal({
           </div>
           <FormField
             label="Public response"
+            required
+            error={
+              review.publicNote.trim().length > 0 && review.publicNote.trim().length < 10
+                ? "Write at least 10 characters."
+                : review.publicNote.length > 500
+                  ? "Use 500 characters or fewer."
+                  : undefined
+            }
             hint="Required. Visible through the requester’s privacy-safe status view."
           >
             <textarea
               required
               rows={4}
               value={review.publicNote}
+              maxLength={500}
               onChange={(event) =>
                 setReview((current) => ({
                   ...current,
@@ -861,10 +926,11 @@ export function ChairmanRentalBookingDetailsModal({
               className="rounded-md border border-[#CAD8CB] p-3"
             />
           </FormField>
-          <FormField label="Internal note" hint="Visible only to authorized staff.">
+          <FormField label="Internal note" hint="Optional. Visible only to authorized staff." error={review.internalNote.length > 1000 ? "Use 1,000 characters or fewer." : undefined}>
             <textarea
               rows={3}
               value={review.internalNote}
+              maxLength={1000}
               onChange={(event) =>
                 setReview((current) => ({
                   ...current,
@@ -876,7 +942,7 @@ export function ChairmanRentalBookingDetailsModal({
           </FormField>
           <button
             type="button"
-            disabled={!activeAction?.targetStatus || !review.publicNote.trim()}
+            disabled={!activeAction?.targetStatus || review.publicNote.trim().length < 10}
             onClick={() =>
               setConfirmAction({
                 kind: "review",
@@ -919,13 +985,7 @@ export function ChairmanRentalBookingDetailsModal({
             <FormField label="Rental asset">
               <select
                 value={scheduleDraft.serviceId}
-                onChange={(event) =>
-                  setScheduleDraft((current) =>
-                    current
-                      ? { ...current, serviceId: event.target.value }
-                      : current,
-                  )
-                }
+                onChange={(event) => updateScheduleDraft("serviceId", event.target.value)}
                 className="h-11 rounded-md border border-[#CAD8CB] px-3"
               >
                 {services
@@ -946,16 +1006,7 @@ export function ChairmanRentalBookingDetailsModal({
               <select
                 value={scheduleDraft.status}
                 disabled={activeAction?.kind === "schedule"}
-                onChange={(event) =>
-                  setScheduleDraft((current) =>
-                    current
-                      ? {
-                          ...current,
-                          status: event.target.value as ScheduleStatus,
-                        }
-                      : current,
-                  )
-                }
+                onChange={(event) => updateScheduleDraft("status", event.target.value as ScheduleStatus)}
                 className="h-11 rounded-md border border-[#CAD8CB] px-3 disabled:bg-[#F1F3EF] disabled:text-[#5D6D63]"
               >
                 <option>Awaiting Confirmation</option>
@@ -966,108 +1017,72 @@ export function ChairmanRentalBookingDetailsModal({
               label="Start date"
               type="date"
               value={scheduleDraft.date}
-              onChange={(date) =>
-                setScheduleDraft((current) =>
-                  current ? { ...current, date } : current,
-                )
-              }
+              error={scheduleErrors.date}
+              onChange={(date) => updateScheduleDraft("date", date)}
             />
             <ScheduleInput
               label="End date"
               type="date"
               value={scheduleDraft.endDate}
               min={scheduleDraft.date}
-              onChange={(endDate) =>
-                setScheduleDraft((current) =>
-                  current ? { ...current, endDate } : current,
-                )
-              }
+              error={scheduleErrors.endDate}
+              onChange={(endDate) => updateScheduleDraft("endDate", endDate)}
             />
             <div className="grid grid-cols-2 gap-3">
               <ScheduleInput
                 label="Start"
                 type="time"
                 value={scheduleDraft.startTime}
-                onChange={(startTime) =>
-                  setScheduleDraft((current) =>
-                    current ? { ...current, startTime } : current,
-                  )
-                }
+                error={scheduleErrors.startTime}
+                onChange={(startTime) => updateScheduleDraft("startTime", startTime)}
               />
               <ScheduleInput
                 label="End"
                 type="time"
                 value={scheduleDraft.endTime}
-                onChange={(endTime) =>
-                  setScheduleDraft((current) =>
-                    current ? { ...current, endTime } : current,
-                  )
-                }
+                error={scheduleErrors.endTime}
+                onChange={(endTime) => updateScheduleDraft("endTime", endTime)}
               />
             </div>
-            <ScheduleInput
+            <FormField
               label="Assigned operator"
-              value={scheduleDraft.assignedOperator}
-              onChange={(assignedOperator) =>
-                setScheduleDraft((current) =>
-                  current ? { ...current, assignedOperator } : current,
-                )
-              }
-            />
+              required={scheduleDraft.status === "Confirmed"}
+              error={scheduleErrors.assignedOperator}
+            >
+              <select
+                value={scheduleDraft.assignedOperator}
+                onChange={(event) => updateScheduleDraft("assignedOperator", event.target.value)}
+                className="rounded-md border border-[#CAD8CB] p-3"
+              >
+                <option value="">Choose operator</option>
+                {scheduleDraft.assignedOperator &&
+                !ASSIGNED_OPERATOR_OPTIONS.includes(scheduleDraft.assignedOperator) ? (
+                  <option>{scheduleDraft.assignedOperator}</option>
+                ) : null}
+                {ASSIGNED_OPERATOR_OPTIONS.map((operator) => (
+                  <option key={operator}>{operator}</option>
+                ))}
+              </select>
+            </FormField>
             <ScheduleInput
               label="Service location"
               value={scheduleDraft.serviceLocation}
-              onChange={(serviceLocation) =>
-                setScheduleDraft((current) =>
-                  current ? { ...current, serviceLocation } : current,
-                )
-              }
+              error={scheduleErrors.serviceLocation}
+              onChange={(serviceLocation) => updateScheduleDraft("serviceLocation", serviceLocation)}
             />
             <ScheduleInput
               label="Barangay"
               value={scheduleDraft.barangay}
-              onChange={(barangay) =>
-                setScheduleDraft((current) =>
-                  current ? { ...current, barangay } : current,
-                )
-              }
+              error={scheduleErrors.barangay}
+              onChange={(barangay) => updateScheduleDraft("barangay", barangay)}
             />
-            {(
-              [
-                ["Preparation minutes", "preparationMinutes"],
-                ["Travel minutes", "travelMinutes"],
-                ["Buffer minutes", "bufferMinutes"],
-              ] as const
-            ).map(([label, key]) => (
-              <ScheduleInput
-                key={key}
-                label={label}
-                type="number"
-                value={String(scheduleDraft[key])}
-                onChange={(value) =>
-                  setScheduleDraft((current) =>
-                    current
-                      ? { ...current, [key]: Math.max(0, Number(value)) }
-                      : current,
-                  )
-                }
-              />
-            ))}
             <div className="sm:col-span-2">
               <FormField label="Internal schedule instructions">
                 <textarea
                   rows={3}
                   value={scheduleDraft.specialInstructions}
-                  onChange={(event) =>
-                    setScheduleDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            specialInstructions: event.target.value,
-                          }
-                        : current,
-                    )
-                  }
+                  maxLength={1000}
+                  onChange={(event) => updateScheduleDraft("specialInstructions", event.target.value)}
                   className="rounded-md border border-[#CAD8CB] p-3"
                 />
               </FormField>
@@ -1105,11 +1120,8 @@ export function ChairmanRentalBookingDetailsModal({
                         type="button"
                         onClick={() => {
                           const [startTime, endTime] = slot.split(/[–-]/);
-                          setScheduleDraft((current) =>
-                            current
-                              ? { ...current, startTime, endTime }
-                              : current,
-                          );
+                          updateScheduleDraft("startTime", startTime);
+                          updateScheduleDraft("endTime", endTime);
                         }}
                         className="min-h-10 rounded-md border border-current bg-white px-3 font-bold"
                       >
@@ -1126,11 +1138,11 @@ export function ChairmanRentalBookingDetailsModal({
                 onClick={() => void checkConflict()}
                 className="min-h-11 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A]"
               >
-                Check Conflict
+                Check Availability
               </button>
               <button
                 type="button"
-                disabled={conflict?.hasConflict}
+                disabled={!conflict || conflict.hasConflict}
                 onClick={() =>
                   setConfirmAction({
                     kind: "schedule",
@@ -1221,21 +1233,28 @@ function ScheduleInput({
   onChange,
   type = "text",
   min,
+  error,
+  required = true,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "date" | "time" | "number";
   min?: string;
+  error?: string;
+  required?: boolean;
 }) {
   return (
-    <FormField label={label}>
+    <FormField label={label} required={required} error={error}>
       <input
         type={type}
         min={type === "number" ? 0 : min}
+        max={type === "number" ? 1440 : undefined}
+        maxLength={type === "text" ? 250 : undefined}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 rounded-md border border-[#CAD8CB] px-3"
+        aria-invalid={Boolean(error)}
+        className={`h-11 rounded-md border px-3 ${error ? "border-[#B42318]" : "border-[#CAD8CB]"}`}
       />
     </FormField>
   );

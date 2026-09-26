@@ -191,6 +191,16 @@ export class DashboardRepository {
     const totalPosSales = numberValue(posRows[0]?.total);
     const posTransactions = numberValue(posRows[0]?.txCount);
 
+    const productsSoldDateFilter = getDateFilter(period, "ps.sale_date");
+    const [productsSoldRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(psi.quantity), 0) AS productsSold
+         FROM pos_sales ps
+         JOIN pos_sale_items psi ON psi.pos_sale_id = ps.pos_sale_id
+        WHERE ps.sale_status IN ('Paid', 'Completed') ${productsSoldDateFilter.clause}`,
+      productsSoldDateFilter.params,
+    ).catch(() => [[{ productsSold: 0 } as RowDataPacket]]);
+    const productsSold = numberValue(productsSoldRows[0]?.productsSold);
+
     const [rentalRows] = await pool.query<RowDataPacket[]>(
       `SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS txCount
          FROM rental_bookings
@@ -220,6 +230,7 @@ export class DashboardRepository {
 
     const [demographicRows] = await pool.query<RowDataPacket[]>(
       `SELECT barangay,
+              COALESCE(NULLIF(TRIM(sector), ''), 'Not recorded') AS sector,
               COUNT(*) AS totalMembers,
               SUM(CASE WHEN official_member_status = 'Active' THEN 1 ELSE 0 END) AS activeMembers,
               SUM(CASE WHEN official_member_status = 'Needs Monitoring' THEN 1 ELSE 0 END) AS needsMonitoring,
@@ -228,10 +239,36 @@ export class DashboardRepository {
         WHERE approval_status = 'Approved'
           AND barangay IS NOT NULL
           AND barangay <> ''
-        GROUP BY barangay
-        ORDER BY totalMembers DESC
-        LIMIT 10`,
+        GROUP BY barangay, sector
+        ORDER BY totalMembers DESC`,
     );
+
+    const demographicMap = new Map<string, {
+      barangay: string;
+      totalMembers: number;
+      activeMembers: number;
+      needsMonitoring: number;
+      inactiveMembers: number;
+      sectorCounts: { sector: string; count: number }[];
+    }>();
+
+    for (const row of demographicRows) {
+      const barangay = String(row.barangay);
+      const current = demographicMap.get(barangay) ?? {
+        barangay,
+        totalMembers: 0,
+        activeMembers: 0,
+        needsMonitoring: 0,
+        inactiveMembers: 0,
+        sectorCounts: [],
+      };
+      current.totalMembers += numberValue(row.totalMembers);
+      current.activeMembers += numberValue(row.activeMembers);
+      current.needsMonitoring += numberValue(row.needsMonitoring);
+      current.inactiveMembers += numberValue(row.inactiveMembers);
+      current.sectorCounts.push({ sector: String(row.sector), count: numberValue(row.totalMembers) });
+      demographicMap.set(barangay, current);
+    }
 
     const [inventoryRows] = await pool.query<StockRow[]>(
       `SELECT CAST(p.product_id AS CHAR) AS productId,
@@ -389,15 +426,14 @@ export class DashboardRepository {
       revenueTrend,
       membershipTrend,
       incomeSources,
-      demographics: demographicRows.map((row) => ({
-        barangay: String(row.barangay),
-        totalMembers: numberValue(row.totalMembers),
-        activeMembers: numberValue(row.activeMembers),
-        needsMonitoring: numberValue(row.needsMonitoring),
-        inactiveMembers: numberValue(row.inactiveMembers),
-      })),
+      demographics: Array.from(demographicMap.values())
+        .map((row) => ({
+          ...row,
+          sectorCounts: row.sectorCounts.sort((a, b) => b.count - a.count),
+        }))
+        .sort((a, b) => b.totalMembers - a.totalMembers),
       operationsSnapshot: {
-        pos: { totalSales: totalPosSales, transactions: posTransactions },
+        pos: { totalSales: totalPosSales, transactions: posTransactions, productsSold },
         rental: {
           totalIncome: totalRentalIncome,
           completed: numberValue(rentalCounts.completed),

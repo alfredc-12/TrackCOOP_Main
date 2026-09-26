@@ -17,7 +17,7 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.initial_share_capital',
-        '1500',
+        '3000',
         'Number',
         'Initial share-capital payment in Philippine pesos.',
         0

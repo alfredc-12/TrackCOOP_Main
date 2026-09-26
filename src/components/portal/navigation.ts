@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   Gauge,
+  HandCoins,
   History,
   Inbox,
   Landmark,
@@ -50,10 +51,16 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Overview",
       items: [
         {
-          label: "Dashboard",
+          label: "Member Dashboard",
           href: "/portal/chairman/dashboard",
           icon: LayoutDashboard,
-          summary: "Chairman oversight and cooperative health signals.",
+          summary: "Membership, cooperative operations, and oversight signals.",
+        },
+        {
+          label: "Financial Dashboard",
+          href: "/portal/chairman/finance",
+          icon: Landmark,
+          summary: "Financial performance, ledger totals, and cooperative finance activity.",
         },
       ],
     },
@@ -100,6 +107,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           href: "/portal/chairman/finance",
           icon: Landmark,
           summary: "View ledger performance and financial totals.",
+        },
+        {
+          label: "Patronage",
+          href: "/portal/chairman/patronage",
+          icon: HandCoins,
+          summary: "Calculate patronage and administer member refund allocations.",
         },
       ],
     },
@@ -337,6 +350,17 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           href: "/portal/member/rentals",
           icon: Tractor,
           summary: "Check the status of your equipment rentals.",
+        },
+      ],
+    },
+    {
+      title: "Benefits",
+      items: [
+        {
+          label: "My Patronage",
+          href: "/portal/member/patronage",
+          icon: HandCoins,
+          summary: "View eligible patronage and patronage-refund status.",
         },
       ],
     },

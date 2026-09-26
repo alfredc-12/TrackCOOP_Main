@@ -403,7 +403,7 @@ export function MembershipApplicationDetail() {
                 >
                   <option value="ASSOCIATE">Associate Member — ₱200.00</option>
                   <option value="TRUE_MEMBER">
-                    True Member — ₱1,500.00 initial payment
+                    True Member - PHP 3,000.00 initial share capital
                   </option>
                 </select>
               </label>

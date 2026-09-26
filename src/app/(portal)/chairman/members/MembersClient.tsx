@@ -2,7 +2,6 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
-  Archive,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -40,7 +39,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useState } from "react";
+import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ConfirmDialog,
@@ -57,20 +56,16 @@ import { ApiClientError } from "@/lib/api-client";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import {
   addApplicationBeneficiary,
-  addApplicationRequirement,
   applicationDocumentViewUrl,
   approveApplication,
   createChairmanApplication,
   deleteApplicationBeneficiary,
   deleteApplicationDocument,
-  deleteApplicationRequirement,
   downloadApplicationPdf,
   getChairmanApplication,
   getChairmanApplicationSummary,
   listChairmanApplications,
   transitionApplication,
-  updateApplicationBeneficiary,
-  updateApplicationRequirement,
   updateChairmanApplication,
   uploadChairmanApplicationDocument,
 } from "@/features/membership-applications/membership-application-api";
@@ -101,8 +96,6 @@ import {
   membershipApplicationSources,
   membershipApplicationStatuses,
   requestedMembershipTypes,
-  requirementStatuses,
-  requirementTypes,
   type ApprovalInput,
   type ApprovalResult,
   type BeneficiaryInput,
@@ -116,8 +109,6 @@ import {
   type MembershipApplicationStatus,
   type MembershipDocumentType,
   type RequestedMembershipType,
-  type RequirementStatus,
-  type RequirementType,
 } from "@/features/membership-applications/membership-application-types";
 
 const emptySummary: ChairmanApplicationSummary = {
@@ -125,6 +116,8 @@ const emptySummary: ChairmanApplicationSummary = {
   submitted: 0,
   underReview: 0,
   needsInformation: 0,
+  paymentRequired: 0,
+  paymentConfirmed: 0,
   approved: 0,
   rejected: 0,
   withdrawn: 0,
@@ -261,17 +254,9 @@ type MemberAccountAction =
   | { type: "link"; member: MemberDetail }
   | { type: "unlink"; member: MemberDetail };
 type ConfirmAction =
-  | { type: "transition"; action: "start-review" | "request-information" | "reject" | "withdraw"; label: string }
+  | { type: "transition"; action: "start-review" | "request-information" | "approve-for-payment" | "reject" | "withdraw"; label: string }
   | { type: "delete-beneficiary"; beneficiaryId: string; label: string }
-  | { type: "delete-document"; documentId: string; label: string }
-  | { type: "delete-requirement"; requirementId: string; label: string };
-
-function requirementTone(status: RequirementStatus) {
-  if (status === "Verified" || status === "Waived") return "success";
-  if (status === "Rejected") return "danger";
-  if (status === "Submitted") return "warning";
-  return "neutral";
-}
+  | { type: "delete-document"; documentId: string; label: string };
 
 export function MembersClient() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -532,13 +517,6 @@ export function MembersClient() {
       });
     }
 
-    if (confirmAction.type === "delete-requirement") {
-      void runMutation("Requirement removed.", async () => {
-        await deleteApplicationRequirement(confirmAction.requirementId);
-        await refreshDetail(selectedDetail.id);
-      });
-    }
-
     setConfirmAction(null);
   };
 
@@ -614,6 +592,8 @@ export function MembersClient() {
             <ApplicationMetricCard label="Submitted" value={summary.submitted} icon={FileText} />
             <ApplicationMetricCard label="Under Review" value={summary.underReview} icon={ClipboardCheck} />
             <ApplicationMetricCard label="Needs Info" value={summary.needsInformation} icon={Send} />
+            <ApplicationMetricCard label="Payment Due" value={summary.paymentRequired} icon={WalletCards} />
+            <ApplicationMetricCard label="Payment OK" value={summary.paymentConfirmed} icon={CheckCircle2} />
             <ApplicationMetricCard label="Approved" value={summary.approved} icon={CheckCircle2} />
             <ApplicationMetricCard label="Rejected" value={summary.rejected} icon={X} />
           </div>
@@ -2064,11 +2044,9 @@ function HistoryResponsiveList({ entries }: { entries: UnifiedStatusHistoryEntry
 }
 
 function HistorySourceIconMark({ source }: { source: UnifiedStatusHistoryEntry["sourceModule"] }) {
-  const SourceIcon = getHistorySourceIcon(source);
-
   return (
     <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-[#123D2A]">
-      <SourceIcon className="size-4" aria-hidden="true" />
+      <HistorySourceIcon source={source} className="size-4" />
     </span>
   );
 }
@@ -2082,7 +2060,6 @@ function HistoryEntryCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const SourceIcon = getHistorySourceIcon(entry.sourceModule);
   const actor = entry.actor ?? "System";
   const reason = entry.reason?.trim() || "No reason recorded.";
 
@@ -2090,7 +2067,7 @@ function HistoryEntryCard({
     <article className="grid gap-4 bg-white p-4">
       <div className="flex min-w-0 gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF4E4] text-[#123D2A]">
-          <SourceIcon className="size-5" aria-hidden="true" />
+          <HistorySourceIcon source={entry.sourceModule} className="size-5" />
         </span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -2160,10 +2137,16 @@ function HistoryStatusPill({ status }: { status: string }) {
   );
 }
 
-function getHistorySourceIcon(source: UnifiedStatusHistoryEntry["sourceModule"]) {
-  if (source === "Application") return FileText;
-  if (source === "Member") return UsersRound;
-  return Link2;
+function HistorySourceIcon({
+  source,
+  className,
+}: {
+  source: UnifiedStatusHistoryEntry["sourceModule"];
+  className: string;
+}) {
+  if (source === "Application") return <FileText className={className} aria-hidden="true" />;
+  if (source === "Member") return <UsersRound className={className} aria-hidden="true" />;
+  return <Link2 className={className} aria-hidden="true" />;
 }
 
 function getHistoryStatusTone(status: string) {
@@ -2191,6 +2174,10 @@ function ApplicationStatusPill({ status }: { status: MembershipApplicationStatus
         ? { className: "bg-[#DDF0FF] text-[#1470A8]", icon: FileText }
         : status === "Needs Information"
           ? { className: "bg-[#FFF2CC] text-[#946600]", icon: Send }
+          : status === "Payment Required"
+            ? { className: "bg-[#FFF2CC] text-[#946600]", icon: WalletCards }
+            : status === "Payment Confirmed"
+              ? { className: "bg-[#DDF4E4] text-[#1F6B43]", icon: CreditCard }
           : status === "Rejected" || status === "Withdrawn"
             ? { className: "bg-[#FFE6E0] text-[#9A392A]", icon: X }
             : { className: "bg-[#FFF0D7] text-[#A46400]", icon: ClipboardCheck };
@@ -2407,10 +2394,6 @@ function ApplicationDetailDialog({
     ageAtApplication: null,
     birthDate: null,
   });
-  const [requirementDraft, setRequirementDraft] = useState<{ requirementType: RequirementType; remarks: string }>({
-    requirementType: "Other",
-    remarks: "",
-  });
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false);
   const [approvalDecisionDraft, setApprovalDecisionDraft] = useState<{ applicationId: string | null; decisionReason: string }>({
     applicationId: null,
@@ -2419,19 +2402,13 @@ function ApplicationDetailDialog({
   const [documentType, setDocumentType] = useState<MembershipDocumentType>("Valid ID");
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [previewDocument, setPreviewDocument] = useState<ChairmanApplicationDetail["documents"][number] | null>(null);
-  const [step, setStep] = useState<number>(1);
 
   if (!detail) return null;
 
   const progress = requirementProgress(detail);
   const canStartReview = detail.applicationStatus === "Submitted";
-  const startReviewLabel = detail.applicationStatus === "Under Review" ? "Under Review" : "Start Review";
-  const documentById = new Map(detail.documents.map((document) => [document.id, document]));
-  const addedRequirementTypes = new Set(detail.requirements.map((requirement) => requirement.requirementType));
-  const availableRequirementTypes = requirementTypes.filter((type) => !addedRequirementTypes.has(type));
-  const addRequirementType = availableRequirementTypes.includes(requirementDraft.requirementType)
-    ? requirementDraft.requirementType
-    : availableRequirementTypes[0] ?? "Other";
+  const canApproveForPayment = detail.applicationStatus === "Under Review";
+  const canApproveAndConvert = detail.applicationStatus === "Payment Confirmed";
   const approvalDate = getTodayInputDate();
   const approvedBy = currentUser?.displayName ?? "Current chairman";
   const accountEmail = detail.email ?? null;
@@ -2449,134 +2426,47 @@ function ApplicationDetailDialog({
       title={
         <div className="flex w-full min-w-0 flex-col gap-4 pr-2 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="break-words text-3xl font-black leading-tight text-[#123D2A]">{detail.applicationCode}</p>
-            <p className="mt-2 break-words text-xl font-semibold text-[#0F241A]">{detail.fullName}</p>
-            <p className="mt-2 text-sm font-medium leading-6 text-[#5D6D63]">
-              Review application details, requirements, and decision actions.
-            </p>
+            <p className="break-words text-3xl font-black leading-tight text-[#123D2A]">{detail.fullName}</p>
+            <p className="mt-2 break-words text-sm font-black text-[#5D6D63]">{detail.applicationCode}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-[#365F4A]">
+              <span>{detail.requestedMembershipType}</span>
+              <span aria-hidden="true">/</span>
+              <span>Submitted {formatDate(detail.submittedAt)}</span>
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-start gap-3 pt-1 lg:items-end">
             <ApplicationStatusPill status={detail.applicationStatus} />
-            <RequirementProgressBadge progress={progress} />
           </div>
         </div>
       }
-      contentClassName="w-[min(68rem,calc(100vw-2rem))] p-5 sm:p-8"
+      contentClassName="w-[min(76rem,calc(100vw-2rem))] p-5 sm:p-8"
     >
-      <div className="grid min-w-0 gap-5 border-t border-[#CAD8CB] pt-5">
-        {step === 1 && (
-        <>
-        <div className="flex min-w-0 flex-wrap gap-3">
-          <ActionButton
-            icon={Play}
-            label={startReviewLabel}
-            primary={canStartReview}
-            disabled={!canStartReview}
-            onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })}
-          />
-          <ActionButton icon={Send} label="Request Info" onClick={() => onConfirmAction({ type: "transition", action: "request-information", label: "Request information" })} />
-          <ActionButton icon={X} label="Reject" danger onClick={() => onConfirmAction({ type: "transition", action: "reject", label: "Reject application" })} />
-          <ActionButton icon={Archive} label="Withdraw" danger onClick={() => onConfirmAction({ type: "transition", action: "withdraw", label: "Withdraw application" })} />
-          <ActionButton icon={Download} label="Print PDF" onClick={() => void onPrint(detail)} />
-        </div>
+      <div className="grid gap-6 border-t border-[#CAD8CB] pt-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="grid gap-5">
+          <ReviewWorkspaceSection title="Applicant Overview" icon={UserCheck}>
+            <ApplicantSummary detail={detail} />
+          </ReviewWorkspaceSection>
 
-        <ApplicantSummary detail={detail} />
-
-        <Commitments detail={detail} />
-
-        <ReviewSection index={3} title="Requirements Review">
-          <div className="hidden grid-cols-[minmax(12rem,1fr)_12rem_minmax(14rem,1fr)_8rem] border-b border-[#E7EEE5] px-4 pb-3 text-xs font-black text-[#6C7A70] md:grid">
-            <span>Requirement</span>
-            <span>Status</span>
-            <span>Remarks</span>
-            <span className="text-center">Action</span>
-          </div>
-          <div className="grid">
-            {detail.requirements.map((requirement) => (
-              <RequirementRow
-                key={requirement.id}
-                requirement={requirement}
-                canDelete={!isProtectedRequirement(detail, requirement.requirementType)}
-                linkedDocument={requirement.documentId ? documentById.get(requirement.documentId) ?? null : null}
-                onDelete={() => onConfirmAction({ type: "delete-requirement", requirementId: requirement.id, label: "Remove requirement" })}
-                onViewDocument={openDocument}
-                onSave={(requirementStatus, remarks) =>
-                  runMutation("Requirement updated.", async () => {
-                    await updateApplicationRequirement(requirement.id, { requirementStatus, remarks });
-                    await onRefresh();
-                  })
-                }
-              />
-            ))}
-            <div className="mt-2 grid gap-3 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-[minmax(12rem,1fr)_minmax(14rem,1fr)_5rem]">
-              <Select value={addRequirementType} onChange={(value) => setRequirementDraft((current) => ({ ...current, requirementType: value as RequirementType }))}>
-                {availableRequirementTypes.length > 0
-                  ? availableRequirementTypes.map((type) => <option key={type}>{type}</option>)
-                  : <option value={addRequirementType}>All requirements added</option>}
-              </Select>
-              <input className={inputClass} placeholder="Remarks" value={requirementDraft.remarks} onChange={(event) => setRequirementDraft((current) => ({ ...current, remarks: event.target.value }))} />
-              <Button
-                type="button"
-                disabled={availableRequirementTypes.length === 0}
-                className="h-11 rounded-md bg-[#123D2A] text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
-                onClick={() => void runMutation("Requirement added.", async () => {
-                  await addApplicationRequirement(detail.id, {
-                    requirementType: addRequirementType,
-                    requirementStatus: "Pending",
-                    remarks: requirementDraft.remarks || null,
-                  });
-                  setRequirementDraft({ requirementType: "Other", remarks: "" });
-                  await onRefresh();
-                })}
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-        </ReviewSection>
-        </>
-        )}
-
-        {step === 2 && (
-        <Panel title="Beneficiaries">
-          <div className="grid gap-2">
-            {detail.beneficiaries.map((beneficiary) => (
-              <div key={beneficiary.id} className="flex flex-col gap-2 rounded-md border border-[#CAD8CB] p-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-[#294B39]">
-                  <strong>{beneficiary.fullName}</strong> - {beneficiary.relationship ?? "Beneficiary"} ({beneficiary.ageAtApplication ?? beneficiary.birthDate ?? "No age"})
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    className="h-9 border border-[#CAD8CB] bg-white px-3 text-[#123D2A] hover:bg-[#EEF2EC]"
-                    onClick={() => {
-                      const fullName = window.prompt("Beneficiary full name", beneficiary.fullName);
-                      if (!fullName) return;
-                      void runMutation("Beneficiary updated.", async () => {
-                        await updateApplicationBeneficiary(beneficiary.id, { fullName });
-                        await onRefresh();
-                      });
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    className="h-9 border border-red-200 bg-white px-3 text-red-700 hover:bg-red-50"
-                    onClick={() => onConfirmAction({ type: "delete-beneficiary", beneficiaryId: beneficiary.id, label: "Remove beneficiary" })}
-                  >
-                    Remove
-                  </Button>
+          <ReviewWorkspaceSection title="Family & Beneficiaries" icon={UsersRound}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {detail.beneficiaries.map((beneficiary) => (
+                <div key={beneficiary.id} className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
+                  <p className="font-black text-[#123D2A]">{beneficiary.fullName}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#5D6D63]">{beneficiary.relationship ?? "Beneficiary"}</p>
+                  <p className="mt-1 text-sm text-[#365F4A]">Age {beneficiary.ageAtApplication ?? beneficiary.birthDate ?? "not provided"}</p>
                 </div>
-              </div>
-            ))}
-            <div className="grid gap-2 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-4">
+              ))}
+              {!detail.beneficiaries.length ? (
+                <p className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold text-[#5D6D63]">No beneficiaries listed.</p>
+              ) : null}
+            </div>
+            <div className="mt-4 grid gap-2 rounded-2xl border border-dashed border-[#B9CABD] p-3 md:grid-cols-4">
               <input className={inputClass} placeholder="Full name" value={beneficiaryDraft.fullName} onChange={(event) => setBeneficiaryDraft((current) => ({ ...current, fullName: event.target.value }))} />
               <input className={inputClass} placeholder="Relationship" value={beneficiaryDraft.relationship ?? ""} onChange={(event) => setBeneficiaryDraft((current) => ({ ...current, relationship: event.target.value }))} />
               <input className={inputClass} placeholder="Age" type="number" value={beneficiaryDraft.ageAtApplication ?? ""} onChange={(event) => setBeneficiaryDraft((current) => ({ ...current, ageAtApplication: event.target.value ? Number(event.target.value) : null }))} />
               <Button
                 type="button"
-                className="h-11 bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+                className="h-11 rounded-xl bg-[#123D2A] text-white hover:bg-[#1F6B43]"
                 onClick={() => void runMutation("Beneficiary added.", async () => {
                   await addApplicationBeneficiary(detail.id, beneficiaryDraft);
                   setBeneficiaryDraft({ fullName: "", relationship: "", ageAtApplication: null, birthDate: null });
@@ -2586,39 +2476,28 @@ function ApplicationDetailDialog({
                 <Plus className="size-4" /> Add
               </Button>
             </div>
-          </div>
-        </Panel>
-        )}
+          </ReviewWorkspaceSection>
 
-        {step === 3 && (
-        <Panel title="Documents">
-          <div className="grid gap-2">
-            {detail.documents.map((document) => (
-              <div key={document.id} className="flex flex-col gap-2 rounded-md border border-[#CAD8CB] p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Button
-                    type="button"
-                    aria-label={`View ${document.documentType}`}
-                    title={`View ${document.documentType}`}
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC]"
-                    onClick={() => openDocument(document)}
-                  >
-                    <Eye className="size-4" />
-                  </Button>
-                  <p className="min-w-0 break-words text-sm text-[#294B39]">
-                    <strong>{document.documentType}</strong> - {document.originalFileName}
-                  </p>
+          <ReviewWorkspaceSection title="Documents & Signed Application" icon={FileText}>
+            <div className="grid gap-3">
+              {detail.documents.map((document) => (
+                <div key={document.id} className="flex flex-col gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-[#123D2A]">{document.documentType}</p>
+                    <p className="mt-1 break-words text-sm font-semibold text-[#5D6D63]">{document.originalFileName}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" className="h-10 rounded-full border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => openDocument(document)}>
+                      <Eye className="size-4" /> Preview
+                    </Button>
+                    <Button type="button" className="h-10 rounded-full border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50" onClick={() => onConfirmAction({ type: "delete-document", documentId: document.id, label: "Remove document" })}>
+                      Remove
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  className="h-9 border border-red-200 bg-white px-3 text-red-700 hover:bg-red-50"
-                  onClick={() => onConfirmAction({ type: "delete-document", documentId: document.id, label: "Remove document" })}
-                >
-                  Remove
-                </Button>
-              </div>
-            ))}
-            <div className="grid gap-2 rounded-md border border-dashed border-[#B9CABD] p-3 md:grid-cols-[220px_1fr_auto]">
+              ))}
+            </div>
+            <div className="mt-4 grid gap-2 rounded-2xl border border-dashed border-[#B9CABD] p-3 md:grid-cols-[220px_1fr_auto]">
               <Select value={documentType} onChange={(value) => setDocumentType(value as MembershipDocumentType)}>
                 {documentTypes.map((type) => <option key={type}>{type}</option>)}
               </Select>
@@ -2626,12 +2505,12 @@ function ApplicationDetailDialog({
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-[#123D2A] file:mr-4 file:h-11 file:border-0 file:bg-[#123D2A] file:px-4 file:font-bold file:text-white"
+                className="block w-full text-sm text-[#123D2A] file:mr-4 file:h-11 file:rounded-full file:border-0 file:bg-[#123D2A] file:px-4 file:font-bold file:text-white"
               />
               <Button
                 type="button"
                 disabled={!documentFile}
-                className="h-11 bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+                className="h-11 rounded-full bg-[#123D2A] text-white hover:bg-[#1F6B43]"
                 onClick={() => void runMutation("Document uploaded.", async () => {
                   if (!documentFile) return;
                   await uploadChairmanApplicationDocument({ applicationId: detail.id, documentType, file: documentFile });
@@ -2642,54 +2521,56 @@ function ApplicationDetailDialog({
                 Upload
               </Button>
             </div>
-          </div>
-        </Panel>
-        )}
+          </ReviewWorkspaceSection>
 
-        {step === 4 && (
-        <>
-        <Panel title="Status Timeline">
-          <ol className="grid max-h-[22rem] gap-3 overflow-y-auto pr-2">
-            {detail.history.map((entry) => (
-              <li key={entry.id} className="rounded-md border border-[#CAD8CB] p-3 text-sm">
-                <p className="font-bold text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p>
-                <p className="mt-1 text-[#5D6D63]">{formatDate(entry.changedAt)}</p>
-                {entry.applicantMessage ? <p className="mt-2 text-[#294B39]">Applicant: {entry.applicantMessage}</p> : null}
-                {entry.internalNote ? <p className="mt-1 text-[#294B39]">Internal: {entry.internalNote}</p> : null}
-              </li>
-            ))}
-          </ol>
-        </Panel>
-
-        <Panel title="Final Approval">
-          <Button
-            type="button"
-            disabled={isMutating}
-            className="h-11 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
-            onClick={() => setApprovalConfirmOpen(true)}
-          >
-            <UserCheck className="size-4" />
-            Approve and Convert
-          </Button>
-        </Panel>
-        </>
-        )}
-      </div>
-
-      <div className="mt-6 flex justify-between border-t border-[#CAD8CB] pt-4">
-        <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => onOpenChange(false)}>Close</Button>
-        <div className="flex gap-2">
-          {step > 1 && (
-            <Button type="button" className="border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => setStep(s => s - 1)}>
-              Back
-            </Button>
-          )}
-          {step < 4 && (
-            <Button type="button" className="bg-[#123D2A] px-6 text-white hover:bg-[#1F6B43]" onClick={() => setStep(s => s + 1)}>
-              Next
-            </Button>
-          )}
+          <ReviewWorkspaceSection title="Application Activity" icon={History}>
+            <ol className="grid gap-3">
+              {detail.history.map((entry) => (
+                <li key={entry.id} className="grid grid-cols-[auto_1fr] gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm">
+                  <span className="mt-1 size-3 rounded-full bg-[#1F6B43]" />
+                  <div>
+                    <p className="font-black text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p>
+                    <p className="mt-1 font-semibold text-[#5D6D63]">{formatDate(entry.changedAt)}</p>
+                    {entry.applicantMessage ? <p className="mt-2 text-[#294B39]">Applicant: {entry.applicantMessage}</p> : null}
+                    {entry.internalNote ? <p className="mt-1 text-[#294B39]">Internal: {entry.internalNote}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </ReviewWorkspaceSection>
         </div>
+
+        <aside className="sticky top-6 grid gap-4 rounded-[1.5rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#f4b62a]">Review Progress</p>
+            <h3 className="mt-2 text-xl font-black text-[#123D2A]">
+              {detail.applicationStatus === "Payment Confirmed" ? "Ready for final approval" : detail.applicationStatus === "Payment Required" ? "Waiting for applicant payment" : "Next action"}
+            </h3>
+          </div>
+          <RequirementProgressBadge progress={progress} />
+          <div className="grid gap-2 text-sm font-semibold text-[#365F4A]">
+            <ReviewCheck label="Application Received" done />
+            <ReviewCheck label="Signed Application" done={detail.documents.some((document) => document.documentType === "Signed Application")} />
+            <ReviewCheck label="Documents" done={progress.isComplete} />
+            <ReviewCheck label="Payment" done={detail.applicationStatus === "Payment Confirmed" || detail.applicationStatus === "Approved"} />
+          </div>
+          <div className="grid gap-2 border-t border-[#DDE8D8] pt-4">
+            {canStartReview ? (
+              <ActionButton icon={Play} label="Start Review" primary onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })} />
+            ) : null}
+            <ActionButton icon={Send} label="Request Information" onClick={() => onConfirmAction({ type: "transition", action: "request-information", label: "Request information" })} />
+            {canApproveForPayment ? (
+              <ActionButton icon={WalletCards} label="Approve for Payment" primary onClick={() => onConfirmAction({ type: "transition", action: "approve-for-payment", label: "Approve for payment" })} />
+            ) : null}
+            {canApproveAndConvert ? (
+              <Button type="button" disabled={isMutating} className="h-12 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => setApprovalConfirmOpen(true)}>
+                <UserCheck className="size-4" /> Approve & Create Member
+              </Button>
+            ) : null}
+            <ActionButton icon={X} label="Reject" danger onClick={() => onConfirmAction({ type: "transition", action: "reject", label: "Reject application" })} />
+            <ActionButton icon={Download} label="Print PDF" onClick={() => void onPrint(detail)} />
+          </div>
+        </aside>
       </div>
 
       <ApprovalConfirmDialog
@@ -2752,6 +2633,39 @@ function ApplicationDetailDialog({
   );
 }
 
+function ReviewWorkspaceSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: typeof UserCheck;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8FBF5] p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid size-10 place-items-center rounded-full bg-white text-[#1F6B43] shadow-sm">
+          <Icon className="size-5" />
+        </span>
+        <h3 className="text-lg font-black text-[#123D2A]">{title}</h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ReviewCheck({ label, done }: { label: string; done: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-3 py-2">
+      <span>{label}</span>
+      <span className={done ? "text-[#1F6B43]" : "text-[#8A6200]"}>
+        {done ? "Verified" : "Pending"}
+      </span>
+    </div>
+  );
+}
+
 function ApprovalConfirmDialog({
   open,
   onOpenChange,
@@ -2777,28 +2691,35 @@ function ApprovalConfirmDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Approve and Convert"
-      description="TrackCOOP will finalize the application using these generated approval details."
+      title="Final Membership Approval"
+      description="Confirm the board details before creating the member record."
       contentClassName="w-[min(34rem,calc(100vw-2rem))]"
     >
       <div className="grid gap-4 border-t border-[#CAD8CB] pt-4">
+        <div className="rounded-[1.5rem] border border-[#BBD9C0] bg-[#EAF3E8] p-4 text-sm font-bold text-[#1F6B43]">
+          <p className="flex items-center gap-2 text-base font-black">
+            <CheckCircle2 className="size-5" />
+            Payment confirmed
+          </p>
+          <p className="mt-2">Share Capital: PHP 3,000 verified for final approval.</p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Info label="Approval Date" value={formatLongDate(approvalDate)} />
-          <Info label="Approved By" value={approvedBy} />
+          <Info label="Board Meeting Date" value={formatLongDate(approvalDate)} />
+          <Info label="Secretary" value={approvedBy} />
           <Info
-            label="Account Email"
+            label="Create Portal Account"
             value={accountEmail ?? "No portal account will be created"}
           />
         </div>
 
         <label className="grid gap-2 text-sm font-bold text-[#294B39]">
-          Decision note optional
+          Decision remarks
           <textarea
             value={decisionReason}
             onChange={(event) => onDecisionReasonChange(event.target.value)}
-            placeholder="Add an approval note if needed"
+            placeholder="Add the final approval note if needed"
             rows={4}
-            className="min-h-28 w-full resize-y rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 py-3 text-sm font-medium text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+            className="min-h-28 w-full resize-y rounded-2xl border border-[#CAD8CB] bg-[#F7F8F3] px-3 py-3 text-sm font-medium text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
           />
         </label>
 
@@ -2813,11 +2734,11 @@ function ApprovalConfirmDialog({
           <Button
             type="button"
             disabled={isMutating}
-            className="h-11 bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
+            className="h-11 rounded-full bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
             onClick={onConfirm}
           >
             <UserCheck className="size-4" />
-            {isMutating ? "Approving..." : "Approve and Convert"}
+            {isMutating ? "Approving..." : "Approve & Create Member"}
           </Button>
         </div>
       </div>
@@ -3012,68 +2933,6 @@ function ApplicationFormDialog({
   );
 }
 
-function RequirementRow({
-  requirement,
-  canDelete,
-  linkedDocument,
-  onSave,
-  onDelete,
-  onViewDocument,
-}: {
-  requirement: ChairmanApplicationDetail["requirements"][number];
-  canDelete: boolean;
-  linkedDocument?: ChairmanApplicationDetail["documents"][number] | null;
-  onSave: (status: RequirementStatus, remarks: string | null) => Promise<void>;
-  onDelete: () => void;
-  onViewDocument: (document: ChairmanApplicationDetail["documents"][number]) => void;
-}) {
-  const [status, setStatus] = useState<RequirementStatus>(requirement.requirementStatus);
-  const [remarks, setRemarks] = useState(requirement.remarks ?? "");
-
-  return (
-    <div className="grid gap-3 border-b border-[#E7EEE5] px-4 py-3 last:border-b-0 md:grid-cols-[minmax(12rem,1fr)_12rem_minmax(14rem,1fr)_8rem] md:items-center">
-      <div className="min-w-0">
-        <p className="break-words text-sm font-black text-[#0F241A]">{requirement.requirementType}</p>
-        <div className="mt-1 md:hidden">
-          <RequirementStatusMini status={requirement.requirementStatus} />
-        </div>
-      </div>
-      <div className="flex min-w-0 items-center gap-2">
-        {linkedDocument ? (
-          <Button
-            type="button"
-            aria-label={`View ${linkedDocument.documentType}`}
-            title={`View ${linkedDocument.documentType}`}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] hover:bg-[#EEF2EC]"
-            onClick={() => onViewDocument(linkedDocument)}
-          >
-            <Eye className="size-4" />
-          </Button>
-        ) : null}
-        <Select value={status} onChange={(value) => setStatus(value as RequirementStatus)}>
-          {requirementStatuses.map((nextStatus) => <option key={nextStatus}>{nextStatus}</option>)}
-        </Select>
-      </div>
-      <input className={inputClass} value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Remarks" />
-      <div className="flex gap-2">
-        <Button type="button" className="h-10 flex-1 rounded-md border border-[#1F6B43] bg-white px-3 text-sm font-black text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => void onSave(status, remarks || null)}>
-          Save
-        </Button>
-        {canDelete ? (
-          <Button
-            type="button"
-            aria-label={`Remove ${requirement.requirementType}`}
-            className="h-10 rounded-md border border-red-200 bg-white px-3 text-sm font-black text-red-700 hover:bg-red-50"
-            onClick={onDelete}
-          >
-            <X className="size-4" />
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function ActivationResultDialog({
   result,
   onOpenChange,
@@ -3216,11 +3075,11 @@ function ReviewSection({
 }: {
   index: number;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <h3 className="text-lg font-black uppercase tracking-normal text-[#123D2A]">
+      <h3 className="text-lg font-black tracking-normal text-[#123D2A]">
         {index}. {title}
       </h3>
       <div className="mt-4 border-t border-[#E7EEE5] pt-4">{children}</div>
@@ -3242,46 +3101,6 @@ function RequirementProgressBadge({ progress }: { progress: ReturnType<typeof re
         <span className="size-4 rounded-full bg-white" />
       </span>
     </span>
-  );
-}
-
-function RequirementStatusMini({ status }: { status: RequirementStatus }) {
-  const toneClass =
-    requirementTone(status) === "success"
-      ? "bg-[#DDF4E4] text-[#1F6B43]"
-      : requirementTone(status) === "warning"
-        ? "bg-[#FFF2CC] text-[#946600]"
-        : requirementTone(status) === "danger"
-          ? "bg-[#FFE6E0] text-[#9A392A]"
-          : "bg-[#EEF2EC] text-[#365F4A]";
-
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[0.7rem] font-bold ${toneClass}`}>{status}</span>;
-}
-
-function Commitments({ detail }: { detail: ChairmanApplicationDetail }) {
-  return (
-    <ReviewSection index={2} title="Commitments">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        {[
-          ["Orientation", detail.orientationCommitmentAccepted],
-          ["Membership fee", detail.membershipFeeCommitmentAccepted],
-          ["Share agreement", detail.shareSubscriptionCommitmentAccepted],
-          ["Patronage provisions", detail.patronageRefundAcknowledged],
-          ["Bylaws", detail.bylawsAgreementAccepted],
-          ["Privacy consent", detail.privacyConsentAccepted],
-        ].map(([label, accepted]) => (
-          <div key={String(label)} className="flex min-w-0 items-center gap-3 rounded-md border border-[#CAD8CB] bg-white p-3 text-sm">
-            <CheckCircle2 className={`size-5 shrink-0 ${accepted ? "text-[#1F6B43]" : "text-[#9A392A]"}`} aria-hidden="true" />
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-[#0F241A]">{label}</p>
-              <p className={`mt-1 text-[0.68rem] font-black ${accepted ? "text-[#1F6B43]" : "text-[#9A392A]"}`}>
-                {accepted ? "Accepted" : "Missing"}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </ReviewSection>
   );
 }
 
@@ -3442,13 +3261,6 @@ function requirementProgress(detail: ChairmanApplicationDetail) {
     ["Verified", "Waived"].includes(requirement.requirementStatus),
   ).length;
   return { completed, total, isComplete: total > 0 && completed === total };
-}
-
-function isProtectedRequirement(detail: ChairmanApplicationDetail, requirementType: RequirementType) {
-  if (["Orientation/Seminar", "Associate Membership Fee", "Signed Application"].includes(requirementType)) {
-    return true;
-  }
-  return detail.requestedMembershipType === "True Member" && requirementType === "Initial Share Capital";
 }
 
 function groupBarangays(values: Array<string | null | undefined>) {

@@ -41,8 +41,6 @@ const followUpDocumentTypes: MembershipDocumentType[] = [
   "Other",
 ];
 
-type ApplicationStatusDetailTab = "overview" | "requirements" | "activity";
-
 function peso(value: number) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -95,6 +93,12 @@ function statusTone(status: string) {
   if (status === "Submitted") {
     return "border-sky-200 bg-sky-50 text-sky-700";
   }
+  if (status === "Payment Confirmed") {
+    return "border-[#BBD9C0] bg-[#DDF5E2] text-[#0F6B3D]";
+  }
+  if (status === "Payment Required") {
+    return "border-[#FFE1A6] bg-[#FFF3C9] text-[#946400]";
+  }
   return "border-[#FFE1A6] bg-[#FFF3C9] text-[#946400]";
 }
 
@@ -111,7 +115,7 @@ export function ApplicationStatusPayments() {
   const [checkoutAction, setCheckoutAction] = useState<
     "Associate Membership Fee" | "Share Capital" | null
   >(null);
-  const [shareCapitalAmount, setShareCapitalAmount] = useState("1500");
+  const [shareCapitalAmount, setShareCapitalAmount] = useState("3000");
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [followUpSuccess, setFollowUpSuccess] = useState<string | null>(null);
   const [uploadingFollowUpDocumentType, setUploadingFollowUpDocumentType] =
@@ -374,52 +378,83 @@ function StatusDashboard({
     files: File[],
   ) => Promise<void>;
 }) {
-  const [activeTab, setActiveTab] = useState<ApplicationStatusDetailTab>("overview");
-
   return (
-    <section className="grid gap-4">
-      <ApplicationProgressCard status={status} />
+    <section className="grid gap-5">
+      <article className="overflow-hidden rounded-[2rem] border border-[#DDE8D8] bg-white shadow-[0_18px_42px_rgba(18,61,42,0.08)]">
+        <div className="bg-[#F8F1E5] p-6 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-[#D8A011]">Membership Application</p>
+              <h1 className="mt-2 text-3xl font-black leading-tight tracking-normal text-[#123D2A]">
+                {status.fullName}
+              </h1>
+              <p className="mt-2 text-sm font-semibold text-[#5D6D63]">{status.applicationCode}</p>
+            </div>
+            <Badge
+              icon={Clock3}
+              label={status.applicationStatus}
+              className={statusTone(status.applicationStatus)}
+            />
+          </div>
+          <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+            <MiniHeroItem label="Submitted" value={friendlyDate(status.submittedAt)} />
+            <MiniHeroItem label="Membership" value={status.requestedMembershipType} />
+            <MiniHeroItem label="Payment Mode" value={status.paymongoMode === "test" ? "Test QR Ph" : "Live QR Ph"} />
+          </div>
+        </div>
+        <div className="p-5 sm:p-6">
+          <StatusTimeline status={status.applicationStatus} submittedAt={status.submittedAt} />
+        </div>
+      </article>
 
-      <ApplicationDetailsTabs
-        activeTab={activeTab}
+      <ApplicantNextActionCard
         status={status}
         checkoutAction={checkoutAction}
         followUpError={followUpError}
         followUpSuccess={followUpSuccess}
         uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
         shareCapitalAmount={shareCapitalAmount}
-        onActiveTabChange={setActiveTab}
         onShareCapitalAmountChange={onShareCapitalAmountChange}
         onStartCheckout={onStartCheckout}
         onUploadFollowUpDocuments={onUploadFollowUpDocuments}
       />
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ApplicationInformationPanel status={status} />
+        <CheckoutActivityCard status={status} />
+      </div>
 
       {checkoutError ? <ErrorNotice message={checkoutError} /> : null}
     </section>
   );
 }
 
-function ApplicationDetailsTabs({
-  activeTab,
+function MiniHeroItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#DDE8D8] bg-white p-3">
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#5D6D63]">{label}</p>
+      <p className="mt-1 font-black text-[#123D2A]">{value}</p>
+    </div>
+  );
+}
+
+function ApplicantNextActionCard({
   status,
   checkoutAction,
   followUpError,
   followUpSuccess,
   uploadingFollowUpDocumentType,
   shareCapitalAmount,
-  onActiveTabChange,
   onShareCapitalAmountChange,
   onStartCheckout,
   onUploadFollowUpDocuments,
 }: {
-  activeTab: ApplicationStatusDetailTab;
   status: PublicMembershipPaymentStatus;
   checkoutAction: "Associate Membership Fee" | "Share Capital" | null;
   followUpError: string | null;
   followUpSuccess: string | null;
   uploadingFollowUpDocumentType: MembershipDocumentType | null;
   shareCapitalAmount: string;
-  onActiveTabChange: (tab: ApplicationStatusDetailTab) => void;
   onShareCapitalAmountChange: (value: string) => void;
   onStartCheckout: (
     paymentPurpose: "Associate Membership Fee" | "Share Capital",
@@ -429,78 +464,46 @@ function ApplicationDetailsTabs({
     files: File[],
   ) => Promise<void>;
 }) {
-  const tabs: { key: ApplicationStatusDetailTab; label: string }[] = [
-    { key: "overview", label: "Overview" },
-    { key: "requirements", label: "Requirements" },
-    { key: "activity", label: "Activity Log" },
-  ];
+  const isPaymentStage = status.applicationStatus === "Payment Required";
+  const isPaymentConfirmed = status.applicationStatus === "Payment Confirmed";
+  const needsInformation = status.applicationStatus === "Needs Information";
+  const totalDue = status.membershipFee.remainingAmount + Math.max(0, Number(shareCapitalAmount || 0));
 
   return (
-    <article className="rounded-[18px] border border-[#DDE8D8] bg-white p-4 shadow-[0_14px_32px_rgba(18,61,42,0.06)]">
-      <div className="flex flex-col gap-3 border-b border-[#EEF2EC] pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[#DDF5E2] text-[#1F6B43]">
-            <FileText className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-sm font-black text-[#123D2A]">Application Details</h2>
-            <p className="text-[0.68rem] font-bold text-[#5D6D63]">
-              Review progress, requirements, and checkout activity.
-            </p>
-          </div>
+    <article className="rounded-[2rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f4b62a]">
+            What You Need To Do
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-[#123D2A]">
+            {needsInformation
+              ? "Action required"
+              : isPaymentStage
+                ? "Payment is now available"
+                : isPaymentConfirmed
+                  ? "Payment confirmed"
+                  : status.applicationStatus === "Approved"
+                    ? "Membership approved"
+                    : "No action needed"}
+          </h2>
         </div>
-        <Badge
-          icon={Clock3}
-          label={status.applicationStatus}
-          className={statusTone(status.applicationStatus)}
-        />
       </div>
 
-      <div className="mt-3 flex gap-1 border-b border-[#EEF2EC]">
-        {tabs.map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => onActiveTabChange(tab.key)}
-              className={`border-b-2 px-3 pb-2 text-[0.68rem] font-black transition ${
-                active
-                  ? "border-[#123D2A] text-[#123D2A]"
-                  : "border-transparent text-[#5D6D63] hover:text-[#123D2A]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <p className="mt-4 max-w-3xl text-sm leading-7 text-[#365F4A]">
+        {needsInformation
+          ? status.latestApplicantMessage ?? "NFFAC requested additional information before continuing the review."
+          : isPaymentStage
+            ? "Your application passed initial review. Complete the available payment using PayMongo QR Ph."
+            : isPaymentConfirmed
+              ? "Your payment was received. Your application is waiting for final chairman approval."
+              : status.applicationStatus === "Approved"
+                ? "Your membership application has been approved."
+                : "NFFAC is currently reviewing your application. We'll email you if anything is required."}
+      </p>
 
-      <div className="mt-4">
-        {activeTab === "overview" ? (
-          <div className="grid items-start gap-4 xl:grid-cols-[1.08fr_0.92fr]">
-            <ApplicationInformationPanel status={status} />
-            <ReviewActionCard
-              status={status}
-              checkoutAction={checkoutAction}
-              onStartCheckout={onStartCheckout}
-            />
-            {status.requestedMembershipType === "True Member"
-            && (status.shareCapital.canStartCheckout || status.shareCapital.pendingAmount > 0) ? (
-              <div className="xl:col-span-2">
-                <ShareCapitalActionCard
-                  status={status}
-                  checkoutAction={checkoutAction}
-                  shareCapitalAmount={shareCapitalAmount}
-                  onShareCapitalAmountChange={onShareCapitalAmountChange}
-                  onStartCheckout={onStartCheckout}
-                />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {activeTab === "requirements" ? (
+      {needsInformation ? (
+        <div className="mt-5">
           <RequirementsActionCard
             status={status}
             followUpError={followUpError}
@@ -508,10 +511,53 @@ function ApplicationDetailsTabs({
             uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
             onUploadFollowUpDocuments={onUploadFollowUpDocuments}
           />
-        ) : null}
+        </div>
+      ) : null}
 
-        {activeTab === "activity" ? <CheckoutActivityCard status={status} /> : null}
-      </div>
+      {isPaymentStage ? (
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+          <ReviewActionCard
+            status={status}
+            checkoutAction={checkoutAction}
+            onStartCheckout={onStartCheckout}
+          />
+          {status.requestedMembershipType === "True Member" ? (
+            <ShareCapitalActionCard
+              status={status}
+              checkoutAction={checkoutAction}
+              shareCapitalAmount={shareCapitalAmount}
+              onShareCapitalAmountChange={onShareCapitalAmountChange}
+              onStartCheckout={onStartCheckout}
+            />
+          ) : null}
+          <div className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 xl:col-span-2">
+            <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
+              <span>Membership Fee</span>
+              <strong className="text-[#123D2A]">{peso(status.membershipFee.remainingAmount)}</strong>
+            </div>
+            {status.requestedMembershipType === "True Member" ? (
+              <div className="mt-2 flex justify-between text-sm font-semibold text-[#365F4A]">
+                <span>Share Capital</span>
+                <strong className="text-[#123D2A]">{peso(Number(shareCapitalAmount || 0))}</strong>
+              </div>
+            ) : null}
+            <div className="mt-4 flex justify-between border-t border-[#DDE8D8] pt-4 text-lg font-black text-[#123D2A]">
+              <span>Total</span>
+              <span>{peso(totalDue)}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isPaymentConfirmed ? (
+        <div className="mt-5 rounded-[1.5rem] border border-[#BBD9C0] bg-[#EAF3E8] p-5 text-[#1F6B43]">
+          <p className="flex items-center gap-2 text-lg font-black">
+            <CheckCircle2 className="size-5" />
+            Payment confirmed
+          </p>
+          <p className="mt-2 text-sm font-semibold">Your application is queued for final approval.</p>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -535,7 +581,7 @@ function ApplicationInformationPanel({ status }: { status: PublicMembershipPayme
           label="Payment Mode"
           value={
             status.paymongoMode === "test"
-              ? "PayMongo Test Mode — No real money will be charged"
+              ? "PayMongo Test Mode - No real money will be charged"
               : "PayMongo Live Mode"
           }
           last
@@ -566,35 +612,6 @@ function DetailRow({
   );
 }
 
-function ApplicationProgressCard({ status }: { status: PublicMembershipPaymentStatus }) {
-  const terminal = status.applicationStatus === "Rejected" || status.applicationStatus === "Withdrawn";
-  const heading = status.applicationStatus === "Approved"
-    ? "Approved"
-    : terminal
-      ? status.applicationStatus
-      : "In Progress";
-
-  return (
-    <article className="rounded-[18px] border border-[#DDE8D8] bg-white px-4 py-3 shadow-[0_12px_30px_rgba(18,61,42,0.07)]">
-      <div className="grid gap-3 md:grid-cols-[12rem_minmax(0,1fr)] md:items-center">
-        <div className="flex min-w-0 gap-3 md:border-r md:border-[#DDE8D8] md:pr-4">
-          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#DDF5E2] text-[#1F6B43]">
-            <FileText className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[0.62rem] font-black text-[#5D6D63]">Application Status</p>
-            <h2 className="mt-0.5 text-base font-black leading-tight text-[#123D2A]">
-              {heading}
-            </h2>
-          </div>
-        </div>
-
-        <StatusTimeline status={status.applicationStatus} submittedAt={status.submittedAt} />
-      </div>
-    </article>
-  );
-}
-
 function StatusTimeline({
   status,
   submittedAt,
@@ -605,20 +622,27 @@ function StatusTimeline({
   const steps = [
     { key: "Submitted", label: "Submitted", date: friendlyDate(submittedAt) },
     { key: "Review", label: "Review", date: "Chairman review" },
+    { key: "Payment", label: "Payment", date: "PayMongo" },
     { key: "Approved", label: "Approved", date: "Pending" },
   ];
   const terminal = status === "Rejected" || status === "Withdrawn";
-  const activeIndex = status === "Approved" ? 2 : status === "Submitted" ? 0 : 1;
+  const activeIndex = status === "Approved"
+    ? 3
+    : status === "Payment Required" || status === "Payment Confirmed"
+      ? 2
+      : status === "Submitted"
+        ? 0
+        : 1;
 
   return (
     <div className="mt-2 md:mt-0">
-      <div className="relative grid grid-cols-3 gap-2">
-        <div className="absolute left-[16%] right-[16%] top-3.5 h-1 rounded-full bg-[#DDE8D8]" />
+      <div className="relative grid grid-cols-4 gap-2">
+        <div className="absolute left-[12%] right-[12%] top-3.5 h-1 rounded-full bg-[#DDE8D8]" />
         <div
-          className={`absolute left-[16%] top-3.5 h-1 rounded-full ${
+          className={`absolute left-[12%] top-3.5 h-1 rounded-full ${
             terminal ? "bg-red-300" : "bg-[#2E9C5B]"
           }`}
-          style={{ width: `${activeIndex * 34}%` }}
+          style={{ width: `${activeIndex * 25}%` }}
         />
         {steps.map((step, index) => {
           const isActive = index === activeIndex && !terminal;
@@ -681,6 +705,10 @@ function ReviewActionCard({
             ?? "The cooperative needs more information to continue reviewing your application."
           : status.applicationStatus === "Under Review"
             ? "Your application is being reviewed by the cooperative."
+            : status.applicationStatus === "Payment Required"
+              ? "Your application is approved for payment. Complete the PayMongo checkout below."
+              : status.applicationStatus === "Payment Confirmed"
+                ? "Your payment is confirmed. The Chairman can now finalize your membership."
             : status.applicationStatus === "Approved"
               ? "Your application has been approved."
               : "Your application was submitted and is waiting for review."}
@@ -1090,7 +1118,7 @@ function Badge({
 function EmptyDashboard() {
   return (
     <section className="rounded-[18px] border border-[#DDE8D8] bg-white/80 p-6 shadow-[0_18px_42px_rgba(18,61,42,0.08)]">
-      <div className="grid min-h-[28rem] place-items-center text-center">
+      <div className="grid min-h-[22rem] place-items-center text-center">
         <div className="max-w-md">
           <div className="mx-auto grid size-14 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
             <CalendarDays className="size-7" />

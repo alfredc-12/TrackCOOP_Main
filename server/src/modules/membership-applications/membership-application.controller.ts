@@ -300,6 +300,16 @@ export function createMembershipApplicationController(
       );
     }),
 
+    approveForPayment: asyncHandler(async (request, response) => {
+      const params = parse(idParamsSchema, request.params);
+      const input = parse(statusTransitionSchema, request.body);
+      return sendSuccess(
+        response,
+        await service.approveForPayment(params.id, input, authContext(request)),
+        { message: "Membership application approved for payment" },
+      );
+    }),
+
     reject: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(statusTransitionSchema, request.body);

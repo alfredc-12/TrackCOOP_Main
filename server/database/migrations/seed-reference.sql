@@ -47,7 +47,7 @@ INSERT INTO system_settings (
 VALUES
     ('membership', 'associate_membership_fee', '200.00', 'Number', 'Associate membership fee in Philippine pesos.', 0),
     ('membership', 'true_member_share_capital_requirement', '3000.00', 'Number', 'Share-capital requirement for true-member status in Philippine pesos.', 0),
-    ('membership', 'initial_share_capital_payment', '1500.00', 'Number', 'Initial true-member share-capital payment in Philippine pesos.', 0),
+    ('membership', 'initial_share_capital_payment', '3000.00', 'Number', 'Initial true-member share-capital payment in Philippine pesos.', 0),
     ('membership', 'share_capital_completion_months', '12', 'Number', 'Number of months allowed to complete the true-member share-capital requirement.', 0),
     ('membership', 'maximum_share_capital', '15000.00', 'Number', 'Maximum validated member share capital in Philippine pesos.', 0),
     ('membership', 'member_indicator_labels', '["Active","Needs Monitoring","Inactive"]', 'JSON', 'Display labels for calculated member indicators; indicators do not change official member status.', 0)

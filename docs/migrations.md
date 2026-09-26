@@ -4,7 +4,7 @@
 
 1. Back up any existing database.
 2. Import `server/database/TrackCOOP_MAIN_Database.sql`.
-3. Run `npm run db:check`; expect 48 base tables.
+3. Run `npm run db:check`; expect 52 required TrackCOOP base tables.
 
 ## Existing database
 

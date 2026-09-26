@@ -130,7 +130,8 @@ const NASUGBU_BARANGAYS = [
   "Bagong Silang", "Balaytigui", "Banilad", "Bilaran", "Biga", "Bucana", "Bulihan", "Bundulan", "Calayo", "Catandaan", "Cogunan", "Dayap", "Gabihan", "Gelerang Kawayan", "Nansangaan", "Panilao", "Papaya", "Pooc", "Reparo", "Salaban", "Talangan", "Tumalim", "Utod", "Wawa", "Poblacion", "Lumbangan", "Malapad na Bato",
 ].sort();
 
-const USE_PRESENTATION_DASHBOARD_DATA = true;
+// Dashboard values must come from the live API/database.
+const USE_PRESENTATION_DASHBOARD_DATA = false;
 
 function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashboardData {
   const generatedAt = new Date().toISOString();
@@ -212,7 +213,7 @@ function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashbo
     ],
     demographics,
     operationsSnapshot: {
-      pos: { totalSales: 428750, transactions: 386 },
+      pos: { totalSales: 428750, transactions: 386, productsSold: 712 },
       rental: { totalIncome: 183500, completed: 41, pending: 9, upcoming: 14 },
       inventory: {
         lowStock: 7,
@@ -310,7 +311,7 @@ function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashbo
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
-export function DashboardClient() {
+export function DashboardClient({ mode = "member" }: { mode?: "member" | "financial" }) {
   const [data, setData] = useState<ChairmanDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -318,9 +319,20 @@ export function DashboardClient() {
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isNotificationsOpen]);
+
   // Filters
   const [period, setPeriod] = useState("year");
   const [barangay, setBarangay] = useState("");
+  const [mapBarangay, setMapBarangay] = useState("");
   const [memberStatus, setMemberStatus] = useState("");
   const [incomeSource, setIncomeSource] = useState("");
 
@@ -368,8 +380,8 @@ export function DashboardClient() {
           <div className="w-1/4 h-10 bg-[#EEF2EC] rounded-xl" />
         </div>
         <div className="w-full h-12 bg-[#EEF2EC] rounded-xl" />
-        <div className="grid grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-28 bg-[#EEF2EC] rounded-2xl" />)}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-[#EEF2EC] rounded-2xl" />)}
         </div>
         <div className="flex gap-4">
           <div className="w-1/2 h-64 bg-[#EEF2EC] rounded-2xl" />
@@ -378,7 +390,15 @@ export function DashboardClient() {
       </div>
     );
   }
-  if (error && !data) return <div className="flex h-screen items-center justify-center text-red-600">{error}</div>;
+  if (error && !data) return (
+    <div className="flex min-h-screen items-center justify-center bg-[#F7F8F3] p-6">
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-800" role="alert">
+        <p className="font-bold">Unable to load dashboard data.</p>
+        <p className="mt-1 text-sm">{error}</p>
+        <button type="button" onClick={() => void load()} className="mt-4 rounded-full bg-[#123D2A] px-5 py-2 text-sm font-bold text-white hover:bg-[#1F6B43]">Retry</button>
+      </div>
+    </div>
+  );
 
   const d = data || {} as ChairmanDashboardData;
   const m = d.metrics || {} as any;
@@ -387,11 +407,13 @@ export function DashboardClient() {
   const memberHealth = { active: h.active ?? 0, needsMonitoring: h.needsMonitoring ?? 0, inactive: h.inactive ?? 0 };
   const revenueTrend = d.revenueTrend || [];
   const demographics = d.demographics || [];
+  const sectorColumns = Array.from(new Set(demographics.flatMap((item) => item.sectorCounts?.map((sector) => sector.sector) ?? [])));
+  const selectedMapBarangay = demographics.find((item) => item.barangay === mapBarangay);
   const actionItems = d.actionItems || [];
   const sp = d.shareCapitalProgress || {} as any;
   const shareCapitalProgress = { reachedMinimum: sp.reachedMinimum ?? 0, belowMinimum: sp.belowMinimum ?? 0, contributingMembers: sp.contributingMembers ?? 0, reachedMaximum: sp.reachedMaximum ?? 0, totalMembers: sp.totalMembers ?? 0 };
   const os = d.operationsSnapshot || {} as any;
-  const operationsSnapshot = { pos: { totalSales: os.pos?.totalSales ?? 0, transactions: os.pos?.transactions ?? 0 }, rental: { totalIncome: os.rental?.totalIncome ?? 0, completed: os.rental?.completed ?? 0, upcoming: os.rental?.upcoming ?? 0 }, inventory: { lowStock: os.inventory?.lowStock ?? 0, outOfStock: os.inventory?.outOfStock ?? 0 } };
+  const operationsSnapshot = { pos: { totalSales: os.pos?.totalSales ?? 0, transactions: os.pos?.transactions ?? 0, productsSold: os.pos?.productsSold ?? 0 }, rental: { totalIncome: os.rental?.totalIncome ?? 0, completed: os.rental?.completed ?? 0, upcoming: os.rental?.upcoming ?? 0 }, inventory: { lowStock: os.inventory?.lowStock ?? 0, outOfStock: os.inventory?.outOfStock ?? 0 } };
   const recentActivity = d.recentActivity || [];
   const incomeSources = d.incomeSources || [];
   const highestIncomeSource = incomeSources.length > 0 ? incomeSources.reduce((prev: any, curr: any) => (prev.amount > curr.amount) ? prev : curr).source : "N/A";
@@ -414,6 +436,24 @@ export function DashboardClient() {
   const additionalMembersFromCurrent = Math.floor(additionalContribution / 1000); // rough assumption for combined
   const scenarioBSurplus = curSurplus + (curMembers * 1000); // Assume 1k extra from existing
   const scenarioCSurplus = curSurplus + (additionalNeededToHitTarget * additionalContribution) + (curMembers * 1000);
+  const scenarioRows = [
+    { label: "Increase Members", surplus: scenarioASurplus, growth: ((scenarioASurplus - curSurplus) / (curSurplus || 1)) * 100, p: pA },
+    { label: "Increase Contribution", surplus: scenarioBSurplus, growth: ((scenarioBSurplus - curSurplus) / (curSurplus || 1)) * 100, p: 30 },
+    { label: "Combined Strategy", surplus: scenarioCSurplus, growth: ((scenarioCSurplus - curSurplus) / (curSurplus || 1)) * 100, p: Math.min(100, pA + 30) },
+  ];
+  const dashboardKpis = mode === "financial"
+    ? [
+        { label: "Total Income", val: metrics.totalIncome, icon: TrendingUp, note: "Current period", isNum: false, greenBg: false, href: "/portal/chairman/finance" },
+        { label: "Total Expenses", val: metrics.totalExpenses, icon: TrendingDown, note: "Current period", isNum: false, greenBg: false, href: "/portal/chairman/finance" },
+        { label: "Net Surplus", val: metrics.netSurplus, icon: BarChart3, note: "Income less expenses", isNum: false, greenBg: true, href: "/portal/chairman/finance" },
+        { label: "Total Share Capital", val: metrics.totalShareCapital, icon: Banknote, note: "Recorded share capital", isNum: false, greenBg: false, href: "/portal/chairman/share-capital" },
+      ]
+    : [
+        { label: "Total Members", val: metrics.totalMembers, icon: Users, note: `${metrics.newMembersThisPeriod} new this period`, isNum: true, greenBg: false, href: "/portal/chairman/members" },
+        { label: "Active Members", val: memberHealth.active, icon: Users, note: `${memberHealth.needsMonitoring} need monitoring`, isNum: true, greenBg: false, href: "/portal/chairman/member-indicators" },
+        { label: "Pending Approvals", val: metrics.pendingApprovals, icon: Activity, note: "Applications for review", isNum: true, greenBg: false, href: "/portal/chairman/members" },
+        { label: "POS Transactions", val: operationsSnapshot.pos.transactions, icon: ShoppingCart, note: "Current period", isNum: true, greenBg: false, href: "/portal/chairman/pos" },
+      ];
 
   return (
     <div className="min-h-screen bg-[#F7F8F3] p-6 space-y-5 font-sans">
@@ -421,8 +461,8 @@ export function DashboardClient() {
       {/* ── 1. HEADER ROW ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <h1 className="text-[26px] font-black text-[#123D2A] tracking-tight">Chairman Dashboard</h1>
-          <p className="text-[12px] text-[#5D6D63] mt-1">Financial performance, membership, and cooperative operations.</p>
+          <h1 className="text-[26px] font-black text-[#123D2A] tracking-tight">{mode === "financial" ? "Financial Dashboard" : "Member Dashboard"}</h1>
+          <p className="text-[12px] text-[#5D6D63] mt-1">{mode === "financial" ? "Income, expenses, surplus, and share-capital performance." : "Membership growth, engagement, recruitment, and cooperative operations."}</p>
           <div className="flex items-center gap-1.5 mt-2 text-sm text-[#78857d]">
             <Clock className="size-3" />
             <span>Last updated: {format(new Date(d.generatedAt || Date.now()), "MMM d, yyyy h:mm a")}</span>
@@ -451,7 +491,7 @@ export function DashboardClient() {
               <Bell className="size-5 text-[#123D2A]" />
               {actionItems.length > 0 && (
                 <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
-                  {actionItems.length}
+                  {actionItems.length + recentActivity.length}
                 </span>
               )}
             </button>
@@ -503,15 +543,9 @@ export function DashboardClient() {
       </div>
 
       {/* ── 3. KPI CARDS (5 Cols) ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-5 gap-4">
-        {[
-          { label: "Total Income", val: metrics.totalIncome, dlt: 0, icon: TrendingUp, note: "vs previous period" },
-          { label: "Total Expenses", val: metrics.totalExpenses, dlt: 0, icon: TrendingDown, note: "vs previous period" },
-          { label: "Net Surplus", val: metrics.netSurplus, dlt: 0, icon: BarChart3, note: "vs previous period", greenBg: true },
-          { label: "Total Share Capital", val: metrics.totalShareCapital, dlt: 0, icon: Banknote, note: "vs previous period" },
-          { label: "Total Members", val: metrics.totalMembers, dlt: 0, icon: Users, note: `${metrics.newMembersThisPeriod} new members this period`, isNum: true }
-        ].map((k, i) => (
-          <div key={i} className="flex flex-col justify-between rounded-2xl border border-[#CAD8CB] bg-white p-3.5 shadow-sm relative overflow-hidden">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {dashboardKpis.map((k, i) => (
+          <Link key={i} href={k.href} className="flex min-h-[132px] flex-col justify-between rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm relative overflow-hidden transition-all hover:-translate-y-0.5 hover:border-[#1F6B43] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30">
             <div className="flex items-start justify-between">
               <div className="pr-1 min-w-0 flex-1">
                 <p className="text-[11px] leading-tight font-bold text-[#5D6D63] mb-1.5 truncate">{k.label}</p>
@@ -522,17 +556,17 @@ export function DashboardClient() {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-1.5">
-              {k.dlt > 0 ? <DeltaBadge value={k.dlt} /> : (k.isNum ? <span className="text-[10px] font-bold text-[#1F6B43]">▲ {metrics.newMembersThisPeriod > 0 ? metrics.newMembersThisPeriod : 0}</span> : <DeltaBadge value={0} neutral />)}
+              {k.isNum ? <span className="text-[10px] font-bold text-[#1F6B43]">Live data</span> : <DeltaBadge value={0} neutral />}
               <span className="text-[10px] leading-tight text-[#5D6D63]">{k.note}</span>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
       {/* ── ROW 1: Financial & Income Sources ────────────────────────────────── */}
-      <div className="flex gap-4">
+      {mode === "financial" ? <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         {/* Financial Performance */}
-        <div className="w-[60%] rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm flex flex-col">
+        <div className="min-w-0 rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[14px] font-black text-[#123D2A]">Financial Performance</h2>
             <div className="flex gap-4 text-base font-bold">
@@ -568,7 +602,7 @@ export function DashboardClient() {
         </div>
 
         {/* Income Sources */}
-        <div className="w-[40%] rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm flex flex-col">
+        <div className="min-w-0 rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[14px] font-black text-[#123D2A]">Income Sources</h2>
             <div className="flex gap-4 text-[10px] font-bold text-[#5D6D63] text-right items-end leading-tight">
@@ -597,37 +631,44 @@ export function DashboardClient() {
             <p className="text-[11px] font-bold text-[#123D2A] flex items-center gap-1.5"><span className="text-[#1F6B43]">★</span> Highest income source: {highestIncomeSource}</p>
           </div>
         </div>
-      </div>
+      </div> : null}
 
       {/* ── ROW 2: Membership & Share Capital ────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-5 ${mode === "financial" ? "lg:grid-cols-2" : "lg:grid-cols-2"}`}>
         {/* Membership Growth */}
-        <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col relative">
+        <div className={`${mode === "financial" ? "hidden" : ""} rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col relative`}>
           <SectionHeader title="Membership Growth" />
-          <div className="flex flex-1 mt-2">
-            <div className="w-[60%] pr-4 h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={d.membershipTrend || []} margin={{ top: 5, bottom: -10 }}>
+          <div className="mt-3 flex min-h-[210px] flex-1 items-stretch">
+            <div className="flex w-[60%] min-w-0 flex-col pr-4">
+              <div className="h-[170px] min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={d.membershipTrend || []} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorMembers" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#123D2A" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#123D2A" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="month" hide />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#5D6D63", fontSize: 10, fontWeight: 600 }}
+                    tickFormatter={(month) => String(month).substring(0, 3)}
+                    padding={{ left: 0, right: 0 }}
+                    height={22}
+                  />
                   <YAxis hide domain={['dataMin - 10', 'dataMax + 10']} />
                   <Tooltip
                     formatter={(val: any) => val as number}
                     contentStyle={{ borderRadius: '12px', border: '1px solid #EEF2EC', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold', color: '#123D2A' }}
                   />
                   <Area type="monotone" dataKey="members" stroke="#123D2A" strokeWidth={2} fillOpacity={1} fill="url(#colorMembers)" />
-                </AreaChart>
-              </ResponsiveContainer>
-              <div className="flex justify-between mt-1 text-xs font-semibold text-[#5D6D63]">
-                {d.membershipTrend?.map(t => <span key={t.month}>{t.month.substring(0, 3)}</span>)}
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
-            <div className="w-[40%] pl-4 border-l border-[#EEF2EC] flex flex-col justify-center space-y-2.5">
+            <div className="flex w-[40%] min-w-0 flex-col justify-center space-y-3 border-l border-[#EEF2EC] pl-4">
               <div>
                 <p className="text-[11px] leading-tight font-bold text-[#5D6D63]">Total Members</p>
                 <p className="text-sm font-black text-[#123D2A]">{metrics.totalMembers}</p>
@@ -645,7 +686,7 @@ export function DashboardClient() {
         </div>
 
         {/* Member Engagement */}
-        <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col">
+        <div className={`${mode === "financial" ? "hidden" : ""} rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col`}>
           <SectionHeader title="Member Engagement" />
           <div className="flex flex-1 mt-2 items-center">
             <div className="w-1/2 h-[180px] relative">
@@ -666,6 +707,10 @@ export function DashboardClient() {
                   }}>
                     {healthData.map((e, i) => <Cell key={i} fill={e.color} />)}
                   </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [`${value} members`, name]}
+                    contentStyle={{ borderRadius: 10, border: "1px solid #CAD8CB", fontSize: 12, fontWeight: 700 }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -687,7 +732,7 @@ export function DashboardClient() {
         </div>
 
         {/* Share Capital Progress */}
-        <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col">
+        <div className={`${mode === "member" ? "hidden" : ""} rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col`}>
           <SectionHeader title="Share Capital Progress" />
           <div className="flex flex-1 mt-2">
             <div className="w-[35%] border-r border-[#EEF2EC] pr-4 flex flex-col justify-center">
@@ -720,25 +765,33 @@ export function DashboardClient() {
             </div>
           </div>
         </div>
+        {mode === "financial" ? <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
+          <SectionHeader title="Operations Snapshot" />
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-[#DDE8D8] p-3"><p className="border-b border-[#EEF2EC] pb-2 text-[11px] font-bold text-[#123D2A]">POS / Products</p><div className="mt-2 space-y-1.5 text-[11px]"><div className="flex justify-between"><span>Sales</span><b>{formatCurrency(operationsSnapshot.pos.totalSales)}</b></div><div className="flex justify-between"><span>Transactions</span><b>{operationsSnapshot.pos.transactions}</b></div><div className="flex justify-between"><span>Products Sold</span><b>{operationsSnapshot.pos.productsSold}</b></div></div></div>
+            <div className="rounded-xl border border-[#DDE8D8] p-3"><p className="border-b border-[#EEF2EC] pb-2 text-[11px] font-bold text-[#123D2A]">Equipment Rental</p><div className="mt-2 space-y-1.5 text-[11px]"><div className="flex justify-between"><span>Income</span><b>{formatCurrency(operationsSnapshot.rental.totalIncome)}</b></div><div className="flex justify-between"><span>Completed</span><b>{operationsSnapshot.rental.completed}</b></div><div className="flex justify-between"><span>Upcoming</span><b>{operationsSnapshot.rental.upcoming}</b></div></div></div>
+            <div className="rounded-xl border border-[#DDE8D8] p-3"><p className="border-b border-[#EEF2EC] pb-2 text-[11px] font-bold text-[#123D2A]">Inventory</p><div className="mt-2 space-y-1.5 text-[11px]"><div className="flex justify-between"><span>Low stock</span><b className="text-red-600">{operationsSnapshot.inventory.lowStock}</b></div><div className="flex justify-between"><span>Out of stock</span><b className="text-red-600">{operationsSnapshot.inventory.outOfStock}</b></div><div className="flex justify-between"><span>Available</span><b className="text-[#1F6B43]">View</b></div></div></div>
+          </div>
+        </div> : null}
       </div>
 
       {/* -- ROW 3: Map & Operations Snapshot -------------------------------------- */}
-      <div className="flex gap-4">
+      {mode === "member" ? <div className="grid gap-5 lg:grid-cols-1">
         {/* ── LEFT COLUMN (2/3 Width) ── */}
-        <div className="w-[66.67%] flex flex-col">
+        <div className="min-w-0 flex flex-col">
 
           {/* Barangay Map */}
           <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
             <SectionHeader title="Barangay Recruitment Analytics" />
             <div className="flex-1 flex gap-6 mt-4">
               <div className="w-[60%] flex flex-col relative bg-[#F7F8F3] rounded-lg border border-[#EEF2EC] overflow-hidden items-center justify-center">
-                <DemographicsMap demographics={demographics} selectedBarangay={barangay} onSelectBarangay={setBarangay} />
+                <DemographicsMap demographics={demographics} selectedBarangay={mapBarangay} onSelectBarangay={setMapBarangay} />
 
                 <div className="absolute bottom-2 left-2 right-2 pointer-events-none z-10">
-                  <p className="text-sm font-bold text-[#123D2A] mb-1 drop-shadow-md bg-white/70 px-1 rounded inline-block">Member Concentration</p>
+                  <p className="text-sm font-bold text-[#123D2A] mb-1 drop-shadow-md bg-white/70 px-1 rounded inline-block">Member Density</p>
                   <div className="flex items-center gap-1 bg-white/70 p-1 rounded backdrop-blur-sm">
                     <span className="text-sm text-[#5D6D63] font-bold">Low</span>
-                    <div className="flex-1 h-1.5 bg-gradient-to-r from-[#EEF2EC] to-[#123D2A] rounded-full" />
+                    <div className="flex-1 h-1.5 bg-gradient-to-r from-[#22c55e] via-[#eab308] via-[#f97316] to-[#dc2626] rounded-full" />
                     <span className="text-sm text-[#5D6D63] font-bold">High</span>
                   </div>
                 </div>
@@ -746,23 +799,46 @@ export function DashboardClient() {
               <div className="w-[40%] flex flex-col justify-between">
                 <div>
                   <p className="text-sm font-bold text-[#123D2A] mb-2">Top Barangays by Members</p>
-                  <div className="space-y-1.5 mb-4">
-                    {demographics.slice(0, 5).map((d, i) => (
-                      <button
-                        key={d.barangay}
-                        onClick={() => setBarangay(d.barangay)}
-                        className={`w-full flex items-center justify-between text-sm p-1.5 rounded transition-colors ${barangay === d.barangay ? 'bg-[#123D2A]/10' : 'hover:bg-[#F7F8F3]'}`}
-                      >
-                        <span className="flex items-center gap-1.5 font-medium text-[#5D6D63]"><div className="size-3.5 rounded-full bg-[#123D2A] text-white flex items-center justify-center text-[7px] font-bold">{i + 1}</div> {d.barangay}</span>
-                        <span className="font-bold text-[#123D2A]">{d.totalMembers}</span>
-                      </button>
-                    ))}
+                  <div className="mb-4 overflow-x-auto rounded-lg border border-[#DDE8D8]">
+                    <table className="w-full min-w-[420px] text-[10px]">
+                      <thead className="bg-[#F7F8F3] text-left text-[#5D6D63]">
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-[#F7F8F3] px-2 py-2 text-left font-bold">Barangay</th>
+                          {sectorColumns.map((sector) => <th key={sector} className="px-2 py-2 text-right font-bold">{sector}</th>)}
+                          <th className="px-2 py-2 text-right font-bold">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {demographics.slice(0, 10).map((d) => {
+                          const sectorCount = (sector: string) => d.sectorCounts?.find((item) => item.sector === sector)?.count ?? 0;
+                          return (
+                            <tr key={d.barangay} className={`border-t border-[#EEF2EC] ${mapBarangay === d.barangay ? 'bg-[#123D2A]/10' : ''}`}>
+                              <td className="sticky left-0 z-10 border-r border-[#EEF2EC] bg-white px-2 py-2 font-semibold text-[#365F4A]">{d.barangay}</td>
+                              {sectorColumns.map((sector) => <td key={sector} className="px-2 py-2 text-right">{sectorCount(sector)}</td>)}
+                              <td className="px-2 py-2 text-right font-bold text-[#123D2A]">{d.totalMembers}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
+                  {selectedMapBarangay ? (
+                    <div className="mb-4 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-[#123D2A]">{selectedMapBarangay.barangay}</p>
+                        <button type="button" onClick={() => setMapBarangay("")} className="text-[10px] font-bold text-[#5D6D63] underline">Clear</button>
+                      </div>
+                      <p className="mt-1 text-[11px] text-[#5D6D63]">{selectedMapBarangay.totalMembers} total members</p>
+                      <div className="mt-2 space-y-0.5 text-[11px] text-[#365F4A]">
+                        {selectedMapBarangay.sectorCounts?.map((item) => (
+                          <div key={item.sector} className="flex justify-between"><span>{item.sector}</span><strong>{item.count}</strong></div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="text-sm font-bold text-[#123D2A] mb-2 pt-2 border-t border-[#EEF2EC]">Recruitment Insights</p>
                   <div className="space-y-1">
-                    <div className="flex justify-between text-xs"><span className="text-[#5D6D63]">High growth areas</span><span className="font-bold text-[#123D2A]">4</span></div>
-                    <div className="flex justify-between text-xs"><span className="text-[#5D6D63]">Moderate growth areas</span><span className="font-bold text-[#123D2A]">3</span></div>
-                    <div className="flex justify-between text-xs"><span className="text-[#5D6D63]">Low growth areas</span><span className="font-bold text-[#123D2A]">2</span></div>
+                    <p className="text-xs leading-5 text-[#5D6D63]">Growth insights are based on the live member and barangay records shown above.</p>
                   </div>
                 </div>
                 <button className="mt-4 w-full flex items-center justify-center gap-1.5 rounded bg-[#EEF2EC] py-1.5 text-xs font-bold text-[#123D2A] hover:bg-[#CAD8CB]">
@@ -774,10 +850,10 @@ export function DashboardClient() {
         </div>
 
         {/* ── RIGHT COLUMN (1/3 Width) ── */}
-        <div className="w-[33.33%] flex flex-col">
+        <div className="min-w-0 flex flex-col">
 
-          {/* Operations Snapshot */}
-          <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
+          {/* Operations Snapshot (layout moved below Recent Activity) */}
+          <div className="hidden rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
             <SectionHeader title="Operations Snapshot" />
             <div className="flex-1 flex flex-col justify-between mt-4">
               {/* POS */}
@@ -789,7 +865,7 @@ export function DashboardClient() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Sales</span><span className="font-bold text-[#123D2A]">{formatCurrency(operationsSnapshot.pos.totalSales)}</span></div>
                   <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Transactions</span><span className="font-bold text-[#123D2A]">{operationsSnapshot.pos.transactions}</span></div>
-                  <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Products Sold</span><span className="font-bold text-[#123D2A]">712</span></div>
+                  <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Products Sold</span><span className="font-bold text-[#123D2A]">{operationsSnapshot.pos.productsSold}</span></div>
                 </div>
               </div>
               {/* Rentals */}
@@ -813,21 +889,40 @@ export function DashboardClient() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Low-stock items</span><span className="font-bold text-red-600">{operationsSnapshot.inventory.lowStock}</span></div>
                   <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Out of stock</span><span className="font-bold text-red-600">{operationsSnapshot.inventory.outOfStock}</span></div>
-                  <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Products available</span><span className="font-bold text-[#1F6B43]">36</span></div>
+                  <div className="flex justify-between text-[11px]"><span className="text-[#5D6D63] font-semibold">Products available</span><span className="font-bold text-[#1F6B43]">View inventory</span></div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </div> : null}
 
       {/* -- ROW 4: Scenario Planner & Recent Activity ---------------------------- */}
-      <div className="flex gap-4 mt-4">
+      <div className={`mt-5 grid gap-5 ${mode === "member" ? "lg:grid-cols-[1.35fr_1fr]" : "lg:grid-cols-1"}`}>
+        {false ? <div className="min-w-0 flex flex-col">
+          <div className="flex h-full flex-col rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md">
+            <SectionHeader title="Operations Snapshot" />
+            <div className="mt-3 grid flex-1 gap-3 lg:grid-cols-[repeat(3,minmax(0,1fr))]">
+              <div className="rounded-xl border border-[#DDE8D8] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 border-b border-[#EEF2EC] pb-2"><ShoppingCart className="size-4 text-[#123D2A]" /><h3 className="text-[11px] font-bold text-[#123D2A]">POS / Products</h3></div>
+                <div className="space-y-1.5 text-[11px]"><div className="flex justify-between rounded-lg bg-[#F7F8F3] px-2.5 py-1.5"><span className="font-semibold text-[#5D6D63]">Sales</span><span className="font-bold text-[#123D2A]">{formatCurrency(operationsSnapshot.pos.totalSales)}</span></div><div className="flex justify-between px-2.5"><span className="font-semibold text-[#5D6D63]">Transactions</span><span className="font-bold text-[#123D2A]">{operationsSnapshot.pos.transactions}</span></div><div className="flex justify-between px-2.5"><span className="font-semibold text-[#5D6D63]">Products Sold</span><span className="font-bold text-[#123D2A]">{operationsSnapshot.pos.productsSold}</span></div></div>
+              </div>
+              <div className="rounded-xl border border-[#DDE8D8] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 border-b border-[#EEF2EC] pb-2"><Tractor className="size-4 text-[#123D2A]" /><h3 className="text-[11px] font-bold text-[#123D2A]">Equipment Rental</h3></div>
+                <div className="space-y-1.5 text-[11px]"><div className="flex justify-between px-2.5"><span className="font-semibold text-[#5D6D63]">Income</span><span className="font-bold text-[#123D2A]">{formatCurrency(operationsSnapshot.rental.totalIncome)}</span></div><div className="flex justify-between px-2.5"><span className="font-semibold text-[#5D6D63]">Completed Rentals</span><span className="font-bold text-[#123D2A]">{operationsSnapshot.rental.completed}</span></div><div className="flex justify-between rounded-lg bg-[#F7F8F3] px-2.5 py-1.5"><span className="font-semibold text-[#5D6D63]">Upcoming Bookings</span><span className="font-bold text-[#123D2A]">{operationsSnapshot.rental.upcoming}</span></div></div>
+              </div>
+              <div className="rounded-xl border border-[#DDE8D8] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 border-b border-[#EEF2EC] pb-2"><Package className="size-4 text-[#123D2A]" /><h3 className="text-[11px] font-bold text-[#123D2A]">Inventory</h3></div>
+                <div className="space-y-1.5 text-[11px]"><div className="flex justify-between px-2.5"><span className="font-semibold text-[#5D6D63]">Low-stock items</span><span className="font-bold text-red-600">{operationsSnapshot.inventory.lowStock}</span></div><div className="flex justify-between px-2.5"><span className="font-semibold text-[#5D6D63]">Out of stock</span><span className="font-bold text-red-600">{operationsSnapshot.inventory.outOfStock}</span></div><div className="flex justify-between rounded-lg bg-[#EEF7EF] px-2.5 py-1.5"><span className="font-semibold text-[#5D6D63]">Products available</span><span className="font-bold text-[#1F6B43]">View inventory</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div> : null}
         {/* -- LEFT COLUMN (1/3 Width) -- */}
-        <div className="w-[33.33%] flex flex-col">
+        <div className="hidden">
 
           {/* Recent Activity */}
-          <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
+          <div className="hidden rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
             <SectionHeader title="Recent Activity" icon={Activity} />
             <div className="space-y-3 mt-4 flex-1">
               {/* Real Database Activity */}
@@ -837,7 +932,7 @@ export function DashboardClient() {
                 if (act.type === "membership") color = "bg-amber-500";
 
                 return (
-                  <div key={i} className="flex items-center justify-between text-[11px] pb-3 border-b border-[#EEF2EC] last:border-0 last:pb-0">
+                  <Link key={i} href={act.href || "#"} className="flex items-center justify-between rounded-lg px-1 text-[11px] pb-3 border-b border-[#EEF2EC] last:border-0 last:pb-0 hover:bg-[#F7F8F3] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30">
                     <div className="flex items-center gap-3">
                       <div className={`size-2.5 rounded-full ${color} ring-4 ring-[#F7F8F3] shrink-0`} />
                       <span className="text-[#5D6D63]"><span className="font-bold text-[#123D2A]">{act.actor}</span> {act.title}</span>
@@ -845,41 +940,27 @@ export function DashboardClient() {
                     <span className="text-[#78857d] font-medium shrink-0 ml-2">
                       {typeof act.activityDate === 'string' ? new Date(act.activityDate).toLocaleString() : act.activityDate.toLocaleString()}
                     </span>
-                  </div>
+                  </Link>
                 );
               })}
 
-              {/* Fallback Latest Activity if Database is Empty */}
-              {(recentActivity ?? []).length === 0 && [
-                { type: "membership", title: "New member application", actor: "Marlo Condicion", date: "Today, 9:15 AM" },
-                { type: "share_capital", title: "paid ?15,000 Share Capital", actor: "Juan Dela Cruz", date: "Today, 10:00 AM" },
-                { type: "membership", title: "New member application", actor: "Maria Santos", date: "Today, 11:30 AM" },
-                { type: "share_capital", title: "recorded", actor: "Sales transaction #TX-5541", date: "Today, 2:30 PM" },
-                { type: "inventory", title: "Corn Seeds (50kg)", actor: "Inventory updated:", date: "Today, 3:45 PM" }
-              ].map((act, i) => {
-                let color = act.type === "share_capital" ? "bg-blue-500" : (act.type === "membership" ? "bg-amber-500" : "bg-teal-500");
-                return (
-                  <div key={`mock-${i}`} className="flex items-center justify-between text-[11px] pb-3 border-b border-[#EEF2EC] last:border-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className={`size-2.5 rounded-full ${color} ring-4 ring-[#F7F8F3] shrink-0`} />
-                      <span className="text-[#5D6D63] leading-snug"><span className="font-bold text-[#123D2A] block">{act.actor}</span> {act.title}</span>
-                    </div>
-                    <span className="text-[#78857d] font-medium shrink-0 ml-2">{act.date}</span>
-                  </div>
-                );
-              })}
+              {(recentActivity ?? []).length === 0 ? (
+                <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-[#CAD8CB] text-center text-xs text-[#78857d]">
+                  No recent activity recorded for this period.
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
 
-        {/* -- RIGHT COLUMN (2/3 Width) -- */}
-        <div className="w-[66.67%] flex flex-col">
+        {/* -- FINANCIAL-ONLY SCENARIO PLANNER -- */}
+        <div className={`${mode === "member" ? "hidden" : "min-w-0"} flex flex-col`}>
 
           {/* Scenario Planner */}
           <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
-            <div className="flex items-center justify-between mb-4">
-              <SectionHeader title="Cooperative Scenario Planner" />
-              <div className="flex gap-4 text-[10px] font-bold text-[#5D6D63] items-center">
+             <div className="flex items-center justify-between gap-4 mb-4">
+               <h2 className="whitespace-nowrap text-[14px] font-black text-[#123D2A]">Cooperative Scenario Planner</h2>
+               <div className="flex shrink-0 items-center gap-4 whitespace-nowrap text-[10px] font-bold text-[#5D6D63]">
                 <span>Target Members <input type="number" value={targetMembers} onChange={e => setTargetMembers(Number(e.target.value))} className="w-12 ml-1 text-right border-b border-[#CAD8CB] outline-none text-[#123D2A] bg-transparent" /></span>
                 <span>Target Net Surplus <input type="number" value={targetSurplus} onChange={e => setTargetSurplus(Number(e.target.value))} className="w-16 ml-1 text-right border-b border-[#CAD8CB] outline-none text-[#123D2A] bg-transparent" /></span>
                 <span className="flex items-center gap-1.5">Additional Contribution
@@ -903,11 +984,7 @@ export function DashboardClient() {
                   <span className="w-[40%] text-center">Projected Net Surplus</span>
                   <span className="w-[30%] text-right">Change vs Current</span>
                 </div>
-                {[
-                  { label: "Increase Members", surplus: scenarioASurplus, growth: ((scenarioASurplus - curSurplus) / (curSurplus || 1)) * 100, p: pA },
-                  { label: "Increase Contribution", surplus: scenarioBSurplus, growth: ((scenarioBSurplus - curSurplus) / (curSurplus || 1)) * 100, p: 30 },
-                  { label: "Combined Strategy", surplus: scenarioCSurplus, growth: ((scenarioCSurplus - curSurplus) / (curSurplus || 1)) * 100, p: Math.min(100, pA + 30) },
-                ].map(s => (
+                {scenarioRows.map(s => (
                   <div key={s.label} className="flex items-center text-[10px] py-2">
                     <span className="w-[30%] font-semibold text-[#5D6D63]">{s.label}</span>
                     <div className="w-[40%] flex items-center gap-2 pr-4">
@@ -933,8 +1010,8 @@ export function DashboardClient() {
 
       {/* ── RIGHT SIDEBAR: Notifications ─────────────────────────────────────── */}
       {isNotificationsOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/20 backdrop-blur-sm transition-all" onClick={() => setIsNotificationsOpen(false)}>
-          <div className="w-[350px] bg-white h-full shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/20 backdrop-blur-sm transition-all" onClick={() => setIsNotificationsOpen(false)}>
+          <div className="h-full w-full max-w-[350px] overflow-hidden bg-white shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-[#EEF2EC]">
               <h2 className="text-sm font-black text-[#123D2A] flex items-center gap-2">
                 <Bell className="size-4" /> Notifications
@@ -944,7 +1021,7 @@ export function DashboardClient() {
               </button>
             </div>
             <div className="flex-1 p-4 overflow-y-auto">
-              {actionItems.length > 0 ? (
+              {actionItems.length > 0 || recentActivity.length > 0 ? (
                 <div className="space-y-4">
                   {actionItems.map(item => (
                     <div key={item.id} className="p-3 bg-[#F7F8F3] rounded-xl border border-[#EEF2EC]">
@@ -959,6 +1036,18 @@ export function DashboardClient() {
                         </div>
                       </div>
                     </div>
+                  ))}
+                  {recentActivity.slice(0, 8).map((activity, index) => (
+                    <Link key={`activity-${index}`} href={activity.href || "#"} className="block rounded-xl border border-[#EEF2EC] bg-white p-3 transition hover:bg-[#F7F8F3]">
+                      <div className="flex gap-3">
+                        <Activity className="mt-0.5 size-4 shrink-0 text-[#1F6B43]" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-[#123D2A]">{activity.actor}</p>
+                          <p className="mt-1 text-[10px] text-[#5D6D63]">{activity.title}</p>
+                          <p className="mt-1 text-[10px] text-[#78857d]">{typeof activity.activityDate === "string" ? new Date(activity.activityDate).toLocaleString() : activity.activityDate.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </Link>
                   ))}
                 </div>
               ) : (

@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS membership_applications (
 
     share_subscription_commitment_accepted TINYINT(1) NOT NULL DEFAULT 0,
     subscribed_shares SMALLINT UNSIGNED NULL,
-    initial_share_capital_amount DECIMAL(12,2) NOT NULL DEFAULT 1500.00,
+    initial_share_capital_amount DECIMAL(12,2) NOT NULL DEFAULT 3000.00,
     target_share_capital_amount DECIMAL(12,2) NOT NULL DEFAULT 3000.00,
     share_capital_deadline_months SMALLINT UNSIGNED NOT NULL DEFAULT 12,
     annual_interest_rate DECIMAL(5,2) NULL,
@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS membership_applications (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -216,6 +218,8 @@ CREATE TABLE IF NOT EXISTS membership_application_status_history (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'
@@ -225,6 +229,8 @@ CREATE TABLE IF NOT EXISTS membership_application_status_history (
         'Submitted',
         'Under Review',
         'Needs Information',
+        'Payment Required',
+        'Payment Confirmed',
         'Approved',
         'Rejected',
         'Withdrawn'

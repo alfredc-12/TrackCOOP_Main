@@ -5,8 +5,6 @@ import type {
   PaymongoMembershipSettings,
 } from "./paymongo.types";
 
-const terminalApplicationStatuses = new Set(["Approved", "Rejected", "Withdrawn"]);
-
 export type MembershipRequirementStatus =
   | "Pending"
   | "Submitted"
@@ -138,7 +136,7 @@ export function buildPublicMembershipPaymentSummary(input: {
   feeRequirementStatus: MembershipRequirementStatus;
   capitalRequirementStatus: MembershipRequirementStatus | null;
 }): PublicMembershipPaymentSummary {
-  const eligibleApplication = !terminalApplicationStatuses.has(input.applicationStatus);
+  const eligibleApplication = input.applicationStatus === "Payment Required";
   const feeRequired = roundMoney(input.settings.associateFee);
   const feeValidated = roundMoney(input.feeValidatedAmount);
   const feePending = roundMoney(input.feePendingAmount);
