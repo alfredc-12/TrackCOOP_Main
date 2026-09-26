@@ -33,6 +33,8 @@ import {
   PaginationControls,
 } from "@/components/portal/PortalPrimitives";
 import { ChairmanRentalBookingDetailsModal } from "./ChairmanRentalBookingDetailsModal";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 type BookingView =
   | "All"
@@ -227,7 +229,7 @@ export function ChairmanRentalBookingsClient() {
         canTransitionRentalStatus(item.status, status),
     );
     if (!records.length) {
-      toast.error(`None of the selected bookings can move to ${status}.`);
+      toast.error(`None of the selected rental requests can move to ${status}.`);
       return;
     }
     setSaving(true);
@@ -237,11 +239,11 @@ export function ChairmanRentalBookingsClient() {
           rentalApiRepository.updateRentalStatus(item.inquiryId, status),
         ),
       );
-      toast.success(`${records.length} booking(s) updated.`);
+      toast.success(`${records.length} rental request(s) updated.`);
       setSelected([]);
       await load();
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "Bulk update failed.");
+      toast.error(caught instanceof Error ? caught.message : "Updating rental requests failed.");
     } finally {
       setSaving(false);
     }
@@ -302,10 +304,12 @@ export function ChairmanRentalBookingsClient() {
             <button
               type="button"
               onClick={() => void load()}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
+              disabled={loading}
+              aria-busy={loading}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] disabled:cursor-wait disabled:opacity-60"
             >
               <RefreshCcw className="size-4" />
-              Refresh
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
             <button
               type="button"
@@ -416,18 +420,18 @@ export function ChairmanRentalBookingsClient() {
           }}
           options={["All", ...PAYMENT_STATUSES]}
         />
-        <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
-          Preferred date
-          <input
-            type="date"
-            value={preferredDate}
-            onChange={(event) => {
-              setPreferredDate(event.target.value);
-              setPage(1);
-            }}
-            className="h-11 w-full rounded-md border border-[#CAD8CB] px-3 text-sm font-normal"
-          />
-        </label>
+        <DatePicker
+          label="Preferred date"
+          value={preferredDate}
+          min="1900-01-01"
+          max="2100-12-31"
+          placeholder="Select preferred date"
+          onChange={(value) => {
+            setPreferredDate(value);
+            setPage(1);
+          }}
+          triggerClassName="h-11 rounded-md border-[#9BC7A9] bg-[#F7F8F3] text-[#294B39] hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+        />
       </section>
 
       {selected.length ? (
@@ -463,13 +467,13 @@ export function ChairmanRentalBookingsClient() {
         </section>
       ) : null}
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {loading ? (
         <LoadingSkeleton />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={CalendarCheck2}
-          title={inquiries.length ? "No bookings match these filters" : "No rental bookings"}
+          title={inquiries.length ? "No rental requests match these filters" : "No rental requests"}
           description={
             inquiries.length
               ? "Adjust the search, queue, or filters to see other rental requests."
@@ -715,17 +719,9 @@ function Filter({
   options: string[];
 }) {
   return (
-    <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
-      {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#294B39]"
-      >
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
-    </label>
+    <div className="grid gap-1 text-xs font-bold text-[#5D6D63]">
+      <span>{label}</span>
+      <StyledSelect value={value} options={options} onChange={onChange} />
+    </div>
   );
 }

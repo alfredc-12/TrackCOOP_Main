@@ -254,7 +254,7 @@ export function ChairmanRentalBookingDetailsModal({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The rental booking could not be loaded.",
+          : "The rental request could not be loaded.",
       );
     } finally {
       setLoading(false);
@@ -412,14 +412,14 @@ export function ChairmanRentalBookingDetailsModal({
         review.publicNote,
         review.internalNote || undefined,
       );
-      toast.success("Booking review saved.");
+      toast.success("Rental request review saved.");
       setConfirmAction(undefined);
       setReviewOpen(false);
       setActiveAction(undefined);
       await load();
     } catch (caught) {
       toast.error(
-        caught instanceof Error ? caught.message : "Review could not be saved.",
+        caught instanceof Error ? caught.message : "Rental request review could not be saved.",
       );
     } finally {
       setSaving(false);
@@ -492,17 +492,17 @@ export function ChairmanRentalBookingDetailsModal({
           href="/portal/chairman/rentals/bookings"
           className="inline-flex min-h-11 items-center gap-2 font-bold text-[#123D2A]"
         >
-          <ArrowLeft className="size-4" /> Back to Rental Bookings
+          <ArrowLeft className="size-4" /> Back to Rental Requests
         </Link>
-        <ErrorState message={error} />
+        <ErrorState message={error} onRetry={() => void load()} />
       </div>
     );
   }
   if (!inquiry) {
     return (
       <EmptyState
-        title="Booking not found"
-        description="This booking does not exist or is no longer available."
+        title="Rental request not found"
+        description="This rental request does not exist or is no longer available."
       />
     );
   }
@@ -514,7 +514,7 @@ export function ChairmanRentalBookingDetailsModal({
       open={open}
       onOpenChange={(val) => !val && onClose()}
       maxWidth="max-w-6xl"
-      title={`Booking Details: ${inquiry.inquiryId}`}
+        title={`Rental Request Details: ${inquiry.inquiryId}`}
       description={`${inquiry.equipmentName} requested by ${inquiry.requester.fullName} on ${displayDate(inquiry.submittedAt)}.`}
     >
       <div className="grid gap-6 max-h-[80vh] overflow-y-auto pr-2">
@@ -539,9 +539,11 @@ export function ChairmanRentalBookingDetailsModal({
             <button
               type="button"
               onClick={() => void load()}
-              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
+              disabled={loading}
+              aria-busy={loading}
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] disabled:cursor-wait disabled:opacity-60"
             >
-              <RefreshCcw className="size-4" /> Refresh
+              <RefreshCcw className="size-4" /> {loading ? "Refreshing..." : "Refresh"}
             </button>
             {schedule &&
             [
@@ -629,7 +631,7 @@ export function ChairmanRentalBookingDetailsModal({
           </div>
         ) : (
           <p className="mt-5 rounded-md bg-[#F7F8F3] p-4 text-sm text-[#5D6D63]">
-            This booking is closed. No further Chairman action is available.
+            This rental request is closed. No further Chairman action is available.
           </p>
         )}
       </section>
@@ -1173,12 +1175,13 @@ export function ChairmanRentalBookingDetailsModal({
         onOpenChange={(open) => {
           if (!open && !saving) setConfirmAction(undefined);
         }}
-        title={confirmAction?.title ?? "Confirm rental action"}
+        title={confirmAction?.title ?? "Confirm Rental Action"}
         description={
           confirmAction?.description ??
           "Confirm this change to the shared rental database."
         }
-        confirmLabel={saving ? "Saving..." : "Confirm"}
+        confirmLabel={saving ? (confirmAction?.kind === "schedule" ? "Saving schedule..." : "Saving review...") : "Confirm"}
+        loading={saving}
         onConfirm={() =>
           void (confirmAction?.kind === "schedule"
             ? saveSchedule()
