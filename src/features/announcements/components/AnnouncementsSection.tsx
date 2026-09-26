@@ -10,11 +10,10 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { env } from "@/config/env";
 import { expressFetch } from "@/lib/express-api";
+import { resolveUploadUrl } from "@/lib/upload-url";
 
 const PHOTO_PROGRESS_DURATION_MS = 5500;
 
@@ -67,9 +66,7 @@ function getAnnouncementDate(announcement?: PublicAnnouncement) {
 }
 
 function resolveImagePath(path?: string | null) {
-  if (!path) return null;
-  if (path.startsWith("http") || path.startsWith("/images/")) return path;
-  return `${env.apiUrl}${path}`;
+  return resolveUploadUrl(path) || null;
 }
 
 export default function AnnouncementsSection() {
@@ -248,13 +245,10 @@ export default function AnnouncementsSection() {
               transition={{ duration: 0.45 }}
             >
               {hasImages ? (
-                <Image
+                <img
                   src={images[currentImage]}
                   alt={announcement.title ?? "Announcement photo"}
-                  fill
-                  unoptimized
-                  sizes="(max-width: 767px) 90vw, (max-width: 1024px) 42vw, 38vw"
-                  className="object-cover brightness-110 contrast-105 transition duration-700 group-hover:scale-[1.03]"
+                  className="absolute inset-0 h-full w-full object-cover brightness-110 contrast-105 transition duration-700 group-hover:scale-[1.03]"
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-[#123D2A] opacity-40">
@@ -403,13 +397,10 @@ export default function AnnouncementsSection() {
                       <div className="flex flex-col">
                         <div className="relative h-64 shrink-0 bg-[#123D2A] sm:h-80">
                           {hasImages ? (
-                            <Image
+                            <img
                               src={images[currentImage]}
                               alt={announcement.title ?? "Announcement photo"}
-                              fill
-                              unoptimized
-                              sizes="(max-width: 1024px) 100vw, 58vw"
-                              className="object-cover"
+                              className="absolute inset-0 h-full w-full object-cover"
                             />
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]">

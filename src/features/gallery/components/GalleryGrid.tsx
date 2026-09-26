@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePublishedLandingContent } from "@/features/landing-public/usePublishedLandingContent";
+import { resolveUploadUrl } from "@/lib/upload-url";
 
 const photos = [
   "/images/Hero%20Page/Main%20Photo%201.jpg",
@@ -41,6 +42,7 @@ export default function GalleryGrid() {
   const galleryPhotos = useMemo(() => {
     const publishedPhotos = published.gallery
       .map((item) => (typeof item.imagePath === "string" ? item.imagePath : ""))
+      .map(resolveUploadUrl)
       .filter(Boolean);
     const mergedPhotos = publishedPhotos.length
       ? [
@@ -138,14 +140,12 @@ export default function GalleryGrid() {
                 onClick={() => setSelectedPhoto(photo)}
                 className="group relative aspect-square overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_28px_76px_rgba(18,61,42,0.24)] transition hover:-translate-y-1 hover:shadow-[0_34px_92px_rgba(18,61,42,0.34)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={photo}
                   alt={`Cooperative gallery photo ${safeCurrentPage * photosPerPage + index + 1}`}
-                  fill
-                  unoptimized
-                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
                   onError={() => handlePhotoError(photo)}
-                  className="object-cover transition duration-700 group-hover:scale-105"
+                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/35 via-transparent to-transparent opacity-70 transition group-hover:opacity-40" />
               </button>

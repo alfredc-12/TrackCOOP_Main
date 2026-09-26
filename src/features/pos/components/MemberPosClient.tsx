@@ -6,6 +6,7 @@ import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
+import { normalizeProductImage } from "../product-image-url";
 
 type InventoryItem = {
     id: number;
@@ -146,7 +147,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             const res = await expressFetch(isPublicView ? "/api/public/store-products" : "/api/inventory");
             if (res.ok) {
                 const data = await res.json();
-                setInventory(data as InventoryItem[]);
+                setInventory((data as InventoryItem[]).map(normalizeProductImage));
             } else {
                 throw new Error(`Products could not be loaded (${res.status}).`);
             }

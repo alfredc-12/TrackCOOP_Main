@@ -1151,9 +1151,9 @@ INSERT INTO products (
   created_by
 )
 VALUES
-  ('NFFAC-RICE-SEED-001', 'Certified Rice Seeds', 'Seeds', 'Certified rice seed sacks for member farms.', 'sack', 1250.00, 1000.00, 1, 10.000, 1, 'Active', '/images/products/rice-seeds.jpg', @chairman_id),
-  ('NFFAC-FERT-UREA-001', 'Urea Fertilizer', 'Fertilizer', 'Fertilizer support stock for seasonal planting.', 'bag', 1650.00, 1425.00, 1, 8.000, 1, 'Active', '/images/products/urea.jpg', @chairman_id),
-  ('NFFAC-FISH-FEED-001', 'Fish Feed', 'Aquaculture', 'Feed support for fisherfolk livelihood projects.', 'bag', 980.00, 820.00, 1, 6.000, 1, 'Active', '/images/products/fish-feed.jpg', @chairman_id)
+  ('NFFAC-RICE-SEED-001', 'Certified Rice Seeds', 'Seeds', 'Certified rice seed sacks for member farms.', 'sack', 1250.00, 1000.00, 1, 10.000, 1, 'Active', '/uploads/inventory/rice-seeds.jpg', @chairman_id),
+  ('NFFAC-FERT-UREA-001', 'Urea Fertilizer', 'Fertilizer', 'Fertilizer support stock for seasonal planting.', 'bag', 1650.00, 1425.00, 1, 8.000, 1, 'Active', '/uploads/inventory/urea.jpg', @chairman_id),
+  ('NFFAC-FISH-FEED-001', 'Fish Feed', 'Aquaculture', 'Feed support for fisherfolk livelihood projects.', 'bag', 980.00, 820.00, 1, 6.000, 1, 'Active', '/uploads/inventory/fish-feed.jpg', @chairman_id)
 ON DUPLICATE KEY UPDATE
   product_name = VALUES(product_name),
   category = VALUES(category),

@@ -976,13 +976,10 @@ function ProjectCard({
       whileHover={{ y: -4, scale: 1.01 }}
       className={`group relative h-[260px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-white shadow-none lg:h-auto ${project.areaClass}`}
     >
-      <Image
+      <img
         src={project.image}
         alt={project.title}
-        fill
-        unoptimized
-        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 45vw"
-        className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/85 via-[#03291d]/25 to-transparent" />
       <div className="absolute bottom-5 left-5 right-5 z-10">
@@ -1047,13 +1044,10 @@ function CertificationMedia({ slide, className = "" }: { slide: CertificationSli
   }
 
   return (
-    <Image
+    <img
       src={slide.image}
       alt={slide.title}
-      fill
-      unoptimized
-      sizes="(max-width: 768px) 82vw, 760px"
-      className={`bg-white object-contain ${className}`}
+      className={`absolute inset-0 h-full w-full bg-white object-contain ${className}`}
     />
   );
 }

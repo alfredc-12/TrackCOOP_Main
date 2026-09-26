@@ -7,7 +7,7 @@ import { EmptyState, FormDialog, ConfirmDialog, StatCard } from "@/components/po
 import { useState, useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
-import { env } from "@/config/env";
+import { resolveUploadUrl } from "@/lib/upload-url";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
@@ -115,7 +115,7 @@ function getAnnouncementImages(announcement: any): string[] {
 }
 
 function toImageSrc(path: string) {
-  return path.startsWith("http") ? path : `${env.apiUrl}${path}`;
+  return resolveUploadUrl(path);
 }
 
 function getFileName(path: string) {
@@ -1328,7 +1328,7 @@ export function ChairmanAnnouncementsClient() {
                   className={`relative block min-h-44 overflow-hidden bg-[#EEF2EC] text-left ${featured ? "lg:min-h-72" : ""}`}
                 >
                   {coverImage ? (
-                    <img src={`${env.apiUrl}${coverImage}`} alt={ann.title} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                    <img src={toImageSrc(coverImage)} alt={ann.title} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                   ) : (
                     <div className="absolute inset-0 grid place-items-center bg-[#E7F2E4] text-[#1F6B43]">
                       <Megaphone className="size-10" aria-hidden="true" />
@@ -1727,7 +1727,7 @@ export function ChairmanAnnouncementsClient() {
                 <div className="grid min-w-0 max-w-full gap-2 overflow-hidden sm:grid-cols-2">
                   {images.map((image: string, index: number) => (
                     <div key={`${image}-${index}`} className="relative min-w-0 h-48 w-full max-w-full overflow-hidden rounded-md border border-[#CAD8CB] bg-[#F7F8F3]">
-                      <img src={`${env.apiUrl}${image}`} alt={viewingAnnouncement.title} className="absolute inset-0 block h-full w-full max-w-full object-cover" />
+                      <img src={toImageSrc(image)} alt={viewingAnnouncement.title} className="absolute inset-0 block h-full w-full max-w-full object-cover" />
                     </div>
                   ))}
                 </div>

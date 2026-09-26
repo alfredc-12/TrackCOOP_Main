@@ -16,7 +16,7 @@ import { expressFetch } from "@/lib/express-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
-import { env } from "@/config/env";
+import { resolveUploadUrl } from "@/lib/upload-url";
 import {
   Bell,
   Search,
@@ -335,7 +335,7 @@ export default function MemberDashboardPage() {
                           </div>
                         )}
                         {ann.featuredImagePath ? (
-                          <img src={`${env.apiUrl}${ann.featuredImagePath}`} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                          <img src={resolveUploadUrl(ann.featuredImagePath)} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] z-0">
                             <Megaphone className="h-6 w-6 text-[#1F6B43]/20" />
@@ -974,18 +974,7 @@ export default function MemberDashboardPage() {
                               </div>
                             )}
                             {ann.featuredImagePath ? (
-                              <img src={
-                                (() => {
-                                  let path = ann.featuredImagePath;
-                                  try {
-                                    if (path.startsWith('[')) {
-                                      const parsed = JSON.parse(path);
-                                      if (parsed.length > 0) path = parsed[0];
-                                    }
-                                  } catch (e) {}
-                                  return path.startsWith('/') ? path : `${env.apiUrl}${path}`;
-                                })()
-                              } alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
+                              <img src={resolveUploadUrl(ann.featuredImagePath)} alt={ann.title} className="absolute inset-0 w-full h-full object-cover z-0" />
                             ) : (
                               <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)] z-0">
                                 <Megaphone className="h-10 w-10 text-[#1F6B43]/20" />
@@ -1214,7 +1203,7 @@ export default function MemberDashboardPage() {
                           <div className="relative h-64 sm:h-80 bg-[#123D2A] shrink-0">
                             {selectedAnnouncement.featuredImagePath ? (
                               <img
-                                src={`${env.apiUrl}${selectedAnnouncement.featuredImagePath}`}
+                                src={resolveUploadUrl(selectedAnnouncement.featuredImagePath)}
                                 alt=""
                                 className="absolute inset-0 w-full h-full object-cover"
                               />
