@@ -45,6 +45,7 @@ export const paymentReferenceSchema = z.object({
   memberId: nullableText(30), submittedBy: nullableText(30), payerName: nullableText(190),
   payerEmail: z.email().max(190).nullable().optional(), payerContact: nullableText(40),
   provider: z.string().trim().min(2).max(100).default("Reference-Based Payment"),
+  paymentChannel: z.enum(paymentChannels).default("Other"),
   referenceNumber: z.string().trim().min(2).max(190), paymentPurpose: z.enum(paymentPurposes),
   relatedEntityType: nullableText(80), relatedEntityId: nullableText(30),
   amount: z.coerce.number().positive().max(99_999_999.99), proofFilePath: nullableText(500),

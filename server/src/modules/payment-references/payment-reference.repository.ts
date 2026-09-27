@@ -420,9 +420,9 @@ export function createPaymentReferenceRepository(
       return withTransaction(async (connection) => {
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO payment_references
-             (member_id, submitted_by, payer_name, payer_email, payer_contact, provider, reference_number,
+             (member_id, submitted_by, payer_name, payer_email, payer_contact, provider, payment_channel, reference_number,
               payment_purpose, related_entity_type, related_entity_id, amount, proof_file_path, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             nullableId(input.memberId),
             nullableId(input.submittedBy) ?? auth.user.id,
@@ -430,6 +430,7 @@ export function createPaymentReferenceRepository(
             input.payerEmail ?? null,
             input.payerContact ?? null,
             input.provider ?? "Reference-Based Payment",
+            input.paymentChannel ?? "Other",
             input.referenceNumber,
             input.paymentPurpose,
             input.relatedEntityType ?? null,

@@ -3,10 +3,6 @@
 import Link from "next/link";
 import {
   BarChart3,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Clock3,
   Database,
   Download,
@@ -14,12 +10,14 @@ import {
   FileText,
   Filter,
   Landmark,
+  PieChart,
   Printer,
   RefreshCw,
   Save,
   Settings2,
+  TrendingUp,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
@@ -36,6 +34,7 @@ import {
   DOCUMENT_ACCESS_LEVELS,
   DOCUMENT_CATEGORIES,
   RELATED_MODULES,
+  REPORT_CATALOG,
   REPORT_CATEGORY_LABELS,
   humanizeConstant,
 } from "../record-constants";
@@ -82,6 +81,38 @@ const categories: Array<ReportCategory | "ALL"> = [
   "AGENCY_COOPERATIVE",
 ];
 
+const emptyReportFilterOptions: ReportFilterOptions = {
+  barangays: [],
+  sectors: [],
+  paymentMethods: [],
+  rentalAssets: [],
+  products: [],
+  productCategories: [],
+  documentCategories: [],
+  relatedModules: [],
+  users: [],
+  roles: [],
+};
+
+function fallbackReportsData(role: "chairman" | "bookkeeper"): ReportsLandingData {
+  const catalog = REPORT_CATALOG.filter((item) =>
+    item.allowedRoles.includes(role),
+  );
+  return {
+    catalog,
+    summary: {
+      available: catalog.filter((item) => !item.configurationRequired).length,
+      generatedThisMonth: 0,
+      financial: catalog.filter((item) => item.category === "FINANCIAL").length,
+      operational: catalog.filter((item) =>
+        ["RENTAL", "SALES_INVENTORY", "DOCUMENTS"].includes(item.category),
+      ).length,
+    },
+    recent: [],
+    filterOptions: emptyReportFilterOptions,
+  };
+}
+
 export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const basePath = `/portal/${role}`;
   const [data, setData] = useState<ReportsLandingData | null>(null);
@@ -89,6 +120,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<ReportCategory | "ALL">("ALL");
   const [search, setSearch] = useState("");
+  const [selectedReportKey, setSelectedReportKey] = useState("");
   const [selected, setSelected] = useState<ReportDefinition | null>(null);
   const [filters, setFilters] = useState<ReportFilters>({});
   const [generating, setGenerating] = useState(false);
@@ -100,7 +132,6 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [saving, setSaving] = useState(false);
   const [recentModalOpen, setRecentModalOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const generatorRef = useRef<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -109,15 +140,13 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       setError(null);
       setData((await response.json()) as ReportsLandingData);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Reports could not be loaded.",
-      );
+      console.error("Reports landing data could not be loaded:", requestError);
+      setData(fallbackReportsData(role));
+      setError(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     // The async loader updates state only after the external request resolves.
@@ -125,12 +154,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     void load();
   }, [load]);
 
-  const [currentPage, setCurrentPage] = useState(1);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, category]);
 
   const visibleReports = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -144,12 +168,13 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     );
   }, [category, data?.catalog, search]);
 
-  const ITEMS_PER_PAGE = 5;
-  const totalPages = Math.ceil(visibleReports.length / ITEMS_PER_PAGE);
-  const paginatedReports = visibleReports.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+  const selectableReports = visibleReports.filter(
+    (item) => !item.configurationRequired,
   );
+  const selectedReport =
+    selectableReports.find((item) => item.key === selectedReportKey) ??
+    selectableReports[0] ??
+    null;
 
   function chooseReport(definition: ReportDefinition) {
     setSelected(definition);
@@ -326,7 +351,9 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               <Filter className="pointer-events-none absolute left-3 top-3.5 size-4 text-[#6C7A70]" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
                 type="search"
                 placeholder="Search report name, description, or data source"
                 className={`${fieldClass} pl-9`}
@@ -346,7 +373,9 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                   <button
                     type="button"
                     key={item}
-                    onClick={() => setCategory(item)}
+                    onClick={() => {
+                      setCategory(item);
+                    }}
                     className={
                       item === category
                         ? primaryButtonClass
@@ -359,105 +388,22 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
             </div>
           </div>
           {visibleReports.length ? (
-            <div className="flex flex-col gap-3 pt-2">
-              {paginatedReports.map((definition) => (
-                <div
-                  key={definition.key}
-                  className="flex flex-col gap-4 rounded-xl border border-[#CAD8CB] bg-white p-4 transition-all hover:border-[#123D2A] hover:shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#D8A011]">
-                      {REPORT_CATEGORY_LABELS[definition.category]}
-                    </p>
-                    <h2 className="mt-1 truncate text-base font-black text-[#123D2A]">
-                      {definition.name}
-                    </h2>
-                    <p className="mt-1 text-sm text-[#5D6D63] line-clamp-2">
-                      {definition.description}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6C7A70]">
-                      <span className="flex items-center gap-1">
-                        <Database className="size-3.5" /> {definition.dataSource}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock3 className="size-3.5" /> Last generated:{" "}
-                        {formatDate(
-                          data.recent.find(
-                            (item) => item.reportKey === definition.key,
-                          )?.generatedAt ?? null,
-                          true,
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                    {definition.configurationRequired ? (
-                      <StatusBadge tone="warning">
-                        Configuration Required
-                      </StatusBadge>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={definition.configurationRequired}
-                      onClick={() => chooseReport(definition)}
-                      className={
-                        definition.configurationRequired
-                          ? secondaryButtonClass
-                          : primaryButtonClass
-                      }
-                    >
-                      {definition.configurationRequired ? (
-                        <Settings2 className="size-4" />
-                      ) : (
-                        <BarChart3 className="size-4" />
-                      )}
-                      {definition.configurationRequired
-                        ? "Config Req."
-                        : "Generate"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#5D6D63]">
-                  <button
-                    type="button"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(1)}
-                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <ChevronsLeft className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => p - 1)}
-                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <ChevronLeft className="size-4" />
-                  </button>
-                  <span className="mx-2 font-bold text-[#123D2A]">
-                    Page {currentPage} of {totalPages} · {visibleReports.length} reports
-                  </span>
-                  <button
-                    type="button"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => p + 1)}
-                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <ChevronRight className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(totalPages)}
-                    className="rounded-md border border-[#CAD8CB] p-1.5 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <ChevronsRight className="size-4" />
-                  </button>
-                </div>
-              )}
-            </div>
+            <>
+              <ReportPicker
+                reports={selectableReports}
+                selectedReport={selectedReport}
+                recent={data.recent}
+                generating={generating}
+                onSelect={setSelectedReportKey}
+                onGenerate={() => selectedReport && chooseReport(selectedReport)}
+              />
+              <ReportCatalogCards
+                reports={visibleReports}
+                recent={data.recent}
+                generating={generating}
+                onGenerate={chooseReport}
+              />
+            </>
           ) : (
             <EmptyState
               icon={BarChart3}
@@ -652,6 +598,137 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
           </button>
         </div>
       </FormDialog>
+    </div>
+  );
+}
+
+function ReportPicker({
+  reports,
+  selectedReport,
+  recent,
+  generating,
+  onSelect,
+  onGenerate,
+}: {
+  reports: ReportDefinition[];
+  selectedReport: ReportDefinition | null;
+  recent: GeneratedReportRecord[];
+  generating: boolean;
+  onSelect: (key: string) => void;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4 lg:grid-cols-[1fr_auto] lg:items-end">
+      <Field label="Choose report">
+        <select
+          value={selectedReport?.key ?? ""}
+          onChange={(event) => onSelect(event.target.value)}
+          className={fieldClass}
+        >
+          {reports.map((definition) => (
+            <option key={definition.key} value={definition.key}>
+              {REPORT_CATEGORY_LABELS[definition.category]} - {definition.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <button
+        type="button"
+        disabled={!selectedReport || generating}
+        onClick={onGenerate}
+        className={primaryButtonClass}
+      >
+        {generating ? (
+          <BusyLabel label="Generating..." />
+        ) : (
+          <>
+            <BarChart3 className="size-4" /> Generate
+          </>
+        )}
+      </button>
+      <div className="lg:col-span-2">
+        {selectedReport ? (
+          <div className="rounded-md border border-[#DCE5DC] bg-white p-3 text-sm text-[#5D6D63]">
+            <p className="font-bold text-[#123D2A]">{selectedReport.name}</p>
+            <p className="mt-1">{selectedReport.description}</p>
+            <p className="mt-2 text-xs">
+              Source: {selectedReport.dataSource} · Last generated:{" "}
+              {formatDate(
+                recent.find((item) => item.reportKey === selectedReport.key)
+                  ?.generatedAt ?? null,
+                true,
+              )}
+            </p>
+          </div>
+        ) : (
+          <p className="rounded-md border border-[#F3D08A] bg-[#FFF8E8] p-3 text-sm text-[#775200]">
+            No report can be generated from the current filters.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReportCatalogCards({
+  reports,
+  recent,
+  generating,
+  onGenerate,
+}: {
+  reports: ReportDefinition[];
+  recent: GeneratedReportRecord[];
+  generating: boolean;
+  onGenerate: (definition: ReportDefinition) => void;
+}) {
+  return (
+    <div className="grid gap-3">
+      {reports.map((definition) => {
+        const lastGenerated = recent.find(
+          (item) => item.reportKey === definition.key,
+        );
+        return (
+          <article
+            key={definition.key}
+            className="flex flex-col gap-4 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-sm sm:flex-row sm:items-center"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#D8A011]">
+                {REPORT_CATEGORY_LABELS[definition.category]}
+              </p>
+              <h3 className="mt-1 text-lg font-black text-[#123D2A]">
+                {definition.name}
+              </h3>
+              <p className="mt-1 text-sm text-[#5D6D63]">
+                {definition.description}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs text-[#5D6D63]">
+                <span className="inline-flex items-center gap-1">
+                  <Database className="size-3.5" />
+                  {definition.dataSource}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Clock3 className="size-3.5" />
+                  Last generated:{" "}
+                  {lastGenerated ? formatDate(lastGenerated.generatedAt, true) : "—"}
+                </span>
+              </div>
+            </div>
+            {definition.configurationRequired ? (
+              <StatusBadge tone="warning">Needs setup</StatusBadge>
+            ) : (
+              <button
+                type="button"
+                disabled={generating}
+                onClick={() => onGenerate(definition)}
+                className={primaryButtonClass}
+              >
+                <BarChart3 className="size-4" /> Generate
+              </button>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -926,6 +1003,7 @@ function ReportPreview({
             </div>
           ))}
         </section>
+        <ReportVisuals result={result} />
         <div className="mt-5">
           {result.rows.length ? (
             <>
@@ -994,6 +1072,279 @@ function ReportPreview({
       </article>
     </section>
   );
+}
+
+type VisualPoint = {
+  label: string;
+  value: number;
+  format?: "currency" | "number";
+};
+
+function ReportVisuals({ result }: { result: ReportResult }) {
+  const summaryPoints = result.summary
+    .map((item) => ({
+      label: item.label,
+      value: Number(item.value),
+      format: item.format,
+    }))
+    .filter((item) => Number.isFinite(item.value));
+  const rowPoints = buildRowChart(result);
+  const statusPoints = buildDistributionChart(result);
+
+  if (!summaryPoints.length && !rowPoints.length && !statusPoints.length) {
+    return null;
+  }
+
+  return (
+    <section className="mt-5 grid gap-4" data-no-records-print>
+      <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">
+        <BarChart3 className="size-4" />
+        Visual Summary
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {summaryPoints.length ? (
+          <VisualCard
+            title="Report totals"
+            description="Quick view of the main totals in this report."
+            icon={TrendingUp}
+          >
+            <MiniBarChart points={summaryPoints.slice(0, 8)} />
+          </VisualCard>
+        ) : null}
+        {rowPoints.length ? (
+          <VisualCard
+            title="Top records"
+            description="Largest values from the generated rows."
+            icon={BarChart3}
+          >
+            <MiniBarChart points={rowPoints} />
+          </VisualCard>
+        ) : statusPoints.length ? (
+          <VisualCard
+            title="Record grouping"
+            description="Rows grouped by their most useful status or type column."
+            icon={PieChart}
+          >
+            <DonutChart points={statusPoints} />
+          </VisualCard>
+        ) : null}
+      </div>
+      {rowPoints.length && statusPoints.length ? (
+        <VisualCard
+          title="Record grouping"
+          description="Rows grouped by their most useful status or type column."
+          icon={PieChart}
+        >
+          <DonutChart points={statusPoints} compact />
+        </VisualCard>
+      ) : null}
+    </section>
+  );
+}
+
+function VisualCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <article className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43]">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-black text-[#123D2A]">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-[#6C7A70]">{description}</p>
+        </div>
+      </div>
+      <div className="mt-4">{children}</div>
+    </article>
+  );
+}
+
+function MiniBarChart({
+  points,
+  compact = false,
+}: {
+  points: VisualPoint[];
+  compact?: boolean;
+}) {
+  const max = Math.max(...points.map((point) => Math.abs(point.value)), 1);
+  return (
+    <div className="grid gap-3">
+      <div className={`flex items-end gap-3 ${compact ? "h-36" : "h-48"}`}>
+        {points.map((point) => {
+          const height = Math.max(8, Math.round((Math.abs(point.value) / max) * 100));
+          return (
+            <div key={point.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+              <div className="flex h-full w-full items-end rounded-t-md bg-[#EEF2EC] px-1 pt-2">
+                <div
+                  className="w-full rounded-t-md bg-[#1F6B43] shadow-[0_8px_18px_rgba(31,107,67,0.22)]"
+                  style={{ height: `${height}%` }}
+                  aria-hidden="true"
+                />
+              </div>
+              <p className="line-clamp-2 min-h-8 text-center text-[11px] font-bold leading-4 text-[#294B39]">
+                {point.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      {points.map((point) => {
+        return (
+          <div key={`${point.label}-legend`} className={compact ? "grid gap-1" : "grid gap-1.5"}>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="min-w-0 truncate font-bold text-[#294B39]">
+                {point.label}
+              </span>
+              <span className="shrink-0 font-black text-[#123D2A]">
+                {formatVisualValue(point.value, point.format)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DonutChart({
+  points,
+  compact = false,
+}: {
+  points: VisualPoint[];
+  compact?: boolean;
+}) {
+  const total = points.reduce((sum, point) => sum + Math.max(0, point.value), 0);
+  const colors = ["#1F6B43", "#D8A011", "#6EA77A", "#9A6B00", "#86B990", "#CAD8CB"];
+  const gradient = points.map((point, index) => {
+    const previous = points
+      .slice(0, index)
+      .reduce((sum, item) => sum + Math.max(0, item.value), 0);
+    const current = previous + Math.max(0, point.value);
+    const start = total > 0 ? (previous / total) * 100 : 0;
+    const end = total > 0 ? (current / total) * 100 : 0;
+    const color = colors[index % colors.length];
+    return `${color} ${start}% ${end}%`;
+  }).join(", ");
+
+  return (
+    <div className={`grid gap-4 ${compact ? "sm:grid-cols-[10rem_1fr]" : "sm:grid-cols-[13rem_1fr]"} sm:items-center`}>
+      <div className="relative mx-auto grid aspect-square w-full max-w-[13rem] place-items-center rounded-full"
+        style={{ background: `conic-gradient(${gradient || "#CAD8CB 0% 100%"})` }}>
+        <div className="grid size-[62%] place-items-center rounded-full bg-white text-center shadow-inner">
+          <span className="text-2xl font-black text-[#123D2A]">
+            {formatVisualValue(total, "number")}
+          </span>
+          <span className="-mt-1 text-[10px] font-bold uppercase tracking-wide text-[#6C7A70]">
+            records
+          </span>
+        </div>
+      </div>
+      <div className="grid gap-2">
+        {points.map((point, index) => (
+          <div key={point.label} className="flex items-center justify-between gap-3 text-xs">
+            <span className="flex min-w-0 items-center gap-2 font-bold text-[#294B39]">
+              <span
+                className="size-3 shrink-0 rounded-full"
+                style={{ backgroundColor: colors[index % colors.length] }}
+                aria-hidden="true"
+              />
+              <span className="truncate">{point.label}</span>
+            </span>
+            <span className="shrink-0 font-black text-[#123D2A]">
+              {formatVisualValue(point.value, "number")}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildRowChart(result: ReportResult): VisualPoint[] {
+  const valueColumn =
+    result.columns.find((column) => column.format === "currency") ??
+    result.columns.find((column) => column.format === "number");
+  if (!valueColumn) return [];
+
+  const labelColumn = result.columns.find((column) =>
+    column.key !== valueColumn.key &&
+    column.format !== "currency" &&
+    column.format !== "number" &&
+    column.format !== "date" &&
+    column.format !== "datetime",
+  );
+  if (!labelColumn) return [];
+
+  return result.rows
+    .map((row) => ({
+      label: String(row[labelColumn.key] ?? "Not recorded"),
+      value: numericCell(row[valueColumn.key]),
+      format: valueColumn.format === "currency" ? "currency" as const : "number" as const,
+    }))
+    .filter((point) => Number.isFinite(point.value) && point.value !== 0)
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    .slice(0, 8);
+}
+
+function buildDistributionChart(result: ReportResult): VisualPoint[] {
+  const preferredKeys = [
+    "status",
+    "paymentStatus",
+    "validationStatus",
+    "bookingStatus",
+    "recordType",
+    "category",
+    "source",
+    "membershipType",
+    "asset",
+  ];
+  const column =
+    preferredKeys
+      .map((key) => result.columns.find((item) => item.key === key))
+      .find(Boolean) ??
+    result.columns.find((item) => !item.format);
+  if (!column) return [];
+
+  const counts = new Map<string, number>();
+  result.rows.forEach((row) => {
+    const label = String(row[column.key] ?? "Not recorded").trim() || "Not recorded";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  });
+
+  return [...counts.entries()]
+    .map(([label, value]) => ({ label, value, format: "number" as const }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+}
+
+function numericCell(value: string | number | null) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function formatVisualValue(value: number, format?: "currency" | "number") {
+  if (format === "currency") {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  return new Intl.NumberFormat("en-PH").format(value);
 }
 
 function ReportTable({

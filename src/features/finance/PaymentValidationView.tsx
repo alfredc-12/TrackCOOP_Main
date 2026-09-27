@@ -363,7 +363,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
   };
 
   return <div className="grid gap-6">
-    <PageHeader eyebrow="Payments" title={role === "bookkeeper" ? "Payment Validation" : "Payments"}
+    <PageHeader eyebrow="Payments" title={role === "bookkeeper" ? "Payments to Check" : "Payments"}
       description={role === "bookkeeper" ? "Check payment details and approve only when everything matches." : "View payment status, posting history, and receipts."}
       actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper" : "View only"}</StatusBadge>} />
 

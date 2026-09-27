@@ -2275,9 +2275,10 @@ export async function getReportFilterOptions(
     db.query<(RowDataPacket & { value: string })[]>(
       "SELECT DISTINCT category AS value FROM documents WHERE category IS NOT NULL AND category <> '' ORDER BY category",
     ),
-    db.query<(RowDataPacket & { value: string })[]>(
-      "SELECT DISTINCT related_module AS value FROM documents WHERE related_module IS NOT NULL AND related_module <> '' ORDER BY related_module",
-    ),
+    Promise.resolve([[], []] as unknown as [
+      Array<RowDataPacket & { value: string }>,
+      unknown,
+    ]),
     user.role === "chairman"
       ? db.query<(RowDataPacket & { id: string; label: string })[]>(
           "SELECT CAST(user_id AS CHAR) AS id, display_name AS label FROM users ORDER BY display_name",

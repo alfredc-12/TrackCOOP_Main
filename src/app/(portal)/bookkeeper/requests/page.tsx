@@ -1,13 +1,5 @@
-import { Inbox } from "lucide-react";
-import { PortalRoutePage } from "@/components/portal/PortalRoutePage";
+import { RequestsClient } from "@/app/(portal)/chairman/requests/RequestsClient";
 
 export default function BookkeeperRequestsPage() {
-  return (
-    <PortalRoutePage
-      eyebrow="Support"
-      title="Assigned Requests"
-      description="Review and respond to cooperative requests assigned to Bookkeeper workflows."
-      icon={Inbox}
-    />
-  );
+  return <RequestsClient assignedOnly />;
 }

@@ -218,6 +218,7 @@ export type PaymentReferenceInput = {
   payerEmail?: string | null;
   payerContact?: string | null;
   provider?: string;
+  paymentChannel?: PaymentReference["paymentChannel"];
   referenceNumber: string;
   paymentPurpose: PaymentPurpose;
   relatedEntityType?: string | null;

@@ -27,13 +27,13 @@ import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { toast } from "sonner";
 import { PaymentValidationView } from "./PaymentValidationView";
 import {
-  createShareCapital,
+  createPaymentReference,
   getFinancialSummary,
   getShareCapitalSummary,
   listFinancialCategories,
   listFinancialRecords,
   listShareCapital,
-  type CreateShareCapitalInput,
+  validatePaymentReference,
   type FinancialCategory,
   type FinancialRecord,
   type FinancialSummary,
@@ -97,7 +97,7 @@ function Toolbar({
         />
         <input
           value={search}
-          onChange={(event: any) => onSearch(event.target.value)}
+          onChange={(event) => onSearch(event.target.value)}
           className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
           placeholder={`Search ${label}`}
           type="search"
@@ -138,13 +138,15 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [memberSearch, setMemberSearch] = useState("");
   const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
-  const [form, setForm] = useState<Omit<CreateShareCapitalInput, "paymentReferenceId">>({
+  const [form, setForm] = useState({
     memberId: "",
     amount: 0,
-    paymentDate: new Date().toISOString().split("T")[0],
-    paymentStatus: "Validated",
+    paymentChannel: "Cash" as "Cash" | "Manual GCash" | "Bank Transfer",
+    referenceNumber: "",
     remarks: "",
   });
+  const [moneyReceived, setMoneyReceived] = useState(false);
+  const [detailsCorrect, setDetailsCorrect] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -168,10 +170,10 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   // Fetch members for dropdown when modal opens or search changes
   useEffect(() => {
     if (!isAddOpen) return;
-    setIsMembersLoading(true);
     const params = new URLSearchParams({ pageSize: "100", sortBy: "createdAt", sortDirection: "asc" });
     if (memberSearch.trim()) params.set("search", memberSearch.trim());
     const timeoutId = window.setTimeout(() => {
+      setIsMembersLoading(true);
       void apiRequest<{ id: string; fullName?: string; memberCode?: string }[]>(`/api/members?${params}`)
         .then(rows => {
           setMembers(rows.map(m => ({ id: String(m.id), name: m.fullName ?? "Unknown", code: m.memberCode ?? "" })));
@@ -185,13 +187,28 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const handleAddSubmit = async () => {
     if (!form.memberId) { toast.error("Please select a member."); return; }
     if (!form.amount || form.amount <= 0) { toast.error("Please enter a valid amount."); return; }
-    if (!form.paymentDate) { toast.error("Please enter a payment date."); return; }
+    if (form.referenceNumber.trim().length < 2) { toast.error("Please enter the receipt or payment reference number."); return; }
+    if (!moneyReceived || !detailsCorrect) { toast.error("Please confirm that the money and details were checked."); return; }
     setIsSubmitting(true);
     try {
-      await createShareCapital({ ...form, amount: Number(form.amount) });
-      toast.success("Share capital added successfully!");
+      const created = await createPaymentReference({
+        memberId: form.memberId,
+        payerName: selectedMember?.name ?? null,
+        provider: form.paymentChannel === "Cash" ? "Cashier" : form.paymentChannel,
+        paymentChannel: form.paymentChannel,
+        referenceNumber: form.referenceNumber.trim(),
+        paymentPurpose: "Share Capital",
+        relatedEntityType: "member_profile",
+        relatedEntityId: form.memberId,
+        amount: Number(form.amount),
+        notes: form.remarks.trim() || null,
+      });
+      await validatePaymentReference(created.id);
+      toast.success("Share capital payment approved and recorded.");
       setIsAddOpen(false);
-      setForm({ memberId: "", amount: 0, paymentDate: new Date().toISOString().split("T")[0], paymentStatus: "Validated", remarks: "" });
+      setForm({ memberId: "", amount: 0, paymentChannel: "Cash", referenceNumber: "", remarks: "" });
+      setMoneyReceived(false);
+      setDetailsCorrect(false);
       setMemberSearch("");
       void load();
     } catch (caught) {
@@ -208,13 +225,13 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
       <PageHeader eyebrow="Payments" title="Share Capital" description="Validated member capital progress, contribution limits, and payment records." actions={
         <div className="flex items-center gap-2">
           <StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper workflow" : "Read-only oversight"}</StatusBadge>
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d2f20]"
-          >
-            <Plus className="size-4" />
-            Add Share Capital
-          </button>
+          {role === "bookkeeper" ? <button
+              onClick={() => setIsAddOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d2f20]"
+            >
+              <Plus className="size-4" />
+              Record Payment
+            </button> : null}
         </div>
       } />
       <div className="grid gap-4 md:grid-cols-4">
@@ -249,10 +266,10 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
 
       {/* Add Share Capital Modal */}
       {isAddOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-8 backdrop-blur-sm">
+          <div className="my-auto w-full max-w-md rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Add Share Capital</h2>
+              <h2 className="text-xl font-bold text-gray-900">Record Share Capital Payment</h2>
               <button onClick={() => { setIsAddOpen(false); setMemberSearch(""); }} className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X className="size-5" /></button>
             </div>
 
@@ -324,29 +341,29 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
                 />
               </div>
 
-              {/* Payment Date */}
+              {/* Payment method */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Payment Date <span className="text-red-500">*</span></label>
-                <input
-                  type="date"
-                  value={form.paymentDate}
-                  onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-[#123D2A] focus:ring-1 focus:ring-[#123D2A]"
-                />
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Paid through <span className="text-red-500">*</span></label>
                 <select
-                  value={form.paymentStatus}
-                  onChange={e => setForm(f => ({ ...f, paymentStatus: e.target.value as CreateShareCapitalInput["paymentStatus"] }))}
+                  value={form.paymentChannel}
+                  onChange={e => setForm(f => ({ ...f, paymentChannel: e.target.value as typeof form.paymentChannel }))}
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-[#123D2A] focus:ring-1 focus:ring-[#123D2A]"
                 >
-                  <option value="Validated">Validated</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Rejected">Rejected</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Manual GCash">GCash checked manually</option>
+                  <option value="Bank Transfer">Bank transfer</option>
                 </select>
+              </div>
+
+              {/* Reference */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Receipt or payment reference <span className="text-red-500">*</span></label>
+                <input
+                  value={form.referenceNumber}
+                  onChange={e => setForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                  placeholder="Example: OR-2026-0012"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-[#123D2A] focus:ring-1 focus:ring-[#123D2A]"
+                />
               </div>
 
               {/* Remarks */}
@@ -360,6 +377,11 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-[#123D2A] focus:ring-1 focus:ring-[#123D2A] resize-none"
                 />
               </div>
+
+              <div className="grid gap-3 rounded-xl border border-[#B7D7BD] bg-[#F2FAF3] p-4">
+                <label className="flex items-start gap-3 text-sm font-semibold text-[#294B39]"><input type="checkbox" checked={moneyReceived} onChange={e => setMoneyReceived(e.target.checked)} className="mt-0.5 size-5 accent-[#1F6B43]" />I received the money or checked the payment record.</label>
+                <label className="flex items-start gap-3 text-sm font-semibold text-[#294B39]"><input type="checkbox" checked={detailsCorrect} onChange={e => setDetailsCorrect(e.target.checked)} className="mt-0.5 size-5 accent-[#1F6B43]" />The member, amount, and reference number are correct.</label>
+              </div>
             </div>
 
             <div className="mt-6 flex gap-3">
@@ -372,10 +394,10 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
               </button>
               <button
                 onClick={() => void handleAddSubmit()}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !moneyReceived || !detailsCorrect}
                 className="flex-1 rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d2f20] disabled:opacity-60"
               >
-                {isSubmitting ? "Saving..." : "Save"}
+                {isSubmitting ? "Recording..." : "Approve and record"}
               </button>
             </div>
           </div>
