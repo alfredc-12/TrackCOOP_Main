@@ -24,6 +24,9 @@ export type PaymentReferenceListItem = PaymentReference & {
   memberCode: string | null; memberName: string | null;
   applicationCode: string | null; applicationName: string | null;
   failedGatewayEvents: number;
+  rentalNumber: string | null; rentalEquipmentName: string | null;
+  rentalStartAt: string | null; rentalEndAt: string | null;
+  rentalQuantity: string | null; rentalUnit: string | null;
 };
 export type PaymentReferencePage = {
   items: PaymentReferenceListItem[]; total: number; page: number; pageSize: number;
@@ -67,6 +70,9 @@ export type PaymentReferenceDetail = PaymentReference & {
   }>;
   checkoutAttempts: PaymentCheckoutAttempt[]; activeAttemptId: string | null;
   gatewayEvents: PaymentGatewayEvent[]; receipt: PaymentReceipt;
+  rentalNumber: string | null; rentalEquipmentName: string | null;
+  rentalStartAt: string | null; rentalEndAt: string | null;
+  rentalQuantity: string | null; rentalUnit: string | null;
   posting: {
     financialRecordId: string | null; financialRecordNumber: string | null;
     financialRecordStatus: "Active" | "Corrected" | "Reversed" | "Voided" | null;

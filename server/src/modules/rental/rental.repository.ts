@@ -542,7 +542,7 @@ function requesterType(value: string): RequesterType {
 }
 
 function paymentMethod(value: string): PaymentMethod {
-  if (["Direct GCash", "GCash Reference Upload", "Cash", "Bank Transfer", "Other Approved Method"].includes(value)) {
+  if (["PayMongo", "Direct GCash", "GCash Reference Upload", "Cash", "Bank Transfer", "Other Approved Method"].includes(value)) {
     return value as PaymentMethod;
   }
   return "Other Approved Method";
@@ -2764,8 +2764,8 @@ export const rentalDatabase = {
           (member_id, submitted_by, payer_name, payer_contact, provider,
            reference_number, payment_purpose, related_entity_type,
            related_entity_id, amount, proof_file_path, validation_status,
-           notes, submitted_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, ?)`,
+           payment_channel, gateway_environment, notes, submitted_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, ?, ?, ?)`,
         cleanParams([
           booking.member_id,
           actor?.userId,
@@ -2777,6 +2777,14 @@ export const rentalDatabase = {
           payment.amount,
           payment.proofFileName,
           validationFromPaymentStatus(payment.status),
+          payment.paymentMethod === "PayMongo"
+            ? "PayMongo"
+            : payment.paymentMethod === "Cash"
+              ? "Cash"
+              : payment.paymentMethod === "Bank Transfer"
+                ? "Bank Transfer"
+                : "Manual GCash",
+          "Manual",
           JSON.stringify({
             recordedBy,
             status: payment.status,

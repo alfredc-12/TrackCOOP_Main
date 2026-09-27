@@ -42,6 +42,7 @@ const supportedPaymongoPurposes = new Set([
   "Associate Membership Fee",
   "Share Capital",
   "POS/Product",
+  "Rental",
 ]);
 const defaultCheckoutReuseMinutes = 30;
 
@@ -225,6 +226,7 @@ function checkoutLineName(record: PaymongoPaymentReferenceRecord) {
   if (record.paymentPurpose === "POS/Product") {
     return "Cooperative Store Order";
   }
+  if (record.paymentPurpose === "Rental") return "Rental Payment";
   return record.paymentPurpose || "TrackCOOP payment";
 }
 

@@ -270,6 +270,7 @@ export interface ScheduleConflict {
 }
 
 export type PaymentMethod =
+  | "PayMongo"
   | "Direct GCash"
   | "GCash Reference Upload"
   | "Cash"

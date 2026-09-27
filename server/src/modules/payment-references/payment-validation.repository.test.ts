@@ -36,8 +36,10 @@ test("validation list supports member/application search, failed events, amount 
   const pool = new ValidationPool();
   const result = await createPaymentValidationRepository(pool as unknown as Pool).list(query());
   assert.deepEqual(result, { items: [], total: 37, page: 3, pageSize: 10 });
-  assert.equal(pool.queries.length, 2);
-  const listSql = pool.queries[1].sql;
+  assert.equal(pool.queries.length, 4);
+  const listQuery = pool.queries.find((entry) => entry.sql.includes("ORDER BY p.amount ASC"));
+  assert.ok(listQuery);
+  const listSql = listQuery.sql;
   assert.match(listSql, /m\.member_code LIKE \?/);
   assert.match(listSql, /m\.full_name LIKE \?/);
   assert.match(listSql, /a\.application_code LIKE \?/);
@@ -47,8 +49,8 @@ test("validation list supports member/application search, failed events, amount 
   assert.match(listSql, /p\.amount <= \?/);
   assert.match(listSql, /ORDER BY p\.amount ASC/);
   assert.match(listSql, /LIMIT 10 OFFSET 20/);
-  assert.equal(pool.queries[1].values.filter((value) => value === "%NFFAC-2026-0042%").length, 8);
-  assert.deepEqual(pool.queries[1].values.slice(-2), [200, 3000]);
+  assert.equal(listQuery.values.filter((value) => value === "%NFFAC-2026-0042%").length, 11);
+  assert.deepEqual(listQuery.values.slice(-2), [200, 3000]);
 });
 
 test("safe detail query does not select raw webhook payloads, signatures, or tracking hashes", async () => {

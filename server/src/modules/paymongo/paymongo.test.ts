@@ -535,9 +535,9 @@ test("handleWebhook sanitizes unknown settlement errors and never stores raw pay
 });
 
 test("handleWebhook blocks unsupported payment purposes before settlement", async () => {
-  const signedPayload = signed(payload({ metadataPurpose: "Rental" }));
+  const signedPayload = signed(payload({ metadataPurpose: "Other" }));
   const { service, settlementCalls, failedEvents } = makeService({
-    reference: defaultReference({ paymentPurpose: "Rental" }),
+    reference: defaultReference({ paymentPurpose: "Other" }),
   });
 
   await assert.rejects(

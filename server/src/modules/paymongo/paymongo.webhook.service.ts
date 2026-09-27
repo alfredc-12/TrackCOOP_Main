@@ -88,6 +88,7 @@ const supportedPaymongoPurposes = new Set([
   "Associate Membership Fee",
   "Share Capital",
   "POS/Product",
+  "Rental",
 ]);
 
 function centsToAmount(centavos: number) {

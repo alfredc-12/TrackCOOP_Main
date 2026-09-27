@@ -13,6 +13,7 @@ import {
   queuePaymentReceipt,
   type PaymentReceiptService,
 } from "./paymongo.settlement.receipt";
+import { postRentalSettlement } from "./paymongo.settlement.rental";
 import {
   selectPaymentForSettlement,
   settlementDateTime,
@@ -99,6 +100,7 @@ type Dependencies = {
   postMembershipSettlement?: typeof postMembershipSettlement;
   postMemberShareCapitalSettlement?: typeof postMemberShareCapitalSettlement;
   postPointOfSaleSettlement?: typeof postPointOfSaleSettlement;
+  postRentalSettlement?: typeof postRentalSettlement;
   recordSettlementCommunication?: typeof recordSettlementCommunication;
   queuePaymentReceipt?: typeof queuePaymentReceipt;
   receiptService?: PaymentReceiptService;
@@ -165,7 +167,7 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
         if (!eligibleStatuses.has(payment.validationStatus)) {
           throw new AppError("Payment reference is not eligible for settlement", 409, "PAYMENT_NOT_ELIGIBLE");
         }
-        if (!["Associate Membership Fee", "Share Capital", "POS/Product"].includes(payment.paymentPurpose)) {
+        if (!["Associate Membership Fee", "Share Capital", "POS/Product", "Rental"].includes(payment.paymentPurpose)) {
           throw new AppError(
             "The payment purpose is not supported by the settlement workflow",
             409,
@@ -214,6 +216,11 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
               connection, payment: { ...payment, validationStatus: "Validated" }, actorUserId,
               gatewayDetails: input.gatewayDetails,
             })
+          : payment.paymentPurpose === "Rental"
+          ? await (dependencies.postRentalSettlement ?? postRentalSettlement)({
+              connection, payment: { ...payment, validationStatus: "Validated" }, actorUserId,
+              gatewayDetails: input.gatewayDetails,
+            })
           : payment.paymentPurpose === "Share Capital" && payment.relatedEntityType === "member_profile"
           ? await (dependencies.postMemberShareCapitalSettlement ?? postMemberShareCapitalSettlement)({
               connection, payment: { ...payment, validationStatus: "Validated" }, actorUserId,
@@ -226,8 +233,12 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
         const context = {
           memberId: posted.memberId,
           memberUserId: posted.memberUserId,
-          applicationId: "applicationId" in posted ? posted.applicationId : null,
-          applicationStatus: "applicationStatus" in posted ? posted.applicationStatus : null,
+          applicationId: "applicationId" in posted && typeof posted.applicationId === "string"
+            ? posted.applicationId
+            : null,
+          applicationStatus: "applicationStatus" in posted && typeof posted.applicationStatus === "string"
+            ? posted.applicationStatus
+            : null,
           subjectReference: posted.subjectReference,
           subjectName: posted.subjectName,
         };

@@ -1,6 +1,7 @@
 import type { Pool, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
+import { syncMissingRentalPaymentReferencesForReview } from "./payment-reference.rental-sync";
 import type {
   PaymentCheckoutAttemptSummary,
   PaymentGatewayEventSummary,
@@ -108,7 +109,26 @@ function identityJoins() {
   return `LEFT JOIN member_profiles m ON m.member_id = p.member_id
           LEFT JOIN membership_applications a
             ON p.related_entity_type = 'membership_application'
-           AND a.membership_application_id = p.related_entity_id`;
+           AND a.membership_application_id = p.related_entity_id
+          LEFT JOIN rental_bookings rental
+            ON p.payment_purpose = 'Rental'
+           AND p.related_entity_type = 'rental_bookings'
+           AND rental.rental_booking_id = p.related_entity_id
+          LEFT JOIN rental_assets rental_asset
+            ON rental_asset.rental_asset_id = rental.rental_asset_id`;
+}
+
+function rentalColumns() {
+  return `rental.booking_number AS rentalNumber,
+          rental_asset.asset_name AS rentalEquipmentName,
+          rental.start_datetime AS rentalStartAt,
+          rental.end_datetime AS rentalEndAt,
+          CASE WHEN JSON_VALID(rental.purpose)
+            THEN NULLIF(JSON_UNQUOTE(JSON_EXTRACT(rental.purpose, '$.estimatedUsage')), '')
+            ELSE NULL END AS rentalQuantity,
+          CASE WHEN JSON_VALID(rental.purpose)
+            THEN NULLIF(JSON_UNQUOTE(JSON_EXTRACT(rental.purpose, '$.unitOfMeasurement')), '')
+            ELSE NULL END AS rentalUnit`;
 }
 
 function mapPayment<T extends ListRow | DetailRow>(row: T) {
@@ -127,9 +147,11 @@ function listWhere(query: PaymentReferenceListQuery) {
     where.push(`(p.reference_number LIKE ? OR p.payer_name LIKE ? OR p.payer_email LIKE ?
       OR p.payer_contact LIKE ? OR m.member_code LIKE ? OR m.full_name LIKE ?
       OR a.application_code LIKE ? OR TRIM(CONCAT_WS(' ', a.first_name,
-          NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) LIKE ?)`);
+          NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) LIKE ?
+      OR rental.booking_number LIKE ? OR rental.requester_name LIKE ?
+      OR rental_asset.asset_name LIKE ?)`);
     const term = `%${query.search}%`;
-    values.push(term, term, term, term, term, term, term, term);
+    values.push(term, term, term, term, term, term, term, term, term, term, term);
   }
   if (query.validationStatus) { where.push("p.validation_status = ?"); values.push(query.validationStatus); }
   if (query.paymentPurpose) { where.push("p.payment_purpose = ?"); values.push(query.paymentPurpose); }
@@ -158,6 +180,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
   const databasePool = () => pool ?? getPool();
   return {
     async list(query) {
+      await syncMissingRentalPaymentReferencesForReview(databasePool());
       const { sql, values } = listWhere(query);
       const [countRows] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(DISTINCT p.payment_reference_id) AS total
@@ -178,6 +201,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
                 a.application_code AS applicationCode,
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''),
                                a.last_name, NULLIF(a.suffix, ''))) AS applicationName,
+                ${rentalColumns()},
                 (SELECT COUNT(*) FROM payment_gateway_events failed_event
                   WHERE failed_event.payment_reference_id = p.payment_reference_id
                     AND failed_event.processing_status = 'Failed') AS failedGatewayEvents
@@ -207,6 +231,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
                 a.application_code AS applicationCode,
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''),
                                a.last_name, NULLIF(a.suffix, ''))) AS applicationName,
+                ${rentalColumns()},
                 submitted_user.display_name AS submittedByName,
                 validated_user.display_name AS validatedByName
            FROM payment_references p

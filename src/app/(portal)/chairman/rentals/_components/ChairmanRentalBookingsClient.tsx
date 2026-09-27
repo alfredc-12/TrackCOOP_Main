@@ -57,10 +57,26 @@ const bookingViewLabels: Record<BookingView, string> = {
   All: "All requests",
   New: "Needs review",
   "To Schedule": "Ready to schedule",
-  Payments: "Waiting for payment",
+  Payments: "Payment review",
   Active: "In use",
   Done: "Finished",
 };
+
+function paymentIsSettled(item: RentalInquiry) {
+  return item.paymentStatus === "Paid" || item.status === "Payment Confirmed";
+}
+
+function scheduleIsReady(item: RentalInquiry) {
+  return item.scheduleStatus === "Confirmed" || item.status === "Scheduled";
+}
+
+function needsPaymentReview(item: RentalInquiry) {
+  if (paymentIsSettled(item)) return false;
+  return (
+    ["Payment Pending", "Payment Under Review"].includes(item.status) ||
+    ["Pending", "Under Review", "Partially Paid", "Needs Clarification"].includes(item.paymentStatus)
+  );
+}
 
 function matchesBookingView(item: RentalInquiry, view: BookingView) {
   if (view === "All") return true;
@@ -78,14 +94,9 @@ function matchesBookingView(item: RentalInquiry, view: BookingView) {
       "Awaiting Confirmation",
       "Scheduled",
       "Rescheduled",
-    ].includes(item.status);
+    ].includes(item.status) || (paymentIsSettled(item) && !scheduleIsReady(item));
   }
-  if (view === "Payments") {
-    return (
-      ["Payment Pending", "Payment Under Review", "Payment Confirmed"].includes(item.status) ||
-      ["Under Review", "Partially Paid", "Paid", "Needs Clarification"].includes(item.paymentStatus)
-    );
-  }
+  if (view === "Payments") return needsPaymentReview(item);
   if (view === "Active") return item.status === "In Progress";
   return ["Completed", "Cancelled", "Rejected"].includes(item.status);
 }
@@ -192,7 +203,7 @@ export function ChairmanRentalBookingsClient() {
         icon: CalendarCheck2,
       },
       {
-        label: "Waiting for payment",
+        label: "Payment review",
         value: viewCounts.get("Payments") ?? 0,
         icon: WalletCards,
       },
@@ -353,30 +364,7 @@ export function ChairmanRentalBookingsClient() {
         ))}
       </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-2">
-          {bookingViews.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setView(item);
-                setPage(1);
-              }}
-              className={`min-h-11 rounded-full px-4 text-xs font-bold ${
-                view === item
-                  ? "bg-[#123D2A] text-white"
-                  : "border border-[#CAD8CB] bg-white text-[#294B39]"
-              }`}
-            >
-              {bookingViewLabels[item]}
-              <span className="ml-2 opacity-70">{viewCounts.get(item) ?? 0}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(4,minmax(0,1fr))]">
+      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))]">
         <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
           Search
           <span className="relative">
@@ -393,6 +381,14 @@ export function ChairmanRentalBookingsClient() {
             />
           </span>
         </label>
+        <QueueFilter
+          value={view}
+          counts={viewCounts}
+          onChange={(value) => {
+            setView(value);
+            setPage(1);
+          }}
+        />
         <Filter
           label="Asset"
           value={asset}
@@ -723,5 +719,32 @@ function Filter({
       <span>{label}</span>
       <StyledSelect value={value} options={options} onChange={onChange} />
     </div>
+  );
+}
+
+function QueueFilter({
+  value,
+  counts,
+  onChange,
+}: {
+  value: BookingView;
+  counts: Map<BookingView, number>;
+  onChange: (value: BookingView) => void;
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
+      Request queue
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as BookingView)}
+        className="h-11 rounded-md border border-[#9BC7A9] bg-[#F7F8F3] px-4 text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+      >
+        {bookingViews.map((item) => (
+          <option key={item} value={item}>
+            {bookingViewLabels[item]} ({counts.get(item) ?? 0})
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

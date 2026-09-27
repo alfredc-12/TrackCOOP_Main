@@ -403,7 +403,6 @@ const statusFilters: AssetStatusFilter[] = [
 
 const quickAvailabilityOptions: Array<EquipmentAvailability["status"]> = [
   "Available",
-  "Under Maintenance",
   "Unavailable",
 ];
 

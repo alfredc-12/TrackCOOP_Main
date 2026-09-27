@@ -5,6 +5,7 @@ import { withTransaction } from "../../db/transaction";
 import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
+import { syncMissingRentalPaymentReferencesForReview } from "./payment-reference.rental-sync";
 import type {
   PaymentGatewayEventSummary,
   PaymentPostingSummary,
@@ -267,6 +268,7 @@ export function createPaymentReferenceRepository(
     },
 
     async summary() {
+      await syncMissingRentalPaymentReferencesForReview(databasePool());
       const [rows] = await databasePool().execute<SummaryRow[]>(
         `SELECT COUNT(*) AS total,
                 SUM(validation_status = 'Pending' AND payment_channel <> 'PayMongo') AS pendingManual,
