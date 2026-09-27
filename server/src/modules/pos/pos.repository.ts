@@ -328,9 +328,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
              (member_id, submitted_by, payer_name, payer_email, payer_contact,
               provider, payment_channel, reference_number, payment_purpose,
               related_entity_type, related_entity_id, amount, validation_status)
-           VALUES (?, ?, ?, ?, ?, 'PayMongo', 'PayMongo', ?, 'POS/Product',
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'POS/Product',
                    'pos_sales', ?, ?, 'Pending')`,
-          [memberId, submittedBy, customerName, customerEmail, customerContact, referenceNumber, saleId, totalAmount],
+          [memberId, submittedBy, customerName, customerEmail, customerContact, input.paymentMethod === "Cash" ? "Cash" : "PayMongo", input.paymentMethod === "Cash" ? "Cash" : "PayMongo", referenceNumber, saleId, totalAmount],
         );
         const paymentReferenceId = refResult.insertId;
 

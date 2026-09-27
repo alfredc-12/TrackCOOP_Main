@@ -21,6 +21,19 @@ export function createPosService(
     listMemberHistory: (auth) => repository.listMemberHistory(auth),
     async checkout(input, auth) {
       const sale = await repository.createCheckout(input, auth);
+      if (input.paymentMethod === "Cash") {
+        return {
+          success: true,
+          saleId: sale.saleId,
+          totalAmount: sale.totalAmount,
+          discountAmount: sale.discountAmount,
+          paymentReferenceId: sale.paymentReferenceId,
+          checkoutUrl: null,
+          checkoutId: null,
+          gatewayStatus: "cash_pending",
+          mode: "cash",
+        };
+      }
       const checkout = await paymongoService.createPointOfSaleCheckout(String(sale.paymentReferenceId));
       return {
         success: true,

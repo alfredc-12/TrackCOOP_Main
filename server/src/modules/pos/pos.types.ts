@@ -5,6 +5,7 @@ export type CheckoutItem = {
 
 export type CheckoutPayload = {
   items?: CheckoutItem[];
+  paymentMethod?: "Cash" | "Online Payment";
   paymentName?: string;
   paymentEmail?: string;
   paymentContact?: string;

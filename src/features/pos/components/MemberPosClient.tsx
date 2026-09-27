@@ -128,6 +128,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [paymentName, setPaymentName] = useState("");
     const [paymentEmail, setPaymentEmail] = useState("");
     const [paymentContact, setPaymentContact] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online Payment">("Online Payment");
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
     const [checkoutErrors, setCheckoutErrors] = useState<Record<string, string>>({});
@@ -176,6 +177,22 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                     setPaymentEmail(prev => prev || user.email || "");
                 }
             }).catch(console.error);
+
+            expressFetch("/api/members/me/profile")
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to fetch member profile");
+                    return response.json() as Promise<{ contact_number?: string | null }>;
+                })
+                .then(profile => {
+                    const digits = String(profile.contact_number ?? "").replace(/\D/g, "");
+                    const normalized = digits.startsWith("63")
+                        ? digits.slice(2)
+                        : digits.startsWith("0")
+                            ? digits.slice(1)
+                            : digits;
+                    setPaymentContact(prev => prev || (normalized.length === 10 && normalized.startsWith("9") ? normalized : ""));
+                })
+                .catch(console.error);
         }
 
         return () => {
@@ -376,12 +393,12 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                 method: "POST",
                 signal: controller.signal,
                 headers: { "Content-Type": "application/json", "X-Checkout-Request-Id": checkoutRequestId },
-                body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact: `+63${paymentContact}` }),
+                body: JSON.stringify({ items: cart, paymentName, paymentEmail, paymentContact: `+63${paymentContact}`, paymentMethod }),
             });
             const data = await res.json().catch(() => null);
 
             if (res.ok) {
-                if (data?.checkoutUrl) {
+                if (data?.checkoutUrl && paymentMethod === "Online Payment") {
                     setCheckoutStatusMessage("Opening secure payment checkout...");
                     setCart([]);
                     setIsConfirmCheckoutModalOpen(false);
@@ -676,10 +693,21 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                                 <CreditCard className="size-6" />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="font-bold text-[#123D2A]">Pay securely with PayMongo</p>
+                                                <p className="font-bold text-[#123D2A]">{paymentMethod === "Online Payment" ? "Pay securely with PayMongo" : "Pay with Cash"}</p>
                                                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                                                    After confirming, TrackCOOP will reserve your items and open PayMongo checkout. Stock is deducted after PayMongo confirms the payment.
+                                                    {paymentMethod === "Online Payment" ? "After confirming, TrackCOOP will reserve your items and open PayMongo checkout." : "After confirming, your cash payment request will be recorded for cooperative staff validation."} Stock is deducted after payment is confirmed.
                                                 </p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 text-left">
+                                            <p className="mb-2 text-sm font-semibold text-gray-700">Payment Method</p>
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                {(["Online Payment", "Cash"] as const).map((method) => (
+                                                    <label key={method} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-semibold ${paymentMethod === method ? "border-[#0F9D58] bg-[#EEF8F0] text-[#123D2A]" : "border-gray-200 bg-white text-gray-600"}`}>
+                                                        <input type="radio" name="member-pos-payment-method" value={method} checked={paymentMethod === method} onChange={() => setPaymentMethod(method)} />
+                                                        {method}
+                                                    </label>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>

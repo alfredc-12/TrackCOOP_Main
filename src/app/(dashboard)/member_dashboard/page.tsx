@@ -40,9 +40,11 @@ import {
   Images,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowDownLeft,
   Clock,
   CheckCircle2,
   ShoppingBag,
+  Store,
   Tractor,
   TrendingUp,
   Download,
@@ -63,7 +65,6 @@ import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
-import ActivityModal from "./components/ActivityModal";
 import {
   getMemberPatronage,
   type MemberPatronageSummary,
@@ -93,7 +94,6 @@ export default function MemberDashboardPage() {
   const [announcementPage, setAnnouncementPage] = useState(1);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   
   const [readMoreModalOpen, setReadMoreModalOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(null);
@@ -108,19 +108,23 @@ export default function MemberDashboardPage() {
 
   const [user, setUser] = useState<AuthUser | null>(null);
 
+  const refreshDashboard = () => {
+    expressFetch("/api/members/me/dashboard")
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to refresh dashboard");
+        return res.json();
+      })
+      .then(setDashboardData)
+      .catch(console.error);
+  };
+
   useEffect(() => {
     getAuthenticatedUser()
       .then(setUser)
       .catch(console.error);
 
-    expressFetch("/api/members/me/dashboard")
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch dashboard");
-        return res.json();
-      })
-      .then(setDashboardData)
-      .catch(console.error)
-      .finally(() => setIsFetchingDashboard(false));
+    refreshDashboard();
+    setIsFetchingDashboard(false);
 
     getMemberPatronage()
       .then((data) => {
@@ -132,6 +136,17 @@ export default function MemberDashboardPage() {
         setPatronageLoadError(true);
       })
       .finally(() => setIsFetchingPatronage(false));
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refreshDashboard();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 15_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, []);
 
   const fetchAnnouncements = () => {
@@ -152,6 +167,12 @@ export default function MemberDashboardPage() {
       fetchAnnouncements();
     }
   }, [activeTab, announcements.length]);
+
+  useEffect(() => {
+    if (activeTab !== "Announcements") return;
+    const interval = window.setInterval(fetchAnnouncements, 30_000);
+    return () => window.clearInterval(interval);
+  }, [activeTab]);
 
   useEffect(() => {
     if (readMoreModalOpen) {
@@ -199,6 +220,8 @@ export default function MemberDashboardPage() {
       if (selectedAnnouncement && selectedAnnouncement.id === ackId) {
         setSelectedAnnouncement({ ...selectedAnnouncement, isAcknowledged: true });
       }
+      fetchAnnouncements();
+      refreshDashboard();
       setAckModalOpen(false);
       setAckId(null);
       setSuccessMessage("Announcement successfully acknowledged!");
@@ -633,7 +656,6 @@ export default function MemberDashboardPage() {
                 <section className="lg:col-span-2 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm sm:p-8">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-[#173626]">Recent Activity</h3>
-                    <button onClick={() => setIsActivityModalOpen(true)} className="text-sm font-semibold text-[#2F7D57] hover:text-[#123D2A]">View All</button>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -653,7 +675,7 @@ export default function MemberDashboardPage() {
                               <td className="py-4">
                                 <div className="flex items-center gap-3">
                                   <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.type.includes('Deposit') ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                                    {item.type.includes('Deposit') ? <ArrowDownRight className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
+                                    {item.type.includes('Deposit') ? <ArrowDownLeft className="h-5 w-5" /> : <Store className="h-5 w-5" />}
                                   </div>
                                   <span className="font-medium text-[#173626]">{item.type}</span>
                                 </div>
@@ -661,15 +683,15 @@ export default function MemberDashboardPage() {
                               <td className="py-4 text-[#6B7280]">
                                 {new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}
                               </td>
-                              <td className="py-4 font-bold text-[#173626]">
+                              <td className={`relative py-4 font-bold ${item.amount == null ? 'text-transparent after:absolute after:left-4 after:top-1/2 after:-translate-y-1/2 after:text-[#9CA3AF] after:content-["—"]' : item.type.includes('Deposit') ? 'text-green-700' : 'text-[#173626]'}`}>
                                 {item.type.includes('Deposit') ? '+' : '-'} ₱{Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                               </td>
                               <td className="py-4">
-                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' ? 'bg-green-50 text-green-700 border-green-200' :
-                                    item.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    item.status === 'Pending' || item.status === 'Not Acknowledged' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                       'bg-red-50 text-red-700 border-red-200'
                                   }`}>
-                                  {item.status === 'Completed' || item.status === 'Validated' ? <CheckCircle2 className="h-3 w-3" /> :
+                                  {item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' ? <CheckCircle2 className="h-3 w-3" /> :
                                     item.status === 'Pending' ? <Clock className="h-3 w-3" /> : <X className="h-3 w-3" />}
                                   {item.status}
                                 </span>
@@ -1191,7 +1213,6 @@ export default function MemberDashboardPage() {
       <div className="mt-20">
         <SiteFooter />
       </div>
-      <ActivityModal open={isActivityModalOpen} onOpenChange={setIsActivityModalOpen} />
 
       {typeof document !== "undefined"
         ? createPortal(
@@ -1206,7 +1227,7 @@ export default function MemberDashboardPage() {
                   className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:p-6 pointer-events-auto"
                   onClick={() => setReadMoreModalOpen(false)}
                 >
-                  <div className="w-full max-w-4xl max-h-full overflow-hidden rounded-[24px] bg-[#FFFAF2] shadow-2xl">
+                  <div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-[24px] bg-[#FFFAF2] shadow-2xl">
                     <motion.article
                       className="flex h-full max-h-[90vh] flex-col overflow-hidden bg-[#FFFAF2]"
                       onClick={(e) => e.stopPropagation()}
@@ -1247,7 +1268,7 @@ export default function MemberDashboardPage() {
                         </div>
 
                         <div className="flex flex-col">
-                          <div className="relative h-64 sm:h-80 bg-[#123D2A] shrink-0">
+                          <div className="relative h-72 sm:h-96 bg-[#123D2A] shrink-0">
                             {selectedAnnouncement.featuredImagePath ? (
                               <img
                                 src={resolveUploadUrl(selectedAnnouncement.featuredImagePath)}
@@ -1273,26 +1294,31 @@ export default function MemberDashboardPage() {
                             </div>
                           </div>
 
-                          <div className="flex flex-col p-6 sm:p-8 max-h-[50vh] overflow-y-auto">
+                          <div className="flex min-w-0 flex-col overflow-x-hidden p-6 sm:p-8 max-h-[50vh] overflow-y-auto">
                             <div 
-                              className="whitespace-pre-line text-base leading-relaxed text-[#123D2A] quill-content"
+                              className="quill-content min-w-0 max-w-full overflow-x-hidden whitespace-pre-line break-words text-base leading-relaxed text-[#123D2A] [&_*]:max-w-full [&_img]:h-auto [&_img]:object-contain"
                               dangerouslySetInnerHTML={{ __html: selectedAnnouncement.message }}
                             />
                           </div>
 
-                          {!selectedAnnouncement.isAcknowledged && (
-                            <div className="flex justify-end border-t border-gray-100 bg-[#FFFAF2] p-4 sm:px-8 shrink-0">
+                          <div className="flex justify-end border-t border-gray-100 bg-[#FFFAF2] p-4 sm:px-8 shrink-0">
+                            {selectedAnnouncement.isAcknowledged ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-700">
+                                <ShieldCheck className="size-4" />
+                                Acknowledged
+                              </span>
+                            ) : (
                               <button 
                                 onClick={() => {
                                   confirmAcknowledge(selectedAnnouncement.id, "readMore");
                                 }}
-                                className="inline-flex items-center gap-1.5 rounded-full bg-[#173626] px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#122A1E] shadow-sm hover:shadow-md"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-[#173626] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#122A1E] shadow-sm hover:shadow-md"
                               >
-                                <ShieldCheck className="size-3.5" />
+                                <ShieldCheck className="size-4" />
                                 Acknowledge
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                     </motion.article>

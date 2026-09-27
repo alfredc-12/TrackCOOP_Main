@@ -98,7 +98,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         `SELECT pos_sale_id as id,
                 sale_date as date,
                 total_amount as amount,
-                sale_status as status,
+                CASE WHEN sale_status = 'Completed' THEN 'Paid' ELSE sale_status END as status,
                 'Coop Store Purchase' as type
            FROM pos_sales
           WHERE member_id = ?
@@ -134,8 +134,37 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           LIMIT 5`,
         [member.member_id],
       );
+      const [rentals] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT rental_booking_id as id,
+                start_datetime as date,
+                total_amount as amount,
+                booking_status as status,
+                'Rental Booking' as type
+           FROM rental_bookings
+          WHERE member_id = ?
+          ORDER BY start_datetime DESC
+          LIMIT 5`,
+        [member.member_id],
+      );
 
-      const recentActivity = [...sales, ...deposits, ...pendingDeposits]
+      const [announcements] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT announcement_id as id,
+                created_at as date,
+                NULL as amount,
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM announcement_acknowledgments ack
+                   WHERE ack.announcement_id = announcements.announcement_id
+                     AND ack.user_id = ?
+                ) THEN 'Acknowledged' ELSE 'Not Acknowledged' END as status,
+                CONCAT('Announcement: ', title) as type
+           FROM announcements
+          WHERE announcement_status = 'Published'
+          ORDER BY created_at DESC
+          LIMIT 5`,
+        [auth.user.id],
+      );
+
+      const recentActivity = [...sales, ...deposits, ...pendingDeposits, ...rentals, ...announcements]
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
         .slice(0, 5);
 
@@ -183,41 +212,49 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       const member = await requireMemberForUser(auth.user.id);
       const { page, pageSize, offset } = pagination(query);
       const search = query.search || "";
-      let whereClause = "";
-      const queryParams: SqlValue[] = [member.member_id, member.member_id];
-
-      if (search) {
-        whereClause = "WHERE (type LIKE ? OR status LIKE ?)";
-        const searchPattern = `%${search}%`;
-        queryParams.push(searchPattern, searchPattern);
-      }
-
-      const [countResult] = await databasePool().execute<CountRow[]>(
-        `SELECT COUNT(*) as total FROM (
-          SELECT sale_status as status, 'Coop Store Purchase' as type
-          FROM pos_sales WHERE member_id = ?
-          UNION ALL
-          SELECT payment_status as status, 'Share Capital Deposit' as type
-          FROM share_capital_payments WHERE member_id = ?
-        ) as combined
-        ${whereClause}`,
-        queryParams,
+      const [sales] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT pos_sale_id as id, sale_date as date, total_amount as amount,
+                CASE WHEN sale_status = 'Completed' THEN 'Paid' ELSE sale_status END as status,
+                'Coop Store Purchase' as type
+           FROM pos_sales
+          WHERE member_id = ?`,
+        [member.member_id],
       );
-      const total = Number(countResult[0]?.total || 0);
-
-      const [records] = await databasePool().execute<RowDataPacket[]>(
-        `SELECT * FROM (
-          SELECT pos_sale_id as id, sale_date as date, total_amount as amount, sale_status as status, 'Coop Store Purchase' as type
-          FROM pos_sales WHERE member_id = ?
-          UNION ALL
-          SELECT share_payment_id as id, payment_date as date, amount, payment_status as status, 'Share Capital Deposit' as type
-          FROM share_capital_payments WHERE member_id = ?
-        ) as combined
-        ${whereClause}
-        ORDER BY date DESC
-        LIMIT ? OFFSET ?`,
-        [...queryParams, pageSize, offset],
+      const [deposits] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT share_payment_id as id, payment_date as date, amount,
+                payment_status as status, 'Share Capital Deposit' as type
+           FROM share_capital_payments
+          WHERE member_id = ?`,
+        [member.member_id],
       );
+      const [pendingDeposits] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT payment_reference_id as id, submitted_at as date, amount,
+                validation_status as status, 'Share Capital Deposit' as type
+           FROM payment_references
+          WHERE related_entity_id = ?
+            AND payment_purpose = 'Share Capital'
+            AND validation_status = 'Pending'`,
+        [member.member_id],
+      );
+      const [rentals] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT rental_booking_id as id, start_datetime as date, total_amount as amount,
+                booking_status as status, 'Rental Booking' as type
+           FROM rental_bookings
+          WHERE member_id = ?`,
+        [member.member_id],
+      );
+      const [announcements] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT announcement_id as id, created_at as date, NULL as amount,
+                'Published' as status, CONCAT('Announcement: ', title) as type
+           FROM announcements
+          WHERE announcement_status = 'Published'`,
+      );
+      const searchPattern = search.trim().toLowerCase();
+      const allRecords = [...sales, ...deposits, ...pendingDeposits, ...rentals, ...announcements]
+        .filter((record) => !searchPattern || `${record.type} ${record.status}`.toLowerCase().includes(searchPattern))
+        .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime());
+      const total = allRecords.length;
+      const records = allRecords.slice(offset, offset + pageSize);
 
       return {
         records,
