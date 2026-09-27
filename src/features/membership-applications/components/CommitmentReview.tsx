@@ -16,7 +16,7 @@ const commitments = [
   },
   {
     name: "membershipFeeCommitmentAccepted",
-    text: "I agree to pay the configured PHP 200 associate membership fee.",
+    text: "I understand the payment for my chosen membership type.",
   },
   {
     name: "shareSubscriptionCommitmentAccepted",
@@ -24,11 +24,11 @@ const commitments = [
   },
   {
     name: "initialShareCapitalAcknowledged",
-    text: "When pursuing True Member status, I acknowledge the configured PHP 3,000 initial share-capital amount.",
+    text: "When pursuing True Member status, I acknowledge the PHP 1,500 share-capital payment.",
   },
   {
     name: "trueMemberRequirementAcknowledged",
-    text: "I acknowledge the PHP 3,000 True Member requirement and the 12-month completion period.",
+    text: "I understand that PHP 1,500 share capital qualifies my application for True Member approval.",
   },
   {
     name: "bylawsAgreementAccepted",
@@ -46,6 +46,7 @@ const commitments = [
 
 export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewProps) {
   const values = watch();
+  const isTrueMember = values.requestedMembershipType === "True Member";
   const allAccepted = commitments.every((item) => values[item.name]);
 
   function setAllAccepted(accepted: boolean) {
@@ -59,11 +60,11 @@ export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewPr
       <div className="grid gap-4 rounded-[1.5rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm md:grid-cols-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b62a]">Required Share Capital</p>
-          <p className="mt-2 text-2xl font-black text-[#123D2A]">PHP 3,000</p>
+          <p className="mt-2 text-2xl font-black text-[#123D2A]">{isTrueMember ? "PHP 1,500" : "Not required"}</p>
         </div>
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b62a]">Membership Fee</p>
-          <p className="mt-2 text-2xl font-black text-[#123D2A]">PHP 200</p>
+          <p className="mt-2 text-2xl font-black text-[#123D2A]">{isTrueMember ? "Not required" : "PHP 200"}</p>
         </div>
         <div className="rounded-2xl bg-white p-4 text-sm font-semibold leading-6 text-[#365F4A]">
           You do not pay now. Payment is only requested after NFFAC completes the first review.

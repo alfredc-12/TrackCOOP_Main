@@ -95,6 +95,9 @@ export function createPaymongoMembershipInstallmentRepository(
             "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
           );
         }
+        if (input.purpose === "Associate Membership Fee" && application.requestedMembershipType !== "Associate") {
+          throw new AppError("True Member applicants pay share capital only", 409, "MEMBERSHIP_FEE_NOT_REQUIRED");
+        }
 
         const aggregate = await paymentAggregate(connection, {
           applicationId: input.application.id,
@@ -189,6 +192,9 @@ export function createPaymongoMembershipInstallmentRepository(
             "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
           );
         }
+        if (input.purpose === "Associate Membership Fee" && application.requestedMembershipType !== "Associate") {
+          throw new AppError("True Member applicants pay share capital only", 409, "MEMBERSHIP_FEE_NOT_REQUIRED");
+        }
 
         const aggregate = await paymentAggregate(connection, {
           applicationId: input.applicationId,
@@ -258,7 +264,7 @@ export function createPaymongoMembershipInstallmentRepository(
       const feeRequirement = requirementRows.find(
         (row) => row.requirementType === "Associate Membership Fee",
       );
-      if (!feeRequirement) {
+      if (!feeRequirement && input.application.requestedMembershipType === "Associate") {
         throw new AppError(
           "The membership fee requirement was not found",
           409,
@@ -318,7 +324,7 @@ export function createPaymongoMembershipInstallmentRepository(
         capitalPendingAmount: capital.pendingAmount,
         installmentCount: capital.installmentCount,
         latestCheckout,
-        feeRequirementStatus: feeRequirement.requirementStatus,
+        feeRequirementStatus: feeRequirement?.requirementStatus ?? "Waived",
         capitalRequirementStatus: capitalRequirement?.requirementStatus ?? null,
       });
     },

@@ -366,8 +366,8 @@ CREATE TABLE membership_applications (
     membership_fee_amount DECIMAL(12, 2) NOT NULL DEFAULT 200.00,
     share_subscription_commitment_accepted TINYINT(1) NOT NULL DEFAULT 0,
     subscribed_shares SMALLINT UNSIGNED NULL,
-    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
-    target_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
+    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 1500.00,
+    target_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 1500.00,
     share_capital_deadline_months SMALLINT UNSIGNED NOT NULL DEFAULT 12,
     annual_interest_rate DECIMAL(5, 2) NULL,
     patronage_refund_acknowledged TINYINT(1) NOT NULL DEFAULT 0,
@@ -2168,7 +2168,7 @@ VALUES (
     (
         'Business Rules',
         'business.true_member_share_capital_required',
-        '3000.00',
+        '1500.00',
         'Number',
         'Confirmed share capital required for true membership.',
         0,
@@ -2177,7 +2177,7 @@ VALUES (
     (
         'Business Rules',
         'business.initial_share_capital_payment',
-        '3000.00',
+        '1500.00',
         'Number',
         'Confirmed initial share capital payment amount.',
         0,
@@ -2267,7 +2267,7 @@ VALUES (
     (
         'membership',
         'membership.initial_share_capital',
-        '3000',
+        '1500',
         'Number',
         'Initial share-capital payment in Philippine pesos.',
         0,
@@ -2276,7 +2276,7 @@ VALUES (
     (
         'membership',
         'membership.true_member_required_capital',
-        '3000',
+        '1500',
         'Number',
         'Share-capital target required for true-member approval in Philippine pesos.',
         0,
@@ -2396,7 +2396,7 @@ SELECT
                         setting_key = 'business.true_member_share_capital_required'
                     LIMIT 1
                 ),
-                '3000.00'
+                '1500.00'
             ) AS DECIMAL(12, 2)
         ) - COALESCE(
             SUM(
@@ -2427,7 +2427,7 @@ SELECT
                         setting_key = 'business.initial_share_capital_payment'
                     LIMIT 1
                 ),
-                '3000.00'
+                '1500.00'
             ) AS DECIMAL(12, 2)
         ) THEN 1
         ELSE 0
@@ -2450,7 +2450,7 @@ SELECT
                         setting_key = 'business.true_member_share_capital_required'
                     LIMIT 1
                 ),
-                '3000.00'
+                '1500.00'
             ) AS DECIMAL(12, 2)
         ) THEN 1
         ELSE 0

@@ -105,6 +105,7 @@ export function createMembershipApprovalConversionService(
         const feeTotal = await synchronizeApprovalRequirements({
           connection,
           actorUserId: auth.user.id,
+          requestedMembershipType: application.requestedMembershipType,
           requirements,
           settings,
           feeReferences,
@@ -114,7 +115,8 @@ export function createMembershipApprovalConversionService(
         });
         const requirementsByType = validateApprovalRequirements(application, requirements);
         if (
-          requirementsByType.get("Associate Membership Fee")?.requirementStatus !== "Waived"
+          application.requestedMembershipType === "Associate"
+          && requirementsByType.get("Associate Membership Fee")?.requirementStatus !== "Waived"
           && feeTotal < approvalMoney(settings.associateFee)
         ) {
           throw new AppError(

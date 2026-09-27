@@ -115,7 +115,7 @@ export function ApplicationStatusPayments() {
   const [checkoutAction, setCheckoutAction] = useState<
     "Associate Membership Fee" | "Share Capital" | null
   >(null);
-  const [shareCapitalAmount, setShareCapitalAmount] = useState("3000");
+  const [shareCapitalAmount, setShareCapitalAmount] = useState("1500");
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [followUpSuccess, setFollowUpSuccess] = useState<string | null>(null);
   const [uploadingFollowUpDocumentType, setUploadingFollowUpDocumentType] =
@@ -467,7 +467,9 @@ function ApplicantNextActionCard({
   const isPaymentStage = status.applicationStatus === "Payment Required";
   const isPaymentConfirmed = status.applicationStatus === "Payment Confirmed";
   const needsInformation = status.applicationStatus === "Needs Information";
-  const totalDue = status.membershipFee.remainingAmount + Math.max(0, Number(shareCapitalAmount || 0));
+  const totalDue = status.requestedMembershipType === "True Member"
+    ? Math.max(0, Number(shareCapitalAmount || 0))
+    : status.membershipFee.remainingAmount;
 
   return (
     <article className="rounded-[2rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm sm:p-6">
@@ -516,11 +518,13 @@ function ApplicantNextActionCard({
 
       {isPaymentStage ? (
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          <ReviewActionCard
-            status={status}
-            checkoutAction={checkoutAction}
-            onStartCheckout={onStartCheckout}
-          />
+          {status.requestedMembershipType === "Associate" ? (
+            <ReviewActionCard
+              status={status}
+              checkoutAction={checkoutAction}
+              onStartCheckout={onStartCheckout}
+            />
+          ) : null}
           {status.requestedMembershipType === "True Member" ? (
             <ShareCapitalActionCard
               status={status}
@@ -531,10 +535,12 @@ function ApplicantNextActionCard({
             />
           ) : null}
           <div className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 xl:col-span-2">
-            <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
-              <span>Membership Fee</span>
-              <strong className="text-[#123D2A]">{peso(status.membershipFee.remainingAmount)}</strong>
-            </div>
+            {status.requestedMembershipType === "Associate" ? (
+              <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
+                <span>Membership Fee</span>
+                <strong className="text-[#123D2A]">{peso(status.membershipFee.remainingAmount)}</strong>
+              </div>
+            ) : null}
             {status.requestedMembershipType === "True Member" ? (
               <div className="mt-2 flex justify-between text-sm font-semibold text-[#365F4A]">
                 <span>Share Capital</span>
@@ -866,7 +872,7 @@ function ShareCapitalActionCard({
     <PanelCard icon={Wallet} title="Share capital">
       <div className="grid gap-2 text-xs sm:grid-cols-3">
         <MiniMetric label="Validated" value={peso(status.shareCapital.validatedAmount)} />
-        <MiniMetric label="Remaining to PHP 3,000" value={peso(status.shareCapital.remainingToTarget)} />
+        <MiniMetric label="Remaining to PHP 1,500" value={peso(status.shareCapital.remainingToTarget)} />
         <MiniMetric label="Remaining to PHP 15,000 max" value={peso(status.shareCapital.remainingToMaximum)} />
       </div>
       <p className="mt-3 text-[0.68rem] font-bold leading-5 text-[#5D6D63]">
@@ -883,6 +889,7 @@ function ShareCapitalActionCard({
               max={status.shareCapital.remainingToMaximum}
               step="0.01"
               value={shareCapitalAmount}
+              readOnly
               disabled={status.shareCapital.pendingAmount > 0}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 onShareCapitalAmountChange(event.target.value)

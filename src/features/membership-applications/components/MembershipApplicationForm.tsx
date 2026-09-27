@@ -793,7 +793,7 @@ function ApplicationSummaryRail({
         </h3>
         <dl className="mt-5 grid gap-4 text-sm">
           <SummaryMetric label="Membership Path" value={membershipPath} />
-          <SummaryMetric label="Required Share Capital" value={membershipPath === "True Member" ? "PHP 3,000" : "Not required yet"} />
+          <SummaryMetric label="Membership payment" value={membershipPath === "True Member" ? "PHP 1,500" : "PHP 200"} />
           <SummaryMetric label="Payment" value="Not required yet" />
           <SummaryMetric label="Progress" value={`${completed} of 5 sections active`} />
           <SummaryMetric label="Documents" value={`${uploads.filter((upload) => upload.file).length} ready`} />
@@ -1090,14 +1090,18 @@ function MembershipStep({
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#D8A011]">
               {membershipType} Membership
             </p>
-            <h3 className="mt-2 text-2xl font-black text-[#123D2A]">Required Share Capital: PHP 3,000</h3>
+            <h3 className="mt-2 text-2xl font-black text-[#123D2A]">
+              {membershipType === "True Member" ? "Share Capital: PHP 1,500" : "Membership Fee: PHP 200"}
+            </h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
               You do not pay now. Your application must first be reviewed and accepted by NFFAC.
             </p>
           </div>
           <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-bold text-[#365F4A]">
-            Membership Fee
-            <span className="mt-1 block text-2xl font-black text-[#123D2A]">PHP 200</span>
+            Total to pay after review
+            <span className="mt-1 block text-2xl font-black text-[#123D2A]">
+              {membershipType === "True Member" ? "PHP 1,500" : "PHP 200"}
+            </span>
           </div>
         </div>
         <div className="p-5">
@@ -1296,7 +1300,7 @@ function FinalReviewStep({
 
         <ReviewDashboardCard title="Membership" onEdit={() => onEditStep(2)}>
           <strong className="text-[#123D2A]">{values.requestedMembershipType}</strong>
-          <span>Share Capital Requirement: PHP 3,000</span>
+          <span>True Member share capital: PHP 1,500 / Associate fee: PHP 200</span>
           <span>Payment: Not required until application review</span>
         </ReviewDashboardCard>
 

@@ -52,6 +52,8 @@ type PaymentPurpose = "Associate Membership Fee" | "Share Capital";
 
 const manualChannels: ManualChannel[] = ["Cash", "Manual GCash", "Bank Transfer", "Other"];
 const simpleStatuses = ["All", "Needs payment", "For checking", "Approved", "Needs correction"] as const;
+const associateMembershipFee = 200;
+const trueMemberInitialCapital = 1500;
 
 function money(value: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -99,18 +101,76 @@ function defaultReference(applicationCode: string, purpose: PaymentPurpose, chan
   return `${applicationCode}-${channelCode}-${purposeCode}-${String(Date.now()).slice(-6)}`;
 }
 
-function requirementOpen(
-  detail: ChairmanApplicationDetail | null,
-  type: "Associate Membership Fee" | "Initial Share Capital",
-) {
-  const requirement = detail?.requirements.find((item) => item.requirementType === type);
-  return !requirement || !["Verified", "Waived"].includes(requirement.requirementStatus);
-}
-
 function paymentPurposeLabel(purpose: string) {
   if (purpose === "Associate Membership Fee") return "Membership fee";
   if (purpose === "Share Capital") return "Initial share capital";
   return purpose;
+}
+
+function paymentBelongsToApplication(
+  payment: PaymentReferenceListItem,
+  application: ChairmanApplicationListItem | ChairmanApplicationDetail,
+) {
+  return (
+    payment.relatedEntityId === application.id ||
+    payment.applicationCode === application.applicationCode
+  );
+}
+
+function isUsableApplicationPayment(payment: PaymentReferenceListItem) {
+  return payment.validationStatus !== "Rejected" && payment.validationStatus !== "Reversed";
+}
+
+function applicationPaymentTotal(
+  application: ChairmanApplicationListItem | ChairmanApplicationDetail,
+  payments: PaymentReferenceListItem[],
+  purpose: PaymentPurpose,
+) {
+  return payments
+    .filter(
+      (payment) =>
+        isUsableApplicationPayment(payment) &&
+        paymentBelongsToApplication(payment, application) &&
+        payment.paymentPurpose === purpose,
+    )
+    .reduce((sum, payment) => sum + payment.amount, 0);
+}
+
+function nextRequiredPayment(
+  application: ChairmanApplicationListItem | ChairmanApplicationDetail,
+  payments: PaymentReferenceListItem[],
+): { purpose: PaymentPurpose; amount: number; label: string } | null {
+  const hasMembershipFeePayment = payments.some(
+    (payment) =>
+      isUsableApplicationPayment(payment) &&
+      paymentBelongsToApplication(payment, application) &&
+      payment.paymentPurpose === "Associate Membership Fee" &&
+      payment.amount === associateMembershipFee,
+  );
+  if (application.requestedMembershipType === "Associate" && !hasMembershipFeePayment) {
+    return {
+      purpose: "Associate Membership Fee",
+      amount: associateMembershipFee,
+      label: "Membership fee",
+    };
+  }
+  if (
+    application.requestedMembershipType === "True Member" &&
+    applicationPaymentTotal(application, payments, "Share Capital") < trueMemberInitialCapital
+  ) {
+    return {
+      purpose: "Share Capital",
+      amount: trueMemberInitialCapital,
+      label: "Initial share capital",
+    };
+  }
+  return null;
+}
+
+function amountForPurpose(purpose: PaymentPurpose) {
+  return purpose === "Associate Membership Fee"
+    ? associateMembershipFee
+    : trueMemberInitialCapital;
 }
 
 function applicantName(application: ChairmanApplicationListItem | ChairmanApplicationDetail) {
@@ -218,6 +278,10 @@ export function MembershipPaymentsView() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  const applicationsNeedingPayment = useMemo(() => {
+    return applications.filter((application) => nextRequiredPayment(application, payments));
+  }, [applications, payments]);
+
   const summary = useMemo(() => {
     const pendingManual = payments.filter(
       (payment) => payment.validationStatus !== "Validated" && payment.paymentChannel !== "PayMongo",
@@ -227,18 +291,18 @@ export function MembershipPaymentsView() {
     ).length;
     const approved = payments.filter((payment) => payment.validationStatus === "Validated");
     return {
-      needsPayment: applications.length,
+      needsPayment: applicationsNeedingPayment.length,
       forChecking: pendingManual + pendingPaymongo,
       approved: approved.length,
       approvedAmount: approved.reduce((sum, payment) => sum + payment.amount, 0),
     };
-  }, [applications, payments]);
+  }, [applicationsNeedingPayment.length, payments]);
 
   const filteredApplications = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (statusFilter !== "All" && statusFilter !== "Needs payment") return [];
-    if (!term) return applications;
-    return applications.filter((application) =>
+    if (!term) return applicationsNeedingPayment;
+    return applicationsNeedingPayment.filter((application) =>
       [
         application.applicationCode,
         application.fullName,
@@ -246,7 +310,7 @@ export function MembershipPaymentsView() {
         application.requestedMembershipType,
       ].some((value) => value?.toLowerCase().includes(term)),
     );
-  }, [applications, search, statusFilter]);
+  }, [applicationsNeedingPayment, search, statusFilter]);
 
   const filteredPayments = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -275,14 +339,18 @@ export function MembershipPaymentsView() {
     setError("");
     try {
       const detail = await getChairmanApplication(applicationId);
-      const purpose: PaymentPurpose = requirementOpen(detail, "Associate Membership Fee")
-        ? "Associate Membership Fee"
-        : "Share Capital";
+      const nextPayment = nextRequiredPayment(detail, payments);
+      if (!nextPayment) {
+        toast.success("This applicant already has the required payment recorded.");
+        await load();
+        return;
+      }
+      const purpose = nextPayment.purpose;
       const channel: ManualChannel = "Cash";
       setSelectedApplication(detail);
       setManualPurpose(purpose);
       setManualChannel(channel);
-      setManualAmount(purpose === "Associate Membership Fee" ? "200" : "3000");
+      setManualAmount(String(nextPayment.amount));
       setManualReference(defaultReference(detail.applicationCode, purpose, channel));
       setManualNote("");
       setMoneyChecked(false);
@@ -317,13 +385,6 @@ export function MembershipPaymentsView() {
     }
   }
 
-  function updateManualPurpose(nextPurpose: PaymentPurpose) {
-    if (!selectedApplication) return;
-    setManualPurpose(nextPurpose);
-    setManualAmount(nextPurpose === "Associate Membership Fee" ? "200" : "3000");
-    setManualReference(defaultReference(selectedApplication.applicationCode, nextPurpose, manualChannel));
-  }
-
   function updateManualChannel(nextChannel: ManualChannel) {
     if (!selectedApplication) return;
     setManualChannel(nextChannel);
@@ -335,6 +396,11 @@ export function MembershipPaymentsView() {
     const amount = Number(manualAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter the amount paid.");
+      return;
+    }
+    const requiredAmount = amountForPurpose(manualPurpose);
+    if (amount !== requiredAmount) {
+      toast.error(`Amount must be ${money(requiredAmount)} for this application.`);
       return;
     }
     if (manualReference.trim().length < 2) {
@@ -438,18 +504,6 @@ export function MembershipPaymentsView() {
     }
   }
 
-  const availablePurposes = selectedApplication
-    ? [
-        ...(requirementOpen(selectedApplication, "Associate Membership Fee")
-          ? [{ value: "Associate Membership Fee" as const, label: "Membership fee" }]
-          : []),
-        ...(selectedApplication.requestedMembershipType === "True Member"
-          && requirementOpen(selectedApplication, "Initial Share Capital")
-          ? [{ value: "Share Capital" as const, label: "Initial share capital" }]
-          : []),
-      ]
-    : [];
-
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -464,11 +518,6 @@ export function MembershipPaymentsView() {
         <StatCard label="For Checking" value={String(summary.forChecking)} icon={ReceiptText} />
         <StatCard label="Approved" value={String(summary.approved)} icon={BadgeCheck} />
         <StatCard label="Approved Amount" value={money(summary.approvedAmount)} icon={Banknote} />
-      </div>
-
-      <div className="rounded-lg border border-[#B7D7BD] bg-[#F2FAF3] p-4 text-sm leading-6 text-[#294B39]">
-        <strong className="text-[#123D2A]">Simple rule:</strong> for PayMongo, click <strong>Check PayMongo</strong>.
-        For cash, manual GCash, or bank transfer, check the money or reference number, then click <strong>Approve payment</strong>.
       </div>
 
       <div className="rounded-lg border border-[#CAD8CB] bg-white p-4">
@@ -520,7 +569,10 @@ export function MembershipPaymentsView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-                    {filteredApplications.map((application) => (
+                    {filteredApplications.map((application) => {
+                      const due = nextRequiredPayment(application, payments);
+                      if (!due) return null;
+                      return (
                       <tr key={application.id} className="hover:bg-[#F7F8F3]">
                         <td className="px-5 py-4">
                           <p className="font-bold text-[#123D2A]">{applicantName(application)}</p>
@@ -531,9 +583,12 @@ export function MembershipPaymentsView() {
                           <p className="mt-1 text-xs text-[#6C7A70]">{application.requestedMembershipType}</p>
                         </td>
                         <td className="px-5 py-4 font-semibold">
-                          {application.requestedMembershipType === "True Member"
-                            ? "Membership fee and initial share capital"
-                            : "Membership fee"}
+                          <p className="font-black text-[#123D2A]">
+                            {money(due.amount)}
+                          </p>
+                          <p className="mt-1 text-xs text-[#6C7A70]">
+                            {due.label}
+                          </p>
                         </td>
                         <td className="px-5 py-4">
                           <StatusBadge tone="warning">Needs payment</StatusBadge>
@@ -549,7 +604,8 @@ export function MembershipPaymentsView() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </DataTable>
@@ -624,26 +680,33 @@ export function MembershipPaymentsView() {
         onOpenChange={(open) => { if (!open && !submitting) setSelectedApplication(null); }}
         title="Record membership payment"
         description={selectedApplication ? `${applicantName(selectedApplication)} / ${selectedApplication.applicationCode}` : undefined}
-        contentClassName="w-[min(48rem,calc(100vw-2rem))]"
+        contentClassName="w-[min(50rem,calc(100vw-2rem))]"
       >
         {selectedApplication ? (
           <div className="grid gap-4 pt-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               <InfoBox label="Applicant" value={applicantName(selectedApplication)} sub={selectedApplication.contactNumber} />
               <InfoBox label="Application" value={selectedApplication.applicationCode} sub={selectedApplication.requestedMembershipType} />
             </div>
+            <div className="rounded-xl border border-[#B7D7BD] bg-[#F2FAF3] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5D6D63]">
+                Amount to collect
+              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-3xl font-black leading-none text-[#123D2A]">
+                    {money(amountForPurpose(manualPurpose))}
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-[#365F4A]">
+                    {paymentPurposeLabel(manualPurpose)}
+                  </p>
+                </div>
+                <p className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#365F4A]">
+                  True Member: PHP 1,500 / Associate: PHP 200
+                </p>
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <FormField label="Payment for" required>
-                <select
-                  value={manualPurpose}
-                  onChange={(event) => updateManualPurpose(event.target.value as PaymentPurpose)}
-                  className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm"
-                >
-                  {availablePurposes.map((purpose) => (
-                    <option key={purpose.value} value={purpose.value}>{purpose.label}</option>
-                  ))}
-                </select>
-              </FormField>
               <FormField label="Paid through" required>
                 <select
                   value={manualChannel}
@@ -656,9 +719,9 @@ export function MembershipPaymentsView() {
               <FormField label="Amount paid" required>
                 <input
                   value={manualAmount}
-                  onChange={(event) => setManualAmount(event.target.value)}
+                  readOnly
                   inputMode="decimal"
-                  className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm"
+                  className="h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm font-black text-[#123D2A]"
                 />
               </FormField>
               <FormField label="Receipt or reference number" required>
@@ -678,8 +741,10 @@ export function MembershipPaymentsView() {
                 placeholder="Optional note, for example: cash received at office."
               />
             </FormField>
-            <CheckBox checked={moneyChecked} onChange={setMoneyChecked} label="I checked the cash, GCash, or bank record." />
-            <CheckBox checked={detailsChecked} onChange={setDetailsChecked} label="The applicant, amount, reference number, and payment purpose are correct." />
+            <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-[#FBFCF8] p-3">
+              <CheckBox checked={moneyChecked} onChange={setMoneyChecked} label="I checked the cash, GCash, or bank record." />
+              <CheckBox checked={detailsChecked} onChange={setDetailsChecked} label="The applicant, amount, reference number, and application type are correct." />
+            </div>
             <div className="flex justify-end gap-3 border-t border-[#E2E8E2] pt-4">
               <button
                 type="button"

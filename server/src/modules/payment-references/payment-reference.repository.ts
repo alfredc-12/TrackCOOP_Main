@@ -418,6 +418,43 @@ export function createPaymentReferenceRepository(
 
     async create(input, auth) {
       return withTransaction(async (connection) => {
+        if (input.relatedEntityType === "membership_application" && input.relatedEntityId) {
+          const [applications] = await connection.execute<(RowDataPacket & { requestedMembershipType: string })[]>(
+            `SELECT requested_membership_type AS requestedMembershipType
+               FROM membership_applications
+              WHERE membership_application_id = ? LIMIT 1`,
+            [input.relatedEntityId],
+          );
+          const requestedType = applications[0]?.requestedMembershipType;
+          if (!requestedType) {
+            throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
+          }
+          if (
+            (requestedType === "True Member" && input.paymentPurpose !== "Share Capital")
+            || (requestedType === "Associate" && input.paymentPurpose !== "Associate Membership Fee")
+          ) {
+            throw new AppError("Payment does not match the requested membership type", 409, "MEMBERSHIP_PAYMENT_PURPOSE_MISMATCH");
+          }
+          const expectedAmount = requestedType === "True Member" ? 1500 : 200;
+          if (Number(input.amount) !== expectedAmount) {
+            throw new AppError(
+              `Membership payment must be PHP ${expectedAmount.toLocaleString("en-US")}`,
+              422,
+              "MEMBERSHIP_PAYMENT_AMOUNT_MISMATCH",
+            );
+          }
+          const [existingPayments] = await connection.execute<CountRow[]>(
+            `SELECT COUNT(*) AS total FROM payment_references
+              WHERE related_entity_type = 'membership_application'
+                AND related_entity_id = ?
+                AND payment_purpose = ?
+                AND validation_status NOT IN ('Rejected', 'Reversed')`,
+            [input.relatedEntityId, input.paymentPurpose],
+          );
+          if (Number(existingPayments[0]?.total ?? 0) > 0) {
+            throw new AppError("This membership payment is already recorded", 409, "MEMBERSHIP_PAYMENT_ALREADY_RECORDED");
+          }
+        }
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO payment_references
              (member_id, submitted_by, payer_name, payer_email, payer_contact, provider, payment_channel, reference_number,

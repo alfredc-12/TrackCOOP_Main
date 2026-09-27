@@ -17,7 +17,7 @@ const classifications = [
     title: "True Member",
     note: "Full membership status",
     description:
-      "A True Member refers to a member who has fulfilled or is completing the cooperative's share capital requirement for full membership status. In TrackCOOP, true members are monitored through share capital records, payment progress, certificates, member status, and contribution summaries. The confirmed initial true-member share capital requirement is PHP 3,000.",
+      "A True Member pays PHP 1,500 in share capital for membership. Associate membership costs PHP 200 instead. TrackCOOP records payments, membership status, and share capital contributions.",
   },
   {
     title: "Associate Member",

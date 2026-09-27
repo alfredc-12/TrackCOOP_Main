@@ -252,3 +252,39 @@ test("public aggregates are safe and active checkout is not treated as confirmed
   assert.ok(!("trackingTokenHash" in summary));
   assert.ok(!("checkoutUrl" in (summary.latestCheckout ?? {})));
 });
+
+test("first True Member checkout is exactly PHP 1,500", () => {
+  assert.throws(
+    () => validateApplicationShareCapitalAmount({
+      requestedAmount: 1700,
+      validatedAmount: 0,
+      otherActivePendingAmount: 0,
+      initialShareCapital: 1500,
+      maximumShareCapital: 15000,
+    }),
+    (error) => error instanceof AppError && error.code === "INITIAL_SHARE_CAPITAL_AMOUNT_MISMATCH",
+  );
+});
+
+test("True Member payment summary asks only for PHP 1,500 share capital", () => {
+  const summary = buildPublicMembershipPaymentSummary({
+    mode: "test",
+    gatewayEnabled: true,
+    applicationStatus: "Payment Required",
+    requestedMembershipType: "True Member",
+    settings: { ...settings, initialShareCapital: 1500, trueMemberRequiredCapital: 1500 },
+    feeValidatedAmount: 0,
+    feePendingAmount: 0,
+    capitalValidatedAmount: 0,
+    capitalPendingAmount: 0,
+    installmentCount: 0,
+    latestCheckout: null,
+    feeRequirementStatus: "Pending",
+    capitalRequirementStatus: "Pending",
+  });
+
+  assert.equal(summary.membershipFee.requiredAmount, 0);
+  assert.equal(summary.membershipFee.canStartCheckout, false);
+  assert.equal(summary.shareCapital.minimumNextAmount, 1500);
+  assert.deepEqual(summary.paymentRequirements.map((item) => item.paymentPurpose), ["Share Capital"]);
+});

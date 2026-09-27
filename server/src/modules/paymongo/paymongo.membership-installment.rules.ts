@@ -110,6 +110,13 @@ export function validateApplicationShareCapitalAmount(input: {
       "SHARE_CAPITAL_AMOUNT_BELOW_MINIMUM",
     );
   }
+  if (validated + pending === 0 && requested !== roundMoney(input.initialShareCapital)) {
+    throw new AppError(
+      `True Member payment must be PHP ${input.initialShareCapital.toLocaleString("en-US")}`,
+      400,
+      "INITIAL_SHARE_CAPITAL_AMOUNT_MISMATCH",
+    );
+  }
   if (roundMoney(validated + pending + requested) > roundMoney(input.maximumShareCapital)) {
     throw new AppError(
       "Share capital payment would exceed the maximum allowed amount",
@@ -137,11 +144,13 @@ export function buildPublicMembershipPaymentSummary(input: {
   capitalRequirementStatus: MembershipRequirementStatus | null;
 }): PublicMembershipPaymentSummary {
   const eligibleApplication = input.applicationStatus === "Payment Required";
-  const feeRequired = roundMoney(input.settings.associateFee);
+  const feeRequired = input.requestedMembershipType === "Associate"
+    ? roundMoney(input.settings.associateFee)
+    : 0;
   const feeValidated = roundMoney(input.feeValidatedAmount);
   const feePending = roundMoney(input.feePendingAmount);
   const feeRemaining = Math.max(0, roundMoney(feeRequired - feeValidated - feePending));
-  const feeConfirmed = feeValidated >= feeRequired;
+  const feeConfirmed = feeRequired === 0 || feeValidated >= feeRequired;
   const feeStatus: PublicMembershipPaymentState = !eligibleApplication && !feeConfirmed
     ? "Unavailable"
     : feeConfirmed
@@ -192,13 +201,13 @@ export function buildPublicMembershipPaymentSummary(input: {
     },
     latestCheckout: input.latestCheckout,
     paymentRequirements: [
-      {
+      ...(input.requestedMembershipType === "Associate" ? [{
         requirementType: "Associate Membership Fee",
         requirementStatus: input.feeRequirementStatus,
         paymentPurpose: "Associate Membership Fee",
         paymentStatus: feeConfirmed ? "Confirmed" : "Waiting",
         amount: feeRequired,
-      },
+      } as const] : []),
       ...(capitalRequired && input.capitalRequirementStatus
         ? [{
             requirementType: "Initial Share Capital" as const,

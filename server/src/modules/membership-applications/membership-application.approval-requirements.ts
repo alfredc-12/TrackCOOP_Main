@@ -81,6 +81,7 @@ export function validateApplicationForApproval(
 export async function synchronizeApprovalRequirements(input: {
   connection: PoolConnection;
   actorUserId: string;
+  requestedMembershipType: ApplicationRow["requestedMembershipType"];
   requirements: RequirementRow[];
   settings: MembershipSettings;
   feeReferences: ValidatedReference[];
@@ -90,7 +91,7 @@ export async function synchronizeApprovalRequirements(input: {
   const feeRequirement = input.requirements.find(
     (item) => item.requirementType === "Associate Membership Fee",
   );
-  if (!feeRequirement) {
+  if (!feeRequirement && input.requestedMembershipType === "Associate") {
     throw new AppError(
       "The Associate Membership Fee requirement is incomplete",
       409,
@@ -103,7 +104,8 @@ export async function synchronizeApprovalRequirements(input: {
   );
   const latestFeeReferenceId = input.feeReferences.at(-1)?.id ?? null;
   if (
-    feeRequirement.requirementStatus !== "Waived"
+    feeRequirement
+    && feeRequirement.requirementStatus !== "Waived"
     && feeTotal >= approvalMoney(input.settings.associateFee)
   ) {
     await input.connection.execute(
@@ -157,11 +159,12 @@ export function validateApprovalRequirements(
   const byType = new Map(requirements.map((item) => [item.requirementType, item]));
   const requiredTypes: RequirementType[] = [
     "Orientation/Seminar",
-    "Associate Membership Fee",
     "Signed Application",
   ];
   if (application.requestedMembershipType === "True Member") {
     requiredTypes.push("Initial Share Capital");
+  } else {
+    requiredTypes.push("Associate Membership Fee");
   }
 
   const incomplete = requiredTypes.find((type) => {

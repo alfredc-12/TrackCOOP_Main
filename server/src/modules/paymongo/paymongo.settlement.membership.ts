@@ -81,7 +81,7 @@ async function synchronizeCapitalRequirement(input: {
     membershipNumberSetting(
       input.connection,
       "membership.initial_share_capital",
-      3000,
+      1500,
     ),
     validatedApplicationPaymentTotal(
       input.connection,
@@ -161,36 +161,18 @@ async function maybeMarkApplicationPaymentConfirmed(input: {
 }) {
   if (input.application.applicationStatus !== "Payment Required") return;
 
-  const expectedFee = await membershipNumberSetting(
-    input.connection,
-    "membership.associate_fee",
-    200,
-  );
-  const [feeTotal, initialCapital] = await Promise.all([
-    validatedApplicationPaymentTotal(
-      input.connection,
-      input.application.id,
-      "Associate Membership Fee",
-    ),
-    membershipNumberSetting(
-      input.connection,
-      "membership.initial_share_capital",
-      3000,
-    ),
-  ]);
-  const capitalTotal = input.application.requestedMembershipType === "True Member"
-    ? await validatedApplicationPaymentTotal(
-        input.connection,
-        input.application.id,
-        "Share Capital",
-      )
-    : initialCapital;
-
-  if (
-    settlementMoney(feeTotal) < settlementMoney(expectedFee)
-    || settlementMoney(capitalTotal) < settlementMoney(initialCapital)
-  ) {
-    return;
+  if (input.application.requestedMembershipType === "True Member") {
+    const [capitalTotal, initialCapital] = await Promise.all([
+      validatedApplicationPaymentTotal(input.connection, input.application.id, "Share Capital"),
+      membershipNumberSetting(input.connection, "membership.initial_share_capital", 1500),
+    ]);
+    if (settlementMoney(capitalTotal) < settlementMoney(initialCapital)) return;
+  } else {
+    const [feeTotal, expectedFee] = await Promise.all([
+      validatedApplicationPaymentTotal(input.connection, input.application.id, "Associate Membership Fee"),
+      membershipNumberSetting(input.connection, "membership.associate_fee", 200),
+    ]);
+    if (settlementMoney(feeTotal) < settlementMoney(expectedFee)) return;
   }
 
   await input.connection.execute(
@@ -252,6 +234,12 @@ export async function postMembershipSettlement(input: {
       404,
       "MEMBERSHIP_APPLICATION_NOT_FOUND",
     );
+  }
+  if (
+    (application.requestedMembershipType === "True Member" && input.payment.paymentPurpose !== "Share Capital")
+    || (application.requestedMembershipType === "Associate" && input.payment.paymentPurpose !== "Associate Membership Fee")
+  ) {
+    throw new AppError("Payment purpose does not match the requested membership type", 409, "MEMBERSHIP_PAYMENT_PURPOSE_MISMATCH");
   }
   const requirement = await selectSettlementRequirement(
     input.connection,

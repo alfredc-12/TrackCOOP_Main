@@ -46,8 +46,8 @@ const emptyShareSummary: ShareCapitalSummary = {
   pendingTotal: 0,
   validatedPayments: 0,
   membersWithValidatedCapital: 0,
-  initialRequirement: 3000,
-  fullRequirement: 3000,
+  initialRequirement: 1500,
+  fullRequirement: 1500,
   maximumAllowed: 15000,
 };
 

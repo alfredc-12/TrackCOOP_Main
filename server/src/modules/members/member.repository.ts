@@ -79,7 +79,7 @@ type RentalActivityRow = RowDataPacket & MemberRentalActivity;
 type LatestIndicatorRow = RowDataPacket & MemberLatestIndicator;
 type UnifiedHistoryRow = RowDataPacket & UnifiedStatusHistoryEntry;
 
-const FULL_SHARE_CAPITAL = 3000;
+const FULL_SHARE_CAPITAL = 1500;
 const MAX_SHARE_CAPITAL = 15000;
 
 const sortColumns: Record<MemberListQuery["sortBy"], string> = {
@@ -492,7 +492,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
           }
           if (!capital.fullRequirementMet) {
             throw new AppError(
-              "True Member promotion requires at least PHP 3,000 validated share capital",
+              "True Member promotion requires at least PHP 1,500 validated share capital",
               409,
               "TRUE_MEMBER_CAPITAL_REQUIREMENT_NOT_MET",
             );

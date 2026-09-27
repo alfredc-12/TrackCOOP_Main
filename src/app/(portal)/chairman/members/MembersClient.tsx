@@ -588,7 +588,7 @@ export function MembersClient() {
 
       {activeTab === "applications" ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <ApplicationMetricCard label="Submitted" value={summary.submitted} icon={FileText} />
             <ApplicationMetricCard label="Under Review" value={summary.underReview} icon={ClipboardCheck} />
             <ApplicationMetricCard label="Needs Info" value={summary.needsInformation} icon={Send} />
@@ -1611,7 +1611,7 @@ function MemberStatusDialog({
       open={Boolean(member)}
       onOpenChange={onOpenChange}
       title="Update Official Status"
-      description="Reason and full-name confirmation are required. True Member promotion requires PHP 3,000 validated share capital and cannot exceed PHP 15,000."
+      description="Reason and full-name confirmation are required. True Member promotion requires PHP 1,500 validated share capital and cannot exceed PHP 15,000."
     >
       {member ? (
         <div className="grid gap-4">
@@ -1823,14 +1823,14 @@ function ApplicationMetricCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <article className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
-      <div className="flex min-w-0 items-center gap-4">
-        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#EEF7ED] text-[#1F6B43]">
-          <Icon className="size-5" aria-hidden="true" />
+    <article className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF7ED] text-[#1F6B43]">
+          <Icon className="size-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-[#6C7A70]">{label}</p>
-          <p className="mt-1 text-2xl font-black leading-none text-[#123D2A]">{value}</p>
+          <p className="truncate text-[0.72rem] font-semibold text-[#6C7A70]">{label}</p>
+          <p className="mt-1 text-xl font-black leading-none text-[#123D2A]">{value}</p>
         </div>
       </div>
     </article>
@@ -2233,11 +2233,11 @@ function ApplicationsResponsiveList({
         <table className="min-w-full table-fixed divide-y divide-[#E2E8E2] text-left text-xs">
             <thead className="bg-[#FBFCF8] text-[0.68rem] uppercase tracking-[0.12em] text-[#5D6D63]">
               <tr>
-                <SortableHeader className="w-[24%]" label="Applicant" />
-                <SortableHeader className="w-[11%]" label="Type" />
-                <SortableHeader className="w-[12%]" label="Barangay" />
+                <SortableHeader className="w-[31%]" label="Applicant" />
+                <SortableHeader className="w-[12%]" label="Type" />
+                <SortableHeader className="w-[14%]" label="Barangay" />
                 <SortableHeader
-                  className="w-[13%]"
+                  className="w-[14%]"
                   label="Submitted"
                   active={query.sortBy === "submittedAt"}
                   direction={query.sortDirection}
@@ -2248,15 +2248,12 @@ function ApplicationsResponsiveList({
                     page: 1,
                   }))}
                 />
-                <SortableHeader className="w-[15%]" label="Requirements" />
-                <SortableHeader className="w-[15%]" label="Status" />
-                <th className="w-[10%] px-5 py-4 text-right">Actions</th>
+                <SortableHeader className="w-[17%]" label="Status" />
+                <th className="w-[12%] px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#0F241A]">
               {applications.map((application) => {
-                const detail = detailsById[application.id];
-                const progress = detail ? requirementProgress(detail) : null;
                 return (
                   <tr key={application.id} className="hover:bg-[#FBFCF8]">
                     <td className="px-5 py-3">
@@ -2273,9 +2270,6 @@ function ApplicationsResponsiveList({
                     <td className="px-5 py-3 text-sm font-semibold">{application.requestedMembershipType}</td>
                     <td className="px-5 py-3 text-sm font-semibold">{application.barangay ?? "Unspecified"}</td>
                     <td className="px-5 py-3 text-sm font-semibold leading-5">{formatSubmittedDate(application.submittedAt)}</td>
-                    <td className="px-5 py-3">
-                      <RequirementProgress progress={progress} />
-                    </td>
                     <td className="px-5 py-3"><ApplicationStatusPill status={application.applicationStatus} /></td>
                     <td className="px-5 py-3 text-right">
                       <Button
@@ -2701,7 +2695,7 @@ function ApprovalConfirmDialog({
             <CheckCircle2 className="size-5" />
             Payment confirmed
           </p>
-          <p className="mt-2">Share Capital: PHP 3,000 verified for final approval.</p>
+          <p className="mt-2">True Member: PHP 1,500 share capital verified. Associate: PHP 200 fee verified.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Info label="Board Meeting Date" value={formatLongDate(approvalDate)} />

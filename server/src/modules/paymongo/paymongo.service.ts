@@ -484,6 +484,13 @@ export function createPaymongoService(options: {
 
       const settings = await repository.getMembershipPaymentSettings();
       const environment = gatewayEnvironment(config.mode);
+      if (input.paymentPurpose === "Associate Membership Fee" && application.requestedMembershipType === "True Member") {
+        throw new AppError(
+          "True Member applicants pay share capital only",
+          409,
+          "MEMBERSHIP_FEE_NOT_REQUIRED",
+        );
+      }
       const requestedAmount = input.paymentPurpose === "Associate Membership Fee"
         ? settings.associateFee
         : input.requestedAmount ?? 0;

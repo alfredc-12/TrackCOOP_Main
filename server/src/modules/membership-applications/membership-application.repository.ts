@@ -155,8 +155,8 @@ const membershipSettingKeys = [
 
 const defaultSettings: MembershipSettings = {
   associateFee: 200,
-  initialShareCapital: 3000,
-  trueMemberRequiredCapital: 3000,
+  initialShareCapital: 1500,
+  trueMemberRequiredCapital: 1500,
   maximumShareCapital: 15000,
   shareCapitalDeadlineMonths: 12,
   orientationRequired: true,
@@ -386,10 +386,7 @@ function initialRequirements(
   input: PublicMembershipApplicationInput,
   settings: MembershipSettings,
 ): RequirementType[] {
-  const requirements: RequirementType[] = [
-    "Associate Membership Fee",
-    "Signed Application",
-  ];
+  const requirements: RequirementType[] = ["Signed Application"];
 
   if (settings.orientationRequired) {
     requirements.unshift("Orientation/Seminar");
@@ -397,6 +394,8 @@ function initialRequirements(
 
   if (input.requestedMembershipType === "True Member") {
     requirements.push("Initial Share Capital");
+  } else {
+    requirements.push("Associate Membership Fee");
   }
 
   return requirements;
@@ -439,8 +438,9 @@ async function selectPublicApplication(
        FROM membership_application_requirements
       WHERE membership_application_id = ?
         AND requirement_status IN ('Pending', 'Rejected')
+        AND (requirement_type <> 'Associate Membership Fee' OR ? = 'Associate')
       ORDER BY membership_application_requirement_id ASC`,
-    [application.id],
+    [application.id, application.requestedMembershipType],
   );
 
   const [paymentRows] = await connection.execute<PublicPaymentRequirementRow[]>(
@@ -455,9 +455,10 @@ async function selectPublicApplication(
        FROM membership_application_requirements r
        LEFT JOIN payment_references pr ON pr.payment_reference_id = r.payment_reference_id
       WHERE r.membership_application_id = ?
-        AND r.requirement_type IN ('Associate Membership Fee', 'Initial Share Capital')
+        AND ((? = 'Associate' AND r.requirement_type = 'Associate Membership Fee')
+          OR (? = 'True Member' AND r.requirement_type = 'Initial Share Capital'))
       ORDER BY r.membership_application_requirement_id ASC`,
-    [application.id],
+    [application.id, application.requestedMembershipType, application.requestedMembershipType],
   );
 
   return {
@@ -750,7 +751,7 @@ export function createMembershipApplicationRepository(
             nullable(application.occupation),
             application.orientationCommitmentAccepted,
             application.membershipFeeCommitmentAccepted,
-            input.settings.associateFee,
+            application.requestedMembershipType === "Associate" ? input.settings.associateFee : 0,
             application.shareSubscriptionCommitmentAccepted,
             input.settings.initialShareCapital,
             input.settings.trueMemberRequiredCapital,
@@ -1026,7 +1027,7 @@ export function createMembershipApplicationRepository(
             nullable(application.occupation),
             application.orientationCommitmentAccepted,
             application.membershipFeeCommitmentAccepted,
-            input.settings.associateFee,
+            application.requestedMembershipType === "Associate" ? input.settings.associateFee : 0,
             application.shareSubscriptionCommitmentAccepted,
             input.settings.initialShareCapital,
             input.settings.trueMemberRequiredCapital,
@@ -1753,11 +1754,12 @@ export function createMembershipApplicationRepository(
         const requirementByType = new Map(requirements.map((requirement) => [requirement.requirementType, requirement]));
         const requiredTypes: RequirementType[] = [
           "Orientation/Seminar",
-          "Associate Membership Fee",
           "Signed Application",
         ];
         if (application.requestedMembershipType === "True Member") {
           requiredTypes.push("Initial Share Capital");
+        } else {
+          requiredTypes.push("Associate Membership Fee");
         }
         const incompleteRequirement = requiredTypes.find((requirementType) => {
           const requirement = requirementByType.get(requirementType);
@@ -1779,7 +1781,7 @@ export function createMembershipApplicationRepository(
         }
 
         const feeRequirement = requirementByType.get("Associate Membership Fee");
-        if (feeRequirement?.requirementStatus !== "Waived") {
+        if (application.requestedMembershipType === "Associate" && feeRequirement?.requirementStatus !== "Waived") {
           const [feeRows] = await connection.execute<PaymentAmountRow[]>(
             `SELECT COALESCE(SUM(pr.amount), 0) AS total
                FROM membership_application_requirements r

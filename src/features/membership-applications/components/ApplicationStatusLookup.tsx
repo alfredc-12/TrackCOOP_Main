@@ -34,7 +34,7 @@ export function ApplicationStatusLookup() {
   const [checkoutAction, setCheckoutAction] = useState<
     "Associate Membership Fee" | "Share Capital" | null
   >(null);
-  const [shareCapitalAmount, setShareCapitalAmount] = useState("3000");
+  const [shareCapitalAmount, setShareCapitalAmount] = useState("1500");
   const [lastLookup, setLastLookup] = useState<StatusFormValues | null>(null);
 
   const {
@@ -299,10 +299,11 @@ function PaymentPanel({
                   Amount
                   <input
                     type="number"
-                    min={3000}
+                    min={1500}
                     max={15000}
                     step={100}
                     value={shareCapitalAmount}
+                    readOnly
                     onChange={(event) => onShareCapitalAmountChange(event.target.value)}
                     className="mt-2 h-11 w-full rounded-full border border-[#DDE8D8] bg-white px-4 text-base font-bold text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
                   />
