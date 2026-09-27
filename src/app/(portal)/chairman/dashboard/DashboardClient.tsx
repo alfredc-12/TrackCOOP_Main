@@ -417,6 +417,9 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
   const recentActivity = d.recentActivity || [];
   const incomeSources = d.incomeSources || [];
   const highestIncomeSource = incomeSources.length > 0 ? incomeSources.reduce((prev: any, curr: any) => (prev.amount > curr.amount) ? prev : curr).source : "N/A";
+  const generatedAtLabel = d.generatedAt
+    ? format(new Date(d.generatedAt), "MMM d, yyyy h:mm a")
+    : "Loading latest data";
 
   const healthData = [
     { name: "Active", value: memberHealth.active, color: "#1F6B43" },
@@ -465,7 +468,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
           <p className="text-[12px] text-[#5D6D63] mt-1">{mode === "financial" ? "Income, expenses, surplus, and share-capital performance." : "Membership growth, engagement, recruitment, and cooperative operations."}</p>
           <div className="flex items-center gap-1.5 mt-2 text-sm text-[#78857d]">
             <Clock className="size-3" />
-            <span>Last updated: {format(new Date(d.generatedAt || Date.now()), "MMM d, yyyy h:mm a")}</span>
+            <span>Last updated: {generatedAtLabel}</span>
           </div>
         </div>
 
