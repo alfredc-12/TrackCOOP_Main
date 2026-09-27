@@ -41,6 +41,25 @@ function fakeConnection(rows: unknown[][]) {
   return { connection, state };
 }
 
+function fakePool(rows: unknown[][]) {
+  const state = {
+    executeCount: 0,
+    queries: [] as string[],
+  };
+
+  return {
+    state,
+    pool: {
+      async execute(sql: string) {
+        state.queries.push(sql);
+        const result = rows[state.executeCount] ?? [];
+        state.executeCount += 1;
+        return [result];
+      },
+    },
+  };
+}
+
 test("createPeriod rejects duplicate patronage period names before insert", async () => {
   const { connection, state } = fakeConnection([[{ patronage_period_id: 1 }]]);
   const repository = createPatronageRepository({
@@ -87,4 +106,18 @@ test("createPeriod rejects periods with no eligible member patronage", async () 
   assert.equal(state.executeCount, 3);
   assert.equal(state.rolledBack, true);
   assert.equal(state.committed, false);
+});
+
+test("member patronage account is limited to active Associate and True Members", async () => {
+  const { pool, state } = fakePool([[]]);
+  const repository = createPatronageRepository(pool as never);
+
+  await assert.rejects(
+    () => repository.memberSummary({ ...auth, user: { ...auth.user, role: "member" } }),
+    (error) => error instanceof AppError && error.code === "MEMBER_PATRONAGE_NOT_ELIGIBLE",
+  );
+
+  assert.match(state.queries[0], /approval_status = 'Approved'/);
+  assert.match(state.queries[0], /official_member_status = 'Active'/);
+  assert.match(state.queries[0], /membership_type IN \('Associate', 'True Member'\)/);
 });

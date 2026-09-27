@@ -6,6 +6,7 @@ import {
   Eye,
   FileSearch,
   ListChecks,
+  Percent,
   Plus,
   RefreshCcw,
   Search,
@@ -134,6 +135,34 @@ function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value?: string) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function dateKeysBetween(startDate?: string, endDate?: string) {
+  const start = parseDateKey(startDate);
+  const end = parseDateKey(endDate ?? startDate);
+  if (!start || !end || start > end) return [];
+
+  const keys: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    keys.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+}
+
 export function ChairmanRentalBookingsClient() {
   const [inquiries, setInquiries] = useState<RentalInquiry[]>([]);
   const [schedules, setSchedules] = useState<RentalSchedule[]>([]);
@@ -193,6 +222,45 @@ export function ChairmanRentalBookingsClient() {
     [inquiries],
   );
 
+  const utilization = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthLabel = new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      year: "numeric",
+    }).format(new Date(year, month, 1));
+    const assetNames = unique([
+      ...inquiries.map((item) => item.equipmentName),
+      ...schedules.map((item) => item.equipmentName),
+    ]);
+    const countedStatuses = new Set(["Confirmed", "In Progress", "Completed"]);
+    const usedAssetDays = new Set<string>();
+
+    schedules.forEach((schedule) => {
+      if (!countedStatuses.has(schedule.status)) return;
+      dateKeysBetween(schedule.date, schedule.endDate).forEach((dateKey) => {
+        if (dateKey.startsWith(monthKey)) {
+          usedAssetDays.add(`${schedule.equipmentName}:${dateKey}`);
+        }
+      });
+    });
+
+    const availableAssetDays = assetNames.length * daysInMonth;
+    const rate = availableAssetDays
+      ? (usedAssetDays.size / availableAssetDays) * 100
+      : 0;
+
+    return {
+      availableAssetDays,
+      monthLabel,
+      rate: `${rate.toFixed(1)}%`,
+      usedAssetDays: usedAssetDays.size,
+    };
+  }, [inquiries, schedules]);
+
   const metrics = useMemo(
     () => [
       { label: "All requests", value: inquiries.length, icon: ListChecks },
@@ -207,8 +275,13 @@ export function ChairmanRentalBookingsClient() {
         value: viewCounts.get("Payments") ?? 0,
         icon: WalletCards,
       },
+      {
+        label: "Utilization rate",
+        value: utilization.rate,
+        icon: Percent,
+      },
     ],
-    [inquiries.length, viewCounts],
+    [inquiries.length, utilization.rate, viewCounts],
   );
 
   const filtered = useMemo(() => {
@@ -349,11 +422,7 @@ export function ChairmanRentalBookingsClient() {
         }
       />
 
-      <div className="rounded-lg border border-[#B9CABD] bg-[#E7F2E4] p-4 text-sm leading-6 text-[#294B39]">
-        <strong className="text-[#123D2A]">Simple process:</strong> 1. Review the request. 2. Approve and check the schedule. 3. Wait for the Bookkeeper to confirm payment. 4. Mark the rental in use, then completed.
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (
           <StatCard
             key={metric.label}
@@ -363,6 +432,13 @@ export function ChairmanRentalBookingsClient() {
           />
         ))}
       </div>
+
+      <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 text-sm leading-6 text-[#294B39]">
+        <strong className="text-[#123D2A]">Utilization Rate:</strong>{" "}
+        how often equipment is used. For {utilization.monthLabel},{" "}
+        {utilization.usedAssetDays} of {utilization.availableAssetDays} available
+        equipment-day(s) are used or booked.
+      </section>
 
       <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))]">
         <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">

@@ -478,11 +478,20 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
       const [members] = await databasePool().execute<MemberRow[]>(
         `SELECT CAST(member_id AS CHAR) AS memberId, member_code AS memberCode,
                 full_name AS memberName, membership_type AS membershipType
-           FROM member_profiles WHERE user_id = ? LIMIT 1`,
+           FROM member_profiles
+          WHERE user_id = ?
+            AND approval_status = 'Approved'
+            AND official_member_status = 'Active'
+            AND membership_type IN ('Associate', 'True Member')
+          LIMIT 1`,
         [auth.user.id],
       );
       const member = members[0];
-      if (!member) throw new AppError("Member profile is required.", 403, "MEMBER_PROFILE_REQUIRED");
+      if (!member) throw new AppError(
+        "Only active Associate and True Members can view patronage refunds.",
+        403,
+        "MEMBER_PATRONAGE_NOT_ELIGIBLE",
+      );
 
       const year = new Date().getUTCFullYear();
       const startDate = `${year}-01-01`;
