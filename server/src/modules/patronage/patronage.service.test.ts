@@ -11,7 +11,7 @@ const auth = {
   tokenHash: "hash",
 } satisfies AuthContext;
 
-function repositoryWithSurplus(netOperatingSurplus: number) {
+function repositoryWithBasis(netOperatingSurplus: number, eligibleMemberPatronage = netOperatingSurplus) {
   let created = false;
   const repository = {
     financialBasis: async (startDate: string, endDate: string) => ({
@@ -19,6 +19,8 @@ function repositoryWithSurplus(netOperatingSurplus: number) {
       totalOperatingIncome: netOperatingSurplus, posExpenses: 0, rentalExpenses: 0,
       otherExpenses: 0,
       totalOperatingExpenses: 0, adjustments: 0, netOperatingSurplus,
+      eligibleMemberPatronage,
+      eligibleMemberCount: eligibleMemberPatronage > 0 ? 1 : 0,
       postedRecordCount: 1, unpostedRecordCount: 0,
     }),
     createPeriod: async () => {
@@ -30,7 +32,7 @@ function repositoryWithSurplus(netOperatingSurplus: number) {
 }
 
 test("rejects a refund pool above the posted operating surplus", async () => {
-  const mock = repositoryWithSurplus(10_000);
+  const mock = repositoryWithBasis(10_000);
   const service = createPatronageService(mock.repository);
   await assert.rejects(
     () => service.createPeriod({ name: "2026", startDate: "2026-01-01", endDate: "2026-12-31", refundPool: 12_000 }, auth),
@@ -40,8 +42,18 @@ test("rejects a refund pool above the posted operating surplus", async () => {
 });
 
 test("allows a refund pool within the posted operating surplus", async () => {
-  const mock = repositoryWithSurplus(10_000);
+  const mock = repositoryWithBasis(10_000);
   const service = createPatronageService(mock.repository);
   await service.createPeriod({ name: "2026", startDate: "2026-01-01", endDate: "2026-12-31", refundPool: 5_000 }, auth);
   assert.equal(mock.wasCreated(), true);
+});
+
+test("rejects a refund pool above eligible member patronage", async () => {
+  const mock = repositoryWithBasis(10_000, 2);
+  const service = createPatronageService(mock.repository);
+  await assert.rejects(
+    () => service.createPeriod({ name: "2026", startDate: "2026-01-01", endDate: "2026-12-31", refundPool: 4_900 }, auth),
+    (error) => error instanceof AppError && error.code === "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
+  );
+  assert.equal(mock.wasCreated(), false);
 });

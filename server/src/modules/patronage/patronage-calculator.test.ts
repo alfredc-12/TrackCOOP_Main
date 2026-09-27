@@ -21,3 +21,12 @@ test("excludes members with no eligible patronage", () => {
   ], 5_000);
   assert.deepEqual(allocations, []);
 });
+
+test("does not refund more than the member's eligible patronage", () => {
+  const allocations = calculatePatronageAllocations([
+    { memberId: "1", memberCode: "M-1", memberName: "Ana", membershipType: "Associate", purchasePatronage: 2, rentalPatronage: 0 },
+  ], 4_900);
+
+  assert.equal(allocations.length, 1);
+  assert.equal(allocations[0].refundAmount, 2);
+});
