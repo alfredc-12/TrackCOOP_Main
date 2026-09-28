@@ -3,21 +3,24 @@
 import Link from "next/link";
 import {
   BarChart3,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
   Clock3,
   Database,
   Download,
   FileClock,
   FileText,
-  Filter,
-  Landmark,
   PieChart,
   Printer,
+  Landmark,
   RefreshCw,
   Save,
   Settings2,
   TrendingUp,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
@@ -70,17 +73,6 @@ type ReportsLandingData = {
   filterOptions: ReportFilterOptions;
 };
 
-const categories: Array<ReportCategory | "ALL"> = [
-  "ALL",
-  "FINANCIAL",
-  "MEMBERSHIP",
-  "RENTAL",
-  "SALES_INVENTORY",
-  "DOCUMENTS",
-  "AUDIT_ADMINISTRATION",
-  "AGENCY_COOPERATIVE",
-];
-
 const emptyReportFilterOptions: ReportFilterOptions = {
   barangays: [],
   sectors: [],
@@ -118,8 +110,6 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [data, setData] = useState<ReportsLandingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [category, setCategory] = useState<ReportCategory | "ALL">("ALL");
-  const [search, setSearch] = useState("");
   const [selectedReportKey, setSelectedReportKey] = useState("");
   const [selected, setSelected] = useState<ReportDefinition | null>(null);
   const [filters, setFilters] = useState<ReportFilters>({});
@@ -134,6 +124,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await expressFetch("/api/reports", { cache: "no-store" });
       if (!response.ok) throw new Error(await apiError(response));
@@ -142,7 +133,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     } catch (requestError) {
       console.error("Reports landing data could not be loaded:", requestError);
       setData(fallbackReportsData(role));
-      setError(null);
+      setError(requestError instanceof Error ? requestError.message : "Reports could not be loaded. Showing the available report catalog.");
     } finally {
       setLoading(false);
     }
@@ -156,19 +147,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
 
-  const visibleReports = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return (data?.catalog ?? []).filter(
-      (item) =>
-        (category === "ALL" || item.category === category) &&
-        (!term ||
-          item.name.toLowerCase().includes(term) ||
-          item.description.toLowerCase().includes(term) ||
-          item.dataSource.toLowerCase().includes(term)),
-    );
-  }, [category, data?.catalog, search]);
-
-  const selectableReports = visibleReports.filter(
+  const selectableReports = (data?.catalog ?? []).filter(
     (item) => !item.configurationRequired,
   );
   const selectedReport =
@@ -281,24 +260,11 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
           <>
             <button
               type="button"
-              onClick={() => setRecentModalOpen(true)}
-              className={secondaryButtonClass}
-            >
-              <Clock3 className="size-4" /> Recently Generated
-            </button>
-            <button
-              type="button"
               onClick={() => setHistoryModalOpen(true)}
               className={secondaryButtonClass}
             >
               <FileClock className="size-4" /> View Generated Reports
             </button>
-            <a
-              href={expressApiUrl("/api/reports/history/export")}
-              className={secondaryButtonClass}
-            >
-              <Download className="size-4" /> Export Report Register
-            </a>
             <button
               type="button"
               onClick={() => {
@@ -315,102 +281,28 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         }
       />
 
-      {data ? (
-        <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
-          <StatCard
-            label="Available Reports"
-            value={String(data.summary.available)}
-            icon={Database}
-          />
-          <StatCard
-            label="Generated This Month"
-            value={String(data.summary.generatedThisMonth)}
-            icon={Clock3}
-          />
-          <StatCard
-            label="Financial Reports"
-            value={String(data.summary.financial)}
-            icon={Landmark}
-          />
-          <StatCard
-            label="Operational Reports"
-            value={String(data.summary.operational)}
-            icon={BarChart3}
-          />
-        </section>
-      ) : null}
-
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {loading && !data ? <LoadingSkeleton /> : null}
 
       {data ? (
+        <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
+          <StatCard label="Available Reports" value={String(data.summary.available)} icon={Database} />
+          <StatCard label="Generated This Month" value={String(data.summary.generatedThisMonth)} icon={Clock3} />
+          <StatCard label="Financial Reports" value={String(data.summary.financial)} icon={Landmark} />
+          <StatCard label="Operational Reports" value={String(data.summary.operational)} icon={BarChart3} />
+        </section>
+      ) : null}
+
+      {data ? (
         <section className="grid min-w-0 gap-4">
-          <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-            <label className="relative max-w-xl">
-              <span className="sr-only">Search report catalog</span>
-              <Filter className="pointer-events-none absolute left-3 top-3.5 size-4 text-[#6C7A70]" />
-              <input
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                }}
-                type="search"
-                placeholder="Search report name, description, or data source"
-                className={`${fieldClass} pl-9`}
-              />
-            </label>
-            <div
-              className="flex flex-wrap gap-2"
-              aria-label="Report categories"
-            >
-              {categories
-                .filter(
-                  (item) =>
-                    item === "ALL" ||
-                    data.catalog.some((report) => report.category === item),
-                )
-                .map((item) => (
-                  <button
-                    type="button"
-                    key={item}
-                    onClick={() => {
-                      setCategory(item);
-                    }}
-                    className={
-                      item === category
-                        ? primaryButtonClass
-                        : secondaryButtonClass
-                    }
-                  >
-                    {item === "ALL" ? "All" : REPORT_CATEGORY_LABELS[item]}
-                  </button>
-                ))}
-            </div>
-          </div>
-          {visibleReports.length ? (
-            <>
-              <ReportPicker
-                reports={selectableReports}
-                selectedReport={selectedReport}
-                recent={data.recent}
-                generating={generating}
-                onSelect={setSelectedReportKey}
-                onGenerate={() => selectedReport && chooseReport(selectedReport)}
-              />
-              <ReportCatalogCards
-                reports={visibleReports}
-                recent={data.recent}
-                generating={generating}
-                onGenerate={chooseReport}
-              />
-            </>
-          ) : (
-            <EmptyState
-              icon={BarChart3}
-              title="No matching reports"
-              description="Choose another category or clear the report search."
-            />
-          )}
+          <ReportPicker
+            reports={selectableReports}
+            selectedReport={selectedReport}
+            recent={data.recent}
+            generating={generating}
+            onSelect={setSelectedReportKey}
+            onGenerate={() => selectedReport && chooseReport(selectedReport)}
+          />
         </section>
       ) : null}
 
@@ -617,21 +509,62 @@ function ReportPicker({
   onSelect: (key: string) => void;
   onGenerate: () => void;
 }) {
+  const [open, setOpen] = useState<"category" | "report" | null>(null);
+  const [category, setCategory] = useState<ReportCategory>(selectedReport?.category ?? reports[0]?.category ?? "FINANCIAL");
+  const categoryRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const categories = Array.from(new Set(reports.map((report) => report.category)));
+  const categoryReports = reports.filter((report) => report.category === category);
+  const activeReport = categoryReports.find((report) => report.key === selectedReport?.key) ?? categoryReports[0] ?? null;
+  const selectedLabel = activeReport?.name ?? "Select report";
+
+  useEffect(() => {
+    if (!open) return;
+    const closePicker = (event: MouseEvent) => {
+      if (!categoryRef.current?.contains(event.target as Node) && !reportRef.current?.contains(event.target as Node)) setOpen(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(null);
+    };
+    document.addEventListener("mousedown", closePicker);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closePicker);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+  useEffect(() => {
+    const closePicker = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== "report-picker") setOpen(null);
+    };
+    document.addEventListener("custom-picker-open", closePicker);
+    return () => document.removeEventListener("custom-picker-open", closePicker);
+  }, []);
+
   return (
     <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4 lg:grid-cols-[1fr_auto] lg:items-end">
-      <Field label="Choose report">
-        <select
-          value={selectedReport?.key ?? ""}
-          onChange={(event) => onSelect(event.target.value)}
-          className={fieldClass}
-        >
-          {reports.map((definition) => (
-            <option key={definition.key} value={definition.key}>
-              {REPORT_CATEGORY_LABELS[definition.category]} - {definition.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Choose category">
+          <div ref={categoryRef} className="relative">
+            <button type="button" aria-label="Choose report category" aria-expanded={open === "category"} onClick={() => { const nextOpen = open === "category" ? null : "category"; if (nextOpen) document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: "report-picker" })); setOpen(nextOpen); }} className={`${fieldClass} flex items-center justify-between gap-3 text-left font-semibold`}>
+              <span className="truncate">{REPORT_CATEGORY_LABELS[category]}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open === "category" ? "rotate-180" : ""}`} aria-hidden="true" />
+            </button>
+            {open === "category" ? <div role="listbox" aria-label="Report categories" className="absolute bottom-full z-40 mb-2 max-h-60 w-full overflow-y-auto rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+              {categories.map((item) => <button key={item} type="button" role="option" aria-selected={item === category} onClick={() => { setCategory(item); const first = reports.find((report) => report.category === item); if (first) onSelect(first.key); setOpen(null); }} className={`flex w-full items-center rounded px-3 py-3 text-left text-sm transition ${item === category ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{REPORT_CATEGORY_LABELS[item]}</button>)}
+            </div> : null}
+          </div>
+        </Field>
+        <Field label="Choose report">
+          <div ref={reportRef} className="relative">
+            <button type="button" aria-label="Choose report" aria-expanded={open === "report"} onClick={() => { const nextOpen = open === "report" ? null : "report"; if (nextOpen) document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: "report-picker" })); setOpen(nextOpen); }} className={`${fieldClass} flex items-center justify-between gap-3 text-left font-semibold`}>
+              <span className="truncate">{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open === "report" ? "rotate-180" : ""}`} aria-hidden="true" />
+            </button>
+            {open === "report" ? <div role="listbox" aria-label="Report options" className="absolute bottom-full z-40 mb-2 max-h-80 w-full overflow-y-auto rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+              {categoryReports.map((definition) => <button key={definition.key} type="button" role="option" aria-selected={definition.key === activeReport?.key} onClick={() => { onSelect(definition.key); setOpen(null); }} className={`flex w-full items-center rounded px-3 py-3 text-left text-sm transition ${definition.key === activeReport?.key ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{definition.name}</button>)}
+            </div> : null}
+          </div>
+        </Field>
+      </div>
       <button
         type="button"
         disabled={!selectedReport || generating}
@@ -768,12 +701,7 @@ function ReportFilterField({
   if (filterKey === "dateFrom" || filterKey === "dateTo") {
     return (
       <Field label={labels[filterKey]}>
-        <input
-          type="date"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={fieldClass}
-        />
+        <DateField value={value} onChange={onChange} />
       </Field>
     );
   }
@@ -891,6 +819,58 @@ function ReportFilterField({
   );
 }
 
+function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const pickerId = useRef(`date-picker-${Math.random().toString(36).slice(2)}`);
+  useEffect(() => {
+    const closeOtherPickers = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== pickerId.current) setOpen(false);
+    };
+    document.addEventListener("date-picker-open", closeOtherPickers);
+    document.addEventListener("custom-picker-open", closeOtherPickers);
+    return () => {
+      document.removeEventListener("date-picker-open", closeOtherPickers);
+      document.removeEventListener("custom-picker-open", closeOtherPickers);
+    };
+  }, []);
+  const [month, setMonth] = useState(() => {
+    const date = value ? new Date(`${value}T00:00:00`) : new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  });
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: Math.ceil((firstDay + daysInMonth) / 7) * 7 }, (_, index) => {
+    const day = index - firstDay + 1;
+    return day > 0 && day <= daysInMonth ? day : null;
+  });
+  const format = (year: number, monthIndex: number, day: number) => `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const selectedDate = value ? new Date(`${value}T00:00:00`) : null;
+  const label = selectedDate && !Number.isNaN(selectedDate.getTime()) ? selectedDate.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "Select date";
+  const today = new Date();
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => { const nextOpen = !open; if (nextOpen) { document.dispatchEvent(new CustomEvent("date-picker-open", { detail: pickerId.current })); document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId.current })); } setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-2 text-left font-semibold`}>
+        <span>{label}</span><Calendar className="size-4 text-[#365F4A]" aria-hidden="true" />
+      </button>
+      {open ? <div className="absolute bottom-full z-50 mb-2 w-72 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_18px_45px_rgba(18,61,42,0.18)]">
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="rounded p-2 text-[#123D2A] hover:bg-[#EEF6EF]"><ChevronLeft className="size-4" /></button>
+          <span className="text-sm font-bold text-[#123D2A]">{month.toLocaleDateString("en-PH", { month: "long", year: "numeric" })}</span>
+          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="rounded p-2 text-[#123D2A] hover:bg-[#EEF6EF]"><ChevronRight className="size-4" /></button>
+        </div>
+        <div className="mt-2 grid grid-cols-7 text-center text-xs font-bold text-[#6C7A70]">{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => <span key={day} className="py-2">{day}</span>)}</div>
+        <div className="grid grid-cols-7 gap-1 text-center text-sm">{cells.map((day, index) => {
+          if (!day) return <span key={`empty-${index}`} />;
+          const dateValue = format(month.getFullYear(), month.getMonth(), day);
+          const selected = dateValue === value;
+          return <button key={dateValue} type="button" onClick={() => { onChange(dateValue); setOpen(false); }} className={`rounded-md py-2 ${selected ? "bg-[#123D2A] font-bold text-white" : "text-[#294B39] hover:bg-[#EEF6EF]"}`}>{day}</button>;
+        })}</div>
+        <div className="mt-2 flex justify-between border-t border-[#E1E9E2] pt-2 text-xs font-semibold"><button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-[#2F7D50] hover:underline">Clear</button><button type="button" onClick={() => { const todayValue = format(today.getFullYear(), today.getMonth(), today.getDate()); onChange(todayValue); setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); setOpen(false); }} className="text-[#2F7D50] hover:underline">Today</button></div>
+      </div> : null}
+    </div>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -902,20 +882,26 @@ function SelectField({
   onChange: (value: string) => void;
   items: Array<{ value: string; label: string }>;
 }) {
+  const [open, setOpen] = useState(false);
+  const pickerId = useRef(`filter-picker-${Math.random().toString(36).slice(2)}`);
+  useEffect(() => {
+    const closePicker = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== pickerId.current) setOpen(false);
+    };
+    document.addEventListener("custom-picker-open", closePicker);
+    return () => document.removeEventListener("custom-picker-open", closePicker);
+  }, []);
+  const selectedLabel = items.find((item) => item.value === value)?.label ?? "All";
   return (
     <Field label={label}>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={fieldClass}
-      >
-        <option value="">All</option>
-        {items.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <button type="button" aria-label={`Choose ${label}`} aria-expanded={open} onClick={() => { const nextOpen = !open; if (nextOpen) document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId.current })); setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-3 text-left font-semibold`}>
+          <span className="truncate">{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+        </button>
+        {open ? <div role="listbox" className="absolute bottom-full z-50 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1 shadow-[0_18px_45px_rgba(18,61,42,0.18)]">
+          {[{ value: "", label: "All" }, ...items].map((item) => <button key={item.value || "all"} type="button" role="option" aria-selected={item.value === value} onClick={() => { onChange(item.value); setOpen(false); }} className={`flex w-full items-center rounded-md px-3 py-2.5 text-left text-sm transition ${item.value === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{item.label}</button>)}
+        </div> : null}
+      </div>
     </Field>
   );
 }

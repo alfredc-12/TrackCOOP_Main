@@ -4,11 +4,14 @@ import {
   AlertTriangle,
   BadgeCheck,
   Banknote,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Clock3,
   Eye,
   History,
+  LoaderCircle,
   Pencil,
   ReceiptText,
   RefreshCcw,
@@ -71,11 +74,14 @@ import {
 
 const emptySummary: PaymentReferenceSummary = {
   total: 0,
+  pendingTotal: 0,
   pendingManual: 0,
   needsClarification: 0,
   validatedToday: 0,
+  validatedTotal: 0,
   paymongoTestPayments: 0,
   rejected: 0,
+  reversed: 0,
   validatedAmount: 0,
 };
 const statusOptions = ["", "Pending", "Needs Clarification", "Validated", "Rejected", "Reversed"];
@@ -99,7 +105,7 @@ const selectLabels: Record<string, string> = {
   amount: "Amount",
   referenceNumber: "Reference number",
   Validated: "Approved",
-  "Needs Clarification": "Needs correction",
+  "Needs Clarification": "Needs clarification",
   desc: "Newest or highest first",
   asc: "Oldest or lowest first",
 };
@@ -167,12 +173,54 @@ function mutationAllowed(payment: PaymentReferenceDetail) {
 }
 
 function Select({ value, onChange, options, label }: { value: string; onChange: (value: string) => void; options: string[]; label: string }) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel = value ? (selectLabels[value] ?? value) : label;
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={label}
-      className="h-11 min-w-0 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-semibold text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-      {options.map((option) => <option key={option || label} value={option}>{option ? (selectLabels[option] ?? option) : label}</option>)}
-    </select>
+    <div className="relative min-w-0">
+      <button type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
+        <span className="truncate">{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 text-[#365F4A] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? <div role="listbox" aria-label={label} className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+        {options.map((option) => { const optionLabel = option ? (selectLabels[option] ?? option) : label; const selected = option === value; return <button key={option || label} type="button" role="option" aria-selected={selected} onClick={() => { onChange(option); setOpen(false); }}
+          className={`flex w-full items-center rounded px-3 py-2 text-left text-sm transition ${selected ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{optionLabel}</button>; })}
+      </div> : null}
+    </div>
   );
+}
+
+function DatePicker({ value, onChange, label }: { value?: string; onChange: (value: string) => void; label: string }) {
+  const [open, setOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const initial = value ? new Date(`${value}T12:00:00`) : new Date();
+  const [month, setMonth] = useState(new Date(initial.getFullYear(), initial.getMonth(), 1));
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: firstDay + daysInMonth }, (_, index) => index < firstDay ? null : index - firstDay + 1);
+  const iso = (day: number) => `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const today = new Date();
+  const todayValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => { if (!pickerRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", close); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  const displayValue = value ? new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : label;
+  return <div className="relative min-w-0">
+    <div ref={pickerRef}>
+    <button type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen((current) => !current)} className="flex h-11 w-full items-center justify-between gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-semibold text-[#123D2A] transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:outline-none focus:ring-4 focus:ring-[#82E6A7]/20">
+      <span className={value ? "" : "text-[#6C7A70]"}>{displayValue}</span><CalendarDays className="size-4 shrink-0 text-[#1F6B43]" />
+    </button>
+    {open ? <div className="absolute z-30 mt-2 w-[18rem] rounded-xl border border-[#CAD8CB] bg-white p-4 shadow-[0_16px_32px_rgba(18,61,42,0.16)]">
+      <div className="flex items-center justify-between"><button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="rounded-md p-2 text-[#123D2A] hover:bg-[#EEF8F0]">‹</button><p className="text-sm font-black text-[#123D2A]">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p><button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="rounded-md p-2 text-[#123D2A] hover:bg-[#EEF8F0]">›</button></div>
+      <div className="mt-3 grid grid-cols-7 text-center text-xs font-bold text-[#6C7A70]">{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => <span key={day} className="py-1">{day}</span>)}</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-sm">{cells.map((day, index) => day ? <button key={index} type="button" onClick={() => { onChange(iso(day)); setOpen(false); }} className={`rounded-md py-2 transition ${iso(day) === value ? "bg-[#1F6B43] font-bold text-white" : iso(day) === todayValue ? "border border-[#8FB79A] bg-[#F2FAF3] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#EEF8F0]"}`}>{day}</button> : <span key={index} />)}</div>
+      <div className="mt-3 flex justify-between border-t border-[#E2E8E2] pt-3 text-xs font-bold"><button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-[#B94A48] hover:underline">Clear</button><button type="button" onClick={() => { onChange(todayValue); setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); setOpen(false); }} className="text-[#1F6B43] hover:underline">Today</button></div>
+    </div> : null}
+    </div>
+  </div>;
 }
 function Info({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
@@ -251,7 +299,7 @@ function ActionConfirmationDialog({
           className="h-11 rounded-md border border-[#CAD8CB] bg-white px-5 text-sm font-bold text-[#294B39] disabled:opacity-60">Cancel</button>
         <button type="button" disabled={!valid} onClick={onConfirm}
           className="h-11 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#CAD8CB] disabled:text-[#5D6D63]">
-          {state.submitting ? "Processing…" : actionLabels[action]}
+          {state.submitting ? <span className="inline-flex items-center gap-2"><LoaderCircle className="size-4 animate-spin" aria-hidden="true" />Processing...</span> : actionLabels[action]}
         </button>
       </div>
     </div> : null}
@@ -261,9 +309,10 @@ function ActionConfirmationDialog({
 export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper" }) {
   const [payments, setPayments] = useState<PaymentReferenceListItem[]>([]);
   const [summary, setSummary] = useState(emptySummary);
-  const [filters, setFilters] = useState<PaymentReferenceFilters>({ page: 1, pageSize: 20, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" });
+  const [filters, setFilters] = useState<PaymentReferenceFilters>({ page: 1, pageSize: 5, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" });
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<PaymentReferenceDetail | null>(null);
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [dialog, setDialog] = useState(initialPaymentActionDialogState);
   const [editReference, setEditReference] = useState("");
   const [editAmount, setEditAmount] = useState("");
@@ -287,19 +336,21 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
 
   useEffect(() => { const timeout = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(timeout); }, [load]);
   const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 20;
+  const pageSize = filters.pageSize ?? 5;
   const pages = totalPaymentPages(total, pageSize);
   const canMutate = canUsePaymentMutationControls(role);
   const selectedEvent = useMemo(() => selected?.gatewayEvents.find((event) => event.id === dialog.gatewayEventId) ?? null, [dialog.gatewayEventId, selected]);
 
   const setFilter = (key: keyof PaymentReferenceFilters, value: string | boolean | number | undefined) => {
+    if (key === "dateFrom" && value && filters.dateTo && String(value) > filters.dateTo) { toast.error("From date cannot be later than To date."); return; }
+    if (key === "dateTo" && value && filters.dateFrom && String(value) < filters.dateFrom) { toast.error("To date cannot be earlier than From date."); return; }
     setFilters((current) => ({ ...current, [key]: value === "" ? undefined : value, page: key === "page" ? Number(value) : 1 }));
   };
   const openDetail = useCallback(async (id: string) => {
     setIsDetailLoading(true);
     try {
       const detail = await getPaymentReferenceDetail(id);
-      setSelected(detail); setEditReference(detail.referenceNumber); setEditAmount(String(detail.amount));
+      setSelected(detail); setEditReference(detail.referenceNumber); setEditAmount(String(detail.amount)); setShowTechnicalDetails(false);
     } catch (caught) { toast.error(caught instanceof ApiClientError ? caught.message : "Payment details could not be loaded."); }
     finally { setIsDetailLoading(false); }
   }, []);
@@ -372,7 +423,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
     </div> : null}
 
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Waiting for review" value={String(summary.pendingManual)} icon={Clock3} />
+      <StatCard label="Pending payments" value={String(summary.pendingTotal)} icon={Clock3} />
       <StatCard label="Needs correction" value={String(summary.needsClarification)} icon={Send} />
       <StatCard label="Approved today" value={String(summary.validatedToday)} icon={BadgeCheck} />
       <StatCard label="Approved amount" value={money(summary.validatedAmount)} icon={Banknote} />
@@ -396,23 +447,23 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
         <Select value={filters.validationSource ?? ""} onChange={(v) => setFilter("validationSource", v)} options={sourceOptions} label="All validation sources" />
         <Select value={filters.gatewayManual ?? "all"} onChange={(v) => setFilter("gatewayManual", v)} options={["all", "gateway", "manual"]} label="Online or manual" />
         <Select value={filters.failedEvents ? "failed" : "all"} onChange={(v) => setFilter("failedEvents", v === "failed")} options={["all", "failed"]} label="Payment system issues" />
-        <input value={filters.dateFrom ?? ""} onChange={(e) => setFilter("dateFrom", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="From date" />
-        <input value={filters.dateTo ?? ""} onChange={(e) => setFilter("dateTo", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="To date" />
+        <DatePicker value={filters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} label="From date" />
+        <DatePicker value={filters.dateTo} onChange={(value) => setFilter("dateTo", value)} label="To date" />
         <input value={filters.amountMin ?? ""} onChange={(e) => setFilter("amountMin", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Minimum amount" aria-label="Minimum amount" />
         <input value={filters.amountMax ?? ""} onChange={(e) => setFilter("amountMax", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Maximum amount" aria-label="Maximum amount" />
         <Select value={filters.sortBy ?? "submittedAt"} onChange={(v) => setFilter("sortBy", v)} options={["submittedAt", "paidAt", "amount", "referenceNumber"]} label="Sort payments by" />
         <Select value={filters.sortDirection ?? "desc"} onChange={(v) => setFilter("sortDirection", v)} options={["desc", "asc"]} label="Sort order" />
-        <Select value={String(filters.pageSize ?? 20)} onChange={(v) => setFilter("pageSize", Number(v))} options={["10", "20", "50", "100"]} label="Payments per page" />
-        <button type="button" onClick={() => setFilters({ page: 1, pageSize: 20, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" })}
+        <Select value={String(filters.pageSize ?? 5)} onChange={(v) => setFilter("pageSize", Number(v))} options={["5", "10", "20", "50", "100"]} label="Payments per page" />
+        <button type="button" onClick={() => setFilters({ page: 1, pageSize: 5, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" })}
           className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]">Clear all filters</button>
       </div> : null}
     </div>
 
-    {error ? <ErrorState message={error} /> : null}
+    {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
     {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? <EmptyState icon={ReceiptText} title="No payment references found" description="No saved TrackCOOP payments match the selected filters." /> : <DataTable>
       <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
         <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]"><tr>
-          <th className="px-5 py-4">Payer</th><th className="px-5 py-4">Bought / Rented</th><th className="px-5 py-4">Qty / Count</th><th className="px-5 py-4">Amount paid</th><th className="px-5 py-4">Paid through</th><th className="px-5 py-4">Status</th><th className="px-5 py-4"><span className="sr-only">Action</span></th>
+          <th className="whitespace-nowrap px-5 py-4">Payer</th><th className="whitespace-nowrap px-5 py-4">Payment for</th><th className="whitespace-nowrap px-5 py-4">Quantity / count</th><th className="whitespace-nowrap px-5 py-4">Amount</th><th className="whitespace-nowrap px-5 py-4">Payment method</th><th className="whitespace-nowrap px-5 py-4">Validation status</th><th className="whitespace-nowrap px-5 py-4"><span className="sr-only">Action</span></th>
         </tr></thead>
         <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">{payments.map((payment) => <tr key={payment.id} className="hover:bg-[#F7F8F3]">
           <td className="px-5 py-4"><p className="font-semibold text-[#123D2A]">{safe(payment.payerName)}</p><p className="mt-1 text-xs text-[#6C7A70]">{paymentForLabel(payment)}</p></td>
@@ -432,9 +483,10 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
         <button type="button" disabled={page >= pages || isLoading} onClick={() => setFilter("page", page + 1)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold disabled:opacity-50">Next<ChevronRight className="size-4" /></button></div>
     </div>
 
-    <FormDialog open={Boolean(selected)} onOpenChange={(open: boolean) => { if (!open && !dialog.open) setSelected(null); }} title={selected?.referenceNumber ?? "Payment reference"}
+    <FormDialog open={Boolean(selected) && !dialog.open} onOpenChange={(open: boolean) => { if (!open && !dialog.open) setSelected(null); }} title={selected?.referenceNumber ?? "Payment reference"}
       description={selected ? `${selected.paymentPurpose} / ${selected.paymentChannel}` : undefined} contentClassName="w-[min(74rem,calc(100vw-2rem))]">
       {isDetailLoading || !selected ? <LoadingSkeleton /> : <div className="grid gap-5 pt-3">
+        <div className={showTechnicalDetails ? "hidden" : "grid gap-5"}>
         {selected.posting.warnings.length ? <div className="rounded-lg border border-[#F3D08A] bg-[#FFF8E8] p-4 text-sm text-[#775200]"><p className="flex items-center gap-2 font-bold"><AlertTriangle className="size-4" />Warnings</p><ul className="mt-2 list-disc pl-5">{selected.posting.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div> : null}
         <div className="rounded-lg border border-[#CAD8CB] bg-white p-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -465,9 +517,12 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
             <button type="button" disabled={!mutationAllowed(selected) || isSecondarySubmitting} onClick={() => void saveEdit()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] disabled:opacity-50"><Pencil className="size-4" />Save corrected details</button>
           </details>
         </section> : <div className="rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4 text-sm text-[#5D6D63]">Chairman access is read-only. Payment mutation and recovery controls are available only to the Bookkeeper.</div>}
+        </div>
 
-        <details className="rounded-lg border border-[#CAD8CB] bg-white p-4">
-          <summary className="cursor-pointer text-sm font-bold text-[#123D2A]">View records, history, and technical details</summary>
+        <div className={showTechnicalDetails ? "grid gap-5" : "hidden"}>
+          <div className="flex items-center justify-between gap-3"><button type="button" onClick={() => setShowTechnicalDetails(false)} className="inline-flex min-h-11 items-center gap-2 self-start rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><ChevronLeft className="size-4" />Back to payment review</button><span className="text-xs font-bold text-[#6C7A70]">Page 2 of 2</span></div>
+          <div className="rounded-lg border border-[#CAD8CB] bg-white p-4">
+            <h3 className="text-lg font-black text-[#123D2A]">Records, history, and technical details</h3>
           <div className="mt-5 grid gap-5 border-t border-[#E2E8E2] pt-5">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <Info label="Member" value={safe(selected.memberCode)} sub={safe(selected.memberName)} />
@@ -501,7 +556,9 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
           {selected.validationHistory.length ? selected.validationHistory.map((entry) => <div key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm"><p className="font-bold text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p><p className="mt-1 text-[#5D6D63]">{entry.validationSource} · {safe(entry.changedByName)} · {dateTime(entry.changedAt)}</p>{entry.reason ? <p className="mt-2 text-[#294B39]">{entry.reason}</p> : null}</div>) : <p className="text-sm text-[#5D6D63]">No validation history yet.</p>}
         </section>
           </div>
-        </details>
+          </div>
+        </div>
+        <div className={showTechnicalDetails ? "hidden" : "flex items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white p-3"}><span className="text-xs font-bold text-[#6C7A70]">Page 1 of 2</span><button type="button" onClick={() => setShowTechnicalDetails(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><span>Next: View records and history</span><ChevronRight className="size-4" /></button></div>
       </div>}
     </FormDialog>
 

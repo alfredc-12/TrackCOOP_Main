@@ -37,11 +37,14 @@ import {
 
 const emptyPaymentSummary: PaymentReferenceSummary = {
   total: 0,
+  pendingTotal: 0,
   pendingManual: 0,
   needsClarification: 0,
   validatedToday: 0,
+  validatedTotal: 0,
   paymongoTestPayments: 0,
   rejected: 0,
+  reversed: 0,
   validatedAmount: 0,
 };
 
@@ -136,7 +139,8 @@ export function BookkeeperDashboardView() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timer);
+    const refreshTimer = window.setInterval(() => void load(), 30000);
+    return () => { window.clearTimeout(timer); window.clearInterval(refreshTimer); };
   }, [load]);
 
   return (
@@ -146,15 +150,24 @@ export function BookkeeperDashboardView() {
         title="Bookkeeper Home"
         description="Start with payments that need checking. Approved payments are automatically added to the correct cooperative records."
         actions={
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60"
-          >
-            <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/portal/bookkeeper/financial-dashboard"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"
+            >
+              <Landmark className="size-4" aria-hidden="true" />
+              Financial Dashboard
+            </Link>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60"
+            >
+              <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+              Refresh
+            </button>
+          </div>
         }
       />
 
@@ -166,7 +179,7 @@ export function BookkeeperDashboardView() {
       {loading ? <LoadingSkeleton /> : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Cash / manual payments to check" value={String(paymentSummary.pendingManual)} icon={Clock3} />
+            <StatCard label="Pending payments to check" value={String(paymentSummary.pendingTotal)} icon={Clock3} />
             <StatCard label="Needs correction" value={String(paymentSummary.needsClarification)} icon={CircleAlert} />
             <StatCard label="Approved today" value={String(paymentSummary.validatedToday)} icon={BadgeCheck} />
             <StatCard label="Approved payment total" value={money(paymentSummary.validatedAmount)} icon={Banknote} />
@@ -212,6 +225,7 @@ export function BookkeeperDashboardView() {
           </section>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <QuickLink href="/portal/bookkeeper/financial-dashboard" title="Financial Dashboard" description="View income, expenses, surplus, and cooperative finance activity." icon={Landmark} />
             <QuickLink href="/portal/bookkeeper/payment-validation" title="Payments to Check" description="Approve cash or check PayMongo status." icon={ReceiptText} />
             <QuickLink href="/portal/bookkeeper/share-capital" title="Share Capital" description="See member contributions and limits." icon={WalletCards} />
             <QuickLink href="/portal/bookkeeper/financial-ledger" title="Money Records" description={`${money(financeSummary.incomeTotal)} income and ${money(financeSummary.expenseTotal)} expenses recorded.`} icon={Landmark} />

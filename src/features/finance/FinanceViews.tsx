@@ -3,6 +3,7 @@
 import {
   BadgeCheck,
   Banknote,
+  ChevronDown,
   Landmark,
   ListChecks,
   Plus,
@@ -12,7 +13,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
   CurrencyDisplay,
@@ -68,6 +69,10 @@ function money(value: number) {
   }).format(value);
 }
 
+function formatPaymentDate(value: string) {
+  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function badgeTone(status: string) {
   if (["Validated", "Active", "Income", "Posted"].includes(status)) return "success" as const;
   if (["Pending", "Needs Clarification", "Adjustment"].includes(status)) return "warning" as const;
@@ -79,14 +84,18 @@ function Toolbar({
   search,
   onSearch,
   onRefresh,
+  refreshing,
   count,
   label,
+  rightContent,
 }: {
   search: string;
   onSearch: (value: string) => void;
   onRefresh: () => void;
-  count: number;
+  refreshing?: boolean;
+  count?: number;
   label: string;
+  rightContent?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -104,18 +113,35 @@ function Toolbar({
         />
       </label>
       <div className="flex items-center gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6C7A70]">
-          {count} shown
-        </p>
+        {rightContent ?? (count !== undefined ? <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6C7A70]">{count} shown</p> : null)}
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+          disabled={refreshing}
+          aria-busy={refreshing}
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-wait disabled:opacity-60"
         >
-          <RefreshCcw className="size-4" aria-hidden="true" />
-          Refresh
+          <RefreshCcw className={`size-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+          {refreshing ? "Loading..." : "Refresh"}
         </button>
       </div>
+    </div>
+  );
+}
+
+function RowsPerPageSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const options = [5, 10, 20, 50];
+  return (
+    <div className="relative w-40">
+      <button type="button" aria-label="Rows per page" aria-expanded={open} onClick={() => setOpen((current) => !current)}
+        className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
+        <span>{value} per page</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open ? <div role="listbox" aria-label="Rows per page options" className="absolute right-0 z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+        {options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} onClick={() => { onChange(option); setOpen(false); }}
+          className={`flex w-full items-center rounded px-3 py-3 text-left text-sm transition ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option} per page</button>)}
+      </div> : null}
     </div>
   );
 }
@@ -128,12 +154,16 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [payments, setPayments] = useState<ShareCapitalPayment[]>([]);
   const [summary, setSummary] = useState<ShareCapitalSummary>(emptyShareSummary);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   // Add Share Capital modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [createdPaymentId, setCreatedPaymentId] = useState<string | null>(null);
   const [members, setMembers] = useState<{ id: string; name: string; code: string }[]>([]);
   const [memberSearch, setMemberSearch] = useState("");
   const [isMembersLoading, setIsMembersLoading] = useState(false);
@@ -185,13 +215,20 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   }, [isAddOpen, memberSearch]);
 
   const handleAddSubmit = async () => {
-    if (!form.memberId) { toast.error("Please select a member."); return; }
-    if (!form.amount || form.amount <= 0) { toast.error("Please enter a valid amount."); return; }
-    if (form.referenceNumber.trim().length < 2) { toast.error("Please enter the receipt or payment reference number."); return; }
-    if (!moneyReceived || !detailsCorrect) { toast.error("Please confirm that the money and details were checked."); return; }
+    const fail = (message: string) => { setFormError(message); toast.error(message); };
+    if (!form.memberId) { fail("Please select a member."); return; }
+    if (!form.amount || form.amount <= 0) { fail("Please enter a valid amount."); return; }
+    if (form.referenceNumber.trim().length < 2) { fail("Please enter the receipt or payment reference number."); return; }
+    if (!createdPaymentId && payments.some((payment) => payment.referenceNumber?.trim().toLowerCase() === form.referenceNumber.trim().toLowerCase())) {
+      fail("This receipt or payment reference is already recorded. Use a unique reference number.");
+      return;
+    }
+    if (!moneyReceived || !detailsCorrect) { fail("Please confirm that the money and details were checked."); return; }
+    setFormError("");
     setIsSubmitting(true);
+    let paymentId = createdPaymentId;
     try {
-      const created = await createPaymentReference({
+      paymentId = paymentId ?? (await createPaymentReference({
         memberId: form.memberId,
         payerName: selectedMember?.name ?? null,
         provider: form.paymentChannel === "Cash" ? "Cashier" : form.paymentChannel,
@@ -202,31 +239,36 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
         relatedEntityId: form.memberId,
         amount: Number(form.amount),
         notes: form.remarks.trim() || null,
-      });
-      await validatePaymentReference(created.id);
+      })).id;
+      setCreatedPaymentId(paymentId);
+      await validatePaymentReference(paymentId);
       toast.success("Share capital payment approved and recorded.");
       setIsAddOpen(false);
+      setCreatedPaymentId(null);
       setForm({ memberId: "", amount: 0, paymentChannel: "Cash", referenceNumber: "", remarks: "" });
       setMoneyReceived(false);
       setDetailsCorrect(false);
       setMemberSearch("");
       void load();
     } catch (caught) {
-      toast.error(caught instanceof ApiClientError ? caught.message : "Failed to add share capital.");
+      const message = caught instanceof ApiClientError ? caught.message : paymentId ? "Payment was recorded, but approval failed. Retry approval safely." : "Failed to record share capital payment.";
+      setFormError(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const selectedMember = members.find(m => m.id === form.memberId);
+  const pageCount = Math.max(1, Math.ceil(payments.length / pageSize));
+  const visiblePayments = payments.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-4">
       <PageHeader eyebrow="Payments" title="Share Capital" description="Validated member capital progress, contribution limits, and payment records." actions={
         <div className="flex items-center gap-2">
-          <StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper workflow" : "Read-only oversight"}</StatusBadge>
           {role === "bookkeeper" ? <button
-              onClick={() => setIsAddOpen(true)}
+              onClick={() => { setFormError(""); setCreatedPaymentId(null); setIsAddOpen(true); }}
               className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d2f20]"
             >
               <Plus className="size-4" />
@@ -240,27 +282,38 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
         <StatCard label="Validated Payments" value={String(summary.validatedPayments)} icon={BadgeCheck} />
         <StatCard label="Member Count" value={String(summary.membersWithValidatedCapital)} icon={Banknote} />
       </div>
-      <Toolbar search={search} onSearch={setSearch} onRefresh={() => void load()} count={payments.length} label="share capital" />
-      {error ? <ErrorState message={error} /> : null}
+      <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="share capital" rightContent={<RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />} />
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? (
         <EmptyState icon={WalletCards} title="No share capital payments found" description="Share capital payments will appear here once recorded." />
       ) : (
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
-              <tr><th className="px-5 py-4">Member</th><th className="px-5 py-4">Amount</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Payment Date</th></tr>
+              <tr><th className="px-5 py-4 text-left">Member</th><th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Payment method</th><th className="px-5 py-4 text-center">Reference number</th><th className="px-5 py-4 text-center">Status</th><th className="px-5 py-4 text-center">Payment date</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-              {payments.map((payment) => (
+              {visiblePayments.map((payment) => (
                 <tr key={payment.id} className="hover:bg-[#F7F8F3]">
                   <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{payment.memberName}</p><p className="mt-1 text-xs text-[#6C7A70]">{payment.memberCode}</p></td>
-                  <td className="px-5 py-4"><CurrencyDisplay value={payment.amount} /></td>
-                  <td className="px-5 py-4"><StatusBadge tone={badgeTone(payment.paymentStatus)}>{payment.paymentStatus}</StatusBadge></td>
-                  <td className="px-5 py-4">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                  <td className="px-5 py-4 text-center"><CurrencyDisplay value={payment.amount} /></td>
+                  <td className={`px-5 py-4 text-center ${payment.paymentChannel ? "" : "italic text-[#8A968D]"}`}>{payment.paymentChannel ?? "Not recorded"}</td>
+                  <td className={`max-w-[18rem] px-5 py-4 text-center font-mono text-xs ${payment.referenceNumber ? "" : "italic text-[#8A968D]"}`}>
+                    {payment.referenceNumber ? <span className="inline-block max-w-full truncate align-bottom" title={payment.referenceNumber}>{payment.referenceNumber}</span> : "Not recorded"}
+                  </td>
+                  <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(payment.paymentStatus)}>{payment.paymentStatus}</StatusBadge></td>
+                  <td className="px-5 py-4 text-center">{formatPaymentDate(payment.paymentDate)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
+            <span className="font-semibold text-[#6C7A70]">Showing {payments.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, payments.length)} of {payments.length} payments</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
+              <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
+            </div>
+          </div>
         </DataTable>
       )}
 
@@ -270,10 +323,11 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
           <div className="my-auto w-full max-w-md rounded-3xl bg-white p-8 shadow-xl animate-in zoom-in-95 duration-200">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">Record Share Capital Payment</h2>
-              <button onClick={() => { setIsAddOpen(false); setMemberSearch(""); }} className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X className="size-5" /></button>
+              <button onClick={() => { setIsAddOpen(false); setMemberSearch(""); setFormError(""); setCreatedPaymentId(null); }} className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X className="size-5" /></button>
             </div>
 
             <div className="space-y-4">
+              {formError ? <div role="alert" aria-live="assertive" className="rounded-xl border border-[#D9A99F] bg-[#FFF4F1] p-3 text-sm font-semibold text-[#7A3023]">{formError}</div> : null}
               {/* Member selector */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Member <span className="text-red-500">*</span></label>
@@ -386,7 +440,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
 
             <div className="mt-6 flex gap-3">
               <button
-                onClick={() => { setIsAddOpen(false); setMemberSearch(""); }}
+                onClick={() => { setIsAddOpen(false); setMemberSearch(""); setFormError(""); setCreatedPaymentId(null); }}
                 disabled={isSubmitting}
                 className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
               >
@@ -397,7 +451,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
                 disabled={isSubmitting || !moneyReceived || !detailsCorrect}
                 className="flex-1 rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d2f20] disabled:opacity-60"
               >
-                {isSubmitting ? "Recording..." : "Approve and record"}
+                {isSubmitting ? (createdPaymentId ? "Approving..." : "Recording...") : createdPaymentId ? "Retry approval" : "Approve and record"}
               </button>
             </div>
           </div>
@@ -411,6 +465,8 @@ export function FinancialLedgerView({ role }: { role: "chairman" | "bookkeeper" 
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [summary, setSummary] = useState<FinancialSummary>(emptyFinancialSummary);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -433,37 +489,47 @@ export function FinancialLedgerView({ role }: { role: "chairman" | "bookkeeper" 
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
+  const pageCount = Math.max(1, Math.ceil(records.length / pageSize));
+  const visibleRecords = records.slice((page - 1) * pageSize, page * pageSize);
+
   return (
-    <div className="grid gap-6">
-      <PageHeader eyebrow="Finance" title="Financial Ledger" description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper workflow" : "Read-only oversight"}</StatusBadge>} />
+    <div className="grid gap-4">
+      <PageHeader eyebrow="Finance" title="Financial Ledger" description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Income" value={money(summary.incomeTotal)} icon={Landmark} />
         <StatCard label="Expenses" value={money(summary.expenseTotal)} icon={ReceiptText} />
         <StatCard label="Net" value={money(summary.netTotal)} icon={Banknote} />
         <StatCard label="Active Records" value={String(summary.activeRecords)} icon={ListChecks} />
       </div>
-      <Toolbar search={search} onSearch={setSearch} onRefresh={() => void load()} count={records.length} label="ledger" />
-      {error ? <ErrorState message={error} /> : null}
+      <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="ledger" rightContent={<RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />} />
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : records.length === 0 ? (
         <EmptyState icon={Landmark} title="No financial records found" description="Ledger entries will appear here once posted or recorded by the bookkeeper." />
       ) : (
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
-              <tr><th className="px-5 py-4">Record</th><th className="px-5 py-4">Category</th><th className="px-5 py-4">Type</th><th className="px-5 py-4">Amount</th><th className="px-5 py-4">Status</th></tr>
+              <tr><th className="px-5 py-4 text-left">Record</th><th className="px-5 py-4 text-left">Category</th><th className="px-5 py-4 text-center">Type</th><th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-              {records.map((record) => (
+              {visibleRecords.map((record) => (
                 <tr key={record.id} className="hover:bg-[#F7F8F3]">
-                  <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{record.recordNumber}</p><p className="mt-1 text-xs text-[#6C7A70]">{new Date(record.recordDate).toLocaleDateString()}</p></td>
+                  <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{record.recordNumber}</p><p className="mt-1 text-xs text-[#6C7A70]">{formatPaymentDate(record.recordDate)}</p></td>
                   <td className="px-5 py-4">{record.categoryName}</td>
-                  <td className="px-5 py-4"><StatusBadge tone={badgeTone(record.recordType)}>{record.recordType}</StatusBadge></td>
-                  <td className="px-5 py-4"><CurrencyDisplay value={record.amount} /></td>
-                  <td className="px-5 py-4"><StatusBadge tone={badgeTone(record.approvedBy ? "Posted" : record.recordStatus)}>{record.approvedBy ? "Posted" : record.recordStatus}</StatusBadge></td>
+                  <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(record.recordType)}>{record.recordType}</StatusBadge></td>
+                  <td className="px-5 py-4 text-center"><CurrencyDisplay value={record.amount} /></td>
+                  <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(record.approvedBy ? "Posted" : record.recordStatus)}>{record.approvedBy ? "Posted" : record.recordStatus}</StatusBadge></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
+            <span className="font-semibold text-[#6C7A70]">Showing {records.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, records.length)} of {records.length} records</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
+              <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
+            </div>
+          </div>
         </DataTable>
       )}
     </div>
@@ -472,6 +538,8 @@ export function FinancialLedgerView({ role }: { role: "chairman" | "bookkeeper" 
 
 export function FinancialCategoriesView() {
   const [categories, setCategories] = useState<FinancialCategory[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -492,29 +560,45 @@ export function FinancialCategoriesView() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
+  const pageCount = Math.max(1, Math.ceil(categories.length / pageSize));
+  const visibleCategories = categories.slice((page - 1) * pageSize, page * pageSize);
+
   return (
-    <div className="grid gap-6">
-      <PageHeader eyebrow="Finance" title="Financial Categories" description="Reusable income and expense categories for ledger organization." actions={<StatusBadge tone="success">Bookkeeper workflow</StatusBadge>} />
-      {error ? <ErrorState message={error} /> : null}
+    <div className="grid gap-4">
+      <PageHeader eyebrow="Finance" title="Financial Categories" description="Reusable income and expense categories for ledger organization." />
+      <div className="flex flex-wrap items-center justify-end gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3">
+        <RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
+        <button type="button" onClick={() => void load()} disabled={isLoading} aria-busy={isLoading} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:cursor-wait disabled:opacity-60">
+          <RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />{isLoading ? "Loading..." : "Refresh"}
+        </button>
+      </div>
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : categories.length === 0 ? (
         <EmptyState icon={ListChecks} title="No categories found" description="Create financial categories before posting detailed ledger records." />
       ) : (
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
             <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
-              <tr><th className="px-5 py-4">Code</th><th className="px-5 py-4">Name</th><th className="px-5 py-4">Type</th><th className="px-5 py-4">Status</th></tr>
+              <tr><th className="px-5 py-4 text-left">Code</th><th className="px-5 py-4 text-left">Name</th><th className="px-5 py-4 text-center">Type</th><th className="px-5 py-4 text-center">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-              {categories.map((category) => (
+              {visibleCategories.map((category) => (
                 <tr key={category.id} className="hover:bg-[#F7F8F3]">
                   <td className="px-5 py-4 font-bold text-[#123D2A]">{category.categoryCode}</td>
                   <td className="px-5 py-4">{category.categoryName}</td>
-                  <td className="px-5 py-4"><StatusBadge tone={badgeTone(category.categoryType)}>{category.categoryType}</StatusBadge></td>
-                  <td className="px-5 py-4"><StatusBadge tone={category.isActive ? "success" : "neutral"}>{category.isActive ? "Active" : "Inactive"}</StatusBadge></td>
+                  <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(category.categoryType)}>{category.categoryType}</StatusBadge></td>
+                  <td className="px-5 py-4 text-center"><StatusBadge tone={category.isActive ? "success" : "neutral"}>{category.isActive ? "Active" : "Inactive"}</StatusBadge></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
+            <span className="font-semibold text-[#6C7A70]">Showing {categories.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, categories.length)} of {categories.length} categories</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
+              <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
+            </div>
+          </div>
         </DataTable>
       )}
     </div>

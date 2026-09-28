@@ -14,11 +14,11 @@ export function createDashboardRouter(authService: AuthService | undefined = und
   const controller = new DashboardController(service);
 
   const authSvc = authService || createAuthService();
-  const chairmanOnly = [createAuthenticate(authSvc), requireRoles("chairman")];
+  const chairmanAndBookkeeper = [createAuthenticate(authSvc), requireRoles("chairman", "bookkeeper")];
 
   router.get(
     "/chairman/dashboard",
-    ...chairmanOnly,
+    ...chairmanAndBookkeeper,
     controller.getChairmanDashboard
   );
 

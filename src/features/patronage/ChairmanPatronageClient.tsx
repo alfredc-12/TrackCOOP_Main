@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Calculator, CheckCircle2, HandCoins, Plus, RefreshCw, ShoppingCart, Tractor, TrendingDown, UsersRound } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, HandCoins, Plus, RefreshCw, ShoppingCart, Tractor, TrendingDown, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { CurrencyDisplay, DataTable, EmptyState, ErrorState, FormDialog, FormField, LoadingSkeleton, StatCard, StatusBadge } from "@/components/portal/PortalPrimitives";
@@ -61,6 +61,21 @@ function dateParts(date: string) {
   return { year, month };
 }
 
+function PatronageSelect({ value, options, onChange, label, placeholder, openUp = false }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void; label: string; placeholder?: string; openUp?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder ?? value;
+  return (
+    <div className="relative">
+      <button type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen((current) => !current)} className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
+        <span className="truncate">{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open ? <div role="listbox" aria-label={`${label} options`} className={`absolute z-30 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)] ${openUp ? "bottom-full mb-2" : "mt-2"}`}>
+        {options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center rounded px-3 py-3 text-left text-sm transition ${option.value === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option.label}</button>)}
+      </div> : null}
+    </div>
+  );
+}
+
 type PatronageManagementMode = "chairman" | "bookkeeper";
 
 export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: PatronageManagementMode }) {
@@ -71,6 +86,8 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
   const [createOpen, setCreateOpen] = useState(false);
   const [financialBasis, setFinancialBasis] = useState<PatronageFinancialBasis | null>(null);
   const [basisError, setBasisError] = useState("");
+  const [allocationPage, setAllocationPage] = useState(1);
+  const [allocationPageSize, setAllocationPageSize] = useState(5);
   const year = new Date().getFullYear();
   const [draft, setDraft] = useState({ name: `${year} Patronage Refund`, startDate: `${year}-01-01`, endDate: `${year}-12-31`, refundPool: "", notes: "" });
   const yearOptions = Array.from({ length: 8 }, (_, index) => year - 5 + index);
@@ -99,19 +116,9 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
   }, []);
 
   useEffect(() => {
-    let active = true;
-    getPatronageOverview(selectedId)
-      .then((result) => {
-        if (!active) return;
-        setData(result);
-        setSelectedId(result.selectedPeriod?.id);
-        setError("");
-      })
-      .catch((loadError: unknown) => {
-        if (active) setError(loadError instanceof Error ? loadError.message : "Unable to load patronage records.");
-      });
-    return () => { active = false; };
-  }, [selectedId]);
+    const timeoutId = window.setTimeout(() => void load(selectedId), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [load, selectedId]);
 
   useEffect(() => {
     if (!createOpen || !draft.startDate || !draft.endDate || draft.endDate < draft.startDate) return;
@@ -204,6 +211,9 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
   const pendingRefundTotal = data?.allocations
     .filter((item) => item.paymentStatus === "Pending")
     .reduce((sum, item) => sum + item.refundAmount, 0) ?? 0;
+  const allocationCount = data?.allocations.length ?? 0;
+  const allocationPageCount = Math.max(1, Math.ceil(allocationCount / allocationPageSize));
+  const visibleAllocations = data?.allocations.slice((allocationPage - 1) * allocationPageSize, allocationPage * allocationPageSize) ?? [];
   const canRecordRefundPayments = period?.status !== "Draft" && data?.allocations.some((item) => item.paymentStatus === "Pending");
   const hasCalculatedAllocations = Boolean(period && data?.allocations.length);
   const canFinalizePeriod = Boolean(period && period.status === "Draft" && hasCalculatedAllocations && period.totalPatronage > 0);
@@ -216,7 +226,7 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
         description={mode === "bookkeeper"
           ? "See each member's paid cooperative use, patronage percentage, refund amount, and payment status."
           : "Monitor eligible member use of the cooperative and administer patronage-refund allocations separately from ordinary finance records."}
-        actions={canManagePeriods ? <button type="button" onClick={() => { setFinancialBasis(null); setBasisError(""); setCreateOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><Plus className="size-4" /> New period</button> : undefined}
+        actions={<div className="flex flex-wrap items-center gap-2">{canManagePeriods ? <button type="button" onClick={() => { setFinancialBasis(null); setBasisError(""); setCreateOpen(true); }} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><Plus className="size-4" /> New period</button> : null}<button type="button" disabled={Boolean(busy)} onClick={() => void load(selectedId)} className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50"><RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} /> Refresh</button></div>}
       />
 
       {error ? <ErrorState message={error} onRetry={() => void load(selectedId)} /> : null}
@@ -226,13 +236,12 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
         <>
           <section className="rounded-lg border border-[#CAD8CB] bg-white p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <label className="grid min-w-64 gap-2 text-sm font-bold text-[#294B39]">
-                Patronage period
-                <select className={inputClass} value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || undefined)}>
-                  {data.periods.length === 0 ? <option value="">No periods yet</option> : null}
-                  {data.periods.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.status}</option>)}
-                </select>
-              </label>
+              <div>
+                <label className="grid min-w-64 gap-2 text-sm font-bold text-[#294B39]">
+                  Patronage period
+                  <PatronageSelect value={selectedId ?? ""} placeholder="No periods yet" label="Patronage period" options={data.periods.map((item) => ({ value: item.id, label: `${item.name} - ${item.status}` }))} onChange={(value) => { setSelectedId(value || undefined); setAllocationPage(1); }} />
+                </label>
+              </div>
               {period ? <StatusBadge tone={statusTone(period.status)}>{period.status}</StatusBadge> : null}
             </div>
           </section>
@@ -276,27 +285,36 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
                   </div>
                   {canManagePeriods && period.status === "Draft" ? (
                     <div className="flex flex-wrap gap-2">
-                      <button disabled={Boolean(busy)} onClick={() => void runAction("Member shares calculated", () => recalculatePatronagePeriod(period.id))} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50"><RefreshCw className="size-4" /> Calculate shares</button>
-                      <button disabled={Boolean(busy) || !canFinalizePeriod} onClick={() => void runAction("Patronage period finalized", () => finalizePatronagePeriod(period.id))} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43] disabled:opacity-50"><CheckCircle2 className="size-4" /> Finalize</button>
+                      <button disabled={Boolean(busy)} onClick={() => void runAction("Member shares calculated", () => recalculatePatronagePeriod(period.id))} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50"><RefreshCw className={`size-4 ${busy === "Member shares calculated" ? "animate-spin" : ""}`} /> {busy === "Member shares calculated" ? "Calculating..." : "Calculate shares"}</button>
+                      <button disabled={Boolean(busy) || !canFinalizePeriod} onClick={() => void runAction("Patronage period finalized", () => finalizePatronagePeriod(period.id))} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43] disabled:opacity-50"><CheckCircle2 className="size-4" /> {busy === "Patronage period finalized" ? "Finalizing..." : "Finalize"}</button>
                     </div>
                   ) : null}
                 </div>
               </section>
 
               {data.allocations.length ? (
+                <>
                 <DataTable>
                   <table className={`${canRecordRefundPayments ? "min-w-[1050px]" : "min-w-[930px]"} w-full text-left text-sm`}>
-                    <thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3">Member</th><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Purchases</th><th className="px-4 py-3 text-right">Rentals</th><th className="px-4 py-3 text-right">Total patronage</th><th className="px-4 py-3 text-right">Share</th><th className="px-4 py-3 text-right">Refund</th><th className="px-4 py-3">Status</th>{canRecordRefundPayments ? <th className="px-4 py-3">Action</th> : null}</tr></thead>
+                    <thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3 text-left">Member</th><th className="px-4 py-3 text-left">Type</th><th className="px-4 py-3 text-center">Purchases</th><th className="px-4 py-3 text-center">Rentals</th><th className="px-4 py-3 text-center">Total patronage</th><th className="px-4 py-3 text-center">Share</th><th className="px-4 py-3 text-center">Refund</th><th className="px-4 py-3 text-center">Status</th>{canRecordRefundPayments ? <th className="px-4 py-3 text-center">Action</th> : null}</tr></thead>
                     <tbody className="divide-y divide-[#E5ECE5]">
-                      {data.allocations.map((item) => (
-                        <tr key={item.id} className="text-[#294B39]"><td className="px-4 py-3"><div className="font-bold">{item.memberName}</div><div className="text-xs text-[#6C7A70]">{item.memberCode}</div></td><td className="px-4 py-3">{item.membershipType}</td><td className="px-4 py-3 text-right"><CurrencyDisplay value={item.purchasePatronage} /></td><td className="px-4 py-3 text-right"><CurrencyDisplay value={item.rentalPatronage} /></td><td className="px-4 py-3 text-right"><CurrencyDisplay value={item.totalPatronage} /></td><td className="px-4 py-3 text-right tabular-nums">{item.patronageSharePercent.toFixed(2)}%</td><td className="px-4 py-3 text-right"><CurrencyDisplay value={item.refundAmount} /></td><td className="px-4 py-3"><StatusBadge tone={statusTone(item.paymentStatus)}>{item.paymentStatus}</StatusBadge></td>{canRecordRefundPayments ? <td className="px-4 py-3">{item.paymentStatus === "Pending" ? <button disabled={Boolean(busy)} onClick={() => {
+                      {visibleAllocations.map((item) => (
+                        <tr key={item.id} className="text-[#294B39]"><td className="px-4 py-3"><div className="font-bold">{item.memberName}</div><div className="text-xs text-[#6C7A70]">{item.memberCode}</div></td><td className="px-4 py-3">{item.membershipType}</td><td className="px-4 py-3 text-center"><CurrencyDisplay value={item.purchasePatronage} /></td><td className="px-4 py-3 text-center"><CurrencyDisplay value={item.rentalPatronage} /></td><td className="px-4 py-3 text-center"><CurrencyDisplay value={item.totalPatronage} /></td><td className="px-4 py-3 text-center tabular-nums">{item.patronageSharePercent.toFixed(2)}%</td><td className="px-4 py-3 text-center"><CurrencyDisplay value={item.refundAmount} /></td><td className="px-4 py-3 text-center"><StatusBadge tone={statusTone(item.paymentStatus)}>{item.paymentStatus}</StatusBadge></td>{canRecordRefundPayments ? <td className="px-4 py-3 text-center">{item.paymentStatus === "Pending" ? <button disabled={Boolean(busy)} onClick={() => {
                           if (!window.confirm(`Confirm that ${currency(item.refundAmount)} was given to ${item.memberName}?`)) return;
                           void runAction(`Refund paid for ${item.memberName}`, () => markPatronageRefundPaid(item.id));
-                        }} className="rounded-md border border-[#1F6B43] px-3 py-2 text-xs font-bold text-[#1F6B43] hover:bg-[#E7F2E4] disabled:opacity-50">Mark paid</button> : null}</td> : null}</tr>
+                        }} className="rounded-md border border-[#1F6B43] px-3 py-2 text-xs font-bold text-[#1F6B43] hover:bg-[#E7F2E4] disabled:opacity-50">{busy === `Refund paid for ${item.memberName}` ? "Saving..." : "Mark paid"}</button> : null}</td> : null}</tr>
                       ))}
                     </tbody>
                   </table>
                 </DataTable>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E5ECE5] px-4 py-4 text-sm">
+                    <div className="flex items-center gap-3 font-semibold text-[#6C7A70]">
+                      <span>Showing {allocationCount ? (allocationPage - 1) * allocationPageSize + 1 : 0}–{Math.min(allocationPage * allocationPageSize, allocationCount)} of {allocationCount} members</span>
+                      <div className="w-32"><PatronageSelect value={String(allocationPageSize)} label="Rows per page" openUp options={[5, 10, 20, 50].map((size) => ({ value: String(size), label: `${size} per page` }))} onChange={(value) => { setAllocationPageSize(Number(value)); setAllocationPage(1); }} /></div>
+                    </div>
+                    <div className="flex gap-2"><button type="button" disabled={allocationPage <= 1} onClick={() => setAllocationPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button><button type="button" disabled={allocationPage >= allocationPageCount} onClick={() => setAllocationPage((current) => Math.min(allocationPageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button></div>
+                  </div>
+                </>
               ) : <EmptyState icon={Calculator} title="No member shares yet" description={canManagePeriods ? "Calculate shares after confirming this period has paid member purchases or completed paid rentals." : "The chairman has not calculated the member allocations for this period yet."} />}
             </>
           ) : <EmptyState icon={HandCoins} title={canManagePeriods ? "Set up the first patronage period" : "No patronage period yet"} description={canManagePeriods ? "Create a date range and approved refund pool, then calculate member allocations from eligible cooperative transactions." : "The chairman must create and approve a patronage period before member allocations appear here."} />}

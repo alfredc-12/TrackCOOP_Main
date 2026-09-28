@@ -32,8 +32,8 @@ export type PaymentReferencePage = {
   items: PaymentReferenceListItem[]; total: number; page: number; pageSize: number;
 };
 export type PaymentReferenceSummary = {
-  total: number; pendingManual: number; needsClarification: number;
-  validatedToday: number; paymongoTestPayments: number; rejected: number;
+  total: number; pendingTotal: number; pendingManual: number; needsClarification: number;
+  validatedToday: number; validatedTotal: number; paymongoTestPayments: number; rejected: number; reversed: number;
   validatedAmount: number;
 };
 export type PaymentGatewayEvent = {
@@ -97,7 +97,7 @@ export type GatewayRetryResult = {
   receiptStatus: "Pending" | "Processing" | "Generated" | "Failed" | null;
   receiptErrorCode: string | null;
 };
-export type ShareCapitalPayment = { id: string; memberCode: string; memberName: string; amount: number; paymentDate: string; paymentStatus: "Pending" | "Validated" | "Rejected" | "Reversed" };
+export type ShareCapitalPayment = { id: string; memberCode: string; memberName: string; amount: number; paymentDate: string; paymentStatus: "Pending" | "Validated" | "Rejected" | "Reversed"; paymentChannel?: string | null; referenceNumber?: string | null };
 export type ShareCapitalSummary = { validatedTotal: number; pendingTotal: number; validatedPayments: number; membersWithValidatedCapital: number; initialRequirement: number; fullRequirement: number; maximumAllowed: number };
 export type CreatePaymentReferenceInput = {
   memberId?: string | null;

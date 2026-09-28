@@ -61,11 +61,14 @@ function createRepository(overrides: Partial<PaymentReferenceRepository> = {}): 
     async summary() {
       return {
         total: 0,
+        pendingTotal: 0,
         pendingManual: 0,
         needsClarification: 0,
         validatedToday: 0,
+        validatedTotal: 0,
         paymongoTestPayments: 0,
         rejected: 0,
+        reversed: 0,
         validatedAmount: 0,
       };
     },

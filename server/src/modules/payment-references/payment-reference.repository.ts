@@ -60,11 +60,14 @@ type PaymentRow = RowDataPacket & {
 type CountRow = RowDataPacket & { total: number };
 type SummaryRow = RowDataPacket & {
   total: number;
+  pendingTotal: number;
   pendingManual: number;
   needsClarification: number;
   validatedToday: number;
+  validatedTotal: number;
   paymongoTestPayments: number;
   rejected: number;
+  reversed: number;
   validatedAmount: string | number | null;
 };
 type DetailRow = PaymentRow & {
@@ -217,8 +220,8 @@ export function createPaymentReferenceRepository(
         values.push(query.paymentChannel);
       }
       if (query.validationSource) {
-        // where.push("p.validation_source = ?");
-        // values.push(query.validationSource);
+        where.push("p.validation_source = ?");
+        values.push(query.validationSource);
       }
       if (query.gatewayOnly) {
         where.push("p.payment_channel = 'PayMongo'");
@@ -271,22 +274,28 @@ export function createPaymentReferenceRepository(
       await syncMissingRentalPaymentReferencesForReview(databasePool());
       const [rows] = await databasePool().execute<SummaryRow[]>(
         `SELECT COUNT(*) AS total,
+                SUM(validation_status = 'Pending') AS pendingTotal,
                 SUM(validation_status = 'Pending' AND payment_channel <> 'PayMongo') AS pendingManual,
                 SUM(validation_status = 'Needs Clarification') AS needsClarification,
                 SUM(validation_status = 'Validated' AND DATE(validated_at) = UTC_DATE()) AS validatedToday,
+                SUM(validation_status = 'Validated') AS validatedTotal,
                 SUM(payment_channel = 'PayMongo' AND gateway_environment = 'Test') AS paymongoTestPayments,
                 SUM(validation_status = 'Rejected') AS rejected,
+                SUM(validation_status = 'Reversed') AS reversed,
                 COALESCE(SUM(CASE WHEN validation_status = 'Validated' THEN amount ELSE 0 END), 0) AS validatedAmount
            FROM payment_references`,
       );
       const row = rows[0];
       return {
         total: Number(row?.total ?? 0),
+        pendingTotal: Number(row?.pendingTotal ?? 0),
         pendingManual: Number(row?.pendingManual ?? 0),
         needsClarification: Number(row?.needsClarification ?? 0),
         validatedToday: Number(row?.validatedToday ?? 0),
+        validatedTotal: Number(row?.validatedTotal ?? 0),
         paymongoTestPayments: Number(row?.paymongoTestPayments ?? 0),
         rejected: Number(row?.rejected ?? 0),
+        reversed: Number(row?.reversed ?? 0),
         validatedAmount: Number(row?.validatedAmount ?? 0),
       };
     },

@@ -25,6 +25,8 @@ type ShareRow = RowDataPacket & {
   memberCode: string;
   memberName: string;
   paymentReferenceId: string | null;
+  paymentChannel: string | null;
+  referenceNumber: string | null;
   amount: string | number;
   paymentDate: Date;
   paymentStatus: ShareCapitalStatus;
@@ -64,6 +66,8 @@ function shareSelect() {
                  m.member_code AS memberCode,
                  m.full_name AS memberName,
                  CAST(s.payment_reference_id AS CHAR) AS paymentReferenceId,
+                 p.payment_channel AS paymentChannel,
+                 p.reference_number AS referenceNumber,
                  s.amount,
                  s.payment_date AS paymentDate,
                  s.payment_status AS paymentStatus,
@@ -74,7 +78,8 @@ function shareSelect() {
                  s.created_at AS createdAt,
                  s.updated_at AS updatedAt
             FROM share_capital_payments s
-            JOIN member_profiles m ON m.member_id = s.member_id`;
+            JOIN member_profiles m ON m.member_id = s.member_id
+            LEFT JOIN payment_references p ON p.payment_reference_id = s.payment_reference_id`;
 }
 
 function mapShare(row: ShareRow): ShareCapitalPayment {

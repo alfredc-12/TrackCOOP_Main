@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Banknote,
   CircleDollarSign,
+  ChevronDown,
   Eye,
   ReceiptText,
   RefreshCcw,
@@ -11,9 +12,8 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/portal/PageHeader";
 import {
   CurrencyDisplay,
   DataTable,
@@ -51,7 +51,84 @@ type ManualChannel = "Cash" | "Manual GCash" | "Bank Transfer" | "Other";
 type PaymentPurpose = "Associate Membership Fee" | "Share Capital";
 
 const manualChannels: ManualChannel[] = ["Cash", "Manual GCash", "Bank Transfer", "Other"];
-const simpleStatuses = ["All", "Needs payment", "For checking", "Approved", "Needs correction"] as const;
+const simpleStatuses = ["All", "Needs payment", "Pending review", "Approved", "Needs clarification", "Rejected", "Reversed"] as const;
+
+function StatusFilter({ value, onChange }: { value: (typeof simpleStatuses)[number]; onChange: (value: (typeof simpleStatuses)[number]) => void }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideOrEscape = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key === "Escape") setOpen(false);
+      if (event instanceof MouseEvent && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideOrEscape);
+    document.addEventListener("keydown", closeOnOutsideOrEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideOrEscape);
+      document.removeEventListener("keydown", closeOnOutsideOrEscape);
+    };
+  }, [open]);
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button type="button" aria-label="Filter membership payments by status" aria-expanded={open} onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
+        <span>{value}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open ? <div role="listbox" aria-label="Payment status options" className="absolute z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+        {simpleStatuses.map((status) => <button key={status} type="button" role="option" aria-selected={status === value} onClick={() => { onChange(status); setOpen(false); }}
+          className={`flex w-full items-center rounded px-3 py-2 text-left text-sm transition ${status === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{status}</button>)}
+      </div> : null}
+    </div>
+  );
+}
+
+function ManualChannelSelect({ value, onChange }: { value: ManualChannel; onChange: (value: ManualChannel) => void }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideOrEscape = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key === "Escape") setOpen(false);
+      if (event instanceof MouseEvent && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideOrEscape);
+    document.addEventListener("keydown", closeOnOutsideOrEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideOrEscape);
+      document.removeEventListener("keydown", closeOnOutsideOrEscape);
+    };
+  }, [open]);
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button type="button" aria-label="Select payment method" aria-expanded={open} onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
+        <span>{value}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open ? <div role="listbox" aria-label="Payment method options" className="absolute z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+        {manualChannels.map((channel) => <button key={channel} type="button" role="option" aria-selected={channel === value} onClick={() => { onChange(channel); setOpen(false); }}
+          className={`flex w-full items-center rounded px-3 py-2 text-left text-sm transition ${channel === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{channel}</button>)}
+      </div> : null}
+    </div>
+  );
+}
+
+function PageSizeSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const options = [5, 10, 20, 50];
+  return (
+    <div className="relative">
+      <button type="button" aria-label="Payments per page" aria-expanded={open} onClick={() => setOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
+        <span>{value} per page</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open ? <div role="listbox" aria-label="Payments per page options" className="absolute z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
+        {options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} onClick={() => { onChange(option); setOpen(false); }}
+          className={`flex w-full items-center rounded px-3 py-2 text-left text-sm transition ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option} per page</button>)}
+      </div> : null}
+    </div>
+  );
+}
 const associateMembershipFee = 200;
 const trueMemberInitialCapital = 1500;
 
@@ -216,11 +293,14 @@ export function MembershipPaymentsView() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentReferenceDetail | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof simpleStatuses)[number]>("All");
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [paymentsPerPage, setPaymentsPerPage] = useState(5);
   const [manualPurpose, setManualPurpose] = useState<PaymentPurpose>("Associate Membership Fee");
   const [manualChannel, setManualChannel] = useState<ManualChannel>("Cash");
   const [manualReference, setManualReference] = useState("");
   const [manualAmount, setManualAmount] = useState("200");
   const [manualNote, setManualNote] = useState("");
+  const [manualCreatedPaymentId, setManualCreatedPaymentId] = useState<string | null>(null);
   const [moneyChecked, setMoneyChecked] = useState(false);
   const [detailsChecked, setDetailsChecked] = useState(false);
   const [correctionNote, setCorrectionNote] = useState("");
@@ -228,6 +308,7 @@ export function MembershipPaymentsView() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,7 +356,8 @@ export function MembershipPaymentsView() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 120);
-    return () => window.clearTimeout(timer);
+    const refreshTimer = window.setInterval(() => void load(), 30000);
+    return () => { window.clearTimeout(timer); window.clearInterval(refreshTimer); };
   }, [load]);
 
   const applicationsNeedingPayment = useMemo(() => {
@@ -283,16 +365,13 @@ export function MembershipPaymentsView() {
   }, [applications, payments]);
 
   const summary = useMemo(() => {
-    const pendingManual = payments.filter(
-      (payment) => payment.validationStatus !== "Validated" && payment.paymentChannel !== "PayMongo",
-    ).length;
-    const pendingPaymongo = payments.filter(
-      (payment) => payment.validationStatus !== "Validated" && payment.paymentChannel === "PayMongo",
+    const forChecking = payments.filter(
+      (payment) => ["Pending", "Needs Clarification"].includes(payment.validationStatus),
     ).length;
     const approved = payments.filter((payment) => payment.validationStatus === "Validated");
     return {
       needsPayment: applicationsNeedingPayment.length,
-      forChecking: pendingManual + pendingPaymongo,
+      forChecking,
       approved: approved.length,
       approvedAmount: approved.reduce((sum, payment) => sum + payment.amount, 0),
     };
@@ -318,8 +397,12 @@ export function MembershipPaymentsView() {
       const simpleStatus = payment.validationStatus === "Validated"
         ? "Approved"
         : payment.validationStatus === "Needs Clarification"
-          ? "Needs correction"
-          : "For checking";
+          ? "Needs clarification"
+          : payment.validationStatus === "Rejected"
+            ? "Rejected"
+            : payment.validationStatus === "Reversed"
+              ? "Reversed"
+              : "Pending review";
       const statusMatches = statusFilter === "All" || statusFilter === simpleStatus;
       if (!statusMatches) return false;
       if (!term) return true;
@@ -333,10 +416,13 @@ export function MembershipPaymentsView() {
       ].some((value) => value?.toLowerCase().includes(term));
     });
   }, [payments, search, statusFilter]);
+  const paymentPageCount = Math.max(1, Math.ceil(filteredPayments.length / paymentsPerPage));
+  const visiblePayments = filteredPayments.slice((paymentPage - 1) * paymentsPerPage, paymentPage * paymentsPerPage);
 
   async function openManualPayment(applicationId: string) {
     setSubmitting(true);
     setError("");
+    setModalError("");
     try {
       const detail = await getChairmanApplication(applicationId);
       const nextPayment = nextRequiredPayment(detail, payments);
@@ -347,12 +433,15 @@ export function MembershipPaymentsView() {
       }
       const purpose = nextPayment.purpose;
       const channel: ManualChannel = "Cash";
+      setSelectedPayment(null);
+      setModalError("");
       setSelectedApplication(detail);
       setManualPurpose(purpose);
       setManualChannel(channel);
       setManualAmount(String(nextPayment.amount));
       setManualReference(defaultReference(detail.applicationCode, purpose, channel));
       setManualNote("");
+      setManualCreatedPaymentId(null);
       setMoneyChecked(false);
       setDetailsChecked(false);
     } catch (caught) {
@@ -368,7 +457,9 @@ export function MembershipPaymentsView() {
 
   async function openPayment(paymentId: string) {
     setSubmitting(true);
+    setModalError("");
     try {
+      setSelectedApplication(null);
       setSelectedPayment(await getPaymentReferenceDetail(paymentId));
       setCorrectionNote("");
       setAction(null);
@@ -411,9 +502,17 @@ export function MembershipPaymentsView() {
       toast.error("Please tick both checks before approving.");
       return;
     }
+    if (!manualCreatedPaymentId && payments.some((payment) => payment.referenceNumber.trim().toLowerCase() === manualReference.trim().toLowerCase())) {
+      const message = "This receipt or reference number is already recorded. Use a unique reference number.";
+      setModalError(message);
+      toast.error(message);
+      return;
+    }
+    setModalError("");
     setSubmitting(true);
+    let approvalPaymentId = manualCreatedPaymentId;
     try {
-      const created = await createPaymentReference({
+      const paymentId = approvalPaymentId ?? (await createPaymentReference({
         payerName: applicantName(selectedApplication),
         payerEmail: selectedApplication.email,
         payerContact: selectedApplication.contactNumber,
@@ -425,16 +524,25 @@ export function MembershipPaymentsView() {
         relatedEntityId: selectedApplication.id,
         amount,
         notes: manualNote.trim() || `Bookkeeper recorded ${manualChannel} membership payment.`,
-      });
-      await validatePaymentReference(created.id);
+      })).id;
+      approvalPaymentId = paymentId;
+      setManualCreatedPaymentId(paymentId);
+      await validatePaymentReference(paymentId);
       toast.success("Payment approved and posted.");
       setSelectedApplication(null);
+      setManualCreatedPaymentId(null);
       await load();
     } catch (caught) {
+      const message = caught instanceof ApiClientError
+        ? approvalPaymentId
+          ? `Payment was recorded, but approval failed: ${caught.message}`
+          : caught.message
+        : approvalPaymentId
+          ? "Payment was recorded, but approval failed. You can retry approval safely."
+          : "Payment could not be recorded.";
+      setModalError(message);
       toast.error(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Payment could not be approved.",
+        message,
       );
     } finally {
       setSubmitting(false);
@@ -444,16 +552,17 @@ export function MembershipPaymentsView() {
   async function approveExistingManualPayment() {
     if (!selectedPayment || submitting || !moneyChecked || !detailsChecked) return;
     setSubmitting(true);
+    setModalError("");
     try {
       await validatePaymentReference(selectedPayment.id);
       toast.success("Payment approved and posted.");
       setSelectedPayment(null);
       await load();
     } catch (caught) {
+      const message = caught instanceof ApiClientError ? caught.message : "Payment could not be approved.";
+      setModalError(message);
       toast.error(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Payment could not be approved.",
+        message,
       );
     } finally {
       setSubmitting(false);
@@ -463,6 +572,7 @@ export function MembershipPaymentsView() {
   async function refreshPaymongo() {
     if (!selectedPayment || submitting) return;
     setSubmitting(true);
+    setModalError("");
     try {
       const status = await getPaymongoPaymentStatus(selectedPayment.id);
       toast.success(`PayMongo status: ${statusLabel(status.validationStatus)}.`);
@@ -470,10 +580,10 @@ export function MembershipPaymentsView() {
       setSelectedPayment(detail);
       await load();
     } catch (caught) {
+      const message = caught instanceof ApiClientError ? caught.message : "PayMongo status could not be checked.";
+      setModalError(message);
       toast.error(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "PayMongo status could not be checked.",
+        message,
       );
     } finally {
       setSubmitting(false);
@@ -483,6 +593,7 @@ export function MembershipPaymentsView() {
   async function sendPaymentAction() {
     if (!selectedPayment || !action || correctionNote.trim().length < 8 || submitting) return;
     setSubmitting(true);
+    setModalError("");
     try {
       if (action === "clarification") {
         await requestPaymentClarification(selectedPayment.id, correctionNote.trim());
@@ -494,10 +605,10 @@ export function MembershipPaymentsView() {
       setSelectedPayment(null);
       await load();
     } catch (caught) {
+      const message = caught instanceof ApiClientError ? caught.message : "Payment action failed.";
+      setModalError(message);
       toast.error(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Payment action failed.",
+        message,
       );
     } finally {
       setSubmitting(false);
@@ -505,65 +616,63 @@ export function MembershipPaymentsView() {
   }
 
   return (
-    <div className="grid gap-6">
-      <PageHeader
-        eyebrow="Payments"
-        title="Membership Payments"
-        description="Check member application payments. PayMongo is confirmed online; cash, GCash, and bank payments are approved by the Bookkeeper after checking the money and details."
-        actions={<StatusBadge tone="success">Bookkeeper</StatusBadge>}
-      />
-
+    <div className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Need Payment" value={String(summary.needsPayment)} icon={CircleDollarSign} />
-        <StatCard label="For Checking" value={String(summary.forChecking)} icon={ReceiptText} />
+        <StatCard label="Needs payment" value={String(summary.needsPayment)} icon={CircleDollarSign} />
+        <StatCard label="Pending review" value={String(summary.forChecking)} icon={ReceiptText} />
         <StatCard label="Approved" value={String(summary.approved)} icon={BadgeCheck} />
         <StatCard label="Approved Amount" value={money(summary.approvedAmount)} icon={Banknote} />
       </div>
 
-      <div className="rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
+      <div className="rounded-lg border border-[#CAD8CB] bg-white p-3">
+        <div className="grid gap-3 lg:grid-cols-[1fr_220px_150px_auto]">
           <label className="relative block">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPaymentPage(1);
+              }}
               className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
               placeholder="Search applicant or reference"
               type="search"
             />
           </label>
-          <select
+          <StatusFilter
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-            className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-bold text-[#123D2A]"
-            aria-label="Payment status filter"
-          >
-            {simpleStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-          </select>
+            onChange={(value) => {
+              setStatusFilter(value);
+              setPaymentPage(1);
+            }}
+          />
+          <PageSizeSelect value={paymentsPerPage} onChange={(value) => { setPaymentsPerPage(value); setPaymentPage(1); }} />
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"
+            disabled={loading}
+            aria-busy={loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:cursor-wait disabled:opacity-60"
           >
-            <RefreshCcw className="size-4" />Refresh
+            <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} />{loading ? "Loading payments..." : "Refresh"}
           </button>
         </div>
       </div>
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
 
       {loading ? <LoadingSkeleton /> : (
         <>
           {filteredApplications.length ? (
-            <section className="grid gap-3">
+            <section className="grid gap-2">
               <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Applicants Needing Payment</h2>
               <DataTable>
-                <table className="min-w-[900px] divide-y divide-[#E2E8E2] text-left text-sm">
+                <table className="w-full min-w-[900px] divide-y divide-[#E2E8E2] text-left text-sm">
                   <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
                     <tr>
                       <th className="px-5 py-4">Applicant</th>
                       <th className="px-5 py-4">Application</th>
-                      <th className="px-5 py-4">Needs To Pay</th>
+                      <th className="px-5 py-4">Amount due</th>
                       <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4"><span className="sr-only">Action</span></th>
                     </tr>
@@ -600,7 +709,7 @@ export function MembershipPaymentsView() {
                             onClick={() => void openManualPayment(application.id)}
                             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43] disabled:opacity-50"
                           >
-                            <Banknote className="size-4" />Record cash/manual payment
+                            <Banknote className="size-4" />Record manual payment
                           </button>
                         </td>
                       </tr>
@@ -612,23 +721,24 @@ export function MembershipPaymentsView() {
             </section>
           ) : null}
 
-          <section className="grid gap-3">
+          <section className="grid gap-2">
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">Recorded Membership Payments</h2>
             {filteredPayments.length ? (
+              <>
               <DataTable>
-                <table className="min-w-[950px] divide-y divide-[#E2E8E2] text-left text-sm">
+                <table className="w-full min-w-[950px] divide-y divide-[#E2E8E2] text-left text-sm">
                   <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
                     <tr>
                       <th className="px-5 py-4">Payer</th>
-                      <th className="px-5 py-4">Payment For</th>
+                      <th className="px-5 py-4">Payment purpose</th>
                       <th className="px-5 py-4">Amount</th>
-                      <th className="px-5 py-4">Paid Through</th>
+                      <th className="px-5 py-4">Payment method</th>
                       <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4"><span className="sr-only">Action</span></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-                    {filteredPayments.map((payment) => (
+                    {visiblePayments.map((payment) => (
                       <tr key={payment.id} className="hover:bg-[#F7F8F3]">
                         <td className="px-5 py-4">
                           <p className="font-bold text-[#123D2A]">{safe(payment.payerName)}</p>
@@ -664,6 +774,14 @@ export function MembershipPaymentsView() {
                   </tbody>
                 </table>
               </DataTable>
+              <div className="flex items-center justify-between rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm">
+                <span className="font-semibold text-[#6C7A70]">Page {paymentPage} of {paymentPageCount} · {filteredPayments.length} payments</span>
+                <div className="flex gap-2">
+                  <button type="button" disabled={paymentPage <= 1} onClick={() => setPaymentPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
+                  <button type="button" disabled={paymentPage >= paymentPageCount} onClick={() => setPaymentPage((current) => Math.min(paymentPageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
+                </div>
+              </div>
+              </>
             ) : (
               <EmptyState
                 icon={ReceiptText}
@@ -684,6 +802,7 @@ export function MembershipPaymentsView() {
       >
         {selectedApplication ? (
           <div className="grid gap-4 pt-3">
+            {modalError ? <div role="alert" aria-live="assertive" className="rounded-md border border-[#D9A99F] bg-[#FFF4F1] p-3 text-sm font-semibold text-[#7A3023]">{modalError}</div> : null}
             <div className="grid gap-3 lg:grid-cols-2">
               <InfoBox label="Applicant" value={applicantName(selectedApplication)} sub={selectedApplication.contactNumber} />
               <InfoBox label="Application" value={selectedApplication.applicationCode} sub={selectedApplication.requestedMembershipType} />
@@ -708,13 +827,7 @@ export function MembershipPaymentsView() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label="Paid through" required>
-                <select
-                  value={manualChannel}
-                  onChange={(event) => updateManualChannel(event.target.value as ManualChannel)}
-                  className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm"
-                >
-                  {manualChannels.map((channel) => <option key={channel} value={channel}>{channel}</option>)}
-                </select>
+                <ManualChannelSelect value={manualChannel} onChange={updateManualChannel} />
               </FormField>
               <FormField label="Amount paid" required>
                 <input
@@ -776,6 +889,7 @@ export function MembershipPaymentsView() {
       >
         {selectedPayment ? (
           <div className="grid gap-4 pt-3">
+            {modalError ? <div role="alert" aria-live="assertive" className="rounded-md border border-[#D9A99F] bg-[#FFF4F1] p-3 text-sm font-semibold text-[#7A3023]">{modalError}</div> : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <InfoBox label="Payer" value={safe(selectedPayment.payerName)} sub={safe(selectedPayment.payerContact)} />
               <InfoBox label="Payment for" value={paymentPurposeLabel(selectedPayment.paymentPurpose)} sub={safe(selectedPayment.applicationCode ?? selectedPayment.memberCode)} />

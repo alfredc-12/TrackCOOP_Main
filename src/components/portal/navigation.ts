@@ -48,7 +48,7 @@ export const roleHomePaths: Record<Role, string> = {
 export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
   chairman: [
     {
-      title: "Overview",
+      title: "Home",
       items: [
         {
           label: "Member Dashboard",
@@ -225,10 +225,10 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Overview",
       items: [
         {
-          label: "Home",
-          href: "/portal/bookkeeper/dashboard",
-          icon: LayoutDashboard,
-          summary: "See today's payments and the work that needs attention.",
+          label: "Financial Dashboard",
+          href: "/portal/bookkeeper/financial-dashboard",
+          icon: Landmark,
+          summary: "View cooperative income, expenses, surplus, and finance activity.",
         },
       ],
     },

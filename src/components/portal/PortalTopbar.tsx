@@ -2,7 +2,7 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Bell, LogOut, Menu, UserRound } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AuthUser } from "@/features/auth/types";
 import { findPortalNavItem } from "./navigation";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -15,6 +15,7 @@ type PortalTopbarProps = {
 
 export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const current = findPortalNavItem(pathname);
 
   return (
@@ -40,13 +41,16 @@ export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps)
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC]"
-          >
-            <Bell className="size-4" aria-hidden="true" />
-          </button>
+          {user.role !== "bookkeeper" ? (
+            <button
+              type="button"
+              aria-label="Notifications"
+              onClick={() => router.push(user.role === "chairman" ? "/portal/chairman/announcements" : "/portal/member/announcements")}
+              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC]"
+            >
+              <Bell className="size-4" aria-hidden="true" />
+            </button>
+          ) : null}
 
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>

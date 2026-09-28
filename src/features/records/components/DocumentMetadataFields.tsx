@@ -9,8 +9,24 @@ import {
 import type { DocumentAccessLevel } from "../records-types";
 import { Field, fieldClass, errorFieldClass } from "./RecordsUi";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, File as FileIcon, X, Camera } from "lucide-react";
+import { ChevronDown, UploadCloud, File as FileIcon, X, Camera } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+
+function MetadataSelect({ name, label, defaultValue, options, error }: { name: string; label: string; defaultValue: string; options: Array<{ value: string; label: string }>; error?: string }) {
+  const [value, setValue] = useState(defaultValue);
+  const [open, setOpen] = useState(false);
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? options[0]?.label ?? "Select";
+  useEffect(() => {
+    const closeOtherDropdowns = (event: Event) => { if ((event as CustomEvent<string>).detail !== name) setOpen(false); };
+    document.addEventListener("metadata-dropdown-open", closeOtherDropdowns);
+    return () => document.removeEventListener("metadata-dropdown-open", closeOtherDropdowns);
+  }, [name]);
+  const toggle = () => {
+    if (!open) document.dispatchEvent(new CustomEvent("metadata-dropdown-open", { detail: name }));
+    setOpen((current) => !current);
+  };
+  return <div className="relative"><input type="hidden" name={name} value={value} /><button type="button" aria-label={label} aria-expanded={open} onClick={toggle} className={`${error ? errorFieldClass : fieldClass} flex items-center justify-between gap-3 text-left font-semibold`}><span>{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" /></button>{open ? <div role="listbox" aria-label={`${label} options`} className="absolute z-40 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => { setValue(option.value); setOpen(false); }} className={`flex w-full items-center rounded px-3 py-3 text-left text-sm ${option.value === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option.label}</button>)}</div> : null}</div>;
+}
 
 export function DocumentMetadataFields({
   role,
@@ -146,49 +162,13 @@ export function DocumentMetadataFields({
         />
       </Field>
       <Field label="Category" required error={errors?.category}>
-        <select
-          name="category"
-          required
-          defaultValue={defaults?.category ?? ""}
-          className={errors?.category ? errorFieldClass : fieldClass}
-        >
-          <option value="">Select category</option>
-          {categories.map((item) => (
-            <option key={item} value={item}>
-              {humanizeConstant(item)}
-            </option>
-          ))}
-        </select>
+        <MetadataSelect name="category" label="Category" defaultValue={defaults?.category ?? ""} error={errors?.category} options={[{ value: "", label: "Select category" }, ...categories.map((item) => ({ value: item, label: humanizeConstant(item) }))]} />
       </Field>
       <Field label="Document type" required error={errors?.documentType}>
-        <select
-          name="documentType"
-          required
-          defaultValue={defaults?.documentType ?? ""}
-          className={errors?.documentType ? errorFieldClass : fieldClass}
-        >
-          <option value="">Select type</option>
-          {DOCUMENT_TYPES.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
+        <MetadataSelect name="documentType" label="Document type" defaultValue={defaults?.documentType ?? ""} error={errors?.documentType} options={[{ value: "", label: "Select type" }, ...DOCUMENT_TYPES.map((item) => ({ value: item, label: item }))]} />
       </Field>
       <Field label="Access level" required wide={!includeFile} error={errors?.accessLevel}>
-        <select
-          name="accessLevel"
-          required
-          defaultValue={defaults?.accessLevel ?? ""}
-          className={errors?.accessLevel ? errorFieldClass : fieldClass}
-        >
-          <option value="">Select access</option>
-          {DOCUMENT_ACCESS_LEVELS.filter(
-            (item) => role === "chairman" || item.value !== "ADMIN_ONLY",
-          ).map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+        <MetadataSelect name="accessLevel" label="Access level" defaultValue={defaults?.accessLevel ?? ""} error={errors?.accessLevel} options={[{ value: "", label: "Select access" }, ...DOCUMENT_ACCESS_LEVELS.filter((item) => role === "chairman" || item.value !== "ADMIN_ONLY").map((item) => ({ value: item.value, label: item.label }))]} />
       </Field>
       {includeFile ? (
         <div className="sm:col-span-2">

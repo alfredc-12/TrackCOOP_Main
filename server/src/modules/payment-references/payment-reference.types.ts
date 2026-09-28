@@ -99,11 +99,14 @@ export type PaymentValidationListResult = {
 
 export type PaymentReferenceSummary = {
   total: number;
+  pendingTotal: number;
   pendingManual: number;
   needsClarification: number;
   validatedToday: number;
+  validatedTotal: number;
   paymongoTestPayments: number;
   rejected: number;
+  reversed: number;
   validatedAmount: number;
 };
 

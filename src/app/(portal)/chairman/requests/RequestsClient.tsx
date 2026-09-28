@@ -41,6 +41,7 @@ import type {
   RequestStatusHistoryRecord,
 } from "@/features/communication/communication-types";
 import { requestTypes, requestPriorities } from "@/features/communication/communication-types";
+import { listUsersPaginated, type UserSummary } from "@/features/chairman/people-api";
 
 function getAssigneeLabel(assigneeName: string | null | undefined) {
   if (!assigneeName) return "Unassigned";
@@ -91,6 +92,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [assignees, setAssignees] = useState<UserSummary[]>([]);
   const [identityReady, setIdentityReady] = useState(!assignedOnly);
 
   useEffect(() => {
@@ -103,6 +105,13 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
       })
       .catch(() => setError("Your assigned requests could not be identified."))
       .finally(() => setIdentityReady(true));
+  }, [assignedOnly]);
+
+  useEffect(() => {
+    if (assignedOnly) return;
+    void listUsersPaginated({ role: "all", status: "Active", pageSize: 100, sortBy: "displayName", sortDirection: "asc" })
+      .then((result) => setAssignees(result.users.filter((account) => account.role === "chairman" || account.role === "bookkeeper")))
+      .catch(() => setAssignees([]));
   }, [assignedOnly]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -254,6 +263,25 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
     }
   };
 
+  const handleAssignBookkeeper = async (assigneeId: string) => {
+    if (!selectedRequest || isMutating) return;
+    setIsMutating(true);
+    try {
+      const detail = await updateRequestStatus(selectedRequest.id, {
+        requestStatus: assigneeId ? "Assigned" : selectedRequest.requestStatus,
+        assignedTo: assigneeId || null,
+      });
+      setSelectedRequest(detail.request);
+      setSelectedRequestHistory(detail.history || []);
+      void fetchRequests();
+      toast.success(assigneeId ? "Request assigned to the selected bookkeeper." : "Request unassigned.");
+    } catch (caught) {
+      toast.error(caught instanceof ApiClientError ? caught.message : "Failed to assign request.");
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
   // Derive simple metrics from the current page of results for the summary cards
   const metrics = useMemo(() => {
     return {
@@ -358,7 +386,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
                     <Button
                       variant="secondary"
                       size="sm"
-                      className="relative min-w-[124px] justify-center whitespace-nowrap"
+                      className="relative min-w-[124px] justify-center whitespace-nowrap border-[#1F6B43] bg-[#1F6B43] text-white hover:border-[#174E33] hover:bg-[#174E33] hover:text-white"
                       onClick={() => { setModalMode('view'); openDetail(req.id); }}
                     >
                       {!req.isReadByAdmin && (
@@ -480,7 +508,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
                   </div>
                   <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Source</p><p className="mt-1 font-medium">{selectedRequest.requestSource}</p></div>
                   <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Submitted</p><p className="mt-1 font-medium">{new Date(selectedRequest.submittedAt).toLocaleString()}</p></div>
-                  <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Assigned to</p><div className="mt-1 flex flex-wrap items-center gap-2"><p className="font-medium">{getAssigneeLabel(selectedRequest.assigneeName)}</p>{user && (!selectedRequest.assignedTo || selectedRequest.assignedTo === user.id) && <button type="button" onClick={() => void handleAssignment()} disabled={isMutating} className="rounded-md border border-[#BBD7C1] px-2 py-1 text-xs font-bold text-[#1F6B43] hover:bg-[#EAF5EC] disabled:opacity-50">{selectedRequest.assignedTo === user.id ? "Unassign" : "Assign to me"}</button>}</div></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-wider text-[#6C7A70]">Assigned to</p><div className="mt-1 flex flex-wrap items-center gap-2">{!assignedOnly && user?.role === "chairman" ? <RequestThemedSelect value={(() => { const assignee = assignees.find((item) => item.id === selectedRequest.assignedTo); return assignee ? `${assignee.displayName} (${assignee.role === "chairman" ? "Chairman" : "Bookkeeper"})` : "Unassigned"; })()} onChange={(value) => void handleAssignBookkeeper(assignees.find((assignee) => `${assignee.displayName} (${assignee.role === "chairman" ? "Chairman" : "Bookkeeper"})` === value)?.id ?? "")} ariaLabel="Assign request to chairman or bookkeeper" options={["Unassigned", ...assignees.map((assignee) => `${assignee.displayName} (${assignee.role === "chairman" ? "Chairman" : "Bookkeeper"})`)]} /> : <p className="font-medium">{getAssigneeLabel(selectedRequest.assigneeName)}</p>}{user && assignedOnly && (!selectedRequest.assignedTo || selectedRequest.assignedTo === user.id) && <button type="button" onClick={() => void handleAssignment()} disabled={isMutating} className="rounded-md border border-[#BBD7C1] px-2 py-1 text-xs font-bold text-[#1F6B43] hover:bg-[#EAF5EC] disabled:opacity-50">{selectedRequest.assignedTo === user.id ? "Unassign" : "Assign to me"}</button>}</div></div>
                   <div>
                     <p className="text-xs font-semibold text-[#6C7A70] uppercase tracking-wider">Contact Info</p>
                     <p className="mt-1 font-medium">{selectedRequest.requesterEmail || selectedRequest.requesterPhone || "N/A"}</p>

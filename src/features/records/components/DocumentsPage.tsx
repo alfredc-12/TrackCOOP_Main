@@ -566,10 +566,10 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
           <div className="hidden min-w-0 md:block">
             {viewMode === "table" ? (
               <DataTable>
-                <table className="w-full min-w-[1200px] text-left text-sm">
+                <table className="w-full table-fixed text-left text-sm">
                 <thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#53675A]">
                   <tr>
-                    <th className="px-3 py-3 w-10">
+                    <th className="w-10 px-2 py-3">
                       <input
                         type="checkbox"
                         checked={selectedIds.size === data.documents.length && data.documents.length > 0}
@@ -583,14 +583,14 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                         className="rounded border-[#CAD8CB] text-[#1F6B43] focus:ring-[#1F6B43]"
                       />
                     </th>
-                    <th className="px-3 py-3 font-bold">Document</th>
-                    <th className="px-3 py-3 font-bold">Reference</th>
-                    <th className="px-3 py-3 font-bold">Category</th>
-                    <th className="px-3 py-3 font-bold">Access</th>
-                    <th className="px-3 py-3 font-bold">Status</th>
-                    <th className="px-3 py-3 font-bold">Uploaded By</th>
-                    <th className="px-3 py-3 font-bold">Updated</th>
-                    <th className="px-3 py-3 font-bold">Actions</th>
+                    <th className="w-[25%] px-3 py-3 font-bold">Document</th>
+                    <th className="w-[10%] px-3 py-3 font-bold">Reference</th>
+                    <th className="w-[9%] px-3 py-3 font-bold">Category</th>
+                    <th className="w-[11%] px-3 py-3 font-bold">Access</th>
+                    <th className="w-[8%] px-3 py-3 font-bold">Status</th>
+                    <th className="w-[13%] px-3 py-3 font-bold">Uploaded By</th>
+                    <th className="w-[14%] px-3 py-3 font-bold">Updated</th>
+                    <th className="w-[8%] px-3 py-3 font-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -599,7 +599,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                       key={document.id}
                       className="border-t border-[#E1E9E2] align-top"
                     >
-                      <td className="px-3 py-3">
+                      <td className="min-w-0 px-3 py-3">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(document.id)}
@@ -634,23 +634,23 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                       <td className="break-all px-3 py-3 font-mono text-xs">
                         {document.reference}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="break-words px-3 py-3">
                         {humanizeConstant(document.category)}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="break-words px-3 py-3">
                         <StatusBadge>
                           {accessLevelLabel(document.accessLevel)}
                         </StatusBadge>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="break-words px-3 py-3">
                         <StatusBadge tone={statusTone(document.status)}>
                           {humanizeConstant(document.status)}
                         </StatusBadge>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="break-words px-3 py-3">
                         {document.uploadedBy}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="break-words px-3 py-3">
                         {formatDate(document.updatedAt, true)}
                       </td>
                       <td className="px-3 py-3">
@@ -1108,7 +1108,7 @@ function DocumentActions({
       type="button"
       onClick={() => setOpen(true)}
       aria-label={`View details for ${document.title}`}
-      className="grid size-10 cursor-pointer list-none place-items-center rounded-md border border-[#CAD8CB] hover:bg-[#EEF2EC]"
+      className="grid size-10 cursor-pointer list-none place-items-center rounded-md border border-[#B7D7BD] bg-[#E7F2E4] text-[#123D2A] transition hover:border-[#1F6B43] hover:bg-[#1F6B43] hover:text-white focus:outline-none focus:ring-4 focus:ring-[#82E6A7]/30"
     >
       <MoreVertical className="size-4" />
     </button>
@@ -1211,13 +1211,15 @@ function DocumentActions({
             )}
             {document.status === "ARCHIVED" ? "Restore" : "Archive"}
           </button>
-          <button
-            type="button"
-            onClick={() => setPreviewOpen(true)}
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
             className={secondaryButtonClass}
           >
             <Eye className="size-4" /> Preview
-          </button>
+          </a>
           <a href={download} className={primaryButtonClass}>
             <Download className="size-4" /> Download
           </a>

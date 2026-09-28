@@ -15,6 +15,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RetryButton } from "@/components/ui/RetryButton";
+
+export { LoadingSpinner, LoadingButton, SkeletonCard, SkeletonTable, LoadingOverlay } from "@/components/ui/LoadingStates";
 
 export function StatCard({
   label,
@@ -178,7 +181,7 @@ export function FormDialog({
                 contentClassName,
               )}
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-start justify-between gap-4 bg-white px-4 pb-3 pt-4 sm:-mx-5 sm:-mt-5 sm:px-5 sm:pt-5">
                 <div className="min-w-0 flex-1">
                   <Dialog.Title className="break-words text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
                   {description ? (
@@ -320,7 +323,7 @@ export function EmptyState({
 
 export function LoadingSkeleton() {
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4" aria-busy="true" aria-live="polite" aria-label="Loading content">
       <div className="h-28 animate-pulse rounded-lg bg-[#E7F2E4]" />
       <div className="h-52 animate-pulse rounded-lg bg-[#EEF2EC]" />
     </div>
@@ -331,7 +334,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   return (
     <div role="alert" aria-live="assertive" className="rounded-lg border border-[#E7B8A8] bg-[#FFF4EC] p-4 text-sm text-[#7A3023]">
       <p>{message}</p>
-      {onRetry ? <button type="button" onClick={onRetry} className="mt-3 rounded-lg border border-[#B85C4A] px-3 py-2 font-bold text-[#7A3023] hover:bg-[#FDE8DC]">Try again</button> : null}
+      {onRetry ? <RetryButton onRetry={onRetry} /> : null}
     </div>
   );
 }

@@ -6,6 +6,8 @@ export type ShareCapitalPayment = {
   memberCode: string;
   memberName: string;
   paymentReferenceId: string | null;
+  paymentChannel?: string | null;
+  referenceNumber?: string | null;
   amount: number;
   paymentDate: Date;
   paymentStatus: ShareCapitalStatus;
