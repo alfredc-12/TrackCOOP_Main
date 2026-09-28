@@ -20,7 +20,7 @@ import {
   Settings2,
   TrendingUp,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
@@ -821,10 +821,10 @@ function ReportFilterField({
 
 function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
-  const pickerId = useRef(`date-picker-${Math.random().toString(36).slice(2)}`);
+  const pickerId = useId();
   useEffect(() => {
     const closeOtherPickers = (event: Event) => {
-      if ((event as CustomEvent<string>).detail !== pickerId.current) setOpen(false);
+      if ((event as CustomEvent<string>).detail !== pickerId) setOpen(false);
     };
     document.addEventListener("date-picker-open", closeOtherPickers);
     document.addEventListener("custom-picker-open", closeOtherPickers);
@@ -832,7 +832,7 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
       document.removeEventListener("date-picker-open", closeOtherPickers);
       document.removeEventListener("custom-picker-open", closeOtherPickers);
     };
-  }, []);
+  }, [pickerId]);
   const [month, setMonth] = useState(() => {
     const date = value ? new Date(`${value}T00:00:00`) : new Date();
     return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -849,7 +849,7 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
   const today = new Date();
   return (
     <div className="relative">
-      <button type="button" onClick={() => { const nextOpen = !open; if (nextOpen) { document.dispatchEvent(new CustomEvent("date-picker-open", { detail: pickerId.current })); document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId.current })); } setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-2 text-left font-semibold`}>
+      <button type="button" onClick={() => { const nextOpen = !open; if (nextOpen) { document.dispatchEvent(new CustomEvent("date-picker-open", { detail: pickerId })); document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId })); } setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-2 text-left font-semibold`}>
         <span>{label}</span><Calendar className="size-4 text-[#365F4A]" aria-hidden="true" />
       </button>
       {open ? <div className="absolute bottom-full z-50 mb-2 w-72 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_18px_45px_rgba(18,61,42,0.18)]">
@@ -883,19 +883,19 @@ function SelectField({
   items: Array<{ value: string; label: string }>;
 }) {
   const [open, setOpen] = useState(false);
-  const pickerId = useRef(`filter-picker-${Math.random().toString(36).slice(2)}`);
+  const pickerId = useId();
   useEffect(() => {
     const closePicker = (event: Event) => {
-      if ((event as CustomEvent<string>).detail !== pickerId.current) setOpen(false);
+      if ((event as CustomEvent<string>).detail !== pickerId) setOpen(false);
     };
     document.addEventListener("custom-picker-open", closePicker);
     return () => document.removeEventListener("custom-picker-open", closePicker);
-  }, []);
+  }, [pickerId]);
   const selectedLabel = items.find((item) => item.value === value)?.label ?? "All";
   return (
     <Field label={label}>
       <div className="relative">
-        <button type="button" aria-label={`Choose ${label}`} aria-expanded={open} onClick={() => { const nextOpen = !open; if (nextOpen) document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId.current })); setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-3 text-left font-semibold`}>
+        <button type="button" aria-label={`Choose ${label}`} aria-expanded={open} onClick={() => { const nextOpen = !open; if (nextOpen) document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId })); setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-3 text-left font-semibold`}>
           <span className="truncate">{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
         {open ? <div role="listbox" className="absolute bottom-full z-50 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1 shadow-[0_18px_45px_rgba(18,61,42,0.18)]">

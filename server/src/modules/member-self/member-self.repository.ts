@@ -23,7 +23,6 @@ type MemberProfileRow = RowDataPacket & {
 
 type CountRow = RowDataPacket & { count?: number | string; total?: number | string };
 type PasswordRow = RowDataPacket & { password_hash: string };
-type SqlValue = string | number | boolean | Date | null;
 
 function mysqlErrorCode(error: unknown) {
   return typeof error === "object" && error && "code" in error

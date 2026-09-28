@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import SiteFooter from "@/components/layout/SiteFooter";
@@ -108,23 +108,27 @@ export default function MemberDashboardPage() {
 
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  const refreshDashboard = () => {
-    expressFetch("/api/members/me/dashboard")
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to refresh dashboard");
-        return res.json();
-      })
-      .then(setDashboardData)
-      .catch(console.error);
-  };
+  const refreshDashboard = useCallback(async () => {
+    setIsFetchingDashboard(true);
+    try {
+      const response = await expressFetch("/api/members/me/dashboard");
+      if (!response.ok) throw new Error("Failed to refresh dashboard");
+      setDashboardData(await response.json());
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsFetchingDashboard(false);
+    }
+  }, []);
 
   useEffect(() => {
     getAuthenticatedUser()
       .then(setUser)
       .catch(console.error);
 
-    refreshDashboard();
-    setIsFetchingDashboard(false);
+    const dashboardRefreshTimer = window.setTimeout(() => {
+      void refreshDashboard();
+    }, 0);
 
     getMemberPatronage()
       .then((data) => {
@@ -137,17 +141,18 @@ export default function MemberDashboardPage() {
       })
       .finally(() => setIsFetchingPatronage(false));
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") refreshDashboard();
+      if (document.visibilityState === "visible") void refreshDashboard();
     };
     const interval = window.setInterval(refreshWhenVisible, 15_000);
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(interval);
+      window.clearTimeout(dashboardRefreshTimer);
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, []);
+  }, [refreshDashboard]);
 
   const fetchAnnouncements = () => {
     setIsFetchingAnnouncements(true);

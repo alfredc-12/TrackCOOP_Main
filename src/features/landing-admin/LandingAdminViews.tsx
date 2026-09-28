@@ -864,6 +864,7 @@ function GalleryAdminManager({
   const [galleryStatus, setGalleryStatus] = useState<"Draft" | "Published" | "Archived">("Published");
   const [photoDrafts, setPhotoDrafts] = useState<GalleryDraftImage[]>([]);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [photoPendingDeletion, setPhotoPendingDeletion] = useState<GalleryDraftImage | null>(null);
   const [draggedDraftId, setDraggedDraftId] = useState<string | null>(null);
   const [isDropActive, setIsDropActive] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -940,6 +941,7 @@ function GalleryAdminManager({
     setGalleryStatus("Published");
     setPhotoDrafts([]);
     setActivePhotoIndex(0);
+    setPhotoPendingDeletion(null);
     setDraggedDraftId(null);
     setIsDropActive(false);
   }
@@ -1007,14 +1009,29 @@ function GalleryAdminManager({
     });
   }
 
+  function requestPhotoDeletion(draft: GalleryDraftImage) {
+    if (photoDrafts.length <= 1) {
+      setError("Add another photo before deleting the only photo in this gallery group.");
+      return;
+    }
+    setPhotoPendingDeletion(draft);
+  }
+
   function removeDraft(id: string) {
+    const removedIndex = photoDrafts.findIndex((draft) => draft.id === id);
     setPhotoDrafts((current) => {
       const removed = current.find((draft) => draft.id === id);
       if (removed?.file) URL.revokeObjectURL(removed.src);
       const next = current.filter((draft) => draft.id !== id);
       return next.map((draft, index) => ({ ...draft, isCover: index === 0 ? true : draft.isCover && !removed?.isCover }));
     });
-    setActivePhotoIndex((index) => Math.max(0, index - 1));
+    setActivePhotoIndex((index) => {
+      if (removedIndex < 0) return index;
+      if (index > removedIndex) return index - 1;
+      if (index === removedIndex) return Math.min(index, Math.max(0, photoDrafts.length - 2));
+      return index;
+    });
+    setPhotoPendingDeletion(null);
   }
 
   async function saveGroup() {
@@ -1299,6 +1316,19 @@ function GalleryAdminManager({
                 <>
                   <img src={activeDraft.src} alt={activeDraft.name} className="absolute inset-0 h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#061B11]/76 via-transparent to-transparent" />
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      requestPhotoDeletion(activeDraft);
+                    }}
+                    disabled={photoDrafts.length <= 1}
+                    title={photoDrafts.length <= 1 ? "A gallery group needs at least one photo" : "Delete photo"}
+                    aria-label="Delete selected photo"
+                    className="absolute left-4 top-4 grid size-9 place-items-center rounded-full border border-[#E7B8A8] bg-white/92 text-[#9A392A] shadow-sm transition hover:bg-[#FFF4EC] focus:outline-none focus:ring-2 focus:ring-[#E7B8A8] disabled:cursor-not-allowed disabled:opacity-55"
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </button>
                   <button type="button" onClick={(event) => { event.stopPropagation(); uploadInputRef.current?.click(); }} className="absolute right-4 top-4 inline-flex h-9 items-center gap-2 rounded-full bg-white/90 px-3 text-xs font-black text-[#123D2A] shadow-sm">
                     <UploadCloud className="size-4" />
                     Add
@@ -1317,35 +1347,49 @@ function GalleryAdminManager({
             {photoDrafts.length ? (
               <div className="absolute inset-x-3 bottom-3 flex gap-2 overflow-x-auto rounded-lg bg-[#061B11]/62 p-2 backdrop-blur-md">
                 {photoDrafts.map((draft, index) => (
-                  <button
-                    key={draft.id}
-                    type="button"
-                    draggable
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setActivePhotoIndex(index);
-                    }}
-                    onDragStart={(event) => {
-                      event.stopPropagation();
-                      event.dataTransfer.effectAllowed = "move";
-                      setDraggedDraftId(draft.id);
-                    }}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      reorderDrafts(draggedDraftId, draft.id);
-                      setDraggedDraftId(null);
-                    }}
-                    onDragEnd={() => setDraggedDraftId(null)}
-                    className={`relative h-20 w-24 shrink-0 overflow-hidden rounded-md border-2 transition ${index === activePhotoIndex ? "border-[#F2C94C]" : "border-white/40"}`}
-                  >
-                    <img src={draft.src} alt={draft.name} className="h-full w-full object-cover" />
-                    {draft.isCover ? <span className="absolute left-1 top-1 rounded-full bg-[#123D2A] p-1 text-white"><Star className="size-3" /></span> : null}
-                  </button>
+                  <div key={draft.id} className="group/thumb relative h-20 w-24 shrink-0">
+                    <button
+                      type="button"
+                      draggable
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setActivePhotoIndex(index);
+                      }}
+                      onDragStart={(event) => {
+                        event.stopPropagation();
+                        event.dataTransfer.effectAllowed = "move";
+                        setDraggedDraftId(draft.id);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        reorderDrafts(draggedDraftId, draft.id);
+                        setDraggedDraftId(null);
+                      }}
+                      onDragEnd={() => setDraggedDraftId(null)}
+                      className={`relative h-full w-full overflow-hidden rounded-md border-2 transition ${index === activePhotoIndex ? "border-[#F2C94C]" : "border-white/40"}`}
+                    >
+                      <img src={draft.src} alt={draft.name} className="h-full w-full object-cover" />
+                      {draft.isCover ? <span className="absolute left-1 top-1 rounded-full bg-[#123D2A] p-1 text-white"><Star className="size-3" /></span> : null}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        requestPhotoDeletion(draft);
+                      }}
+                      disabled={photoDrafts.length <= 1}
+                      title={photoDrafts.length <= 1 ? "A gallery group needs at least one photo" : "Delete photo"}
+                      aria-label={`Delete ${draft.name}`}
+                      className="absolute right-1 top-1 grid size-6 place-items-center rounded-full border border-[#E7B8A8] bg-white text-[#9A392A] shadow-sm transition hover:bg-[#FFF4EC] focus:outline-none focus:ring-2 focus:ring-[#E7B8A8] disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : null}
@@ -1397,7 +1441,16 @@ function GalleryAdminManager({
                 <div className="rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-black text-[#123D2A]">Selected photo</p>
-                    <button type="button" onClick={() => removeDraft(activeDraft.id)} className="grid size-8 place-items-center rounded-md border border-[#E7B8A8] text-[#9A392A] hover:bg-[#FFF4EC]" aria-label="Remove photo"><Trash2 className="size-4" /></button>
+                    <button
+                      type="button"
+                      onClick={() => requestPhotoDeletion(activeDraft)}
+                      disabled={photoDrafts.length <= 1}
+                      title={photoDrafts.length <= 1 ? "A gallery group needs at least one photo" : "Delete photo"}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#E7B8A8] px-2 text-xs font-black text-[#9A392A] transition hover:bg-[#FFF4EC] disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                      Delete
+                    </button>
                   </div>
                   <input value={activeDraft.name} onChange={(event) => setPhotoDrafts((current) => current.map((draft, index) => index === activePhotoIndex ? { ...draft, name: event.target.value } : draft))} className="mt-3 h-10 w-full rounded-md border border-[#CAD8CB] px-3 text-sm outline-none focus:border-[#1F6B43]" />
                   <button type="button" onClick={() => setPhotoDrafts((current) => current.map((draft, index) => ({ ...draft, isCover: index === activePhotoIndex })))} className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-[#123D2A] px-3 text-xs font-black text-white">
@@ -1414,6 +1467,18 @@ function GalleryAdminManager({
           </section>
         </form>
       </FormDialog>
+
+      <ConfirmDialog
+        open={Boolean(photoPendingDeletion)}
+        onOpenChange={(open) => !open && setPhotoPendingDeletion(null)}
+        title="Delete this photo?"
+        description="This photo will be removed from the gallery group when you save your changes."
+        confirmLabel="Delete photo"
+        variant="danger"
+        onConfirm={() => {
+          if (photoPendingDeletion) removeDraft(photoPendingDeletion.id);
+        }}
+      />
 
       <FormDialog open={Boolean(slotKey)} onOpenChange={(open) => !open && setSlotKey(null)} title="Choose landing photo" description="Pick which gallery photo appears in this landing page slot.">
         <div className="mt-4 grid gap-4">

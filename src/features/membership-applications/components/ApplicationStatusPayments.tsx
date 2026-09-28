@@ -1375,11 +1375,14 @@ function DocumentPreviewModal({
         </div>
         <div className="min-h-0 flex-1 overflow-auto bg-[#F8FBF5] p-3">
           {isImage ? (
-            <img
-              src={preview.objectUrl}
-              alt={`${preview.title} preview`}
-              className="mx-auto max-h-[72vh] max-w-full rounded-xl border border-[#DDE8D8] bg-white object-contain"
-            />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- Document previews use temporary browser object URLs. */}
+              <img
+                src={preview.objectUrl}
+                alt={`${preview.title} preview`}
+                className="mx-auto max-h-[72vh] max-w-full rounded-xl border border-[#DDE8D8] bg-white object-contain"
+              />
+            </>
           ) : (
             <iframe
               title={`${preview.title} preview`}

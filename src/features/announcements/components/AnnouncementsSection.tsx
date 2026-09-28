@@ -245,11 +245,14 @@ export default function AnnouncementsSection() {
               transition={{ duration: 0.45 }}
             >
               {hasImages ? (
-                <img
-                  src={images[currentImage]}
-                  alt={announcement.title ?? "Announcement photo"}
-                  className="absolute inset-0 h-full w-full object-cover brightness-110 contrast-105 transition duration-700 group-hover:scale-[1.03]"
-                />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Announcement media can be served from Railway /uploads paths. */}
+                  <img
+                    src={images[currentImage]}
+                    alt={announcement.title ?? "Announcement photo"}
+                    className="absolute inset-0 h-full w-full object-cover brightness-110 contrast-105 transition duration-700 group-hover:scale-[1.03]"
+                  />
+                </>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-[#123D2A] opacity-40">
                   <Megaphone className="size-40 text-[#EAF3E8]" />
@@ -397,11 +400,14 @@ export default function AnnouncementsSection() {
                       <div className="flex flex-col">
                         <div className="relative h-64 shrink-0 bg-[#123D2A] sm:h-80">
                           {hasImages ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element -- Announcement media can be served from Railway /uploads paths. */}
                             <img
                               src={images[currentImage]}
                               alt={announcement.title ?? "Announcement photo"}
                               className="absolute inset-0 h-full w-full object-cover"
                             />
+                          </>
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]">
                               <Megaphone className="size-20 text-[#1F6B43]/20" />

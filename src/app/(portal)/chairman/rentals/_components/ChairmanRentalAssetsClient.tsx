@@ -586,15 +586,33 @@ export function ChairmanRentalAssetsClient() {
 
   const pageSize = 5;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const visibleAssets = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, totalPages);
+  const visibleAssets = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  useEffect(() => {
+  function resetPageAndSetSearch(value: string) {
+    setSearch(value);
     setPage(1);
-  }, [search, category, visibility, statusFilter, sort]);
+  }
 
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  function resetPageAndSetCategory(value: string) {
+    setCategory(value);
+    setPage(1);
+  }
+
+  function resetPageAndSetVisibility(value: string) {
+    setVisibility(value);
+    setPage(1);
+  }
+
+  function resetPageAndSetStatus(value: AssetStatusFilter) {
+    setStatusFilter(value);
+    setPage(1);
+  }
+
+  function resetPageAndSetSort(value: string) {
+    setSort(value);
+    setPage(1);
+  }
 
   function queueAction(action: PendingAction) {
     setPending(action);
@@ -679,7 +697,7 @@ export function ChairmanRentalAssetsClient() {
             <Search className="absolute left-3 top-3.5 size-4 text-[#6C7A70]" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => resetPageAndSetSearch(event.target.value)}
               type="search"
               placeholder="Asset code, name, category"
               className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm font-normal outline-none focus:border-[#1F6B43]"
@@ -689,25 +707,25 @@ export function ChairmanRentalAssetsClient() {
         <Filter
           label="Category"
           value={category}
-          onChange={setCategory}
+          onChange={resetPageAndSetCategory}
           options={["All", ...unique(assets.map((item) => item.category))]}
         />
         <Filter
           label="Visibility"
           value={visibility}
-          onChange={setVisibility}
+          onChange={resetPageAndSetVisibility}
           options={["All", "Public", "Member-only", "Hidden"]}
         />
         <Filter
           label="Status"
           value={statusFilter}
-          onChange={(value) => setStatusFilter(value as AssetStatusFilter)}
+          onChange={(value) => resetPageAndSetStatus(value as AssetStatusFilter)}
           options={statusFilters}
         />
         <Filter
           label="Sort"
           value={sort}
-          onChange={setSort}
+          onChange={resetPageAndSetSort}
           options={["updated-desc", "name", "next-booking"]}
           labels={{
             "updated-desc": "Recently updated",
@@ -784,11 +802,11 @@ export function ChairmanRentalAssetsClient() {
           </div>
           {filtered.length > 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-4 py-3 text-xs text-[#5D6D63]">
-              <span>Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} assets</span>
+              <span>Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} assets</span>
               <div className="flex items-center gap-2">
-                <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-                <span className="font-bold text-[#123D2A]">Page {page} of {totalPages}</span>
-                <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                <button type="button" disabled={currentPage === 1} onClick={() => setPage(Math.max(1, currentPage - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <span className="font-bold text-[#123D2A]">Page {currentPage} of {totalPages}</span>
+                <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(Math.min(totalPages, currentPage + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Next</button>
               </div>
             </div>
           ) : null}

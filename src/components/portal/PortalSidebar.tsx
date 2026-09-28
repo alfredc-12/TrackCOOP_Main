@@ -1,13 +1,11 @@
 "use client";
 
-import { ChevronDown, LogOut, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { logout } from "@/lib/auth-client";
 import { portalNavigation, roleHomePaths, type PortalRole } from "./navigation";
 
 type PortalSidebarProps = {
@@ -18,37 +16,20 @@ type PortalSidebarProps = {
 
 function SidebarContent({ role, onNavigate }: { role: PortalRole; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const router = useRouter();
   const groups = portalNavigation[role];
-  const initialOpen = useMemo(
-    () =>
-      Object.fromEntries(
-        groups.map((group) => [
-          group.title,
-          group.items.some(
-            (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-          ),
-        ]),
-      ) as Record<string, boolean>,
-    [groups, pathname],
-  );
-  const [openGroups, setOpenGroups] = useState(initialOpen);
-
-  useEffect(() => {
-    const activeGroup = groups.find((group) =>
+  const activeGroupTitle = useMemo(
+    () => groups.find((group) =>
       group.items.some(
         (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
       ),
-    );
-
-    if (!activeGroup) return;
-
-    setOpenGroups(
-      Object.fromEntries(
-        groups.map((group) => [group.title, group.title === activeGroup.title]),
-      ) as Record<string, boolean>,
-    );
-  }, [groups, pathname]);
+    )?.title ?? null,
+    [groups, pathname],
+  );
+  const [openGroupByPath, setOpenGroupByPath] = useState<Record<string, string | null>>({});
+  const hasPathSelection = Object.prototype.hasOwnProperty.call(openGroupByPath, pathname);
+  const openGroupTitle = hasPathSelection
+    ? openGroupByPath[pathname]
+    : activeGroupTitle ?? groups[0]?.title ?? null;
 
   return (
     <div className="flex h-full flex-col bg-[#123D2A] text-white">
@@ -77,22 +58,17 @@ function SidebarContent({ role, onNavigate }: { role: PortalRole; onNavigate?: (
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-5">
         {groups.map((group) => {
-          const isOpen = openGroups[group.title] ?? true;
+          const isOpen = openGroupTitle === group.title;
 
           return (
             <section key={group.title}>
               <button
                 type="button"
                 onClick={() =>
-                  setOpenGroups((current) => {
-                    const shouldOpen = !isOpen;
-                    return Object.fromEntries(
-                      groups.map((candidate) => [
-                        candidate.title,
-                        shouldOpen && candidate.title === group.title,
-                      ]),
-                    ) as Record<string, boolean>;
-                  })
+                  setOpenGroupByPath((current) => ({
+                    ...current,
+                    [pathname]: isOpen ? null : group.title,
+                  }))
                 }
                 className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[0.68rem] font-black uppercase tracking-[0.18em] text-[#DCEB9A] transition hover:bg-white/8"
                 aria-expanded={isOpen}

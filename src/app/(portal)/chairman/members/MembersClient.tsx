@@ -2323,8 +2323,6 @@ function ApplicationsResponsiveList({
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#0F241A]">
               {applications.map((application) => {
-                const detail = detailsById[application.id];
-                const progress = detail ? prePaymentRequirementProgress(detail) : null;
                 return (
                   <tr key={application.id} className="hover:bg-[#FBFCF8]">
                     <td className="px-5 py-3">

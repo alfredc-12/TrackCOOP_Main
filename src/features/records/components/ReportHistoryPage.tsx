@@ -302,7 +302,6 @@ export function ReportHistoryPage({
                     onRegenerate={() => setRegenerateTarget(report)}
                     onArchive={() => setArchiveTarget(report)}
                     onPrint={() => void print(report)}
-                    mobile
                   />
                 </div>
               </article>
@@ -506,7 +505,6 @@ function HistoryActions({
   onRegenerate,
   onArchive,
   onPrint,
-  mobile,
 }: {
   report: GeneratedReportRecord;
   basePath: string;
@@ -514,13 +512,9 @@ function HistoryActions({
   onRegenerate: () => void;
   onArchive: () => void;
   onPrint: () => void;
-  mobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const menuId = useRef(`report-menu-${report.id}`);
-  const [placement, setPlacement] = useState<"up" | "down">("up");
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const closeOtherMenus = (event: Event) => {
       if ((event as CustomEvent<string>).detail !== menuId.current) setOpen(false);
@@ -528,16 +522,10 @@ function HistoryActions({
     document.addEventListener("report-history-menu-open", closeOtherMenus);
     return () => document.removeEventListener("report-history-menu-open", closeOtherMenus);
   }, []);
-  useEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const trigger = triggerRef.current.getBoundingClientRect();
-    const menuHeight = menuRef.current?.offsetHeight ?? 260;
-    setPlacement(trigger.bottom + menuHeight + 12 > window.innerHeight ? "up" : "down");
-  }, [open]);
   const actions = (
     <>
     <button type="button" aria-label="Close report actions" onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default bg-[#123D2A]/10" />
-    <div ref={menuRef} onClick={() => setOpen(false)} className="fixed left-1/2 top-1/2 z-50 grid min-w-56 -translate-x-1/2 -translate-y-1/2 gap-1 rounded-lg border border-[#CAD8CB] bg-white p-2 shadow-[0_18px_45px_rgba(18,61,42,0.22)]">
+    <div onClick={() => setOpen(false)} className="fixed left-1/2 top-1/2 z-50 grid min-w-56 -translate-x-1/2 -translate-y-1/2 gap-1 rounded-lg border border-[#CAD8CB] bg-white p-2 shadow-[0_18px_45px_rgba(18,61,42,0.22)]">
       <button type="button" onClick={onView} className={secondaryButtonClass}>
         <Eye className="size-4" /> View
       </button>
@@ -577,7 +565,6 @@ function HistoryActions({
   return (
     <div className="relative flex justify-end">
       <button
-        ref={triggerRef}
         type="button"
         aria-label="More report actions"
         aria-expanded={open}

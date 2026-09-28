@@ -976,11 +976,14 @@ function ProjectCard({
       whileHover={{ y: -4, scale: 1.01 }}
       className={`group relative h-[260px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-white shadow-none lg:h-auto ${project.areaClass}`}
     >
-      <img
-        src={project.image}
-        alt={project.title}
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-      />
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element -- Landing media may be served from Railway /uploads paths. */}
+        <img
+          src={project.image}
+          alt={project.title}
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+        />
+      </>
       <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/85 via-[#03291d]/25 to-transparent" />
       <div className="absolute bottom-5 left-5 right-5 z-10">
         <h3 className="text-xl font-black leading-tight text-white lg:text-3xl">
@@ -1044,11 +1047,14 @@ function CertificationMedia({ slide, className = "" }: { slide: CertificationSli
   }
 
   return (
-    <img
-      src={slide.image}
-      alt={slide.title}
-      className={`absolute inset-0 h-full w-full bg-white object-contain ${className}`}
-    />
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- Certification media can be a deployment-hosted upload. */}
+      <img
+        src={slide.image}
+        alt={slide.title}
+        className={`absolute inset-0 h-full w-full bg-white object-contain ${className}`}
+      />
+    </>
   );
 }
 

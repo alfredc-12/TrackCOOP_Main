@@ -234,11 +234,14 @@ export default function AnnouncementsArchiveSection() {
                         className="group relative min-h-[340px] overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_18px_52px_rgba(31,107,67,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(31,107,67,0.34)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
                       >
                         {coverImage ? (
-                          <img
-                            src={resolveArchiveImagePath(coverImage)}
-                            alt=""
-                            className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
-                          />
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element -- Archived announcement media can be served from Railway /uploads paths. */}
+                            <img
+                              src={resolveArchiveImagePath(coverImage)}
+                              alt=""
+                              className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                            />
+                          </>
                         ) : (
                           <div className="absolute inset-0 bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]" />
                         )}
@@ -374,11 +377,14 @@ export default function AnnouncementsArchiveSection() {
                                     : "opacity-0"
                                 }`}
                               >
-                                <img
-                                  src={resolveArchiveImagePath(image)}
-                                  alt={selectedAnnouncement.title || ""}
-                                  className="absolute inset-0 h-full w-full object-cover"
-                                />
+                                <>
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- Archived announcement media can be served from Railway /uploads paths. */}
+                                  <img
+                                    src={resolveArchiveImagePath(image)}
+                                    alt={selectedAnnouncement.title || ""}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                </>
                               </div>
                             ))
                           ) : (

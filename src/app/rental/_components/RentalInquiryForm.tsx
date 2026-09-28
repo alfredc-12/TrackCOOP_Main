@@ -21,7 +21,6 @@ import {
 import { BARANGAYS } from "../_lib/rentalConstants";
 import {
   BookingSchema,
-  normalizePhilippineMobile,
   PERSON_NAME_PATTERN,
   validateUpload,
 } from "../_lib/rentalValidation";
@@ -173,7 +172,6 @@ export function RentalInquiryForm({
     clearErrors,
     trigger,
     control,
-    watch,
     getValues,
     formState: { errors },
   } = useForm<ClientFormValues>({
@@ -214,6 +212,9 @@ export function RentalInquiryForm({
   const preferredDate = useWatch({ control, name: "preferredDate" });
   const preferredEndDate = useWatch({ control, name: "preferredEndDate" });
   const requesterType = useWatch({ control, name: "requesterType" });
+  const completeAddress = useWatch({ control, name: "completeAddress" });
+  const barangay = useWatch({ control, name: "barangay" });
+  const validIdType = useWatch({ control, name: "validIdType" });
   const selectedService = services.find(
     (service) => service.serviceId === selectedServiceId,
   );
@@ -586,7 +587,7 @@ export function RentalInquiryForm({
               wide
             >
               <AddressAutocomplete
-                value={watch("completeAddress") || ""}
+                value={completeAddress || ""}
                 suggestions={addressSuggestions}
                 error={errors.completeAddress?.message}
                 onChange={(value) => setValue("completeAddress", value, { shouldDirty: true, shouldValidate: true })}
@@ -594,7 +595,7 @@ export function RentalInquiryForm({
             </Field>
             <Field label="Barangay" required error={errors.barangay?.message}>
               <StyledSelect
-                value={watch("barangay") || "Select barangay"}
+                value={barangay || "Select barangay"}
                 options={["Select barangay", ...allBarangays]}
                 onChange={(value) => setValue("barangay", value === "Select barangay" ? "" : value, { shouldDirty: true, shouldValidate: true })}
               />
@@ -604,7 +605,7 @@ export function RentalInquiryForm({
             </Field>
             <Field label="Valid ID type" required error={errors.validIdType?.message}>
               <StyledSelect
-                value={watch("validIdType") || "Select valid ID type"}
+                value={validIdType || "Select valid ID type"}
                 options={["Select valid ID type", ...VALID_ID_TYPES]}
                 onChange={(value) => setValue("validIdType", value === "Select valid ID type" ? "" : value, { shouldDirty: true, shouldValidate: true })}
               />

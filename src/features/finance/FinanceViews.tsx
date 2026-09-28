@@ -461,7 +461,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   );
 }
 
-export function FinancialLedgerView({ role }: { role: "chairman" | "bookkeeper" }) {
+export function FinancialLedgerView() {
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [summary, setSummary] = useState<FinancialSummary>(emptyFinancialSummary);
   const [search, setSearch] = useState("");
