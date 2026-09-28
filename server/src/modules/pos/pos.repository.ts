@@ -5,7 +5,7 @@ import { withTransaction } from "../../db/transaction";
 import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
-import type { CheckoutPayload, ConfirmOrderInput, PosReasonInput } from "./pos.types";
+import type { CheckoutPayload, CompleteOrderInput, ConfirmOrderInput, PosReasonInput } from "./pos.types";
 
 type PosOrderRow = RowDataPacket & { id: number };
 type PosOrderDisplay = PosOrderRow & {
@@ -112,6 +112,7 @@ export interface PosRepository {
     paymentReferenceId: number;
   }>;
   confirmOrder(orderId: string, input: ConfirmOrderInput, auth: AuthContext): Promise<{ receiptDocumentId: number | null }>;
+  completeOrder(orderId: string, input: CompleteOrderInput, auth: AuthContext): Promise<void>;
   rejectOrder(orderId: string, input: PosReasonInput, auth: AuthContext): Promise<void>;
   revokeOrder(orderId: string, input: PosReasonInput, auth: AuthContext): Promise<void>;
 }
@@ -148,7 +149,8 @@ export function createPosRepository(pool?: Pool): PosRepository {
                s.payment_reference_id,
                COALESCE(u.email, pr.payer_email) as customer_email,
                pr.reference_number,
-               pr.provider
+               pr.provider,
+               pr.payment_channel
            FROM pos_sales s
            LEFT JOIN payment_references pr ON s.payment_reference_id = pr.payment_reference_id
            LEFT JOIN member_profiles mp ON s.member_id = mp.member_id
@@ -185,7 +187,8 @@ export function createPosRepository(pool?: Pool): PosRepository {
                s.payment_reference_id,
                s.notes,
                pr.reference_number,
-               pr.provider
+               pr.provider,
+               pr.payment_channel
            FROM pos_sales s
            LEFT JOIN payment_references pr ON s.payment_reference_id = pr.payment_reference_id
            WHERE s.member_id = ?
@@ -223,6 +226,7 @@ export function createPosRepository(pool?: Pool): PosRepository {
       const customerName = input.paymentName?.trim();
       const customerEmail = input.paymentEmail?.trim();
       const customerContact = input.paymentContact?.trim();
+      const paymentMethod = input.paymentMethod === "Cash" ? "Cash" : "QRPH";
       if (!customerName || !customerEmail || !customerContact) {
         throw new AppError("Customer name, email, and contact number are required.", 400, "POS_CUSTOMER_REQUIRED");
       }
@@ -322,7 +326,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
         );
         const saleId = saleResult.insertId;
 
-        const referenceNumber = `${saleNumber}-PAY`;
+        const referenceNumber = paymentMethod === "Cash" ? `${saleNumber}-CASH` : `${saleNumber}-PAY`;
+        const provider = paymentMethod === "Cash" ? "Cash" : "PayMongo";
+        const channel = paymentMethod === "Cash" ? "Cash" : "PayMongo";
         const [refResult] = await connection.query<ResultSetHeader>(
           `INSERT INTO payment_references
              (member_id, submitted_by, payer_name, payer_email, payer_contact,
@@ -330,7 +336,7 @@ export function createPosRepository(pool?: Pool): PosRepository {
               related_entity_type, related_entity_id, amount, validation_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'POS/Product',
                    'pos_sales', ?, ?, 'Pending')`,
-          [memberId, submittedBy, customerName, customerEmail, customerContact, input.paymentMethod === "Cash" ? "Cash" : "PayMongo", input.paymentMethod === "Cash" ? "Cash" : "PayMongo", referenceNumber, saleId, totalAmount],
+          [memberId, submittedBy, customerName, customerEmail, customerContact, provider, channel, referenceNumber, saleId, totalAmount],
         );
         const paymentReferenceId = refResult.insertId;
 
@@ -351,6 +357,33 @@ export function createPosRepository(pool?: Pool): PosRepository {
         }
 
         return { saleId, totalAmount, discountAmount, paymentReferenceId };
+      }, databasePool());
+    },
+
+    async completeOrder(orderId, input, auth) {
+      const userId = numericUserId(auth);
+      const note = input.note?.trim();
+      if (note && note.length > 500) {
+        throw new AppError("Completion note must be 500 characters or fewer.", 400, "INVALID_NOTE");
+      }
+      await withTransaction(async (connection) => {
+        const [sales] = await connection.query<Array<RowDataPacket & { sale_status: string; payment_status: string }>>(
+          "SELECT sale_status, payment_status FROM pos_sales WHERE pos_sale_id = ? FOR UPDATE",
+          [orderId],
+        );
+        if (sales.length === 0) throw new AppError("Order not found", 404, "POS_ORDER_NOT_FOUND");
+        if (sales[0].sale_status !== "Paid" || sales[0].payment_status !== "Paid") {
+          throw new AppError("Only paid orders can be released.", 400, "POS_ORDER_NOT_PAID");
+        }
+        await connection.query(
+          `UPDATE pos_sales
+              SET sale_status = 'Completed',
+                  fulfilled_at = NOW(),
+                  notes = CONCAT(COALESCE(notes, ''), ?),
+                  updated_at = NOW()
+            WHERE pos_sale_id = ?`,
+          [note ? `\n[Release Note by ${userId}]: ${note}` : `\n[Release Note by ${userId}]: Product released.`, orderId],
+        );
       }, databasePool());
     },
 

@@ -65,7 +65,10 @@ export function validateApplicationForApproval(
 
   if (
     !application.orientationCommitmentAccepted
-    || !application.membershipFeeCommitmentAccepted
+    || (
+      application.requestedMembershipType === "Associate"
+      && !application.membershipFeeCommitmentAccepted
+    )
     || !application.shareSubscriptionCommitmentAccepted
     || !application.bylawsAgreementAccepted
     || !application.privacyConsentAccepted
@@ -81,7 +84,7 @@ export function validateApplicationForApproval(
 export async function synchronizeApprovalRequirements(input: {
   connection: PoolConnection;
   actorUserId: string;
-  requestedMembershipType: ApplicationRow["requestedMembershipType"];
+  requestedMembershipType: "Associate" | "True Member";
   requirements: RequirementRow[];
   settings: MembershipSettings;
   feeReferences: ValidatedReference[];
@@ -91,7 +94,7 @@ export async function synchronizeApprovalRequirements(input: {
   const feeRequirement = input.requirements.find(
     (item) => item.requirementType === "Associate Membership Fee",
   );
-  if (!feeRequirement && input.requestedMembershipType === "Associate") {
+  if (input.requestedMembershipType === "Associate" && !feeRequirement) {
     throw new AppError(
       "The Associate Membership Fee requirement is incomplete",
       409,
@@ -104,7 +107,8 @@ export async function synchronizeApprovalRequirements(input: {
   );
   const latestFeeReferenceId = input.feeReferences.at(-1)?.id ?? null;
   if (
-    feeRequirement
+    input.requestedMembershipType === "Associate"
+    && feeRequirement
     && feeRequirement.requirementStatus !== "Waived"
     && feeTotal >= approvalMoney(input.settings.associateFee)
   ) {
@@ -158,7 +162,6 @@ export function validateApprovalRequirements(
 ) {
   const byType = new Map(requirements.map((item) => [item.requirementType, item]));
   const requiredTypes: RequirementType[] = [
-    "Orientation/Seminar",
     "Signed Application",
   ];
   if (application.requestedMembershipType === "True Member") {
@@ -176,13 +179,6 @@ export function validateApprovalRequirements(
       `The ${incomplete} requirement is incomplete`,
       409,
       "MEMBERSHIP_APPLICATION_REQUIREMENT_INCOMPLETE",
-    );
-  }
-  if (byType.get("Orientation/Seminar")?.requirementStatus !== "Verified") {
-    throw new AppError(
-      "Orientation must be verified before approval",
-      409,
-      "MEMBERSHIP_ORIENTATION_INCOMPLETE",
     );
   }
   return byType;

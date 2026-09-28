@@ -42,6 +42,7 @@ function connection(estimatedTotal = 1500) {
           requesterName: "Juan Dela Cruz",
           assetName: "Four-wheel Tractor",
           paymentStatus: "Unpaid",
+          totalAmount: estimatedTotal,
           purpose: JSON.stringify({
             estimatedFee: { total: estimatedTotal },
             estimatedUsage: "2",
@@ -71,8 +72,8 @@ test("rental settlement marks booking paid and creates rental income", async () 
 
   assert.equal(result.subjectReference, "RNT-2026-0001");
   assert.equal(result.memberUserId, "18");
-  assert.ok(calls.some(({ sql }) => sql.includes("SET payment_status = 'Paid'")));
-  assert.ok(calls.some(({ sql }) => sql.includes("INSERT IGNORE INTO financial_records")));
+  assert.ok(calls.some(({ sql }) => sql.includes("payment_status = 'Paid'")));
+  assert.ok(calls.some(({ sql }) => sql.includes("INSERT INTO financial_records")));
 });
 
 test("rental settlement rejects an amount that differs from approved fee", async () => {
@@ -81,5 +82,5 @@ test("rental settlement rejects an amount that differs from approved fee", async
     () => postRentalSettlement({ connection: fake, payment: payment(1500), actorUserId: "900" }),
     (error) => error instanceof AppError && error.code === "RENTAL_PAYMENT_AMOUNT_MISMATCH",
   );
-  assert.equal(calls.some(({ sql }) => sql.includes("SET payment_status = 'Paid'")), false);
+  assert.equal(calls.some(({ sql }) => sql.includes("payment_status = 'Paid'")), false);
 });

@@ -113,8 +113,8 @@ export function MemberShareCapitalLauncher() {
 
   return (
     <Modal
-      title="Pay Share Capital with PayMongo"
-      description="Create a secure contribution for your own authenticated Member profile. Confirmation comes only from verified PayMongo settlement."
+      title="Pay Share Capital"
+      description="Create a secure QRPH contribution for your own authenticated Member profile. Confirmation comes only from verified gateway settlement."
       open={open}
       onOpenChange={setOpen}
       maxWidth="max-w-2xl"
@@ -149,7 +149,7 @@ export function MemberShareCapitalLauncher() {
             <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               <ShieldCheck className="mt-0.5 size-5 shrink-0" />
               <div>
-                <p className="font-bold">PayMongo Test Mode</p>
+                <p className="font-bold">QRPH Test Mode</p>
                 <p>No real money will be charged. Test and Live payments remain separated.</p>
               </div>
             </div>
@@ -223,7 +223,7 @@ export function MemberShareCapitalLauncher() {
                 onClick={() => void startCheckout()}
               >
                 {loading ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                Start secure PayMongo checkout
+                Start secure QRPH checkout
               </Button>
             </div>
           )}

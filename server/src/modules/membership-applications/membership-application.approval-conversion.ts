@@ -35,6 +35,10 @@ import {
   prepareApprovalActivation,
 } from "./membership-application.approval-support";
 import type { ApprovalInput, ApprovalResult } from "./membership-application.types";
+import {
+  buildStatusEmail,
+  triggerMembershipEmail,
+} from "./membership-application-email";
 
 export interface MembershipApprovalConversionService {
   approve(
@@ -215,6 +219,8 @@ export function createMembershipApprovalConversionService(
         return {
           applicationId,
           applicationCode: application.applicationCode,
+          applicantEmail: application.email,
+          applicantName: application.fullName,
           memberId: member.memberId,
           memberCode: member.memberCode,
           membershipType: membership.membershipType,
@@ -223,9 +229,27 @@ export function createMembershipApprovalConversionService(
         };
       }, databasePool());
 
+      const {
+        applicantEmail,
+        applicantName,
+        ...approvalResult
+      } = result;
+      const activationUrl = activation ? approvalActivationUrl(activation.rawToken) : null;
+      void triggerMembershipEmail(buildStatusEmail({
+        event: "membership.application.approved",
+        email: applicantEmail ?? approval.accountEmail ?? null,
+        name: applicantName ?? approvalResult.applicationCode,
+        applicationCode: approvalResult.applicationCode,
+        status: "Approved",
+        subject: `Membership approved: ${approvalResult.applicationCode}`,
+        message: activationUrl
+          ? `Your membership was approved. Activate your member portal account here: ${activationUrl}`
+          : "Your membership was approved. Welcome to the cooperative.",
+      }));
+
       return {
-        ...result,
-        activationUrl: activation ? approvalActivationUrl(activation.rawToken) : null,
+        ...approvalResult,
+        activationUrl,
       };
     },
 

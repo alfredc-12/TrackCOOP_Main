@@ -5,10 +5,10 @@ export type CheckoutItem = {
 
 export type CheckoutPayload = {
   items?: CheckoutItem[];
-  paymentMethod?: "Cash" | "Online Payment";
   paymentName?: string;
   paymentEmail?: string;
   paymentContact?: string;
+  paymentMethod?: "QRPH" | "Cash";
 };
 
 export type PosReasonInput = {
@@ -17,6 +17,10 @@ export type PosReasonInput = {
 
 export type ConfirmOrderInput = {
   discount_amount?: number | string;
+};
+
+export type CompleteOrderInput = {
+  note?: string;
 };
 
 export type CheckoutResult = {

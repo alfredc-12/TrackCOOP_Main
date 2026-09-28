@@ -117,7 +117,7 @@ export const publicMembershipApplicationSchema = z
     spouseName: optionalText(190),
     occupation: optionalText(190),
     orientationCommitmentAccepted: accepted("Orientation commitment must be accepted"),
-    membershipFeeCommitmentAccepted: accepted("Membership fee commitment must be accepted"),
+    membershipFeeCommitmentAccepted: z.boolean().default(false),
     shareSubscriptionCommitmentAccepted: accepted("Share subscription commitment must be accepted"),
     patronageRefundAcknowledged: z.boolean().default(false),
     bylawsAgreementAccepted: accepted("Bylaws agreement must be accepted"),
@@ -140,6 +140,17 @@ export const publicMembershipApplicationSchema = z
       });
     }
 
+    if (
+      value.requestedMembershipType === "Associate"
+      && value.membershipFeeCommitmentAccepted !== true
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["membershipFeeCommitmentAccepted"],
+        message: "Membership fee commitment must be accepted",
+      });
+    }
+
     if (!signatureMatches(applicantFullName(value), value.applicantSignatureName)) {
       context.addIssue({
         code: "custom",
@@ -155,6 +166,11 @@ export const publicMembershipApplicationSchema = z
 
 export const publicStatusParamsSchema = z.object({
   applicationCode: requiredText(60),
+});
+
+export const publicDocumentViewParamsSchema = z.object({
+  applicationCode: requiredText(60),
+  documentId: z.coerce.string().trim().regex(/^\d+$/, "Document ID must be numeric"),
 });
 
 export const publicDocumentUploadSchema = z.object({

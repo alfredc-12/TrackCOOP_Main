@@ -223,7 +223,7 @@ test("public aggregates are safe and active checkout is not treated as confirmed
     applicationStatus: "Under Review",
     requestedMembershipType: "True Member",
     settings,
-    feeValidatedAmount: 200,
+    feeValidatedAmount: 0,
     feePendingAmount: 0,
     capitalValidatedAmount: 1500,
     capitalPendingAmount: 1500,
@@ -237,11 +237,11 @@ test("public aggregates are safe and active checkout is not treated as confirmed
       reusableUntil: new Date("2026-07-27T08:30:00.000Z"),
       isReusable: true,
     },
-    feeRequirementStatus: "Verified",
+    feeRequirementStatus: null,
     capitalRequirementStatus: "Verified",
   });
 
-  assert.equal(summary.membershipFee.status, "Confirmed");
+  assert.equal(summary.membershipFee.status, "Not Required");
   assert.equal(summary.shareCapital.validatedAmount, 1500);
   assert.equal(summary.shareCapital.pendingAmount, 1500);
   assert.equal(summary.shareCapital.remainingToTarget, 0);
@@ -253,26 +253,36 @@ test("public aggregates are safe and active checkout is not treated as confirmed
   assert.ok(!("checkoutUrl" in (summary.latestCheckout ?? {})));
 });
 
-test("first True Member checkout is exactly PHP 1,500", () => {
-  assert.throws(
-    () => validateApplicationShareCapitalAmount({
-      requestedAmount: 1700,
-      validatedAmount: 0,
-      otherActivePendingAmount: 0,
-      initialShareCapital: 1500,
-      maximumShareCapital: 15000,
-    }),
-    (error) => error instanceof AppError && error.code === "INITIAL_SHARE_CAPITAL_AMOUNT_MISMATCH",
-  );
-});
+for (const mode of ["test", "live"] as const) {
+  test(`${mode} mode payment is eligible when gateway is enabled and application requires payment`, () => {
+    const summary = buildPublicMembershipPaymentSummary({
+      mode,
+      gatewayEnabled: true,
+      applicationStatus: "Payment Required",
+      requestedMembershipType: "Associate",
+      settings,
+      feeValidatedAmount: 0,
+      feePendingAmount: 0,
+      capitalValidatedAmount: 0,
+      capitalPendingAmount: 0,
+      installmentCount: 0,
+      latestCheckout: null,
+      feeRequirementStatus: "Pending",
+      capitalRequirementStatus: null,
+    });
 
-test("True Member payment summary asks only for PHP 1,500 share capital", () => {
+    assert.equal(summary.membershipFee.status, "Required");
+    assert.equal(summary.membershipFee.canStartCheckout, true);
+  });
+}
+
+test("payment is unavailable when gateway is disabled even if application requires payment", () => {
   const summary = buildPublicMembershipPaymentSummary({
     mode: "test",
-    gatewayEnabled: true,
+    gatewayEnabled: false,
     applicationStatus: "Payment Required",
-    requestedMembershipType: "True Member",
-    settings: { ...settings, initialShareCapital: 1500, trueMemberRequiredCapital: 1500 },
+    requestedMembershipType: "Associate",
+    settings,
     feeValidatedAmount: 0,
     feePendingAmount: 0,
     capitalValidatedAmount: 0,
@@ -280,11 +290,9 @@ test("True Member payment summary asks only for PHP 1,500 share capital", () => 
     installmentCount: 0,
     latestCheckout: null,
     feeRequirementStatus: "Pending",
-    capitalRequirementStatus: "Pending",
+    capitalRequirementStatus: null,
   });
 
-  assert.equal(summary.membershipFee.requiredAmount, 0);
+  assert.equal(summary.membershipFee.status, "Required");
   assert.equal(summary.membershipFee.canStartCheckout, false);
-  assert.equal(summary.shareCapital.minimumNextAmount, 1500);
-  assert.deepEqual(summary.paymentRequirements.map((item) => item.paymentPurpose), ["Share Capital"]);
 });

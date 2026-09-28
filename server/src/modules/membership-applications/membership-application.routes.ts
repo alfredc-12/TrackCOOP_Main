@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
+import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { createAuthService, type AuthService } from "../auth/auth.service";
 import { createMembershipApplicationController } from "./membership-application.controller";
@@ -25,19 +26,49 @@ import {
 
 const maxDocumentSizeBytes = 5 * 1024 * 1024;
 
-function createPublicLimiter() {
+function frameAncestorSources() {
+  return [
+    "'self'",
+    ...new Set(
+      [env.FRONTEND_URL, ...env.CORS_ALLOWED_ORIGINS]
+        .map((origin) => {
+          try {
+            return new URL(origin).origin;
+          } catch {
+            return null;
+          }
+        })
+        .filter((origin): origin is string => Boolean(origin)),
+    ),
+  ].join(" ");
+}
+
+const allowDocumentPreviewFrame: RequestHandler = (_request, response, next) => {
+  response.removeHeader("X-Frame-Options");
+  response.setHeader(
+    "Content-Security-Policy",
+    `default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'; frame-ancestors ${frameAncestorSources()}`,
+  );
+  next();
+};
+
+function createPublicLimiter(input: {
+  windowMs: number;
+  limit: number;
+  message: string;
+}) {
   return rateLimit({
-    windowMs: 60 * 60 * 1000,
-    limit: 5,
+    windowMs: input.windowMs,
+    limit: input.limit,
     standardHeaders: "draft-8",
     legacyHeaders: false,
     message: {
       success: false,
-      message: "Too many membership application requests. Please try again later.",
+      message: input.message,
       errors: [
         {
           code: "MEMBERSHIP_APPLICATION_RATE_LIMITED",
-          message: "Too many membership application requests. Please try again later.",
+          message: input.message,
         },
       ],
     },
@@ -123,25 +154,50 @@ export function createMembershipApplicationRouter(
   const approvalController = approvalService
     ? createMembershipApprovalController(approvalService)
     : null;
-  const publicLimiter = createPublicLimiter();
+  const publicSubmissionLimiter = createPublicLimiter({
+    windowMs: 60 * 60 * 1000,
+    limit: 5,
+    message: "Too many membership application submissions. Please try again later.",
+  });
+  const publicStatusLimiter = createPublicLimiter({
+    windowMs: 15 * 60 * 1000,
+    limit: 60,
+    message: "Too many status checks. Please wait a few minutes before trying again.",
+  });
+  const publicDocumentLimiter = createPublicLimiter({
+    windowMs: 60 * 60 * 1000,
+    limit: 20,
+    message: "Too many document upload requests. Please try again later.",
+  });
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
   const staffReadOnly = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper")];
 
   router.post(
     "/membership-applications/public",
-    publicLimiter,
+    publicSubmissionLimiter,
     controller.submitPublic,
   );
   router.get(
     "/membership-applications/public/:applicationCode/status",
-    publicLimiter,
+    publicStatusLimiter,
     publicStatus,
   );
   router.post(
+    "/membership-applications/public/:applicationCode/activation-link",
+    publicStatusLimiter,
+    controller.issuePublicActivationLink,
+  );
+  router.post(
     "/membership-applications/public/:applicationCode/documents",
-    publicLimiter,
+    publicDocumentLimiter,
     documentUploadMiddleware,
     controller.uploadPublicDocument,
+  );
+  router.get(
+    "/membership-applications/public/:applicationCode/documents/:documentId/view",
+    publicStatusLimiter,
+    allowDocumentPreviewFrame,
+    controller.viewPublicDocument,
   );
 
   router.get("/membership-applications/summary", ...staffReadOnly, controller.summary);
@@ -177,6 +233,7 @@ export function createMembershipApplicationRouter(
   );
   router.get(
     "/membership-application-documents/:id/view",
+    allowDocumentPreviewFrame,
     ...chairmanOnly,
     controller.viewDocument,
   );

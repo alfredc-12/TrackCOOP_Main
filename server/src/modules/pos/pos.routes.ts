@@ -19,6 +19,7 @@ export function createPosRouter(
   router.get("/pos/history", ...memberOnly, controller.listHistory);
   router.post("/pos/checkout", optionalAuth, controller.checkout);
   router.put("/pos/orders/:id/confirm", ...staff, controller.confirmOrder);
+  router.put("/pos/orders/:id/complete", ...staff, controller.completeOrder);
   router.put("/pos/orders/:id/reject", ...staff, controller.rejectOrder);
   router.put("/pos/orders/:id/revoke", ...staff, controller.revokeOrder);
 

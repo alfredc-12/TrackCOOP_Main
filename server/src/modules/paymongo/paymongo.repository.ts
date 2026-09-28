@@ -64,6 +64,23 @@ type PaymentAmountRow = RowDataPacket & {
   total: string | number;
 };
 
+const membershipApplicationStatusSql = `
+  COALESCE(
+    NULLIF(CASE a.application_status
+      WHEN 'SUBMITTED' THEN 'Submitted'
+      WHEN 'UNDER_REVIEW' THEN 'Under Review'
+      WHEN 'NEEDS_INFORMATION' THEN 'Needs Information'
+      WHEN 'APPROVED_PENDING_PAYMENT' THEN 'Payment Required'
+      WHEN 'PAYMENT_UNDER_REVIEW' THEN 'Payment Required'
+      WHEN 'APPROVED' THEN 'Approved'
+      WHEN 'REJECTED' THEN 'Rejected'
+      WHEN 'WITHDRAWN' THEN 'Withdrawn'
+      ELSE a.application_status
+    END, ''),
+    'Payment Required'
+  )
+`;
+
 function mapPaymentReference(row: PaymentReferenceRow): PaymongoPaymentReferenceRecord {
   return {
     ...row,
@@ -208,7 +225,7 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) AS fullName,
                 a.email,
                 a.contact_number AS contactNumber,
-                a.application_status AS applicationStatus
+                ${membershipApplicationStatusSql} AS applicationStatus
            FROM membership_applications a
           WHERE a.application_code = ?
           LIMIT 1`,

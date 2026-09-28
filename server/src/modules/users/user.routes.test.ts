@@ -129,7 +129,7 @@ function createUserService(): UserService {
     async issueActivationLink() {
       return {
         user: { ...userSummary, accountStatus: "Pending" },
-        activationUrl: "http://localhost:3000/activate?token=secret",
+        activationUrl: "http://localhost:3000/membership/activate/secret",
         activationTokenExpiresAt: new Date("2026-07-25T00:00:00.000Z"),
       };
     },
@@ -230,9 +230,9 @@ test("Chairman lifecycle routes accept reasoned account actions", async () => {
   const activation = await request(app)
     .post("/api/users/7/activation-link")
     .set("Cookie", cookie)
-    .send({ reason: "Original activation link expired." });
+    .send({ reason: "Issue a fresh setup link for the user." });
   assert.equal(activation.status, 200);
-  assert.match(activation.body.data.activationUrl, /activate\?token=/);
+  assert.match(activation.body.data.activationUrl, /\/membership\/activate\//);
 });
 
 test("Chairman session and member-link lifecycle routes are available", async () => {

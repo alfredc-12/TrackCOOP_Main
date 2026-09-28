@@ -29,6 +29,9 @@ export type SettlementResult = {
   validationStatus: "Validated";
   receiptStatus: ReceiptProcessingStatus | null;
   receiptErrorCode: string | null;
+  applicationId?: string | null;
+  paymentPurpose?: string;
+  subjectReference?: string | null;
 };
 export type PaymentReferenceForSettlement = RowDataPacket & {
   id: string;

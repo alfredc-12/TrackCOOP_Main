@@ -47,11 +47,11 @@ export function updatePaymentAction(
 
 export function paymentActionEffect(action: PaymentMutationAction) {
   const effects: Record<PaymentMutationAction, string> = {
-    validate: "The payment will be marked Approved. TrackCOOP will safely create the related finance record, receipt, and membership or Share Capital update when applicable.",
-    reject: "The payment will be marked Rejected. Your reason will be saved for the audit record, and no payment posting will be made.",
-    clarification: "The payment will be marked Needs Correction. Your note will be saved so staff can tell the payer what to fix.",
-    reverse: "TrackCOOP will create reversing accounting entries and mark linked payment records Reversed. Membership is not automatically cancelled.",
-    retry: "TrackCOOP will safely retry the previously verified PayMongo event. It will not accept new payment details from this screen.",
+    validate: "Marks this manual payment as Validated and posts its supported finance, requirement, receipt, and Share Capital effects.",
+    reject: "Marks the payment as Rejected, records your reason, and prevents settlement until it is returned to Pending.",
+    clarification: "Marks the payment as Needs Clarification and records the reason for staff and applicant follow-up.",
+    reverse: "Creates reversing accounting entries and marks linked payment postings Reversed without automatically revoking membership.",
+    retry: "Replays settlement from the stored, previously verified gateway event fields. No browser webhook payload is accepted.",
   };
   return effects[action];
 }

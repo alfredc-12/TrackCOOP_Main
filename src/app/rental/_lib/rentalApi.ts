@@ -9,6 +9,8 @@ import type {
   RentalNotification,
   RentalOverview,
   RentalPayment,
+  RentalPaymentStartMethod,
+  RentalPaymentStartResult,
   RentalReceipt,
   RentalRescheduleRequest,
   RentalReportFilter,
@@ -163,6 +165,15 @@ export const rentalApiRepository = {
     if (details?.notes) data.append("notes", details.notes);
     return request<RentalPayment>("/payments/proof", { method: "POST", body: data });
   },
+  startRentalPayment: (
+    rentalId: string,
+    method: RentalPaymentStartMethod,
+    contact?: string,
+  ) =>
+    request<RentalPaymentStartResult>("/payments/start", {
+      method: "POST",
+      body: JSON.stringify({ rentalId, method, contact }),
+    }),
   getRentalExpenses: () => request<RentalExpense[]>("/expenses"),
   recordRentalExpense: (expense: Omit<RentalExpense, "expenseId">) => request<RentalExpense>("/expenses", { method: "POST", body: JSON.stringify(expense) }),
   getRentalReceipt: (receiptId: string) => request<RentalReceipt>(`/receipts/${receiptId}`),

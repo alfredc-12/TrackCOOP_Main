@@ -22,7 +22,7 @@ export default function PaymentCancelledPage() {
           <p className="mt-5 max-w-2xl text-base leading-8 text-[#365F4A]">
             Cancelling checkout does not reject your membership application or
             mark a payment as failed. You can return to the status page and try
-            PayMongo checkout again.
+            QRPH checkout again.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/membership/application-status">

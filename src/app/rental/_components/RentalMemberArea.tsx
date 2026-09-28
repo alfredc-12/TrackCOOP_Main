@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheck, CheckCircle2, Clock3, CreditCard, FileUp, Plus, ReceiptText, RotateCcw, Tractor } from "lucide-react";
+import { Banknote, CalendarCheck, CheckCircle2, Clock3, CreditCard, FileUp, Plus, ReceiptText, RotateCcw, Tractor } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -48,6 +48,23 @@ export function RentalMemberPaymentProof({ rentalId }: { rentalId: string }) {
   const router = useRouter();
   const [amount, setAmount] = useState(""); const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10)); const [reference, setReference] = useState(""); const [file, setFile] = useState<File>(); const [notes, setNotes] = useState(""); const [error, setError] = useState<string>(); const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [startingMethod, setStartingMethod] = useState<"QRPH" | "Cash" | null>(null);
+  const startPayment = async (method: "QRPH" | "Cash") => {
+    setStartingMethod(method);
+    try {
+      const result = await rentalRepository.startRentalPayment(rentalId, method);
+      if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+      toast.success("Cash payment request created. The bookkeeper will validate the payment.");
+      router.push(`/portal/member/rentals/${rentalId}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Payment could not be started.");
+    } finally {
+      setStartingMethod(null);
+    }
+  };
   const submit = async (event: React.FormEvent) => { 
     event.preventDefault(); 
     const newErrors: Record<string, string> = {};
@@ -72,7 +89,7 @@ export function RentalMemberPaymentProof({ rentalId }: { rentalId: string }) {
       setSaving(false); 
     } 
   };
-  return <RentalAccessGate capability="member"><RentalPageHeader eyebrow={rentalId} title="Upload payment proof" description="Submit proof only after receiving the cooperative-approved amount and payment instructions." /><form onSubmit={submit} noValidate className="mx-auto max-w-2xl rounded-2xl border border-[#dce7d6] bg-white p-5"><div className="rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">Verify the approved rental cost before submitting payment proof.</div>{error && <p role="alert" className="mt-4 text-sm font-bold text-red-700">{error}</p>}<div className="mt-5 grid gap-4 sm:grid-cols-2"><MemberField label="Rental ID"><input value={rentalId} readOnly /></MemberField><MemberField label="Amount" required error={errors.amount}><input required type="number" min="0" step="0.01" value={amount} onChange={(event) => { setAmount(event.target.value); setErrors(p => ({...p, amount: ""})) }} /></MemberField><MemberField label="Payment date" required error={errors.date}><input required type="date" value={date} onChange={(event) => { setDate(event.target.value); setErrors(p => ({...p, date: ""})) }} /></MemberField><MemberField label="GCash reference" required error={errors.reference}><input required value={reference} onChange={(event) => { setReference(event.target.value); setErrors(p => ({...p, reference: ""})) }} /></MemberField><MemberField label="Payment proof" required error={errors.file} wide><input required type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(event) => { setFile(event.target.files?.[0]); setErrors(p => ({...p, file: ""})) }} /></MemberField><MemberField label="Notes" wide><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} /></MemberField></div><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => router.back()} className="min-h-11 px-5 font-bold text-[#66756c]">Cancel</button><button disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#1f6b43] px-6 font-bold text-white"><FileUp className="size-4" />{saving ? "Uploading…" : "Submit Proof"}</button></div></form></RentalAccessGate>;
+  return <RentalAccessGate capability="member"><RentalPageHeader eyebrow={rentalId} title="Start rental payment" description="Use QRPH checkout or place a cash payment request after NFFAC confirms the approved rental cost." /><div className="mx-auto grid max-w-2xl gap-4"><section className="rounded-2xl border border-[#dce7d6] bg-white p-5"><h2 className="text-lg font-extrabold text-[#123d2a]">Payment method</h2>{error && <p role="alert" className="mt-4 text-sm font-bold text-red-700">{error}</p>}<div className="mt-4 grid gap-3 sm:grid-cols-2"><button type="button" disabled={startingMethod !== null} onClick={() => void startPayment("QRPH")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#1f6b43] px-5 text-sm font-bold text-white disabled:opacity-60"><CreditCard className="size-4" />{startingMethod === "QRPH" ? "Starting..." : "Pay through QRPH"}</button><button type="button" disabled={startingMethod !== null} onClick={() => void startPayment("Cash")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#bfd2c0] px-5 text-sm font-bold text-[#123d2a] disabled:opacity-60"><Banknote className="size-4" />{startingMethod === "Cash" ? "Starting..." : "Pay in Cash"}</button></div></section><form onSubmit={submit} noValidate className="rounded-2xl border border-[#dce7d6] bg-white p-5"><div className="rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">Manual proof upload is only for payment references requested by the cooperative.</div><div className="mt-5 grid gap-4 sm:grid-cols-2"><MemberField label="Rental ID"><input value={rentalId} readOnly /></MemberField><MemberField label="Amount" required error={errors.amount}><input required type="number" min="0" step="0.01" value={amount} onChange={(event) => { setAmount(event.target.value); setErrors(p => ({...p, amount: ""})) }} /></MemberField><MemberField label="Payment date" required error={errors.date}><input required type="date" value={date} onChange={(event) => { setDate(event.target.value); setErrors(p => ({...p, date: ""})) }} /></MemberField><MemberField label="Payment reference" required error={errors.reference}><input required value={reference} onChange={(event) => { setReference(event.target.value); setErrors(p => ({...p, reference: ""})) }} /></MemberField><MemberField label="Payment proof" required error={errors.file} wide><input required type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(event) => { setFile(event.target.files?.[0]); setErrors(p => ({...p, file: ""})) }} /></MemberField><MemberField label="Notes" wide><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} /></MemberField></div><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => router.back()} className="min-h-11 px-5 font-bold text-[#66756c]">Cancel</button><button disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#1f6b43] px-6 font-bold text-white"><FileUp className="size-4" />{saving ? "Uploading..." : "Submit Proof"}</button></div></form></div></RentalAccessGate>;
 }
 
 export function RentalMemberReschedule({ rentalId }: { rentalId: string }) {

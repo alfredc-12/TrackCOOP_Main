@@ -38,6 +38,7 @@ export function RentalStatusLookup() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [contactError, setContactError] = useState("");
+  const [paymentStarting, setPaymentStarting] = useState<"QRPH" | "Cash" | null>(null);
 
   async function lookup(event: React.FormEvent) {
     event.preventDefault();
@@ -56,6 +57,21 @@ export function RentalStatusLookup() {
     } finally {
       setLoading(false);
       setSearched(true);
+    }
+  }
+
+  async function startPayment(method: "QRPH" | "Cash") {
+    if (!result) return;
+    setPaymentStarting(method);
+    try {
+      const payment = await rentalRepository.startRentalPayment(result.inquiryId, method, contact);
+      if (payment.checkoutUrl) {
+        window.location.href = payment.checkoutUrl;
+        return;
+      }
+      setResult((current) => current ? { ...current, paymentStatus: "Pending", publicNote: "Cash payment selected. The bookkeeper will validate the payment." } : current);
+    } finally {
+      setPaymentStarting(null);
     }
   }
 
@@ -164,6 +180,29 @@ export function RentalStatusLookup() {
                 </dd>
               </div>
             </dl>
+            {result.canStartPayment && result.payableAmount && result.payableAmount > 0 ? (
+              <div className="mt-5 rounded-2xl border border-[#d8e4d3] bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#78857d]">Amount due</p>
+                    <p className="text-xl font-black text-[#123d2a]">
+                      PHP {result.payableAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                    {result.paymentDeadline ? (
+                      <p className="text-xs font-semibold text-[#66756c]">Pay by {formatRentalDate(result.paymentDeadline)}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={Boolean(paymentStarting)} onClick={() => void startPayment("QRPH")} className="min-h-11 rounded-xl bg-[#1f6b43] px-5 text-sm font-bold text-white disabled:opacity-60">
+                      {paymentStarting === "QRPH" ? "Opening..." : "Pay through QRPH"}
+                    </button>
+                    <button type="button" disabled={Boolean(paymentStarting)} onClick={() => void startPayment("Cash")} className="min-h-11 rounded-xl border px-5 text-sm font-bold disabled:opacity-60">
+                      {paymentStarting === "Cash" ? "Creating..." : "Pay in Cash"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : (
           <div

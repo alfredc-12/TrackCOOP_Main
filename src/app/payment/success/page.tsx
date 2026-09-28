@@ -16,14 +16,14 @@ export default function PaymentSuccessPage() {
             <CheckCircle2 className="size-7" />
           </div>
           <p className="mt-7 text-xs font-black uppercase tracking-[0.32em] text-[#f4b62a]">
-            PayMongo Checkout
+            QRPH Checkout
           </p>
           <h1 className="mt-3 text-4xl font-black leading-tight tracking-normal text-[#073f2b] md:text-6xl">
             Payment submitted
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-[#365F4A]">
-            TrackCOOP will mark the payment confirmed only after the PayMongo
-            webhook confirms it.
+            TrackCOOP will mark the payment confirmed only after the gateway
+            confirms it.
           </p>
           <Suspense
             fallback={

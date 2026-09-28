@@ -22,6 +22,7 @@ import type {
   ChairmanMembershipApplicationUpdateInput,
   MembershipApplicationBeneficiaryInput,
   MembershipApplicationStatus,
+  MembershipApplicationDocumentType,
   MembershipSettings,
   PublicApplicationRecord,
   PublicDocumentUploadInput,
@@ -39,6 +40,10 @@ import type {
   StoredMembershipApplicationDocument,
   StoredChairmanApplicationDocument,
 } from "./membership-application.types";
+import {
+  assertPrePaymentRequirementsComplete,
+  isPaymentRequirementType,
+} from "./membership-application.requirements";
 
 type SettingRow = RowDataPacket & {
   settingKey: string;
@@ -58,12 +63,18 @@ type PublicApplicationRow = RowDataPacket & {
   submittedAt: Date;
   applicationStatus: MembershipApplicationStatus;
   latestApplicantMessage: string | null;
+  memberCode: string | null;
+  activationAvailable: number;
+  activationTokenExpiresAt: Date | null;
 };
 
 type PublicRequirementRow = RowDataPacket & {
   requirementType: RequirementType;
   requirementStatus: PublicStatusRequirement["requirementStatus"];
   remarks: string | null;
+  documentId: string | null;
+  documentOriginalFileName: string | null;
+  documentMimeType: string | null;
 };
 
 type PublicPaymentRequirementRow = RowDataPacket & {
@@ -156,9 +167,9 @@ const membershipSettingKeys = [
 const defaultSettings: MembershipSettings = {
   associateFee: 200,
   initialShareCapital: 1500,
-  trueMemberRequiredCapital: 1500,
+  trueMemberRequiredCapital: 3000,
   maximumShareCapital: 15000,
-  shareCapitalDeadlineMonths: 12,
+  shareCapitalDeadlineMonths: 1,
   orientationRequired: true,
   activationTokenHours: 72,
   termsVersion: "2026-07-24",
@@ -167,10 +178,27 @@ const defaultSettings: MembershipSettings = {
 const applicantFullNameSql =
   "TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, '')))";
 
+const applicationStatusSql = `
+  COALESCE(
+    NULLIF(CASE a.application_status
+      WHEN 'SUBMITTED' THEN 'Submitted'
+      WHEN 'UNDER_REVIEW' THEN 'Under Review'
+      WHEN 'NEEDS_INFORMATION' THEN 'Needs Information'
+      WHEN 'APPROVED_PENDING_PAYMENT' THEN 'Payment Required'
+      WHEN 'PAYMENT_UNDER_REVIEW' THEN 'Payment Required'
+      WHEN 'APPROVED' THEN 'Approved'
+      WHEN 'REJECTED' THEN 'Rejected'
+      WHEN 'WITHDRAWN' THEN 'Withdrawn'
+      ELSE a.application_status
+    END, ''),
+    'Payment Required'
+  )
+`;
+
 const listSortColumns: Record<ChairmanApplicationListQuery["sortBy"], string> = {
   submittedAt: "a.submitted_at",
   fullName: applicantFullNameSql,
-  applicationStatus: "a.application_status",
+  applicationStatus: applicationStatusSql,
   requestedMembershipType: "a.requested_membership_type",
 };
 
@@ -190,6 +218,21 @@ const protectedRequirementTypes = new Set<RequirementType>([
   "Associate Membership Fee",
   "Signed Application",
 ]);
+
+const documentRequirementTypes = new Set<RequirementType>([
+  "Signed Application",
+  "Valid ID",
+  "Proof of Residency",
+  "Other",
+]);
+
+function documentTypeForRequirement(
+  requirementType: RequirementType,
+): MembershipApplicationDocumentType | null {
+  return documentRequirementTypes.has(requirementType)
+    ? requirementType as MembershipApplicationDocumentType
+    : null;
+}
 
 function isProtectedRequirementType(
   requestedMembershipType: RequestedMembershipType,
@@ -304,7 +347,7 @@ function applicationSelect() {
                  a.applicant_signature_name AS applicantSignatureName,
                  a.signed_at AS signedAt,
                  a.signed_place AS signedPlace,
-                 a.application_status AS applicationStatus,
+                 ${applicationStatusSql} AS applicationStatus,
                  CAST(a.submitted_by_user_id AS CHAR) AS submittedByUserId,
                  CAST(a.reviewed_by AS CHAR) AS reviewedBy,
                  a.reviewed_at AS reviewedAt,
@@ -386,7 +429,9 @@ function initialRequirements(
   input: PublicMembershipApplicationInput,
   settings: MembershipSettings,
 ): RequirementType[] {
-  const requirements: RequirementType[] = ["Signed Application"];
+  const requirements: RequirementType[] = [
+    "Signed Application",
+  ];
 
   if (settings.orientationRequired) {
     requirements.unshift("Orientation/Seminar");
@@ -413,7 +458,17 @@ async function selectPublicApplication(
             a.requested_membership_type AS requestedMembershipType,
             ${applicantFullNameSql} AS fullName,
             a.submitted_at AS submittedAt,
-            a.application_status AS applicationStatus,
+            ${applicationStatusSql} AS applicationStatus,
+            mp.member_code AS memberCode,
+            CASE WHEN u.user_id IS NOT NULL AND u.account_status = 'Pending' THEN 1 ELSE 0 END AS activationAvailable,
+            (
+              SELECT t.expires_at
+                FROM user_activation_tokens t
+               WHERE t.user_id = u.user_id
+                 AND t.used_at IS NULL
+               ORDER BY t.created_at DESC, t.user_activation_token_id DESC
+               LIMIT 1
+            ) AS activationTokenExpiresAt,
             (
               SELECT h.applicant_message
                 FROM membership_application_status_history h
@@ -423,6 +478,8 @@ async function selectPublicApplication(
                LIMIT 1
             ) AS latestApplicantMessage
        FROM membership_applications a
+       LEFT JOIN member_profiles mp ON mp.member_id = a.converted_member_id
+       LEFT JOIN users u ON u.user_id = mp.user_id
       WHERE a.application_code = ?
       LIMIT 1`,
     [applicationCodeValue],
@@ -432,15 +489,32 @@ async function selectPublicApplication(
   if (!application) return null;
 
   const [requirementRows] = await connection.execute<PublicRequirementRow[]>(
-    `SELECT requirement_type AS requirementType,
-            requirement_status AS requirementStatus,
-            remarks
-       FROM membership_application_requirements
-      WHERE membership_application_id = ?
-        AND requirement_status IN ('Pending', 'Rejected')
-        AND (requirement_type <> 'Associate Membership Fee' OR ? = 'Associate')
-      ORDER BY membership_application_requirement_id ASC`,
-    [application.id, application.requestedMembershipType],
+    `SELECT r.requirement_type AS requirementType,
+            r.requirement_status AS requirementStatus,
+            r.remarks,
+            CAST(d.membership_application_document_id AS CHAR) AS documentId,
+            d.original_file_name AS documentOriginalFileName,
+            d.mime_type AS documentMimeType
+       FROM membership_application_requirements r
+       LEFT JOIN membership_application_documents d
+         ON d.membership_application_document_id = (
+              SELECT d2.membership_application_document_id
+                FROM membership_application_documents d2
+               WHERE d2.membership_application_id = r.membership_application_id
+                 AND d2.document_type = r.requirement_type
+               ORDER BY d2.uploaded_at DESC, d2.membership_application_document_id DESC
+               LIMIT 1
+            )
+      WHERE r.membership_application_id = ?
+        AND r.requirement_status IN ('Pending', 'Rejected')
+        AND r.requirement_type IN ('Signed Application', 'Valid ID', 'Proof of Residency', 'Other')
+        AND (
+          r.requirement_status = 'Rejected'
+          OR r.remarks IS NOT NULL
+          OR r.requirement_type <> 'Signed Application'
+        )
+      ORDER BY r.membership_application_requirement_id ASC`,
+    [application.id],
   );
 
   const [paymentRows] = await connection.execute<PublicPaymentRequirementRow[]>(
@@ -468,6 +542,7 @@ async function selectPublicApplication(
       ...row,
       amount: row.amount === null ? null : Number(row.amount),
     })),
+    activationAvailable: Boolean(application.activationAvailable),
   };
 }
 
@@ -597,6 +672,11 @@ export interface MembershipApplicationRepository {
     warnings: string[];
   }): Promise<PublicSubmissionResult>;
   findPublicApplicationByCode(applicationCode: string): Promise<PublicApplicationRecord | null>;
+  issuePublicActivationLink(input: {
+    applicationId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<void>;
   storePublicDocument(input: {
     applicationId: string;
     applicationCode: string;
@@ -850,6 +930,76 @@ export function createMembershipApplicationRepository(
       return selectPublicApplication(databasePool(), applicationCodeValue);
     },
 
+    async issuePublicActivationLink(input) {
+      await withTransaction(async (connection) => {
+        const [rows] = await connection.execute<(RowDataPacket & {
+          userId: string | null;
+          accountStatus: string | null;
+        })[]>(
+          `SELECT CAST(u.user_id AS CHAR) AS userId,
+                  u.account_status AS accountStatus
+             FROM membership_applications a
+             JOIN member_profiles mp ON mp.member_id = a.converted_member_id
+             JOIN users u ON u.user_id = mp.user_id
+            WHERE a.membership_application_id = ?
+              AND a.application_status = 'Approved'
+            LIMIT 1
+            FOR UPDATE`,
+          [input.applicationId],
+        );
+        const account = rows[0];
+        if (!account?.userId) {
+          throw new AppError(
+            "No pending portal account is available for this approved application",
+            409,
+            "MEMBERSHIP_ACTIVATION_UNAVAILABLE",
+          );
+        }
+        if (account.accountStatus === "Active") {
+          throw new AppError(
+            "This member portal account is already active",
+            409,
+            "MEMBERSHIP_ACCOUNT_ALREADY_ACTIVE",
+          );
+        }
+        if (account.accountStatus !== "Pending") {
+          throw new AppError(
+            "This member portal account cannot be activated from the public application page",
+            409,
+            "MEMBERSHIP_ACTIVATION_UNAVAILABLE",
+          );
+        }
+
+        await connection.execute(
+          `UPDATE user_activation_tokens
+              SET used_at = COALESCE(used_at, UTC_TIMESTAMP())
+            WHERE user_id = ?
+              AND used_at IS NULL`,
+          [account.userId],
+        );
+        await connection.execute(
+          `INSERT INTO user_activation_tokens
+             (user_id, token_hash, expires_at, created_by)
+           VALUES (?, ?, ?, NULL)`,
+          [account.userId, input.tokenHash, mysqlDateTime(input.expiresAt)],
+        );
+        await connection.execute(
+          `INSERT INTO audit_logs
+             (user_id, action, entity_table, record_id, description, new_values)
+           VALUES (NULL, 'activation_token.public_issued', 'user_activation_tokens', ?,
+                   'A member activation token was issued from the public application status page.', ?)`,
+          [
+            account.userId,
+            JSON.stringify({
+              applicationId: input.applicationId,
+              userId: account.userId,
+              expiresAt: input.expiresAt.toISOString(),
+            }),
+          ],
+        );
+      }, databasePool());
+    },
+
     async storePublicDocument(input) {
       return withTransaction(async (connection) => {
         const storedPath = path.normalize(input.storedFilePath).replace(/\\/g, "/");
@@ -902,15 +1052,18 @@ export function createMembershipApplicationRepository(
     async summary() {
       const [rows] = await databasePool().execute<SummaryRow[]>(
         `SELECT COUNT(*) AS total,
-                SUM(application_status = 'Submitted') AS submitted,
-                SUM(application_status = 'Under Review') AS underReview,
-                SUM(application_status = 'Needs Information') AS needsInformation,
-                SUM(application_status = 'Payment Required') AS paymentRequired,
-                SUM(application_status = 'Payment Confirmed') AS paymentConfirmed,
-                SUM(application_status = 'Approved') AS approved,
-                SUM(application_status = 'Rejected') AS rejected,
-                SUM(application_status = 'Withdrawn') AS withdrawn
-           FROM membership_applications`,
+                SUM(status = 'Submitted') AS submitted,
+                SUM(status = 'Under Review') AS underReview,
+                SUM(status = 'Needs Information') AS needsInformation,
+                SUM(status = 'Payment Required') AS paymentRequired,
+                SUM(status = 'Payment Confirmed') AS paymentConfirmed,
+                SUM(status = 'Approved') AS approved,
+                SUM(status = 'Rejected') AS rejected,
+                SUM(status = 'Withdrawn') AS withdrawn
+           FROM (
+             SELECT ${applicationStatusSql} AS status
+               FROM membership_applications a
+           ) normalized_applications`,
       );
       const row = rows[0];
       return {
@@ -945,7 +1098,7 @@ export function createMembershipApplicationRepository(
         values.push(search, search, search, search, search, search, search, search);
       }
       if (query.status) {
-        where.push("a.application_status = ?");
+        where.push(`${applicationStatusSql} = ?`);
         values.push(query.status);
       }
       if (query.requestedMembershipType) {
@@ -1437,6 +1590,7 @@ export function createMembershipApplicationRepository(
         mimeType: document.mimeType,
         fileSizeBytes: document.fileSizeBytes,
         checksumSha256: document.checksumSha256 ?? "",
+        uploadedByUserId: document.uploadedByUserId,
         uploadedAt: document.uploadedAt,
         storedFilePath: document.storedFilePath,
       };
@@ -1517,20 +1671,79 @@ export function createMembershipApplicationRepository(
       if (has("remarks")) fields.push(["remarks", input.remarks ?? null]);
 
       return withTransaction(async (connection) => {
-        const [existingRows] = await connection.execute<(RowDataPacket & { applicationId: string; status: RequirementStatus })[]>(
-          `SELECT CAST(membership_application_id AS CHAR) AS applicationId,
-                  requirement_status AS status
-             FROM membership_application_requirements
-            WHERE membership_application_requirement_id = ?
+        const [existingRows] = await connection.execute<(RowDataPacket & {
+          applicationId: string;
+          applicationStatus: MembershipApplicationStatus;
+          requirementType: RequirementType;
+          status: RequirementStatus;
+          documentId: string | null;
+        })[]>(
+          `SELECT CAST(mar.membership_application_id AS CHAR) AS applicationId,
+                  (SELECT ${applicationStatusSql}
+                     FROM membership_applications a
+                    WHERE a.membership_application_id = mar.membership_application_id
+                    LIMIT 1) AS applicationStatus,
+                  mar.requirement_type AS requirementType,
+                  mar.requirement_status AS status,
+                  CAST(mar.membership_application_document_id AS CHAR) AS documentId
+             FROM membership_application_requirements mar
+            WHERE mar.membership_application_requirement_id = ?
             LIMIT 1
             FOR UPDATE`,
           [requirementId],
         );
         const existing = existingRows[0];
         if (!existing) throw new AppError("Requirement was not found", 404, "MEMBERSHIP_REQUIREMENT_NOT_FOUND");
+        const nextStatus = input.requirementStatus ?? existing.status;
+
+        if (input.requirementStatus && isPaymentRequirementType(existing.requirementType)) {
+          throw new AppError(
+            "Payment requirements are verified by the payment system",
+            409,
+            "MEMBERSHIP_PAYMENT_REQUIREMENT_SYSTEM_MANAGED",
+          );
+        }
+
+        if (input.requirementStatus && existing.applicationStatus !== "Under Review") {
+          throw new AppError(
+            "Start the application review before verifying, rejecting, or waiving requirements",
+            409,
+            "MEMBERSHIP_REVIEW_NOT_STARTED",
+          );
+        }
+
+        const expectedDocumentType = documentTypeForRequirement(existing.requirementType);
+        if (nextStatus === "Verified" && expectedDocumentType) {
+          const documentId = input.documentId ?? existing.documentId;
+          if (!documentId) {
+            throw new AppError(
+              `A ${existing.requirementType} document must be uploaded before this requirement can be verified`,
+              409,
+              "MEMBERSHIP_REQUIREMENT_DOCUMENT_REQUIRED",
+            );
+          }
+
+          const [documentRows] = await connection.execute<(RowDataPacket & {
+            documentType: MembershipApplicationDocumentType;
+          })[]>(
+            `SELECT document_type AS documentType
+               FROM membership_application_documents
+              WHERE membership_application_document_id = ?
+                AND membership_application_id = ?
+              LIMIT 1`,
+            [documentId, existing.applicationId],
+          );
+          const document = documentRows[0];
+          if (!document || document.documentType !== expectedDocumentType) {
+            throw new AppError(
+              `A matching ${existing.requirementType} document is required before verification`,
+              409,
+              "MEMBERSHIP_REQUIREMENT_DOCUMENT_MISMATCH",
+            );
+          }
+        }
 
         if (fields.length > 0) {
-          const statusValue = input.requirementStatus ?? existing.status;
           await connection.execute(
             `UPDATE membership_application_requirements
                 SET ${fields.map(([column]) => `${column} = ?`).join(", ")},
@@ -1539,9 +1752,9 @@ export function createMembershipApplicationRepository(
               WHERE membership_application_requirement_id = ?`,
             [
               ...fields.map(([, value]) => value),
-              statusValue,
+              nextStatus,
               auth.user.id,
-              statusValue,
+              nextStatus,
               requirementId,
             ],
           );
@@ -1652,6 +1865,10 @@ export function createMembershipApplicationRepository(
             "MEMBERSHIP_APPLICATION_REASON_REQUIRED",
           );
         }
+        if (nextStatus === "Payment Required") {
+          const requirements = await selectRequirements(connection, applicationId);
+          assertPrePaymentRequirementsComplete(requirements);
+        }
 
         await connection.execute(
           `UPDATE membership_applications
@@ -1737,7 +1954,9 @@ export function createMembershipApplicationRepository(
         }
         const missingCommitments = [
           ["orientationCommitmentAccepted", application.orientationCommitmentAccepted],
-          ["membershipFeeCommitmentAccepted", application.membershipFeeCommitmentAccepted],
+          ...(application.requestedMembershipType === "Associate"
+            ? [["membershipFeeCommitmentAccepted", application.membershipFeeCommitmentAccepted]]
+            : []),
           ["shareSubscriptionCommitmentAccepted", application.shareSubscriptionCommitmentAccepted],
           ["bylawsAgreementAccepted", application.bylawsAgreementAccepted],
           ["privacyConsentAccepted", application.privacyConsentAccepted],
@@ -1753,7 +1972,6 @@ export function createMembershipApplicationRepository(
         const requirements = await selectRequirements(connection, input.applicationId);
         const requirementByType = new Map(requirements.map((requirement) => [requirement.requirementType, requirement]));
         const requiredTypes: RequirementType[] = [
-          "Orientation/Seminar",
           "Signed Application",
         ];
         if (application.requestedMembershipType === "True Member") {
@@ -1772,16 +1990,11 @@ export function createMembershipApplicationRepository(
             "MEMBERSHIP_APPLICATION_REQUIREMENT_INCOMPLETE",
           );
         }
-        if (requirementByType.get("Orientation/Seminar")?.requirementStatus !== "Verified") {
-          throw new AppError(
-            "Orientation must be verified before approval",
-            409,
-            "MEMBERSHIP_ORIENTATION_INCOMPLETE",
-          );
-        }
-
         const feeRequirement = requirementByType.get("Associate Membership Fee");
-        if (application.requestedMembershipType === "Associate" && feeRequirement?.requirementStatus !== "Waived") {
+        if (
+          application.requestedMembershipType === "Associate"
+          && feeRequirement?.requirementStatus !== "Waived"
+        ) {
           const [feeRows] = await connection.execute<PaymentAmountRow[]>(
             `SELECT COALESCE(SUM(pr.amount), 0) AS total
                FROM membership_application_requirements r

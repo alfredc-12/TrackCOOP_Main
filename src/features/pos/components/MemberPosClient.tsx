@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
+import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Banknote } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
@@ -63,9 +63,16 @@ type PosOrder = {
     payment_reference_id?: number | string | null;
     reference_number?: string | null;
     provider?: string | null;
+    payment_channel?: string | null;
     notes?: string | null;
     items?: PosOrderItem[];
 };
+
+function posPaymentLabel(order: PosOrder) {
+    if (order.payment_channel === "Cash" || order.provider === "Cash") return "Cash";
+    if (order.payment_channel === "PayMongo" || order.provider === "PayMongo") return "QRPH";
+    return order.provider ?? "Other";
+}
 
 type MemberPosClientProps = {
     isPublicView?: boolean;
@@ -128,7 +135,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
     const [paymentName, setPaymentName] = useState("");
     const [paymentEmail, setPaymentEmail] = useState("");
     const [paymentContact, setPaymentContact] = useState("");
-    const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online Payment">("Online Payment");
+    const [paymentMethod, setPaymentMethod] = useState<"QRPH" | "Cash">("QRPH");
     const [isConfirmCheckoutModalOpen, setIsConfirmCheckoutModalOpen] = useState(false);
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
     const [checkoutErrors, setCheckoutErrors] = useState<Record<string, string>>({});
@@ -398,7 +405,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             const data = await res.json().catch(() => null);
 
             if (res.ok) {
-                if (data?.checkoutUrl && paymentMethod === "Online Payment") {
+                if (data?.checkoutUrl && paymentMethod === "QRPH") {
                     setCheckoutStatusMessage("Opening secure payment checkout...");
                     setCart([]);
                     setIsConfirmCheckoutModalOpen(false);
@@ -424,6 +431,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                     setPaymentEmail("");
                 }
                 setPaymentContact("");
+                setPaymentMethod("QRPH");
                 void fetchInventory(false); // Refresh stock
             } else {
                 toast.error(data?.error || "We could not process your order. Please try again.");
@@ -536,7 +544,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             </div>
 
             {isPublicView && checkoutStep === "cart" && (
-                <div className="mb-5 rounded-xl border border-[#D8E5DB] bg-[#EEF8F0] px-4 py-3 text-sm text-[#52705D]"><span className="font-bold text-[#123D2A]">Guest checkout:</span> Add products to your cart, then provide your contact details before secure payment.</div>
+                <div className="mb-5 rounded-xl border border-[#D8E5DB] bg-[#EEF8F0] px-4 py-3 text-sm text-[#52705D]"><span className="font-bold text-[#123D2A]">Guest checkout:</span> Add products to your cart, then provide your contact details and payment method.</div>
             )}
 
             {/* Product Grid */}
@@ -690,26 +698,34 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                     <div className="mb-6 rounded-2xl border border-[#123D2A]/15 bg-[#123D2A]/5 p-5 shadow-sm">
                                         <div className="flex items-start gap-4">
                                             <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#123D2A] text-white">
-                                                <CreditCard className="size-6" />
+                                                {paymentMethod === "Cash" ? <Banknote className="size-6" /> : <CreditCard className="size-6" />}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="font-bold text-[#123D2A]">{paymentMethod === "Online Payment" ? "Pay securely with PayMongo" : "Pay with Cash"}</p>
+                                                <p className="font-bold text-[#123D2A]">{paymentMethod === "Cash" ? "Pay in cash" : "Pay through QRPH"}</p>
                                                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                                                    {paymentMethod === "Online Payment" ? "After confirming, TrackCOOP will reserve your items and open PayMongo checkout." : "After confirming, your cash payment request will be recorded for cooperative staff validation."} Stock is deducted after payment is confirmed.
+                                                    {paymentMethod === "Cash"
+                                                        ? "After confirming, TrackCOOP will reserve your order until the bookkeeper validates the cash payment."
+                                                        : "After confirming, TrackCOOP will reserve your items and open the QRPH checkout. Stock is deducted after the payment is confirmed."}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="mt-4 text-left">
-                                            <p className="mb-2 text-sm font-semibold text-gray-700">Payment Method</p>
-                                            <div className="grid gap-3 sm:grid-cols-2">
-                                                {(["Online Payment", "Cash"] as const).map((method) => (
-                                                    <label key={method} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-semibold ${paymentMethod === method ? "border-[#0F9D58] bg-[#EEF8F0] text-[#123D2A]" : "border-gray-200 bg-white text-gray-600"}`}>
-                                                        <input type="radio" name="member-pos-payment-method" value={method} checked={paymentMethod === method} onChange={() => setPaymentMethod(method)} />
-                                                        {method}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
+                                    </div>
+
+                                    <div className="mb-6 grid gap-3 sm:grid-cols-2">
+                                        {(["QRPH", "Cash"] as const).map((method) => (
+                                            <button
+                                                key={method}
+                                                type="button"
+                                                onClick={() => setPaymentMethod(method)}
+                                                className={`flex min-h-16 items-center gap-3 rounded-2xl border px-4 text-left transition ${paymentMethod === method ? "border-[#123D2A] bg-[#EAF5EC] text-[#123D2A]" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}
+                                            >
+                                                {method === "Cash" ? <Banknote className="size-5" /> : <CreditCard className="size-5" />}
+                                                <span>
+                                                    <span className="block text-sm font-black">{method === "Cash" ? "Cash" : "QRPH"}</span>
+                                                    <span className="block text-xs font-semibold">{method === "Cash" ? "Bookkeeper validation" : "Online QR payment"}</span>
+                                                </span>
+                                            </button>
+                                        ))}
                                     </div>
 
                                     <div className="bg-white rounded-2xl p-6 border border-gray-200 mb-6 flex flex-col animate-in zoom-in-95 duration-200">
@@ -876,7 +892,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                             "Proceed to Checkout"
                                         ) : (
                                             <>
-                                                Continue to PayMongo
+                                                {paymentMethod === "Cash" ? "Place Cash Order" : "Continue to QRPH"}
                                                 <ExternalLink className="size-4" />
                                             </>
                                         )}
@@ -897,7 +913,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                         </div>
                         <h2 className="mb-2 text-2xl font-bold text-gray-900">Order Placed!</h2>
                         <p className="mb-6 text-sm text-gray-500">
-                            Your order has been created. Complete the PayMongo checkout so TrackCOOP can confirm the payment and release the receipt.
+                            Your order has been created. TrackCOOP will confirm the payment before releasing the receipt.
                         </p>
                         <button
                             onClick={() => setCheckoutSuccess(false)}
@@ -913,9 +929,11 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             {isConfirmCheckoutModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
-                        <h2 className="mb-2 text-xl font-bold text-gray-900">Open PayMongo Checkout</h2>
+                        <h2 className="mb-2 text-xl font-bold text-gray-900">{paymentMethod === "Cash" ? "Place Cash Order" : "Open QRPH Checkout"}</h2>
                         <p className="mb-6 text-sm text-gray-500">
-                            Your order will be reserved and you will be redirected to PayMongo to complete payment.
+                            {paymentMethod === "Cash"
+                                ? "Your order will be reserved. The bookkeeper must validate the cash payment before release."
+                                : "Your order will be reserved and you will be redirected to complete the QRPH payment."}
                         </p>
                         <div className="flex gap-3">
                             <button
@@ -1127,7 +1145,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                             <div className="text-center">
                                 <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Payment Method</p>
                                 <p className="text-sm font-bold text-gray-900">
-                                    {receiptOrder.payment_reference_id && receiptOrder.provider !== 'Cash' ? `${receiptOrder.provider || 'GCash'} (${receiptOrder.reference_number})` : 'Cash'}
+                                    {posPaymentLabel(receiptOrder) === "QRPH" ? `QRPH (${receiptOrder.reference_number})` : posPaymentLabel(receiptOrder)}
                                 </p>
                             </div>
                         </div>

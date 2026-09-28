@@ -2,7 +2,7 @@ import type { Response } from "express";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import type { PosService } from "./pos.service";
-import type { CheckoutPayload, ConfirmOrderInput, PosReasonInput } from "./pos.types";
+import type { CheckoutPayload, CompleteOrderInput, ConfirmOrderInput, PosReasonInput } from "./pos.types";
 
 function requireAuth(auth: Express.Request["auth"]) {
   if (!auth) throw new AppError("Authentication is required", 401, "UNAUTHENTICATED");
@@ -73,6 +73,19 @@ export function createPosController(service: PosService) {
         });
       } catch (error) {
         return sendError(response, error, "Failed to confirm order", true);
+      }
+    }),
+
+    completeOrder: asyncHandler(async (request, response) => {
+      try {
+        await service.completeOrder(
+          requireOrderId(request.params.id),
+          (request.body ?? {}) as CompleteOrderInput,
+          requireAuth(request.auth),
+        );
+        return response.json({ success: true, message: "Order released successfully." });
+      } catch (error) {
+        return sendError(response, error, "Failed to release order", true);
       }
     }),
 

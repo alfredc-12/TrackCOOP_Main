@@ -7,26 +7,41 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  Eye,
   FileText,
+  KeyRound,
   Loader2,
   LockKeyhole,
   Search,
   UploadCloud,
   UserRound,
   Wallet,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { type ChangeEvent, type FormEvent, type ReactNode, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/Button";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { ApiClientError } from "@/lib/api-client";
 import {
   createMembershipApplicationPaymongoCheckout,
+  getMembershipApplicationPublicDocument,
   getMembershipApplicationStatus,
+  issueMembershipApplicationActivationLink,
   uploadMembershipApplicationDocument,
 } from "../membership-application-api";
-import type { MembershipDocumentType } from "../membership-application-types";
+import type {
+  MembershipDocumentType,
+  PublicStatusRequirement,
+} from "../membership-application-types";
 import type {
   PublicMembershipPaymentState,
   PublicMembershipPaymentStatus,
@@ -40,6 +55,13 @@ const followUpDocumentTypes: MembershipDocumentType[] = [
   "Share Capital Proof",
   "Other",
 ];
+
+type DocumentPreviewState = {
+  title: string;
+  fileName: string;
+  mimeType: string;
+  objectUrl: string;
+};
 
 function peso(value: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -58,10 +80,8 @@ function suggestedCapitalAmount(status: PublicMembershipPaymentStatus) {
     return status.latestCheckout.amount;
   }
   const minimum = status.shareCapital.minimumNextAmount;
-  const targetGap = status.shareCapital.remainingToTarget;
   const maximumGap = status.shareCapital.remainingToMaximum;
-  const preferred = targetGap > 0 ? Math.max(minimum, targetGap) : minimum;
-  return Math.min(preferred, maximumGap);
+  return Math.min(minimum, maximumGap);
 }
 
 function todayDateKey() {
@@ -96,10 +116,22 @@ function statusTone(status: string) {
   if (status === "Payment Confirmed") {
     return "border-[#BBD9C0] bg-[#DDF5E2] text-[#0F6B3D]";
   }
-  if (status === "Payment Required") {
+  if (isPaymentRequiredStatus(status)) {
     return "border-[#FFE1A6] bg-[#FFF3C9] text-[#946400]";
   }
   return "border-[#FFE1A6] bg-[#FFF3C9] text-[#946400]";
+}
+
+function isPaymentRequiredStatus(status: string) {
+  return status === "Payment Required" || status === "Pending Payment";
+}
+
+function applicantPaymentLabel(status: PublicMembershipPaymentStatus) {
+  if (status.applicationStatus === "Payment Confirmed") return "Payment received";
+  if (isPaymentRequiredStatus(status.applicationStatus)) return "Ready to pay";
+  if (status.applicationStatus === "Approved") return "Completed";
+  if (status.applicationStatus === "Needs Information") return "Needs update";
+  return "Not required yet";
 }
 
 export function ApplicationStatusPayments() {
@@ -118,8 +150,19 @@ export function ApplicationStatusPayments() {
   const [shareCapitalAmount, setShareCapitalAmount] = useState("1500");
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [followUpSuccess, setFollowUpSuccess] = useState<string | null>(null);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [isIssuingActivation, setIsIssuingActivation] = useState(false);
   const [uploadingFollowUpDocumentType, setUploadingFollowUpDocumentType] =
     useState<MembershipDocumentType | null>(null);
+  const [previewingDocumentId, setPreviewingDocumentId] = useState<string | null>(null);
+  const [documentPreviewError, setDocumentPreviewError] = useState<string | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<DocumentPreviewState | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (documentPreview?.objectUrl) URL.revokeObjectURL(documentPreview.objectUrl);
+    };
+  }, [documentPreview?.objectUrl]);
 
   async function lookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -139,6 +182,7 @@ export function ApplicationStatusPayments() {
         dateOfBirth: birthDate,
       }) as PublicMembershipPaymentStatus;
       setStatus(result);
+      setActivationError(null);
       setFollowUpError(null);
       setFollowUpSuccess(null);
       const suggested = suggestedCapitalAmount(result);
@@ -182,6 +226,7 @@ export function ApplicationStatusPayments() {
         dateOfBirth: dateOfBirth.trim(),
       }) as PublicMembershipPaymentStatus;
       setStatus(refreshed);
+      setDocumentPreviewError(null);
       setFollowUpSuccess(
         `${documentType} uploaded. The Chairman can now review the new file.`,
       );
@@ -194,6 +239,45 @@ export function ApplicationStatusPayments() {
     } finally {
       setUploadingFollowUpDocumentType(null);
     }
+  }
+
+  async function previewFollowUpDocument(requirement: PublicStatusRequirement) {
+    if (!status || !requirement.documentId || previewingDocumentId) return;
+
+    setPreviewingDocumentId(requirement.documentId);
+    setDocumentPreviewError(null);
+    try {
+      const preview = await getMembershipApplicationPublicDocument({
+        applicationCode: status.applicationCode,
+        dateOfBirth: dateOfBirth.trim(),
+        documentId: requirement.documentId,
+      });
+      const objectUrl = URL.createObjectURL(preview.blob);
+      setDocumentPreview((current) => {
+        if (current?.objectUrl) URL.revokeObjectURL(current.objectUrl);
+        return {
+          title: requirement.requirementType,
+          fileName: requirement.documentOriginalFileName ?? requirement.requirementType,
+          mimeType: preview.mimeType,
+          objectUrl,
+        };
+      });
+    } catch (error) {
+      setDocumentPreviewError(
+        error instanceof ApiClientError
+          ? error.message
+          : "Unable to load the document preview. Please try again.",
+      );
+    } finally {
+      setPreviewingDocumentId(null);
+    }
+  }
+
+  function closeDocumentPreview() {
+    setDocumentPreview((current) => {
+      if (current?.objectUrl) URL.revokeObjectURL(current.objectUrl);
+      return null;
+    });
   }
 
   async function startCheckout(
@@ -227,9 +311,30 @@ export function ApplicationStatusPayments() {
       setCheckoutError(
         error instanceof ApiClientError
           ? error.message
-          : "Unable to start PayMongo checkout. Please try again.",
+          : "Unable to start the payment. Please try again.",
       );
       setCheckoutAction(null);
+    }
+  }
+
+  async function issueActivationLink() {
+    if (!status || isIssuingActivation) return;
+    setIsIssuingActivation(true);
+    setActivationError(null);
+    try {
+      const result = await issueMembershipApplicationActivationLink({
+        applicationCode: status.applicationCode,
+        dateOfBirth: dateOfBirth.trim(),
+      });
+      window.location.assign(result.activationUrl);
+    } catch (error) {
+      setActivationError(
+        error instanceof ApiClientError
+          ? error.message
+          : "Unable to issue the activation link. Please try again.",
+      );
+    } finally {
+      setIsIssuingActivation(false);
     }
   }
 
@@ -252,15 +357,22 @@ export function ApplicationStatusPayments() {
           checkoutError={checkoutError}
           followUpError={followUpError}
           followUpSuccess={followUpSuccess}
+          documentPreviewError={documentPreviewError}
+          activationError={activationError}
+          isIssuingActivation={isIssuingActivation}
           uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
+          previewingDocumentId={previewingDocumentId}
           shareCapitalAmount={shareCapitalAmount}
           onShareCapitalAmountChange={setShareCapitalAmount}
           onStartCheckout={startCheckout}
+          onIssueActivationLink={issueActivationLink}
           onUploadFollowUpDocuments={uploadFollowUpDocuments}
+          onPreviewFollowUpDocument={previewFollowUpDocument}
         />
       ) : (
         <EmptyDashboard />
       )}
+      <DocumentPreviewModal preview={documentPreview} onClose={closeDocumentPreview} />
     </div>
   );
 }
@@ -356,27 +468,39 @@ function StatusDashboard({
   checkoutError,
   followUpError,
   followUpSuccess,
+  documentPreviewError,
+  activationError,
+  isIssuingActivation,
   uploadingFollowUpDocumentType,
+  previewingDocumentId,
   shareCapitalAmount,
   onShareCapitalAmountChange,
   onStartCheckout,
+  onIssueActivationLink,
   onUploadFollowUpDocuments,
+  onPreviewFollowUpDocument,
 }: {
   status: PublicMembershipPaymentStatus;
   checkoutAction: "Associate Membership Fee" | "Share Capital" | null;
   checkoutError: string | null;
   followUpError: string | null;
   followUpSuccess: string | null;
+  documentPreviewError: string | null;
+  activationError: string | null;
+  isIssuingActivation: boolean;
   uploadingFollowUpDocumentType: MembershipDocumentType | null;
+  previewingDocumentId: string | null;
   shareCapitalAmount: string;
   onShareCapitalAmountChange: (value: string) => void;
   onStartCheckout: (
     paymentPurpose: "Associate Membership Fee" | "Share Capital",
   ) => Promise<void>;
+  onIssueActivationLink: () => Promise<void>;
   onUploadFollowUpDocuments: (
     documentType: MembershipDocumentType,
     files: File[],
   ) => Promise<void>;
+  onPreviewFollowUpDocument: (requirement: PublicStatusRequirement) => Promise<void>;
 }) {
   return (
     <section className="grid gap-5">
@@ -399,7 +523,7 @@ function StatusDashboard({
           <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
             <MiniHeroItem label="Submitted" value={friendlyDate(status.submittedAt)} />
             <MiniHeroItem label="Membership" value={status.requestedMembershipType} />
-            <MiniHeroItem label="Payment Mode" value={status.paymongoMode === "test" ? "Test QR Ph" : "Live QR Ph"} />
+            <MiniHeroItem label="Payment" value={applicantPaymentLabel(status)} />
           </div>
         </div>
         <div className="p-5 sm:p-6">
@@ -412,11 +536,17 @@ function StatusDashboard({
         checkoutAction={checkoutAction}
         followUpError={followUpError}
         followUpSuccess={followUpSuccess}
+        documentPreviewError={documentPreviewError}
+        activationError={activationError}
+        isIssuingActivation={isIssuingActivation}
         uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
+        previewingDocumentId={previewingDocumentId}
         shareCapitalAmount={shareCapitalAmount}
         onShareCapitalAmountChange={onShareCapitalAmountChange}
         onStartCheckout={onStartCheckout}
+        onIssueActivationLink={onIssueActivationLink}
         onUploadFollowUpDocuments={onUploadFollowUpDocuments}
+        onPreviewFollowUpDocument={onPreviewFollowUpDocument}
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -443,66 +573,74 @@ function ApplicantNextActionCard({
   checkoutAction,
   followUpError,
   followUpSuccess,
+  documentPreviewError,
+  activationError,
+  isIssuingActivation,
   uploadingFollowUpDocumentType,
+  previewingDocumentId,
   shareCapitalAmount,
   onShareCapitalAmountChange,
   onStartCheckout,
+  onIssueActivationLink,
   onUploadFollowUpDocuments,
+  onPreviewFollowUpDocument,
 }: {
   status: PublicMembershipPaymentStatus;
   checkoutAction: "Associate Membership Fee" | "Share Capital" | null;
   followUpError: string | null;
   followUpSuccess: string | null;
+  documentPreviewError: string | null;
+  activationError: string | null;
+  isIssuingActivation: boolean;
   uploadingFollowUpDocumentType: MembershipDocumentType | null;
+  previewingDocumentId: string | null;
   shareCapitalAmount: string;
   onShareCapitalAmountChange: (value: string) => void;
   onStartCheckout: (
     paymentPurpose: "Associate Membership Fee" | "Share Capital",
   ) => Promise<void>;
+  onIssueActivationLink: () => Promise<void>;
   onUploadFollowUpDocuments: (
     documentType: MembershipDocumentType,
     files: File[],
   ) => Promise<void>;
+  onPreviewFollowUpDocument: (requirement: PublicStatusRequirement) => Promise<void>;
 }) {
-  const isPaymentStage = status.applicationStatus === "Payment Required";
+  const isPaymentStage = isPaymentRequiredStatus(status.applicationStatus);
   const isPaymentConfirmed = status.applicationStatus === "Payment Confirmed";
   const needsInformation = status.applicationStatus === "Needs Information";
-  const totalDue = status.requestedMembershipType === "True Member"
+  const shareCapitalDue = status.requestedMembershipType === "True Member"
     ? Math.max(0, Number(shareCapitalAmount || 0))
-    : status.membershipFee.remainingAmount;
+    : 0;
+  const membershipFeeDue = status.requestedMembershipType === "Associate"
+    ? status.membershipFee.remainingAmount
+    : 0;
+  const totalDue = membershipFeeDue + shareCapitalDue;
+  const heading = needsInformation
+    ? "Action required"
+    : isPaymentStage
+      ? "Payment is now available"
+      : isPaymentConfirmed
+        ? "Payment confirmed"
+        : status.applicationStatus === "Approved"
+          ? "Membership approved"
+          : "No action needed";
 
   return (
     <article className="rounded-[2rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f4b62a]">
-            What You Need To Do
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-[#123D2A]">
-            {needsInformation
-              ? "Action required"
-              : isPaymentStage
-                ? "Payment is now available"
-                : isPaymentConfirmed
-                  ? "Payment confirmed"
-                  : status.applicationStatus === "Approved"
-                    ? "Membership approved"
-                    : "No action needed"}
+          <h2 className="text-2xl font-black text-[#123D2A]">
+            {heading}
           </h2>
         </div>
       </div>
 
-      <p className="mt-4 max-w-3xl text-sm leading-7 text-[#365F4A]">
-        {needsInformation
-          ? status.latestApplicantMessage ?? "NFFAC requested additional information before continuing the review."
-          : isPaymentStage
-            ? "Your application passed initial review. Complete the available payment using PayMongo QR Ph."
-            : isPaymentConfirmed
-              ? "Your payment was received. Your application is waiting for final chairman approval."
-              : status.applicationStatus === "Approved"
-                ? "Your membership application has been approved."
-                : "NFFAC is currently reviewing your application. We'll email you if anything is required."}
-      </p>
+      {needsInformation && status.latestApplicantMessage ? (
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-[#365F4A]">
+          {status.latestApplicantMessage}
+        </p>
+      ) : null}
 
       {needsInformation ? (
         <div className="mt-5">
@@ -510,8 +648,11 @@ function ApplicantNextActionCard({
             status={status}
             followUpError={followUpError}
             followUpSuccess={followUpSuccess}
+            documentPreviewError={documentPreviewError}
             uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
+            previewingDocumentId={previewingDocumentId}
             onUploadFollowUpDocuments={onUploadFollowUpDocuments}
+            onPreviewFollowUpDocument={onPreviewFollowUpDocument}
           />
         </div>
       ) : null}
@@ -538,12 +679,12 @@ function ApplicantNextActionCard({
             {status.requestedMembershipType === "Associate" ? (
               <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
                 <span>Membership Fee</span>
-                <strong className="text-[#123D2A]">{peso(status.membershipFee.remainingAmount)}</strong>
+                <strong className="text-[#123D2A]">{peso(membershipFeeDue)}</strong>
               </div>
             ) : null}
             {status.requestedMembershipType === "True Member" ? (
-              <div className="mt-2 flex justify-between text-sm font-semibold text-[#365F4A]">
-                <span>Share Capital</span>
+              <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
+                <span>Initial Share Capital</span>
                 <strong className="text-[#123D2A]">{peso(Number(shareCapitalAmount || 0))}</strong>
               </div>
             ) : null}
@@ -564,6 +705,40 @@ function ApplicantNextActionCard({
           <p className="mt-2 text-sm font-semibold">Your application is queued for final approval.</p>
         </div>
       ) : null}
+
+      {status.applicationStatus === "Approved" ? (
+        <div className="mt-5 rounded-[1.5rem] border border-[#BBD9C0] bg-white p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-lg font-black text-[#123D2A]">
+                <CheckCircle2 className="size-5 text-[#1F6B43]" />
+                Membership approved
+              </p>
+              {status.memberCode ? (
+                <p className="mt-1 text-sm font-semibold text-[#365F4A]">
+                  Member code: <span className="font-black text-[#123D2A]">{status.memberCode}</span>
+                </p>
+              ) : null}
+            </div>
+            {status.activationAvailable ? (
+              <Button
+                type="button"
+                disabled={isIssuingActivation}
+                onClick={() => void onIssueActivationLink()}
+                className="h-11 rounded-full bg-[#123D2A] px-5 text-xs font-black text-white hover:bg-[#1F6B43]"
+              >
+                {isIssuingActivation ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <KeyRound className="size-4" />
+                )}
+                Activate Member Portal
+              </Button>
+            ) : null}
+          </div>
+          {activationError ? <ErrorNotice message={activationError} /> : null}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -582,16 +757,7 @@ function ApplicationInformationPanel({ status }: { status: PublicMembershipPayme
         <DetailRow label="Application Code" value={status.applicationCode} />
         <DetailRow label="Membership Type" value={status.requestedMembershipType} />
         <DetailRow label="Submitted" value={friendlyDate(status.submittedAt)} />
-        <DetailRow label="Status" value={status.applicationStatus} />
-        <DetailRow
-          label="Payment Mode"
-          value={
-            status.paymongoMode === "test"
-              ? "PayMongo Test Mode - No real money will be charged"
-              : "PayMongo Live Mode"
-          }
-          last
-        />
+        <DetailRow label="Status" value={status.applicationStatus} last />
       </dl>
     </section>
   );
@@ -628,13 +794,13 @@ function StatusTimeline({
   const steps = [
     { key: "Submitted", label: "Submitted", date: friendlyDate(submittedAt) },
     { key: "Review", label: "Review", date: "Chairman review" },
-    { key: "Payment", label: "Payment", date: "PayMongo" },
+    { key: "Payment", label: "Payment", date: "When approved" },
     { key: "Approved", label: "Approved", date: "Pending" },
   ];
   const terminal = status === "Rejected" || status === "Withdrawn";
   const activeIndex = status === "Approved"
     ? 3
-    : status === "Payment Required" || status === "Payment Confirmed"
+    : isPaymentRequiredStatus(status) || status === "Payment Confirmed"
       ? 2
       : status === "Submitted"
         ? 0
@@ -700,28 +866,25 @@ function ReviewActionCard({
     paymentPurpose: "Associate Membership Fee" | "Share Capital",
   ) => Promise<void>;
 }) {
+  const isPaymentStage = isPaymentRequiredStatus(status.applicationStatus);
+  const feeStillDue = status.membershipFee.status !== "Confirmed";
+  const reusableFeeCheckout =
+    status.latestCheckout?.paymentPurpose === "Associate Membership Fee"
+    && status.latestCheckout.isReusable;
   const paymentNeedsAction =
-    status.membershipFee.canStartCheckout || status.membershipFee.pendingAmount > 0;
+    isPaymentStage
+    && feeStillDue
+    && (
+      status.membershipFee.canStartCheckout
+      || status.membershipFee.pendingAmount > 0
+      || reusableFeeCheckout
+      || status.membershipFee.status === "Required"
+    );
 
   return (
-    <PanelCard icon={AlertCircle} title="What needs attention" compact className="h-fit">
-      <p className="text-xs leading-6 text-[#365F4A]">
-        {status.applicationStatus === "Needs Information"
-          ? status.latestApplicantMessage
-            ?? "The cooperative needs more information to continue reviewing your application."
-          : status.applicationStatus === "Under Review"
-            ? "Your application is being reviewed by the cooperative."
-            : status.applicationStatus === "Payment Required"
-              ? "Your application is approved for payment. Complete the PayMongo checkout below."
-              : status.applicationStatus === "Payment Confirmed"
-                ? "Your payment is confirmed. The Chairman can now finalize your membership."
-            : status.applicationStatus === "Approved"
-              ? "Your application has been approved."
-              : "Your application was submitted and is waiting for review."}
-      </p>
-
+    <PanelCard icon={CreditCard} title="Membership fee" compact className="h-fit">
       {paymentNeedsAction ? (
-        <div className="mt-4 rounded-xl border border-[#DDE8D8] bg-[#F8FBF5] p-3">
+        <div className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF5] p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-black text-[#123D2A]">
@@ -745,7 +908,7 @@ function ReviewActionCard({
               ) : (
                 <CreditCard className="size-4" />
               )}
-              {status.membershipFee.pendingAmount > 0 ? "Continue checkout" : "Pay now"}
+              {status.membershipFee.pendingAmount > 0 ? "Continue Membership Fee" : "Pay Membership Fee"}
             </Button>
           </div>
         </div>
@@ -762,17 +925,23 @@ function RequirementsActionCard({
   status,
   followUpError,
   followUpSuccess,
+  documentPreviewError,
   uploadingFollowUpDocumentType,
+  previewingDocumentId,
   onUploadFollowUpDocuments,
+  onPreviewFollowUpDocument,
 }: {
   status: PublicMembershipPaymentStatus;
   followUpError: string | null;
   followUpSuccess: string | null;
+  documentPreviewError: string | null;
   uploadingFollowUpDocumentType: MembershipDocumentType | null;
+  previewingDocumentId: string | null;
   onUploadFollowUpDocuments: (
     documentType: MembershipDocumentType,
     files: File[],
   ) => Promise<void>;
+  onPreviewFollowUpDocument: (requirement: PublicStatusRequirement) => Promise<void>;
 }) {
   const requirements = status.missingOrRejectedRequirements;
   const documentRequirements = requirements.filter((requirement) =>
@@ -798,17 +967,27 @@ function RequirementsActionCard({
                   requirementType={requirement.requirementType}
                   requirementStatus={requirement.requirementStatus}
                   action={
-                    canUploadMissingDocuments
-                    && isMembershipDocumentType(requirement.requirementType) ? (
-                      <RequirementUploadButton
-                        documentType={requirement.requirementType}
-                        isUploading={
-                          uploadingFollowUpDocumentType === requirement.requirementType
-                        }
-                        uploadDisabled={Boolean(uploadingFollowUpDocumentType)}
-                        onUpload={onUploadFollowUpDocuments}
-                      />
-                    ) : null
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {requirement.documentId ? (
+                        <RequirementPreviewButton
+                          isPreviewing={previewingDocumentId === requirement.documentId}
+                          previewDisabled={Boolean(previewingDocumentId)}
+                          onPreview={() => onPreviewFollowUpDocument(requirement)}
+                        />
+                      ) : null}
+                      {canUploadMissingDocuments
+                      && isMembershipDocumentType(requirement.requirementType) ? (
+                        <RequirementUploadButton
+                          documentType={requirement.requirementType}
+                          uploadedFileName={requirement.documentOriginalFileName}
+                          isUploading={
+                            uploadingFollowUpDocumentType === requirement.requirementType
+                          }
+                          uploadDisabled={Boolean(uploadingFollowUpDocumentType)}
+                          onUpload={onUploadFollowUpDocuments}
+                        />
+                      ) : null}
+                    </div>
                   }
                 />
               ))}
@@ -829,6 +1008,7 @@ function RequirementsActionCard({
           ) : null}
 
           {followUpError ? <ErrorNotice message={followUpError} /> : null}
+          {documentPreviewError ? <ErrorNotice message={documentPreviewError} /> : null}
           {followUpSuccess ? (
             <div className="flex gap-3 rounded-xl border border-[#BBD9C0] bg-[#EAF3E8] p-3 text-xs text-[#1F6B43]">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
@@ -870,21 +1050,19 @@ function ShareCapitalActionCard({
 
   return (
     <PanelCard icon={Wallet} title="Share capital">
-      <div className="grid gap-2 text-xs sm:grid-cols-3">
+      <div className="grid gap-3 text-xs sm:grid-cols-3">
         <MiniMetric label="Validated" value={peso(status.shareCapital.validatedAmount)} />
-        <MiniMetric label="Remaining to PHP 1,500" value={peso(status.shareCapital.remainingToTarget)} />
-        <MiniMetric label="Remaining to PHP 15,000 max" value={peso(status.shareCapital.remainingToMaximum)} />
+        <MiniMetric label="To PHP 3,000" value={peso(status.shareCapital.remainingToTarget)} />
+        <MiniMetric label="To PHP 15,000 max" value={peso(status.shareCapital.remainingToMaximum)} />
       </div>
-      <p className="mt-3 text-[0.68rem] font-bold leading-5 text-[#5D6D63]">
-        Internal IDs, webhook data, and tracking hashes stay hidden.
-      </p>
       <PaymentState state={state} label="Share capital" />
       {status.shareCapital.canStartCheckout ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#5D6D63]">
-            Amount
+        <div className="mt-4 grid gap-3">
+          <label className="block text-[0.7rem] font-black uppercase tracking-[0.14em] text-[#5D6D63]">
+            Amount to pay
             <input
               type="number"
+              inputMode="decimal"
               min={status.shareCapital.minimumNextAmount}
               max={status.shareCapital.remainingToMaximum}
               step="0.01"
@@ -894,14 +1072,17 @@ function ShareCapitalActionCard({
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 onShareCapitalAmountChange(event.target.value)
               }
-              className="mt-1 h-10 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-xs font-black text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 disabled:bg-[#EEF2EC]"
+              className="mt-2 h-12 w-full rounded-2xl border border-[#CAD8CB] bg-white px-4 text-base font-black text-[#123D2A] shadow-inner outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 disabled:bg-[#EEF2EC]"
             />
+            <span className="mt-1.5 block text-xs font-bold normal-case tracking-normal text-[#5D6D63]">
+              {peso(status.shareCapital.minimumNextAmount)} to {peso(status.shareCapital.remainingToMaximum)}
+            </span>
           </label>
           <Button
             type="button"
             disabled={Boolean(checkoutAction)}
             onClick={() => void onStartCheckout("Share Capital")}
-            className="h-10 rounded-full bg-[#123D2A] px-5 text-xs font-black text-white hover:bg-[#1F6B43]"
+            className="min-h-12 w-full justify-center rounded-full bg-[#123D2A] px-5 py-3 text-sm font-black leading-tight text-white hover:bg-[#1F6B43]"
           >
             {checkoutAction === "Share Capital" ? (
               <Loader2 className="size-4 animate-spin" />
@@ -920,7 +1101,7 @@ function ShareCapitalActionCard({
 
 function CheckoutActivityCard({ status }: { status: PublicMembershipPaymentStatus }) {
   return (
-    <PanelCard icon={Clock3} title="Checkout activity">
+    <PanelCard icon={Clock3} title="Payment activity">
       <div className="max-h-36 overflow-y-auto pr-2">
         <article className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF5] p-3 text-xs leading-5 text-[#365F4A]">
           <p className="font-black text-[#123D2A]">
@@ -931,14 +1112,14 @@ function CheckoutActivityCard({ status }: { status: PublicMembershipPaymentStatu
           </p>
           <p className="mt-1">
             {status.latestCheckout
-              ? `${peso(status.latestCheckout.amount)} recorded through PayMongo.`
-              : "No checkout activity yet."}
+              ? `${peso(status.latestCheckout.amount)} payment recorded.`
+              : "No payment activity yet."}
           </p>
           {status.latestCheckout ? (
             <p className="mt-1">
               {status.latestCheckout.isReusable
-                ? "This checkout can still be continued."
-                : "This checkout is no longer active."}
+                ? "This payment can still be continued."
+                : "This payment link is no longer active."}
             </p>
           ) : null}
         </article>
@@ -993,30 +1174,52 @@ function RequirementItem({
 
 function RequirementUploadButton({
   documentType,
+  uploadedFileName,
   isUploading,
   uploadDisabled,
   onUpload,
 }: {
   documentType: MembershipDocumentType;
+  uploadedFileName: string | null;
   isUploading: boolean;
   uploadDisabled: boolean;
   onUpload: (documentType: MembershipDocumentType, files: File[]) => Promise<void>;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [confirmingReupload, setConfirmingReupload] = useState(false);
+  const hasUploadedFile = Boolean(uploadedFileName);
+
+  function openFilePicker() {
+    if (!uploadDisabled) inputRef.current?.click();
+  }
+
   return (
-    <label
-      className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-full px-3 text-[0.65rem] font-black text-white transition ${
-        uploadDisabled
-          ? "cursor-not-allowed bg-[#91A69A]"
-          : "cursor-pointer bg-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.16)] hover:bg-[#1F6B43]"
-      }`}
-    >
-      {isUploading ? (
-        <Loader2 className="size-3.5 animate-spin" />
-      ) : (
-        <UploadCloud className="size-3.5" />
-      )}
-      {isUploading ? "Uploading" : "Upload"}
+    <>
+      <button
+        type="button"
+        disabled={uploadDisabled}
+        onClick={() => {
+          if (hasUploadedFile) {
+            setConfirmingReupload(true);
+            return;
+          }
+          openFilePicker();
+        }}
+        className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-full px-3 text-[0.65rem] font-black text-white transition focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30 ${
+          uploadDisabled
+            ? "cursor-not-allowed bg-[#91A69A]"
+            : "bg-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.16)] hover:bg-[#1F6B43]"
+        }`}
+      >
+        {isUploading ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <UploadCloud className="size-3.5" />
+        )}
+        {isUploading ? "Uploading" : hasUploadedFile ? "Reupload" : "Upload"}
+      </button>
       <input
+        ref={inputRef}
         className="sr-only"
         type="file"
         multiple
@@ -1028,7 +1231,165 @@ function RequirementUploadButton({
           if (files.length) void onUpload(documentType, files);
         }}
       />
-    </label>
+      {confirmingReupload ? (
+        <ReuploadConfirmModal
+          documentType={documentType}
+          fileName={uploadedFileName ?? documentType}
+          onCancel={() => setConfirmingReupload(false)}
+          onConfirm={() => {
+            setConfirmingReupload(false);
+            window.setTimeout(openFilePicker, 0);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function RequirementPreviewButton({
+  isPreviewing,
+  previewDisabled,
+  onPreview,
+}: {
+  isPreviewing: boolean;
+  previewDisabled: boolean;
+  onPreview: () => Promise<void>;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={previewDisabled}
+      onClick={() => void onPreview()}
+      className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-full border border-[#DDE8D8] bg-white px-3 text-[0.65rem] font-black text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.08)] transition focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20 ${
+        previewDisabled ? "cursor-not-allowed opacity-65" : "hover:border-[#BBD9C0] hover:bg-[#F8FBF5]"
+      }`}
+    >
+      {isPreviewing ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Eye className="size-3.5" />
+      )}
+      {isPreviewing ? "Loading" : "Preview"}
+    </button>
+  );
+}
+
+function ReuploadConfirmModal({
+  documentType,
+  fileName,
+  onCancel,
+  onConfirm,
+}: {
+  documentType: string;
+  fileName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#123D2A]/45 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reupload-confirm-title"
+    >
+      <article className="w-full max-w-md rounded-[18px] border border-[#DDE8D8] bg-white p-5 shadow-[0_24px_60px_rgba(18,61,42,0.24)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 id="reupload-confirm-title" className="text-lg font-black text-[#123D2A]">
+              Replace {documentType}?
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-[#365F4A]">
+              {fileName} is already uploaded. Choose a new file only if you want the
+              Chairman to review the replacement.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
+            aria-label="Cancel reupload"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="h-10 rounded-full border border-[#DDE8D8] bg-white px-4 text-xs font-black text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
+          >
+            Keep Current File
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="h-10 rounded-full bg-[#123D2A] px-4 text-xs font-black text-white shadow-[0_10px_22px_rgba(18,61,42,0.16)] transition hover:bg-[#1F6B43] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30"
+          >
+            Choose Replacement
+          </button>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function DocumentPreviewModal({
+  preview,
+  onClose,
+}: {
+  preview: DocumentPreviewState | null;
+  onClose: () => void;
+}) {
+  if (!preview) return null;
+
+  const isImage = preview.mimeType.startsWith("image/");
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#123D2A]/45 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="document-preview-title"
+    >
+      <article className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-[18px] border border-[#DDE8D8] bg-white shadow-[0_24px_60px_rgba(18,61,42,0.24)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#EEF2EC] p-4">
+          <div className="min-w-0">
+            <h3
+              id="document-preview-title"
+              className="text-lg font-black text-[#123D2A]"
+            >
+              {preview.title}
+            </h3>
+            <p className="mt-1 truncate text-sm font-semibold text-[#5D6D63]">
+              {preview.fileName}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
+            aria-label="Close document preview"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto bg-[#F8FBF5] p-3">
+          {isImage ? (
+            <img
+              src={preview.objectUrl}
+              alt={`${preview.title} preview`}
+              className="mx-auto max-h-[72vh] max-w-full rounded-xl border border-[#DDE8D8] bg-white object-contain"
+            />
+          ) : (
+            <iframe
+              title={`${preview.title} preview`}
+              src={preview.objectUrl}
+              className="h-[72vh] w-full rounded-xl border border-[#DDE8D8] bg-white"
+            />
+          )}
+        </div>
+      </article>
+    </div>
   );
 }
 
@@ -1070,8 +1431,8 @@ function PanelCard({
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#EEF2EC] bg-[#F8FBF5] p-3">
-      <p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-[#5D6D63]">
+    <div className="min-h-[5.25rem] rounded-xl border border-[#EEF2EC] bg-[#F8FBF5] p-3">
+      <p className="text-[0.65rem] font-black uppercase tracking-[0.1em] text-[#5D6D63]">
         {label}
       </p>
       <p className="mt-1 font-black text-[#123D2A]">{value}</p>

@@ -70,9 +70,9 @@ const settingKeys = [
 const defaults: MembershipSettings = {
   associateFee: 200,
   initialShareCapital: 1500,
-  trueMemberRequiredCapital: 1500,
+  trueMemberRequiredCapital: 3000,
   maximumShareCapital: 15000,
-  shareCapitalDeadlineMonths: 12,
+  shareCapitalDeadlineMonths: 1,
   orientationRequired: true,
   activationTokenHours: 72,
   termsVersion: "2026-07-24",
@@ -101,7 +101,7 @@ export function normalizeApprovalEmail(value: string | null | undefined) {
 }
 export function approvalActivationUrl(rawToken: string) {
   const base = env.FRONTEND_URL.replace(/\/$/, "");
-  return `${base}/activate?token=${encodeURIComponent(rawToken)}`;
+  return `${base}/membership/activate/${encodeURIComponent(rawToken)}`;
 }
 export function generatedMemberCode(insertId: number) {
   return `NFFAC-${new Date().getUTCFullYear()}-${String(insertId).padStart(6, "0")}`;

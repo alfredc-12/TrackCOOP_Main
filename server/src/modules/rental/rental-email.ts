@@ -1,5 +1,6 @@
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
+import { sendSystemEmail } from "../email/email.service";
 import type { RentalInquiry } from "./rental.types";
 import {
   formatPeso,
@@ -177,8 +178,18 @@ export function buildRentalStatusEmailPayload(
 async function triggerRentalEmail(
   payload: RentalEmailPayload | undefined,
 ): Promise<"sent" | "skipped" | "failed"> {
+  if (env.EMAIL_DELIVERY === "smtp") {
+    return sendSystemEmail(payload
+      ? {
+          to: payload.to,
+          subject: payload.message.subject,
+          text: payload.message.text,
+        }
+      : undefined);
+  }
+
   const webhookUrl = env.RENTAL_STATUS_EMAIL_WEBHOOK_URL;
-  if (!webhookUrl || !payload) return "skipped";
+  if (env.EMAIL_DELIVERY !== "webhook" || !webhookUrl || !payload) return "skipped";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5_000);

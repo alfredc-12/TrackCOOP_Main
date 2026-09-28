@@ -57,7 +57,7 @@ export default function PaymentStatusPoller() {
     if (state === "timeout") return "Still waiting for confirmation";
     if (state === "unavailable") return "Status check unavailable";
     if (state === "idle") return "Payment checkout submitted";
-    return "Waiting for PayMongo confirmation";
+    return "Waiting for QRPH confirmation";
   }, [state]);
 
   const StatusIcon = state === "confirmed"
@@ -125,7 +125,7 @@ export default function PaymentStatusPoller() {
             {statusText}
           </p>
           <p className="mt-3 text-sm leading-7 text-[#365F4A]">
-            TrackCOOP confirms payments only after the signed PayMongo webhook updates the database.
+            TrackCOOP confirms payments only after the signed gateway update reaches the database.
             This page checks that database status and does not validate the payment by itself.
           </p>
           {payment ? (

@@ -41,9 +41,9 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.share_capital_deadline_months',
-        '12',
+        '1',
         'Number',
-        'Number of months allowed to complete the true-member share-capital target.',
+        'Number of months allowed to complete the true-member share-capital target after approval.',
         0
     ),
     (

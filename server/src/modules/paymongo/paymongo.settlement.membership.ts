@@ -161,18 +161,38 @@ async function maybeMarkApplicationPaymentConfirmed(input: {
 }) {
   if (input.application.applicationStatus !== "Payment Required") return;
 
-  if (input.application.requestedMembershipType === "True Member") {
-    const [capitalTotal, initialCapital] = await Promise.all([
-      validatedApplicationPaymentTotal(input.connection, input.application.id, "Share Capital"),
-      membershipNumberSetting(input.connection, "membership.initial_share_capital", 1500),
-    ]);
-    if (settlementMoney(capitalTotal) < settlementMoney(initialCapital)) return;
-  } else {
-    const [feeTotal, expectedFee] = await Promise.all([
-      validatedApplicationPaymentTotal(input.connection, input.application.id, "Associate Membership Fee"),
-      membershipNumberSetting(input.connection, "membership.associate_fee", 200),
-    ]);
-    if (settlementMoney(feeTotal) < settlementMoney(expectedFee)) return;
+  const expectedFee = await membershipNumberSetting(
+    input.connection,
+    "membership.associate_fee",
+    200,
+  );
+  const [feeTotal, initialCapital] = await Promise.all([
+    input.application.requestedMembershipType === "Associate"
+      ? validatedApplicationPaymentTotal(
+          input.connection,
+          input.application.id,
+          "Associate Membership Fee",
+        )
+      : Promise.resolve(expectedFee),
+    membershipNumberSetting(
+      input.connection,
+      "membership.initial_share_capital",
+      1500,
+    ),
+  ]);
+  const capitalTotal = input.application.requestedMembershipType === "True Member"
+    ? await validatedApplicationPaymentTotal(
+        input.connection,
+        input.application.id,
+        "Share Capital",
+      )
+    : initialCapital;
+
+  if (
+    settlementMoney(feeTotal) < settlementMoney(expectedFee)
+    || settlementMoney(capitalTotal) < settlementMoney(initialCapital)
+  ) {
+    return;
   }
 
   await input.connection.execute(

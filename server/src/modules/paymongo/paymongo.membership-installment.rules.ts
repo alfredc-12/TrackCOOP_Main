@@ -140,18 +140,21 @@ export function buildPublicMembershipPaymentSummary(input: {
   capitalPendingAmount: number;
   installmentCount: number;
   latestCheckout: PublicLatestCheckoutState;
-  feeRequirementStatus: MembershipRequirementStatus;
+  feeRequirementStatus: MembershipRequirementStatus | null;
   capitalRequirementStatus: MembershipRequirementStatus | null;
 }): PublicMembershipPaymentSummary {
   const eligibleApplication = input.applicationStatus === "Payment Required";
-  const feeRequired = input.requestedMembershipType === "Associate"
+  const associateFeeRequired = input.requestedMembershipType === "Associate";
+  const feeRequired = associateFeeRequired
     ? roundMoney(input.settings.associateFee)
     : 0;
   const feeValidated = roundMoney(input.feeValidatedAmount);
   const feePending = roundMoney(input.feePendingAmount);
   const feeRemaining = Math.max(0, roundMoney(feeRequired - feeValidated - feePending));
-  const feeConfirmed = feeRequired === 0 || feeValidated >= feeRequired;
-  const feeStatus: PublicMembershipPaymentState = !eligibleApplication && !feeConfirmed
+  const feeConfirmed = !associateFeeRequired || feeValidated >= feeRequired;
+  const feeStatus: PublicMembershipPaymentState = !associateFeeRequired
+    ? "Not Required"
+    : !eligibleApplication && !feeConfirmed
     ? "Unavailable"
     : feeConfirmed
       ? "Confirmed"
@@ -183,7 +186,10 @@ export function buildPublicMembershipPaymentSummary(input: {
       pendingAmount: feePending,
       remainingAmount: feeRemaining,
       status: feeStatus,
-      canStartCheckout: input.gatewayEnabled && eligibleApplication && !feeConfirmed,
+      canStartCheckout: input.gatewayEnabled
+        && eligibleApplication
+        && associateFeeRequired
+        && !feeConfirmed,
     },
     shareCapital: {
       validatedAmount: capitalValidated,
@@ -201,13 +207,15 @@ export function buildPublicMembershipPaymentSummary(input: {
     },
     latestCheckout: input.latestCheckout,
     paymentRequirements: [
-      ...(input.requestedMembershipType === "Associate" ? [{
+      ...(associateFeeRequired && input.feeRequirementStatus
+        ? [{
         requirementType: "Associate Membership Fee",
         requirementStatus: input.feeRequirementStatus,
         paymentPurpose: "Associate Membership Fee",
         paymentStatus: feeConfirmed ? "Confirmed" : "Waiting",
         amount: feeRequired,
-      } as const] : []),
+      } as const]
+        : []),
       ...(capitalRequired && input.capitalRequirementStatus
         ? [{
             requirementType: "Initial Share Capital" as const,

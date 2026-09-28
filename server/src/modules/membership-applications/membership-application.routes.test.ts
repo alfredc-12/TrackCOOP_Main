@@ -13,6 +13,9 @@ import type { AuthContext, AuthUser, RoleSlug } from "../auth/auth.types";
 import { createMembershipApplicationRouter } from "./membership-application.routes";
 import { createMembershipApplicationService, type MembershipApplicationService } from "./membership-application.service";
 import type {
+  MembershipApprovalConversionService,
+} from "./membership-application.approval-conversion";
+import type {
   MembershipApplicationRepository,
 } from "./membership-application.repository";
 import type {
@@ -31,15 +34,18 @@ import type {
   RequirementInput,
   RequirementUpdateInput,
   StatusTransitionInput,
+  StoredChairmanApplicationDocument,
   StoredMembershipApplicationDocument,
 } from "./membership-application.types";
 
-const protectedUploadRoot = path.resolve(
+const testApplicationCode = "MEM-APP-ROUTE-TEST";
+const testProtectedUploadRoot = path.resolve(
   process.cwd(),
   "storage",
   "uploads",
   "protected",
   "membership-applications",
+  testApplicationCode,
 );
 
 const defaultSettings: MembershipSettings = {
@@ -98,6 +104,9 @@ class FakeMembershipApplicationRepository {
   failDocumentStore = false;
   created: CreatedApplication | null = null;
   storedDocumentPath: string | null = null;
+  issuedActivation: { applicationId: string; tokenHash: string; expiresAt: Date } | null = null;
+  status: MembershipApplicationStatus = "Submitted";
+  activationAvailable = false;
 
   async getMembershipSettings() {
     return defaultSettings;
@@ -117,7 +126,7 @@ class FakeMembershipApplicationRepository {
     duplicateWarning: boolean;
     warnings: string[];
   }) {
-    const code = "MEM-APP-2026-000001";
+    const code = testApplicationCode;
     const submittedAt = new Date("2026-07-24T08:00:00.000Z");
     this.created = {
       input: input.application,
@@ -130,11 +139,17 @@ class FakeMembershipApplicationRepository {
           requirementType: "Orientation/Seminar",
           requirementStatus: "Pending",
           remarks: null,
+          documentId: null,
+          documentOriginalFileName: null,
+          documentMimeType: null,
         },
         {
           requirementType: "Associate Membership Fee",
           requirementStatus: "Pending",
           remarks: null,
+          documentId: null,
+          documentOriginalFileName: null,
+          documentMimeType: null,
         },
       ],
     };
@@ -159,8 +174,11 @@ class FakeMembershipApplicationRepository {
       requestedMembershipType: this.created.input.requestedMembershipType,
       fullName: applicationFullName(this.created.input),
       submittedAt: this.created.submittedAt,
-      applicationStatus: "Submitted",
+      applicationStatus: this.status,
       latestApplicantMessage: "Your application was submitted and is waiting for Chairman review.",
+      memberCode: this.status === "Approved" ? "NFFAC-2026-000005" : null,
+      activationAvailable: this.activationAvailable,
+      activationTokenExpiresAt: this.activationAvailable ? new Date("2026-07-27T08:00:00.000Z") : null,
       missingOrRejectedRequirements: this.created.requirements,
       paymentRequirements: [
         {
@@ -174,6 +192,15 @@ class FakeMembershipApplicationRepository {
     };
   }
 
+  async issuePublicActivationLink(input: {
+    applicationId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }) {
+    assert.equal(input.applicationId, "1");
+    this.issuedActivation = input;
+  }
+
   async storePublicDocument(input: {
     applicationId: string;
     applicationCode: string;
@@ -182,7 +209,7 @@ class FakeMembershipApplicationRepository {
     storedFilePath: string;
   }): Promise<StoredMembershipApplicationDocument> {
     assert.equal(input.applicationId, "1");
-    assert.equal(input.applicationCode, "MEM-APP-2026-000001");
+    assert.equal(input.applicationCode, testApplicationCode);
     this.storedDocumentPath = input.storedFilePath;
 
     if (this.failDocumentStore) {
@@ -200,6 +227,22 @@ class FakeMembershipApplicationRepository {
       fileSizeBytes: input.document.fileSizeBytes,
       checksumSha256: input.checksumSha256,
       uploadedAt: new Date("2026-07-24T08:05:00.000Z"),
+    };
+  }
+
+  async findStoredDocument(documentId: string): Promise<StoredChairmanApplicationDocument | null> {
+    if (documentId !== "3" || !this.storedDocumentPath) return null;
+    return {
+      id: "3",
+      applicationId: "1",
+      documentType: "Valid ID",
+      originalFileName: "valid-id.pdf",
+      mimeType: "application/pdf",
+      fileSizeBytes: 12,
+      checksumSha256: "hash",
+      uploadedByUserId: null,
+      uploadedAt: new Date("2026-07-24T08:05:00.000Z"),
+      storedFilePath: this.storedDocumentPath,
     };
   }
 }
@@ -273,7 +316,7 @@ function applicationFullName(input: { firstName: string; middleName?: string | n
 function detail(status: MembershipApplicationStatus = "Submitted"): ChairmanApplicationDetail {
   return {
     id: "1",
-    applicationCode: "MEM-APP-2026-000001",
+    applicationCode: testApplicationCode,
     applicationSource: "Public Website",
     requestedMembershipType: "True Member",
     firstName: "Maria",
@@ -337,7 +380,6 @@ function detail(status: MembershipApplicationStatus = "Submitted"): ChairmanAppl
 class FakeChairmanService {
   status: MembershipApplicationStatus = "Submitted";
   approvalFailure:
-    | "orientation"
     | "fee"
     | "trueBelow"
     | "conflict"
@@ -354,6 +396,9 @@ class FakeChairmanService {
     throw new Error("not used");
   }
   async uploadPublicDocument() {
+    throw new Error("not used");
+  }
+  async viewPublicDocument() {
     throw new Error("not used");
   }
   async summary() {
@@ -395,6 +440,14 @@ class FakeChairmanService {
     return { id: "3", applicationId: "1", documentType: "Valid ID", originalFileName: "valid-id.pdf", mimeType: "application/pdf", fileSizeBytes: 12, checksumSha256: "hash", uploadedByUserId: "1", uploadedAt: new Date("2026-07-24T08:10:00.000Z") };
   }
   async deleteDocument() {}
+  async viewDocument() {
+    return {
+      contents: Buffer.from("signed-application-image"),
+      originalFileName: "signature-1790478480215.png",
+      mimeType: "image/png",
+    };
+  }
+
   async createRequirement(_id: string, input: RequirementInput) {
     return { id: "4", applicationId: "1", requirementType: input.requirementType, requirementStatus: input.requirementStatus ?? "Pending", paymentReferenceId: input.paymentReferenceId ?? null, documentId: input.documentId ?? null, completionDate: input.completionDate ?? null, verifiedBy: "1", verifiedAt: new Date("2026-07-24T08:10:00.000Z"), remarks: input.remarks ?? null };
   }
@@ -435,7 +488,6 @@ class FakeChairmanService {
   }
   async approve(_id: string, input: ApprovalInput) {
     const failures = {
-      orientation: ["Orientation must be verified before approval", "MEMBERSHIP_ORIENTATION_INCOMPLETE"],
       fee: ["The PHP 200 associate membership fee has not been validated", "MEMBERSHIP_FEE_INCOMPLETE"],
       trueBelow: ["At least PHP 3,000 validated initial share capital is required", "INITIAL_SHARE_CAPITAL_INCOMPLETE"],
       conflict: ["A conflicting user account already exists", "MEMBERSHIP_ACCOUNT_CONFLICT"],
@@ -449,17 +501,48 @@ class FakeChairmanService {
     this.status = "Approved";
     return {
       applicationId: "1",
-      applicationCode: "MEM-APP-2026-000001",
+      applicationCode: testApplicationCode,
       memberId: "5",
       memberCode: "NFFAC-2026-000005",
       membershipType: "Associate",
       shareCapitalDeadline: "2027-07-24",
-      activationUrl: input.createMemberPortalAccount ? "http://localhost:3000/activate?token=secret" : null,
+      activationUrl: input.createMemberPortalAccount ? "http://localhost:3000/membership/activate/secret" : null,
       activationTokenExpiresAt: input.createMemberPortalAccount ? new Date("2026-07-27T08:00:00.000Z") : null,
     };
   }
   async printablePdf() {
     return Buffer.from("%PDF-1.4\n%test\n");
+  }
+}
+
+class FakeApprovalConversionService implements MembershipApprovalConversionService {
+  async approve(_applicationId: string, input: ApprovalInput) {
+    return {
+      applicationId: "1",
+      applicationCode: testApplicationCode,
+      memberId: "5",
+      memberCode: "NFFAC-2026-000005",
+      membershipType: "Associate" as const,
+      shareCapitalDeadline: "2027-07-24",
+      activationUrl: input.createMemberPortalAccount
+        ? "http://localhost:3000/membership/activate/secret"
+        : null,
+      activationTokenExpiresAt: input.createMemberPortalAccount
+        ? new Date("2026-07-27T08:00:00.000Z")
+        : null,
+    };
+  }
+
+  async reconcileCapital() {
+    return {
+      applicationId: "1",
+      memberId: "5",
+      validatedCapitalAmount: 0,
+      validatedReferenceCount: 0,
+      insertedCapitalRows: 0,
+      linkedPaymentReferences: 0,
+      linkedFinancialRecords: 0,
+    };
   }
 }
 
@@ -477,11 +560,11 @@ function createChairmanApp(role: RoleSlug, service = new FakeChairmanService()) 
 }
 
 beforeEach(async () => {
-  await rm(protectedUploadRoot, { recursive: true, force: true });
+  await rm(testProtectedUploadRoot, { recursive: true, force: true });
 });
 
 after(async () => {
-  await rm(protectedUploadRoot, { recursive: true, force: true });
+  await rm(testProtectedUploadRoot, { recursive: true, force: true });
 });
 
 test("POST /api/membership-applications/public submits an application without exposing a public credential", async () => {
@@ -492,7 +575,7 @@ test("POST /api/membership-applications/public submits an application without ex
     .send(validApplicationPayload());
 
   assert.equal(response.status, 201);
-  assert.equal(response.body.data.applicationCode, "MEM-APP-2026-000001");
+  assert.equal(response.body.data.applicationCode, testApplicationCode);
   assert.equal(response.body.data.trackingToken, undefined);
   assert.equal(response.body.data.duplicateWarning, false);
   assert.equal(response.body.data.nextStep, "Chairman review");
@@ -543,7 +626,7 @@ test("POST /api/membership-applications/public includes duplicate warnings witho
   assert.equal(response.status, 201);
   assert.equal(response.body.data.duplicateWarning, true);
   assert.equal(response.body.data.warnings.length, 1);
-  assert.equal(repository.created?.code, "MEM-APP-2026-000001");
+  assert.equal(repository.created?.code, testApplicationCode);
 });
 
 test("GET /api/membership-applications/public/:applicationCode/status returns only safe public status with the correct date of birth", async () => {
@@ -553,16 +636,39 @@ test("GET /api/membership-applications/public/:applicationCode/status returns on
     .send(validApplicationPayload());
 
   const response = await request(app)
-    .get("/api/membership-applications/public/MEM-APP-2026-000001/status")
+    .get(`/api/membership-applications/public/${testApplicationCode}/status`)
     .set("X-Application-Date-Of-Birth", "1990-01-15");
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.data.applicationCode, "MEM-APP-2026-000001");
+  assert.equal(response.body.data.applicationCode, testApplicationCode);
   assert.equal(response.body.data.fullName, "Maria Santos");
   assert.equal(response.body.data.applicationStatus, "Submitted");
   assert.equal(response.body.data.publicTrackingTokenHash, undefined);
   assert.equal(response.body.data.id, undefined);
+  assert.equal(response.body.data.activationUrl, undefined);
+  assert.equal(response.body.data.memberCode, null);
+  assert.equal(response.body.data.activationAvailable, false);
   assert.equal(response.body.data.missingOrRejectedRequirements.length, 2);
+});
+
+test("POST /api/membership-applications/public/:applicationCode/activation-link issues applicant-only activation", async () => {
+  const repository = new FakeMembershipApplicationRepository();
+  repository.status = "Approved";
+  repository.activationAvailable = true;
+  const { app } = createTestApp(repository);
+  await request(app)
+    .post("/api/membership-applications/public")
+    .send(validApplicationPayload());
+
+  const response = await request(app)
+    .post(`/api/membership-applications/public/${testApplicationCode}/activation-link`)
+    .set("X-Application-Date-Of-Birth", "1990-01-15");
+
+  assert.equal(response.status, 200);
+  assert.match(response.body.data.activationUrl, /\/membership\/activate\//);
+  assert.match(response.body.data.activationTokenExpiresAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(repository.issuedActivation?.applicationId, "1");
+  assert.equal(repository.issuedActivation?.tokenHash.length, 64);
 });
 
 test("GET /api/membership-applications/public/:applicationCode/status rejects the wrong date of birth", async () => {
@@ -572,7 +678,7 @@ test("GET /api/membership-applications/public/:applicationCode/status rejects th
     .send(validApplicationPayload());
 
   const response = await request(app)
-    .get("/api/membership-applications/public/MEM-APP-2026-000001/status")
+    .get(`/api/membership-applications/public/${testApplicationCode}/status`)
     .set("X-Application-Date-Of-Birth", "1991-01-15");
 
   assert.equal(response.status, 403);
@@ -586,7 +692,7 @@ test("POST /api/membership-applications/public/:applicationCode/documents stores
     .send(validApplicationPayload());
 
   const response = await request(app)
-    .post("/api/membership-applications/public/MEM-APP-2026-000001/documents")
+    .post(`/api/membership-applications/public/${testApplicationCode}/documents`)
     .set("X-Application-Date-Of-Birth", "1990-01-15")
     .field("documentType", "Valid ID")
     .attach("document", Buffer.from("%PDF-1.4\n%test\n"), {
@@ -606,6 +712,30 @@ test("POST /api/membership-applications/public/:applicationCode/documents stores
   assert.match(contents.toString("utf8"), /^%PDF-1\.4/);
 });
 
+test("GET /api/membership-applications/public/:applicationCode/documents/:documentId/view previews an applicant document", async () => {
+  const { app } = createTestApp();
+  await request(app)
+    .post("/api/membership-applications/public")
+    .send(validApplicationPayload());
+  await request(app)
+    .post(`/api/membership-applications/public/${testApplicationCode}/documents`)
+    .set("X-Application-Date-Of-Birth", "1990-01-15")
+    .field("documentType", "Valid ID")
+    .attach("document", Buffer.from("%PDF-1.4\n%test\n"), {
+      filename: "valid-id.pdf",
+      contentType: "application/pdf",
+    });
+
+  const response = await request(app)
+    .get(`/api/membership-applications/public/${testApplicationCode}/documents/3/view`)
+    .set("X-Application-Date-Of-Birth", "1990-01-15");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers["content-type"], "application/pdf");
+  assert.match(response.headers["content-security-policy"], /frame-ancestors/);
+  assert.match(Buffer.from(response.body).toString("utf8"), /^%PDF-1\.4/);
+});
+
 test("POST /api/membership-applications/public/:applicationCode/documents rejects unsupported file types", async () => {
   const { app } = createTestApp();
   await request(app)
@@ -613,7 +743,7 @@ test("POST /api/membership-applications/public/:applicationCode/documents reject
     .send(validApplicationPayload());
 
   const response = await request(app)
-    .post("/api/membership-applications/public/MEM-APP-2026-000001/documents")
+    .post(`/api/membership-applications/public/${testApplicationCode}/documents`)
     .set("X-Application-Date-Of-Birth", "1990-01-15")
     .field("documentType", "Valid ID")
     .attach("document", Buffer.from("hello"), {
@@ -634,7 +764,7 @@ test("POST /api/membership-applications/public/:applicationCode/documents remove
     .send(validApplicationPayload());
 
   const response = await request(app)
-    .post("/api/membership-applications/public/MEM-APP-2026-000001/documents")
+    .post(`/api/membership-applications/public/${testApplicationCode}/documents`)
     .set("X-Application-Date-Of-Birth", "1990-01-15")
     .field("documentType", "Valid ID")
     .attach("document", Buffer.from("%PDF-1.4\n%test\n"), {
@@ -687,7 +817,7 @@ test("GET /api/membership-applications returns Chairman application list with pa
     .set("Cookie", "trackcoop_session=opaque-cookie-value");
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.data[0].applicationCode, "MEM-APP-2026-000001");
+  assert.equal(response.body.data[0].applicationCode, testApplicationCode);
   assert.equal(response.body.meta.total, 1);
   assert.equal(service.lastQuery?.page, 2);
   assert.equal(service.lastQuery?.status, "Submitted");
@@ -769,7 +899,29 @@ test("POST /api/membership-application-requirements/:id rejects waived requireme
   assert.equal(response.body.errors[0].field, "remarks");
 });
 
-test("POST /api/membership-applications/:id/approve returns member conversion and activation URL", async () => {
+test("GET /api/membership-application-documents/:id/view allows frontend iframe previews", async () => {
+  const { app } = createChairmanApp("chairman");
+  const response = await request(app)
+    .get("/api/membership-application-documents/3/view")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers["content-type"], "image/png");
+  assert.match(response.headers["content-disposition"], /inline; filename="signature-1790478480215\.png"/);
+  assert.match(response.headers["content-security-policy"], /frame-ancestors 'self' http:\/\/localhost:3000/);
+  assert.doesNotMatch(response.headers["content-security-policy"], /^frame-ancestors 'self'$/);
+});
+
+test("GET /api/membership-application-documents/:id/view keeps iframe CSP on auth errors", async () => {
+  const { app } = createChairmanApp("chairman");
+  const response = await request(app)
+    .get("/api/membership-application-documents/3/view");
+
+  assert.equal(response.status, 401);
+  assert.match(response.headers["content-security-policy"], /frame-ancestors 'self' http:\/\/localhost:3000/);
+});
+
+test("POST /api/membership-applications/:id/approve returns member conversion without exposing activation URL", async () => {
   const { app } = createChairmanApp("chairman");
   const response = await request(app)
     .post("/api/membership-applications/1/approve")
@@ -785,7 +937,8 @@ test("POST /api/membership-applications/:id/approve returns member conversion an
   assert.equal(response.status, 200);
   assert.equal(response.body.data.memberCode, "NFFAC-2026-000005");
   assert.equal(response.body.data.membershipType, "Associate");
-  assert.match(response.body.data.activationUrl, /activate\?token=/);
+  assert.equal(response.body.data.activationUrl, null);
+  assert.equal(response.body.data.activationTokenExpiresAt, "2026-07-27T08:00:00.000Z");
 });
 
 test("POST /api/membership-applications/:id/approve can convert without creating a portal account", async () => {
@@ -806,9 +959,44 @@ test("POST /api/membership-applications/:id/approve can convert without creating
   assert.equal(response.body.data.activationTokenExpiresAt, null);
 });
 
+test("POST /api/membership-applications/:id/approve hides activation URL from conversion controller", async () => {
+  const app = express();
+  app.use(cookieParser());
+  app.use(express.json());
+  app.use((request, _response, next) => {
+    request.requestId = "test-request";
+    next();
+  });
+  app.use(
+    "/api",
+    createMembershipApplicationRouter(
+      createAuthService("chairman"),
+      new FakeChairmanService() as unknown as MembershipApplicationService,
+      undefined,
+      new FakeApprovalConversionService(),
+    ),
+  );
+  app.use(errorHandler);
+
+  const response = await request(app)
+    .post("/api/membership-applications/1/approve")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value")
+    .send({
+      boardMeetingDate: "2026-07-24",
+      secretaryName: "Coop Secretary",
+      decisionReason: "Accepted by the board.",
+      createMemberPortalAccount: true,
+      accountEmail: "maria@example.test",
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.memberCode, "NFFAC-2026-000005");
+  assert.equal(response.body.data.activationUrl, null);
+  assert.equal(response.body.data.activationTokenExpiresAt, "2026-07-27T08:00:00.000Z");
+});
+
 test("POST /api/membership-applications/:id/approve blocks invalid approval cases", async () => {
   for (const [failure, code] of [
-    ["orientation", "MEMBERSHIP_ORIENTATION_INCOMPLETE"],
     ["fee", "MEMBERSHIP_FEE_INCOMPLETE"],
     ["trueBelow", "INITIAL_SHARE_CAPITAL_INCOMPLETE"],
     ["conflict", "MEMBERSHIP_ACCOUNT_CONFLICT"],

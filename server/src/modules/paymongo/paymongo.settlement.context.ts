@@ -25,6 +25,23 @@ type PosSaleRow = RowDataPacket & {
   customerName: string | null;
 };
 
+const membershipApplicationStatusSql = `
+  COALESCE(
+    NULLIF(CASE a.application_status
+      WHEN 'SUBMITTED' THEN 'Submitted'
+      WHEN 'UNDER_REVIEW' THEN 'Under Review'
+      WHEN 'NEEDS_INFORMATION' THEN 'Needs Information'
+      WHEN 'APPROVED_PENDING_PAYMENT' THEN 'Payment Required'
+      WHEN 'PAYMENT_UNDER_REVIEW' THEN 'Payment Required'
+      WHEN 'APPROVED' THEN 'Approved'
+      WHEN 'REJECTED' THEN 'Rejected'
+      WHEN 'WITHDRAWN' THEN 'Withdrawn'
+      ELSE a.application_status
+    END, ''),
+    'Payment Required'
+  )
+`;
+
 export async function resolveSettlementContext(
   connection: PoolConnection,
   payment: PaymentReferenceForSettlement,
@@ -51,7 +68,7 @@ export async function resolveSettlementContext(
     const [rows] = await connection.execute<ApplicationRow[]>(
       `SELECT CAST(a.membership_application_id AS CHAR) AS id,
               a.application_code AS applicationCode,
-              a.application_status AS applicationStatus,
+              ${membershipApplicationStatusSql} AS applicationStatus,
               CAST(a.converted_member_id AS CHAR) AS convertedMemberId,
               CAST(m.user_id AS CHAR) AS memberUserId,
               TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''),

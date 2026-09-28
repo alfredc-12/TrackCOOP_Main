@@ -19,7 +19,7 @@ export default function MembershipApplicationStatusPage() {
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[#365F4A]">
                 Use your application code and applicant date of birth to follow
-                the review status and eligible PayMongo payments.
+                your review status, messages, and payment updates.
               </p>
             </div>
           </div>

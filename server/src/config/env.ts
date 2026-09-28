@@ -13,6 +13,11 @@ const optionalTrimmedString = z
   .optional()
   .transform((value) => value || undefined);
 
+const optionalPortNumber = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.coerce.number().int().min(1).max(65535).optional(),
+);
+
 const optionalTrimmedUrl = z.preprocess(
   (value) => {
     if (typeof value !== "string") return value;
@@ -96,7 +101,7 @@ function activePaymongoPaymentMethodTypes(value: {
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  PORT: optionalPortNumber,
   API_PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   CORS_ALLOWED_ORIGINS: commaSeparatedOrigins,
@@ -143,6 +148,14 @@ const envSchema = z.object({
   PAYMONGO_PASS_ON_FEES: booleanString.default(false),
   PAYMENT_SUCCESS_URL: z.string().url().default("http://localhost:3000/payment/success"),
   PAYMENT_CANCEL_URL: z.string().url().default("http://localhost:3000/payment/cancelled"),
+  EMAIL_DELIVERY: z.enum(["disabled", "webhook", "smtp"]).default("disabled"),
+  EMAIL_FROM_NAME: z.string().trim().min(1).default("TrackCOOP"),
+  EMAIL_FROM_ADDRESS: optionalTrimmedString,
+  SMTP_HOST: optionalTrimmedString,
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: booleanString.default(false),
+  SMTP_USER: optionalTrimmedString,
+  SMTP_PASSWORD: optionalTrimmedString,
   RENTAL_STATUS_EMAIL_WEBHOOK_URL: optionalTrimmedUrl,
   RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN: optionalTrimmedString,
   MEMBERSHIP_EMAIL_WEBHOOK_URL: optionalTrimmedUrl,
@@ -181,6 +194,30 @@ const envSchema = z.object({
         code: "custom",
         path: ["S3_REGION"],
         message: "S3_REGION is required when STORAGE_DRIVER is s3",
+      });
+    }
+  }
+
+  if (value.EMAIL_DELIVERY === "smtp") {
+    if (!value.SMTP_HOST) {
+      context.addIssue({
+        code: "custom",
+        path: ["SMTP_HOST"],
+        message: "SMTP_HOST is required when EMAIL_DELIVERY is smtp",
+      });
+    }
+    if (!value.SMTP_USER) {
+      context.addIssue({
+        code: "custom",
+        path: ["SMTP_USER"],
+        message: "SMTP_USER is required when EMAIL_DELIVERY is smtp",
+      });
+    }
+    if (!value.SMTP_PASSWORD) {
+      context.addIssue({
+        code: "custom",
+        path: ["SMTP_PASSWORD"],
+        message: "SMTP_PASSWORD is required when EMAIL_DELIVERY is smtp",
       });
     }
   }

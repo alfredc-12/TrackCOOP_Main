@@ -53,6 +53,23 @@ type AggregateRow = RowDataPacket & {
   installmentCount: string | number | null;
 };
 
+const membershipApplicationStatusSql = `
+  COALESCE(
+    NULLIF(CASE application_status
+      WHEN 'SUBMITTED' THEN 'Submitted'
+      WHEN 'UNDER_REVIEW' THEN 'Under Review'
+      WHEN 'NEEDS_INFORMATION' THEN 'Needs Information'
+      WHEN 'APPROVED_PENDING_PAYMENT' THEN 'Payment Required'
+      WHEN 'PAYMENT_UNDER_REVIEW' THEN 'Payment Required'
+      WHEN 'APPROVED' THEN 'Approved'
+      WHEN 'REJECTED' THEN 'Rejected'
+      WHEN 'WITHDRAWN' THEN 'Withdrawn'
+      ELSE application_status
+    END, ''),
+    'Payment Required'
+  )
+`;
+
 function mapPaymentReference(row: PaymentReferenceRow): PaymongoPaymentReferenceRecord {
   return { ...row, amount: Number(row.amount) };
 }
@@ -100,7 +117,7 @@ export async function lockApplication(
   const [rows] = await connection.execute<ApplicationLockRow[]>(
     `SELECT CAST(membership_application_id AS CHAR) AS id,
             requested_membership_type AS requestedMembershipType,
-            application_status AS applicationStatus
+            ${membershipApplicationStatusSql} AS applicationStatus
        FROM membership_applications
       WHERE membership_application_id = ?
       LIMIT 1

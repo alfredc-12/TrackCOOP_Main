@@ -43,7 +43,7 @@ export const membershipRules = {
   trueMemberInitialPayment: 1500,
   shareValue: 3000,
   maximumShareCapital: 15000,
-  completionPeriodMonths: 12,
+  completionPeriodMonths: 1,
 } as const;
 
 export const validStatusTransitions: Record<

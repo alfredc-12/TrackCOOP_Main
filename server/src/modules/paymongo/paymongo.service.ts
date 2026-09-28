@@ -226,7 +226,9 @@ function checkoutLineName(record: PaymongoPaymentReferenceRecord) {
   if (record.paymentPurpose === "POS/Product") {
     return "Cooperative Store Order";
   }
-  if (record.paymentPurpose === "Rental") return "Rental Payment";
+  if (record.paymentPurpose === "Rental") {
+    return "Rental Payment";
+  }
   return record.paymentPurpose || "TrackCOOP payment";
 }
 
@@ -360,6 +362,9 @@ export interface PaymongoService {
   createPointOfSaleCheckout(
     paymentReferenceId: string,
   ): Promise<PaymongoCheckoutResult>;
+  createRentalCheckout(
+    paymentReferenceId: string,
+  ): Promise<PaymongoCheckoutResult>;
   getPaymentReferenceStatus(
     paymentReferenceId: string,
     auth: AuthContext,
@@ -474,6 +479,54 @@ export function createPaymongoService(options: {
       };
     },
 
+    async createRentalCheckout(paymentReferenceId) {
+      validatePaymongoConfig(config);
+      const initialRecord = requirePaymentReference(
+        await repository.findPaymentReference(paymentReferenceId),
+      );
+
+      const environment = gatewayEnvironment(config.mode);
+      const result = await attemptRepository.createOrReuseCheckoutAttempt({
+        paymentReferenceId: initialRecord.id,
+        environment,
+        reuseMinutes: checkoutReuseMinutes(config),
+        validateRecord(record) {
+          if (
+            record.paymentPurpose !== "Rental"
+            || record.relatedEntityType !== "rental_bookings"
+            || !record.relatedEntityId
+          ) {
+            throw new AppError(
+              "Rental QRPH checkout requires a linked rental booking",
+              422,
+              "RENTAL_QRPH_REFERENCE_INVALID",
+            );
+          }
+          assertEligibleForCheckout(record, environment);
+        },
+        createSession(record, idempotencyKey) {
+          return client.createCheckoutSession(
+            buildCheckoutRequest(record, config),
+            idempotencyKey,
+          );
+        },
+      });
+
+      return {
+        paymentReferenceId: result.record.id,
+        referenceNumber: result.record.referenceNumber,
+        checkoutId: result.attempt.checkoutId,
+        checkoutUrl: result.attempt.checkoutUrl,
+        gatewayStatus: result.attempt.gatewayStatus,
+        validationStatus: result.record.validationStatus,
+        amount: result.record.amount,
+        currency: "PHP",
+        mode: config.mode,
+        attemptNumber: result.attempt.attemptNumber,
+        reused: result.reused,
+      };
+    },
+
     async createMembershipApplicationCheckout(applicationCode, rawDateOfBirth, input) {
       validatePaymongoConfig(config);
       const application = requireMembershipApplication(
@@ -486,9 +539,9 @@ export function createPaymongoService(options: {
       const environment = gatewayEnvironment(config.mode);
       if (input.paymentPurpose === "Associate Membership Fee" && application.requestedMembershipType === "True Member") {
         throw new AppError(
-          "True Member applicants pay share capital only",
+          "True Member applicants pay the initial Share Capital instead of the associate membership fee",
           409,
-          "MEMBERSHIP_FEE_NOT_REQUIRED",
+          "MEMBERSHIP_FEE_NOT_REQUIRED_FOR_TRUE_MEMBER",
         );
       }
       const requestedAmount = input.paymentPurpose === "Associate Membership Fee"

@@ -187,7 +187,7 @@ export function ApplicationStatusLookup() {
                   setCheckoutError(
                     err instanceof ApiClientError
                       ? err.message
-                      : "Unable to start PayMongo checkout. Please try again.",
+                      : "Unable to start the payment. Please try again.",
                   );
                   setCheckoutAction(null);
                 }
@@ -267,10 +267,10 @@ function PaymentPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#f4b62a]">
-            TEST MODE — No real money will be charged
+            Secure payment
           </p>
           <h3 className="mt-2 text-lg font-black tracking-normal text-[#123D2A]">
-            PayMongo payment
+            Complete your payment
           </h3>
         </div>
         <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
@@ -283,7 +283,7 @@ function PaymentPanel({
           <PaymentRequirementRow
             requirement={fee}
             label="Membership fee"
-            actionLabel="Pay Membership Fee with PayMongo"
+            actionLabel="Pay Membership Fee"
             loading={checkoutAction === "Associate Membership Fee"}
             disabled={!credentials || Boolean(checkoutAction) || fee.paymentStatus === "Confirmed"}
             onClick={() => onStartCheckout("Associate Membership Fee")}
@@ -363,7 +363,7 @@ function PaymentRequirementRow({
           className="mt-3 h-11 w-full rounded-full bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43]"
         >
           {loading ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
-          {loading ? "Opening PayMongo..." : actionLabel}
+          {loading ? "Opening payment..." : actionLabel}
         </Button>
       ) : null}
     </div>
@@ -384,7 +384,7 @@ function PaymentRequirementSummary({
         <p className="text-sm font-bold text-[#123D2A]">{label}</p>
         <p className="mt-1 text-xs text-[#365F4A]">
           {requirement.amount === null
-            ? "Amount will be assigned when checkout starts."
+            ? "Amount will be assigned when payment starts."
             : new Intl.NumberFormat("en-PH", {
                 style: "currency",
                 currency: "PHP",

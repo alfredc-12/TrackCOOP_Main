@@ -169,6 +169,9 @@ export interface PublicRentalInquiryStatus {
     endTime: string;
   };
   publicNote: string;
+  payableAmount?: number;
+  paymentDeadline?: string;
+  canStartPayment?: boolean;
   updatedAt: string;
 }
 
@@ -270,12 +273,31 @@ export interface ScheduleConflict {
 }
 
 export type PaymentMethod =
-  | "PayMongo"
-  | "Direct GCash"
-  | "GCash Reference Upload"
+  | "QRPH"
+  | "QRPH Reference Upload"
   | "Cash"
   | "Bank Transfer"
   | "Other Approved Method";
+
+export type RentalPaymentStartMethod = "QRPH" | "Cash";
+
+export interface RentalPaymentStartInput {
+  rentalId: string;
+  contact?: string;
+  method: RentalPaymentStartMethod;
+}
+
+export interface RentalPaymentStartResult {
+  paymentReferenceId: string;
+  referenceNumber: string;
+  amount: number;
+  paymentMethod: RentalPaymentStartMethod;
+  paymentStatus: "Pending" | "Waiting";
+  checkoutUrl?: string;
+  checkoutId?: string;
+  gatewayStatus?: string | null;
+  mode?: string;
+}
 
 export interface RentalPayment {
   paymentId: string;

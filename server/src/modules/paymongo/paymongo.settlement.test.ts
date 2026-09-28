@@ -141,6 +141,9 @@ test("settlePaymentReference posts membership fee side effects in one transactio
   assert.deepEqual(result, {
     paymentReferenceId: "900",
     alreadySettled: false,
+    applicationId: "300",
+    paymentPurpose: "Associate Membership Fee",
+    subjectReference: "APP-SEED-0300",
     validationStatus: "Validated",
     receiptStatus: null,
     receiptErrorCode: null,

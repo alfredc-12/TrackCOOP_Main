@@ -10,6 +10,12 @@ export const documentTypes = [
   "Other",
 ] as const;
 
+export const publicApplicationDocumentTypes = [
+  "Valid ID",
+  "Proof of Residency",
+  "Other",
+] as const satisfies readonly MembershipDocumentType[];
+
 export const membershipApplicationStatuses = [
   "Submitted",
   "Under Review",
@@ -82,7 +88,7 @@ export type PublicMembershipApplicationInput = {
   spouseName?: string | null;
   occupation?: string | null;
   orientationCommitmentAccepted: true;
-  membershipFeeCommitmentAccepted: true;
+  membershipFeeCommitmentAccepted: boolean;
   shareSubscriptionCommitmentAccepted: true;
   patronageRefundAcknowledged: boolean;
   bylawsAgreementAccepted: true;
@@ -106,6 +112,9 @@ export type PublicStatusRequirement = {
   requirementType: string;
   requirementStatus: string;
   remarks: string | null;
+  documentId: string | null;
+  documentOriginalFileName: string | null;
+  documentMimeType: string | null;
 };
 
 export type PublicPaymentRequirement = {
@@ -123,8 +132,16 @@ export type PublicApplicationStatus = {
   submittedAt: string;
   applicationStatus: string;
   latestApplicantMessage: string | null;
+  memberCode: string | null;
+  activationAvailable: boolean;
+  activationTokenExpiresAt: string | null;
   missingOrRejectedRequirements: PublicStatusRequirement[];
   paymentRequirements: PublicPaymentRequirement[];
+};
+
+export type PublicActivationResult = {
+  activationUrl: string;
+  activationTokenExpiresAt: string;
 };
 
 export type PublicPaymongoCheckoutInput = {

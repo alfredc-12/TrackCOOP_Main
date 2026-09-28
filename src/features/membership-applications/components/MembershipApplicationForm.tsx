@@ -58,7 +58,7 @@ import {
 } from "../membership-application-api";
 import {
   civilStatuses,
-  documentTypes,
+  publicApplicationDocumentTypes,
   requestedMembershipTypes,
   type DocumentUploadDraft,
   type PublicMembershipApplicationInput,
@@ -68,6 +68,7 @@ import { ApplicationProgress } from "./ApplicationProgress";
 import { ApplicationSuccess } from "./ApplicationSuccess";
 import { BeneficiaryFields } from "./BeneficiaryFields";
 import { CommitmentReview } from "./CommitmentReview";
+import { calculateAgeFromBirthDate } from "./beneficiary-age";
 
 const draftKey = "trackcoop.membershipApplicationDraft.v1";
 const maxUploadBytes = 5 * 1024 * 1024;
@@ -144,11 +145,18 @@ const beneficiarySchema = z
       });
     }
 
-    if (!value.age && !value.birthDate?.trim()) {
+    const birthDateValue = value.birthDate?.trim();
+    if (!birthDateValue) {
       ctx.addIssue({
         code: "custom",
-        path: ["age"],
-        message: "Enter age or birth date.",
+        path: ["birthDate"],
+        message: "Select the beneficiary birth date.",
+      });
+    } else if (calculateAgeFromBirthDate(birthDateValue) === null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["birthDate"],
+        message: "Select a valid past birth date.",
       });
     }
   });
@@ -169,13 +177,13 @@ const applicationSchema = z
     barangay: optionalText,
     municipality: requiredText("Municipality"),
     province: requiredText("Province"),
-    fatherName: requiredText("Father name"),
-    motherName: requiredText("Mother name"),
+    fatherName: requiredText("Father's name"),
+    motherName: requiredText("Mother's name"),
     spouseName: optionalText,
     occupation: optionalText,
     beneficiaries: z.array(beneficiarySchema),
     orientationCommitmentAccepted: trueLiteral("Orientation commitment is required."),
-    membershipFeeCommitmentAccepted: trueLiteral("Membership fee commitment is required."),
+    membershipFeeCommitmentAccepted: z.boolean(),
     shareSubscriptionCommitmentAccepted: trueLiteral("Membership agreement is required."),
     initialShareCapitalAcknowledged: trueLiteral("Initial share-capital acknowledgement is required."),
     trueMemberRequirementAcknowledged: trueLiteral("True Member requirement acknowledgement is required."),
@@ -193,6 +201,17 @@ const applicationSchema = z
         code: "custom",
         path: ["spouseName"],
         message: "Spouse name is required for married applicants.",
+      });
+    }
+
+    if (
+      value.requestedMembershipType === "Associate"
+      && value.membershipFeeCommitmentAccepted !== true
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["membershipFeeCommitmentAccepted"],
+        message: "Membership fee commitment is required for Associate applicants.",
       });
     }
 
@@ -793,7 +812,8 @@ function ApplicationSummaryRail({
         </h3>
         <dl className="mt-5 grid gap-4 text-sm">
           <SummaryMetric label="Membership Path" value={membershipPath} />
-          <SummaryMetric label="Membership payment" value={membershipPath === "True Member" ? "PHP 1,500" : "PHP 200"} />
+          <SummaryMetric label="Membership Fee" value={membershipPath === "Associate" ? "PHP 200" : "Not required"} />
+          <SummaryMetric label="Share Capital" value={membershipPath === "True Member" ? "PHP 1,500 initial / PHP 3,000 target" : "Not required for Associate"} />
           <SummaryMetric label="Payment" value="Not required yet" />
           <SummaryMetric label="Progress" value={`${completed} of 5 sections active`} />
           <SummaryMetric label="Documents" value={`${uploads.filter((upload) => upload.file).length} ready`} />
@@ -1023,8 +1043,8 @@ function FamilyStep({
       </ApplicationFieldGroup>
 
       <ApplicationFieldGroup icon={UsersRound} title="Family">
-        <TextField label="Father name" error={errors.fatherName?.message} inputProps={register("fatherName")} />
-        <TextField label="Mother name" error={errors.motherName?.message} inputProps={register("motherName")} />
+        <TextField label="Father's name" error={errors.fatherName?.message} inputProps={register("fatherName")} />
+        <TextField label="Mother's name" error={errors.motherName?.message} inputProps={register("motherName")} />
         {civilStatus === "Married" ? (
           <TextField label="Spouse name" error={errors.spouseName?.message} inputProps={register("spouseName")} className="md:col-span-2" />
         ) : (
@@ -1066,8 +1086,6 @@ function MembershipStep({
   setValue: UseFormSetValue<MembershipApplicationFormValues>;
   errors: FieldErrors<MembershipApplicationFormValues>;
 }) {
-  const membershipType = watch("requestedMembershipType");
-
   return (
     <div className="grid gap-5">
       <div className="flex items-start gap-4">
@@ -1084,35 +1102,14 @@ function MembershipStep({
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-[1.5rem] border border-[#DDE8D8] bg-white">
-        <div className="grid gap-5 bg-[#F8F1E5] p-5 md:grid-cols-[1fr_auto] md:items-end">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#D8A011]">
-              {membershipType} Membership
-            </p>
-            <h3 className="mt-2 text-2xl font-black text-[#123D2A]">
-              {membershipType === "True Member" ? "Share Capital: PHP 1,500" : "Membership Fee: PHP 200"}
-            </h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
-              You do not pay now. Your application must first be reviewed and accepted by NFFAC.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-bold text-[#365F4A]">
-            Total to pay after review
-            <span className="mt-1 block text-2xl font-black text-[#123D2A]">
-              {membershipType === "True Member" ? "PHP 1,500" : "PHP 200"}
-            </span>
-          </div>
-        </div>
-        <div className="p-5">
-          <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
-            {requestedMembershipTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </SelectField>
-        </div>
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+        <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
+          {requestedMembershipTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </SelectField>
       </section>
 
       <CommitmentReview setValue={setValue} watch={watch} errors={errors} />
@@ -1252,6 +1249,9 @@ function FinalReviewStep({
     .filter(Boolean)
     .join(" ");
   const beneficiaries = values.beneficiaries.filter((item) => item.fullName?.trim());
+  const location = [values.barangay, values.municipality, values.province].filter(Boolean).join(", ");
+  const parents = [values.fatherName, values.motherName].filter(Boolean).join(" / ");
+  const uploadedCount = uploads.filter((upload) => upload.file).length;
 
   return (
     <div className="grid gap-5">
@@ -1260,10 +1260,7 @@ function FinalReviewStep({
           <ClipboardCheck className="size-6" />
         </span>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#f4b62a]">
-            Review & Submit
-          </p>
-          <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+          <h2 className="text-2xl font-black tracking-normal text-[#123D2A]">
             Confirm the application before sending.
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
@@ -1272,54 +1269,115 @@ function FinalReviewStep({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ReviewDashboardCard title="Applicant" onEdit={() => onEditStep(0)}>
-          <strong className="text-lg text-[#123D2A]">{fullName || "Applicant name missing"}</strong>
-          <span>{values.email || "Email missing"}</span>
-          <span>{values.contactNumber ? `+63 ${values.contactNumber}` : "Contact number missing"}</span>
-          <span>{values.dateOfBirth || "Date of birth missing"}</span>
-        </ReviewDashboardCard>
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-black text-[#1F6B43]">
+              <UserRound className="size-4" />
+              Applicant
+            </div>
+            <h3 className="mt-3 text-2xl font-black leading-tight tracking-normal text-[#123D2A]">
+              {fullName || "Applicant name missing"}
+            </h3>
+          </div>
+          <ReviewEditButton onEdit={() => onEditStep(0)} />
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <ReviewFact icon={<Mail className="size-4" />} label="Email" value={values.email || "Email missing"} />
+          <ReviewFact
+            icon={<UserRound className="size-4" />}
+            label="Contact"
+            value={values.contactNumber ? `+63 ${values.contactNumber}` : "Contact number missing"}
+          />
+          <ReviewFact
+            icon={<CalendarDays className="size-4" />}
+            label="Date of birth"
+            value={values.dateOfBirth || "Date of birth missing"}
+          />
+        </div>
+      </section>
 
-        <ReviewDashboardCard title="Address" onEdit={() => onEditStep(1)}>
-          <strong className="text-[#123D2A]">{values.currentAddress || "Address missing"}</strong>
-          <span>{[values.barangay, values.municipality, values.province].filter(Boolean).join(", ") || "Location missing"}</span>
-          <span>Parents: {[values.fatherName, values.motherName].filter(Boolean).join(" / ") || "Missing"}</span>
-        </ReviewDashboardCard>
-
-        <ReviewDashboardCard title="Family / Beneficiaries" onEdit={() => onEditStep(1)}>
-          {beneficiaries.length ? (
-            beneficiaries.slice(0, 3).map((beneficiary, index) => (
-              <span key={`${beneficiary.fullName}-${index}`}>
-                {beneficiary.fullName} - {beneficiary.relationship || "Beneficiary"}
-              </span>
-            ))
-          ) : (
-            <span>No beneficiaries listed.</span>
-          )}
-        </ReviewDashboardCard>
-
-        <ReviewDashboardCard title="Membership" onEdit={() => onEditStep(2)}>
-          <strong className="text-[#123D2A]">{values.requestedMembershipType}</strong>
-          <span>True Member share capital: PHP 1,500 / Associate fee: PHP 200</span>
-          <span>Payment: Not required until application review</span>
-        </ReviewDashboardCard>
-
-        <ReviewDashboardCard title="Documents" onEdit={() => onEditStep(3)}>
-          <span className="inline-flex items-center gap-2 font-black text-[#1F6B43]">
-            <CheckCircle2 className="size-4" />
-            {uploads.filter((upload) => upload.file).length} upload(s) selected
-          </span>
-          <span className={signatureFile ? "font-black text-[#1F6B43]" : "font-black text-[#8A6200]"}>
-            {signatureFile ? "Signature ready" : "Signature needed"}
-          </span>
-        </ReviewDashboardCard>
-
-        <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5">
-          <h3 className="text-lg font-black text-[#123D2A]">Ready to submit?</h3>
-          <p className="mt-2 text-sm leading-6 text-[#5D6D63]">
-            NFFAC will review the application and email you if payment becomes available.
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+        <ReviewPanel title="Address" icon={<Home className="size-4" />} onEdit={() => onEditStep(1)}>
+          <p className="text-base font-black leading-7 text-[#123D2A]">
+            {values.currentAddress || "Address missing"}
           </p>
-          <label className="mt-5 flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <ReviewFact icon={<MapPin className="size-4" />} label="Location" value={location || "Location missing"} />
+            <ReviewFact icon={<UsersRound className="size-4" />} label="Parents" value={parents || "Missing"} />
+          </div>
+        </ReviewPanel>
+
+        <ReviewPanel title="Membership" icon={<WalletCards className="size-4" />} onEdit={() => onEditStep(2)}>
+          <div className="grid gap-3">
+            <ReviewFact label="Type" value={values.requestedMembershipType} strong />
+            <ReviewFact
+              label="Membership fee"
+              value={values.requestedMembershipType === "Associate" ? "PHP 200" : "Not required"}
+            />
+            <ReviewFact
+              label="Share capital"
+              value={values.requestedMembershipType === "True Member" ? "PHP 1,500 initial / PHP 3,000 target" : "Not required"}
+            />
+          </div>
+        </ReviewPanel>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+        <ReviewPanel title="Family / Beneficiaries" icon={<UsersRound className="size-4" />} onEdit={() => onEditStep(1)}>
+          {beneficiaries.length ? (
+            <div className="grid gap-3">
+              {beneficiaries.slice(0, 3).map((beneficiary, index) => (
+                <div
+                  key={`${beneficiary.fullName}-${index}`}
+                  className="flex items-center justify-between gap-3 border-b border-[#DDE8D8] pb-3 last:border-b-0 last:pb-0"
+                >
+                  <span className="min-w-0 truncate font-black text-[#123D2A]">
+                    {beneficiary.fullName}
+                  </span>
+                  <span className="shrink-0 text-sm text-[#5D6D63]">
+                    {beneficiary.relationship || "Beneficiary"}
+                  </span>
+                </div>
+              ))}
+              {beneficiaries.length > 3 ? (
+                <span className="text-sm font-semibold text-[#5D6D63]">
+                  +{beneficiaries.length - 3} more {beneficiaries.length - 3 === 1 ? "beneficiary" : "beneficiaries"}
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm font-semibold text-[#5D6D63]">No beneficiaries listed.</p>
+          )}
+        </ReviewPanel>
+
+        <ReviewPanel title="Documents" icon={<FileUp className="size-4" />} onEdit={() => onEditStep(3)}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ReviewFact
+              icon={<CheckCircle2 className="size-4" />}
+              label="Uploads"
+              value={`${uploadedCount} upload${uploadedCount === 1 ? "" : "s"} selected`}
+              strong={uploadedCount > 0}
+            />
+            <ReviewFact
+              icon={<PenLine className="size-4" />}
+              label="Signature"
+              value={signatureFile ? "Signature ready" : "Signature needed"}
+              strong={Boolean(signatureFile)}
+            />
+          </div>
+        </ReviewPanel>
+      </div>
+
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center">
+          <div>
+            <h3 className="text-lg font-black text-[#123D2A]">Ready to submit?</h3>
+            <p className="mt-2 text-sm leading-6 text-[#5D6D63]">
+              NFFAC will review the application and email you if payment becomes available.
+            </p>
+          </div>
+          <label className="flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
             <input
               type="checkbox"
               className="mt-1 size-4 accent-[#1F6B43]"
@@ -1334,35 +1392,74 @@ function FinalReviewStep({
               ) : null}
             </span>
           </label>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-function ReviewDashboardCard({
+function ReviewPanel({
   title,
+  icon,
   children,
   onEdit,
 }: {
   title: string;
+  icon: ReactNode;
   children: ReactNode;
   onEdit: () => void;
 }) {
   return (
     <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
-        <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#123D2A]">{title}</h3>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="rounded-full border border-[#DDE8D8] px-3 py-1 text-xs font-black text-[#1F6B43] transition hover:bg-[#EAF3E8]"
-        >
-          Edit
-        </button>
+        <h3 className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
+          <span className="grid size-8 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+            {icon}
+          </span>
+          {title}
+        </h3>
+        <ReviewEditButton onEdit={onEdit} />
       </div>
       <div className="mt-4 grid gap-2 text-sm leading-6 text-[#365F4A]">{children}</div>
     </section>
+  );
+}
+
+function ReviewFact({
+  icon,
+  label,
+  value,
+  strong = false,
+}: {
+  icon?: ReactNode;
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 text-xs font-black text-[#5D6D63]">
+        {icon ? <span className="text-[#1F6B43]">{icon}</span> : null}
+        {label}
+      </div>
+      <p
+        className={`mt-1 truncate text-sm ${strong ? "font-black text-[#123D2A]" : "font-semibold text-[#365F4A]"}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ReviewEditButton({ onEdit }: { onEdit: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="rounded-full border border-[#DDE8D8] px-3 py-1 text-xs font-black text-[#1F6B43] transition duration-150 hover:-translate-y-0.5 hover:bg-[#EAF3E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43]/25"
+    >
+      Edit
+    </button>
   );
 }
 
@@ -1650,7 +1747,7 @@ function UploadRow({
           }
           className="mt-2 h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
         >
-          {documentTypes.map((type) => (
+          {publicApplicationDocumentTypes.map((type) => (
             <option key={type} value={type}>
               {type}
             </option>
@@ -1915,17 +2012,20 @@ function toPayload(values: MembershipApplicationFormValues): PublicMembershipApp
     occupation: values.occupation?.trim() || undefined,
     beneficiaries: values.beneficiaries
       .filter((beneficiary) => beneficiary.fullName?.trim())
-      .map((beneficiary) => ({
-        fullName: beneficiary.fullName?.trim() ?? "",
-        relationship: beneficiary.relationship?.trim() || undefined,
-        ageAtApplication: beneficiary.age ? Number(beneficiary.age) : undefined,
-        birthDate: beneficiary.birthDate || undefined,
-      })),
+      .map((beneficiary) => {
+        const derivedAge = calculateAgeFromBirthDate(beneficiary.birthDate);
+        return {
+          fullName: beneficiary.fullName?.trim() ?? "",
+          relationship: beneficiary.relationship?.trim() || undefined,
+          ageAtApplication: derivedAge ?? (beneficiary.age ? Number(beneficiary.age) : undefined),
+          birthDate: beneficiary.birthDate || undefined,
+        };
+      }),
     orientationCommitmentAccepted: true,
-    membershipFeeCommitmentAccepted: true,
+    membershipFeeCommitmentAccepted: values.membershipFeeCommitmentAccepted,
     shareSubscriptionCommitmentAccepted: true,
     bylawsAgreementAccepted: true,
-    patronageRefundAcknowledged: true,
+    patronageRefundAcknowledged: values.patronageRefundAcknowledged,
     privacyConsentAccepted: true,
     applicantSignatureName: applicantFullName(values),
     signedPlace: values.signedPlace.trim(),
