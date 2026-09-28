@@ -58,7 +58,7 @@ export function createPosService(
     async confirmOrder(orderId, input, auth) {
       const result = await repository.confirmOrder(orderId, input, auth);
       if (result.paymentReferenceId) {
-        await emailSender.sendPosPaymentReceipt(String(result.paymentReferenceId));
+        void emailSender.sendPosPaymentReceipt(String(result.paymentReferenceId));
       }
       return result;
     },

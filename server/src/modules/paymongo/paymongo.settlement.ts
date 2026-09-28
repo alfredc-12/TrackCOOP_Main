@@ -297,7 +297,7 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
         && durable.paymentPurpose === "POS/Product"
         && receipt?.processingStatus === "Generated"
       ) {
-        await sendPosPaymentReceipt(durable.paymentReferenceId);
+        void sendPosPaymentReceipt(durable.paymentReferenceId);
       }
       if (!durable.alreadySettled) {
         publishRealtimeEvent({
