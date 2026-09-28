@@ -1,4 +1,5 @@
-import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { randomUUID } from "node:crypto";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
@@ -13,6 +14,11 @@ import type {
   FinancialRecordListResult,
   FinancialSummary,
   FinancialTrend,
+  OperatingExpenseInput,
+  OperatingExpenseListQuery,
+  OperatingExpenseRecord,
+  OperatingExpenseSummary,
+  OperatingExpenseType,
   UpdateFinancialCategoryInput,
   UpdateFinancialRecordInput,
 } from "./finance.types";
@@ -53,6 +59,7 @@ type RecordRow = RowDataPacket & {
 };
 
 type CountRow = RowDataPacket & { total: number };
+type IdRow = RowDataPacket & { id: string };
 type SummaryRow = RowDataPacket & {
   incomeTotal: string | number | null;
   expenseTotal: string | number | null;
@@ -65,6 +72,23 @@ type TrendRow = RowDataPacket & {
   incomeTotal: string | number | null;
   expenseTotal: string | number | null;
 };
+type OperatingExpenseRow = RowDataPacket & {
+  id: string;
+  recordNumber: string;
+  categoryCode: string;
+  categoryName: string;
+  amount: string | number;
+  expenseDate: string;
+  remarks: string | null;
+  recordedBy: string;
+  approvedBy: string | null;
+  createdAt: Date;
+};
+type OperatingExpenseTypeTotalRow = RowDataPacket & {
+  categoryCode: string;
+  total: string | number | null;
+  count: string | number;
+};
 
 const sortColumns: Record<FinancialRecordListQuery["sortBy"], string> = {
   recordDate: "r.record_date",
@@ -72,6 +96,54 @@ const sortColumns: Record<FinancialRecordListQuery["sortBy"], string> = {
   recordNumber: "r.record_number",
   createdAt: "r.created_at",
 };
+
+const operatingExpenseCategories: Record<OperatingExpenseType, { code: string; name: string; description: string }> = {
+  Salaries: {
+    code: "SALARIES_WAGES",
+    name: "Salaries and Wages",
+    description: "Approved salaries, wages, honoraria, and related cooperative staffing expenses.",
+  },
+  Fuel: {
+    code: "FUEL_GASOLINE",
+    name: "Fuel and Gasoline",
+    description: "Fuel and gasoline expenses for cooperative operations.",
+  },
+  Electricity: {
+    code: "UTILITIES",
+    name: "Utilities",
+    description: "Electricity, water, internet, and other utility costs.",
+  },
+  Repairs: {
+    code: "REPAIR_MAINTENANCE",
+    name: "Repair and Maintenance",
+    description: "Repair and maintenance of equipment, office, or facilities.",
+  },
+  "Office expenses": {
+    code: "OFFICE_SUPPLIES",
+    name: "Office Supplies",
+    description: "Office supplies and administrative operating expenses.",
+  },
+  Insurance: {
+    code: "INSURANCE",
+    name: "Insurance",
+    description: "Insurance premiums and related cooperative risk-protection expenses.",
+  },
+  Other: {
+    code: "OTHER_EXPENSE",
+    name: "Other Expense",
+    description: "Other approved cooperative operating expenses.",
+  },
+};
+
+const operatingExpenseTypeByCode = new Map<string, OperatingExpenseType>([
+  ...Object.entries(operatingExpenseCategories).map(([expenseType, meta]) => [
+    meta.code,
+    expenseType as OperatingExpenseType,
+  ] as const),
+  ["SUPPLIES", "Office expenses"],
+]);
+
+const operatingExpenseCategoryCodes = [...operatingExpenseTypeByCode.keys()];
 
 function categorySelect() {
   return `SELECT CAST(financial_category_id AS CHAR) AS id,
@@ -123,6 +195,53 @@ function mapRecord(row: RecordRow): FinancialRecord {
   return { ...row, amount: Number(row.amount) };
 }
 
+function compactDate(value: string) {
+  return value.replaceAll("-", "");
+}
+
+function recordNumberForOperatingExpense(expenseDate: string) {
+  return `FIN-OPEX-${compactDate(expenseDate)}-${randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
+function operatingExpenseTypeForCode(code: string): OperatingExpenseType {
+  return operatingExpenseTypeByCode.get(code) ?? "Other";
+}
+
+function mapOperatingExpense(row: OperatingExpenseRow): OperatingExpenseRecord {
+  return {
+    id: row.id,
+    recordNumber: row.recordNumber,
+    expenseType: operatingExpenseTypeForCode(row.categoryCode),
+    categoryCode: row.categoryCode,
+    categoryName: row.categoryName,
+    amount: Number(row.amount),
+    expenseDate: row.expenseDate,
+    remarks: row.remarks,
+    recordedBy: row.recordedBy,
+    approvedBy: row.approvedBy,
+    createdAt: row.createdAt,
+  };
+}
+
+function operatingExpenseWhere(query: OperatingExpenseListQuery) {
+  const where = [
+    "r.record_type = 'Expense'",
+    "r.record_status = 'Active'",
+    "r.source_module NOT IN ('POS', 'Rental')",
+    `c.category_code IN (${operatingExpenseCategoryCodes.map(() => "?").join(", ")})`,
+  ];
+  const values: Array<string> = [...operatingExpenseCategoryCodes];
+  if (query.startDate) {
+    where.push("r.record_date >= ?");
+    values.push(query.startDate);
+  }
+  if (query.endDate) {
+    where.push("r.record_date < DATE_ADD(?, INTERVAL 1 DAY)");
+    values.push(query.endDate);
+  }
+  return { sql: `WHERE ${where.join(" AND ")}`, values };
+}
+
 export interface FinanceRepository {
   listCategories(): Promise<FinancialCategory[]>;
   createCategory(input: FinancialCategoryInput, auth: AuthContext): Promise<FinancialCategory>;
@@ -133,12 +252,73 @@ export interface FinanceRepository {
   updateRecord(id: string, input: UpdateFinancialRecordInput, auth: AuthContext): Promise<FinancialRecord>;
   postRecord(id: string, auth: AuthContext): Promise<FinancialRecord>;
   voidRecord(id: string, reason: string | null | undefined, auth: AuthContext): Promise<FinancialRecord>;
+  createOperatingExpense(input: OperatingExpenseInput, auth: AuthContext): Promise<OperatingExpenseRecord>;
+  operatingExpenses(query: OperatingExpenseListQuery): Promise<OperatingExpenseSummary>;
   summary(): Promise<FinancialSummary>;
   trends(): Promise<FinancialTrend[]>;
 }
 
 export function createFinanceRepository(pool?: Pool): FinanceRepository {
   const databasePool = () => pool ?? getPool();
+
+  async function ensureOperatingExpenseCategory(
+    connection: PoolConnection,
+    expenseType: OperatingExpenseType,
+    auth: AuthContext,
+  ) {
+    const meta = operatingExpenseCategories[expenseType];
+    const [existingRows] = await connection.execute<IdRow[]>(
+      "SELECT CAST(financial_category_id AS CHAR) AS id FROM financial_categories WHERE category_code = ? LIMIT 1",
+      [meta.code],
+    );
+    if (existingRows[0]) return existingRows[0].id;
+
+    try {
+      const [result] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO financial_categories
+           (category_code, category_name, category_type, description, is_system_category, is_active, created_by)
+         VALUES (?, ?, 'Expense', ?, 0, 1, ?)`,
+        [meta.code, meta.name, meta.description, auth.user.id],
+      );
+      const id = String(result.insertId);
+      await connection.execute(
+        `INSERT INTO audit_logs
+           (user_id, action, entity_table, record_id, description, new_values)
+         VALUES (?, 'financial_category.created', 'financial_categories', ?, 'An operating expense category was created automatically.', ?)`,
+        [auth.user.id, id, JSON.stringify(meta)],
+      );
+      return id;
+    } catch (error) {
+      const [raceRows] = await connection.execute<IdRow[]>(
+        "SELECT CAST(financial_category_id AS CHAR) AS id FROM financial_categories WHERE category_code = ? LIMIT 1",
+        [meta.code],
+      );
+      if (raceRows[0]) return raceRows[0].id;
+      throw error;
+    }
+  }
+
+  async function findOperatingExpenseById(connection: PoolConnection, id: string) {
+    const [rows] = await connection.execute<OperatingExpenseRow[]>(
+      `SELECT CAST(r.financial_record_id AS CHAR) AS id,
+              r.record_number AS recordNumber,
+              c.category_code AS categoryCode,
+              c.category_name AS categoryName,
+              r.amount,
+              DATE_FORMAT(r.record_date, '%Y-%m-%d') AS expenseDate,
+              r.remarks,
+              CAST(r.recorded_by AS CHAR) AS recordedBy,
+              CAST(r.approved_by AS CHAR) AS approvedBy,
+              r.created_at AS createdAt
+         FROM financial_records r
+         JOIN financial_categories c ON c.financial_category_id = r.financial_category_id
+        WHERE r.financial_record_id = ?
+          AND r.record_type = 'Expense'
+        LIMIT 1`,
+      [id],
+    );
+    return rows[0] ? mapOperatingExpense(rows[0]) : null;
+  }
 
   return {
     async listCategories() {
@@ -394,6 +574,102 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         if (!updated) throw new AppError("Financial record was not found", 404, "FINANCIAL_RECORD_NOT_FOUND");
         return updated;
       }, databasePool());
+    },
+
+    async createOperatingExpense(input, auth) {
+      return withTransaction(async (connection) => {
+        const categoryId = await ensureOperatingExpenseCategory(connection, input.expenseType, auth);
+        const recordNumber = recordNumberForOperatingExpense(input.expenseDate);
+        const remarks = [
+          `Operating expense: ${input.expenseType}.`,
+          input.expenseType === "Other" && input.otherDescription?.trim()
+            ? `Specific expense: ${input.otherDescription.trim()}.`
+            : "",
+          input.remarks?.trim() ? input.remarks.trim() : "",
+        ].filter(Boolean).join(" ");
+
+        const [result] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO financial_records
+             (record_number, payment_reference_id, member_id, financial_category_id, recorded_by,
+              approved_by, record_type, source_module, source_record_id, amount, record_date, record_status, remarks)
+           VALUES (?, NULL, NULL, ?, ?, ?, 'Expense', 'Manual', NULL, ?, ?, 'Active', ?)`,
+          [
+            recordNumber,
+            categoryId,
+            auth.user.id,
+            auth.user.id,
+            input.amount,
+            input.expenseDate,
+            remarks,
+          ],
+        );
+        const id = String(result.insertId);
+        await connection.execute(
+          `INSERT INTO audit_logs
+             (user_id, action, entity_table, record_id, description, new_values)
+           VALUES (?, 'operating_expense.created', 'financial_records', ?, 'An operating expense was recorded and posted.', ?)`,
+          [auth.user.id, id, JSON.stringify({ ...input, recordNumber })],
+        );
+        const created = await findOperatingExpenseById(connection, id);
+        if (!created) throw new AppError("Operating expense was not found after recording", 500, "OPERATING_EXPENSE_NOT_FOUND");
+        return created;
+      }, databasePool());
+    },
+
+    async operatingExpenses(query) {
+      const where = operatingExpenseWhere(query);
+      const [rows] = await databasePool().execute<OperatingExpenseRow[]>(
+        `SELECT CAST(r.financial_record_id AS CHAR) AS id,
+                r.record_number AS recordNumber,
+                c.category_code AS categoryCode,
+                c.category_name AS categoryName,
+                r.amount,
+                DATE_FORMAT(r.record_date, '%Y-%m-%d') AS expenseDate,
+                r.remarks,
+                CAST(r.recorded_by AS CHAR) AS recordedBy,
+                CAST(r.approved_by AS CHAR) AS approvedBy,
+                r.created_at AS createdAt
+           FROM financial_records r
+           JOIN financial_categories c ON c.financial_category_id = r.financial_category_id
+          ${where.sql}
+          ORDER BY r.record_date DESC, r.financial_record_id DESC
+          ${limitOffsetSql(100, 0)}`,
+        where.values,
+      );
+      const [totalRows] = await databasePool().execute<OperatingExpenseTypeTotalRow[]>(
+        `SELECT c.category_code AS categoryCode,
+                COALESCE(SUM(r.amount), 0) AS total,
+                COUNT(*) AS count
+           FROM financial_records r
+           JOIN financial_categories c ON c.financial_category_id = r.financial_category_id
+          ${where.sql}
+          GROUP BY c.category_code`,
+        where.values,
+      );
+      const totals = new Map<OperatingExpenseType, { total: number; count: number }>();
+      for (const row of totalRows) {
+        const expenseType = operatingExpenseTypeForCode(row.categoryCode);
+        const current = totals.get(expenseType) ?? { total: 0, count: 0 };
+        current.total += Number(row.total ?? 0);
+        current.count += Number(row.count ?? 0);
+        totals.set(expenseType, current);
+      }
+      const byType = Object.keys(operatingExpenseCategories).map((expenseType) => {
+        const total = totals.get(expenseType as OperatingExpenseType);
+        return {
+          expenseType: expenseType as OperatingExpenseType,
+          total: total?.total ?? 0,
+          count: total?.count ?? 0,
+        };
+      });
+      return {
+        items: rows.map(mapOperatingExpense),
+        byType,
+        total: byType.reduce((sum, item) => sum + item.total, 0),
+        count: byType.reduce((sum, item) => sum + item.count, 0),
+        startDate: query.startDate ?? null,
+        endDate: query.endDate ?? null,
+      };
     },
 
     async summary() {

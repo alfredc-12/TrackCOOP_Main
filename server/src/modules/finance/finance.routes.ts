@@ -18,6 +18,10 @@ export function createFinanceRouter(
   router.post("/financial-categories", ...bookkeeperOnly, controller.createCategory);
   router.patch("/financial-categories/:id", ...bookkeeperOnly, controller.updateCategory);
 
+  router.get("/operating-expenses", ...staff, controller.listOperatingExpenses);
+  router.post("/operating-expenses", ...staff, controller.createOperatingExpense);
+  router.get("/operating-expenses/report", ...staff, controller.operatingExpenseReport);
+
   router.get("/financial-records", ...staff, controller.listRecords);
   router.post("/financial-records", ...bookkeeperOnly, controller.createRecord);
   router.get("/financial-records/summary", ...staff, controller.summary);

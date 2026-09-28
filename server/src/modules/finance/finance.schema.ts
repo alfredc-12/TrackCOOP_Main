@@ -2,6 +2,15 @@ import { z } from "zod";
 
 export const financialCategoryTypes = ["Income", "Expense", "Both"] as const;
 export const financialRecordTypes = ["Income", "Expense", "Adjustment"] as const;
+export const operatingExpenseTypes = [
+  "Salaries",
+  "Fuel",
+  "Electricity",
+  "Repairs",
+  "Office expenses",
+  "Insurance",
+  "Other",
+] as const;
 export const financialSourceModules = [
   "Manual",
   "Membership",
@@ -53,4 +62,23 @@ export const financialRecordSchema = z.object({
 export const updateFinancialRecordSchema = financialRecordSchema.partial().refine(
   (value) => Object.keys(value).length > 0,
   { message: "At least one financial record field is required" },
+);
+
+export const operatingExpenseSchema = z.object({
+  expenseType: z.enum(operatingExpenseTypes),
+  otherDescription: z.string().trim().max(120).nullable().optional(),
+  amount: z.coerce.number().positive().max(99_999_999.99),
+  expenseDate: z.iso.date(),
+  remarks: z.string().trim().max(2000).nullable().optional(),
+}).refine(
+  (value) => value.expenseType !== "Other" || Boolean(value.otherDescription?.trim()),
+  { message: "Please specify the other expense type", path: ["otherDescription"] },
+);
+
+export const operatingExpenseQuerySchema = z.object({
+  startDate: z.iso.date().optional(),
+  endDate: z.iso.date().optional(),
+}).refine(
+  (value) => !value.startDate || !value.endDate || value.endDate >= value.startDate,
+  { message: "End date must be on or after the start date", path: ["endDate"] },
 );

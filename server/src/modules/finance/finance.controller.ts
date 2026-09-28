@@ -6,6 +6,8 @@ import {
   financialCategorySchema,
   financialRecordSchema,
   listFinancialRecordsQuerySchema,
+  operatingExpenseQuerySchema,
+  operatingExpenseSchema,
   updateFinancialCategorySchema,
   updateFinancialRecordSchema,
 } from "./finance.schema";
@@ -72,6 +74,31 @@ export function createFinanceController(service: FinanceService) {
       return sendSuccess(response, result.records, {
         meta: { total: result.total, page: result.page, pageSize: result.pageSize },
       });
+    }),
+    listOperatingExpenses: asyncHandler(async (request, response) => {
+      const query = parseBody(operatingExpenseQuerySchema, request.query);
+      return sendSuccess(response, await service.operatingExpenses(query));
+    }),
+    createOperatingExpense: asyncHandler(async (request, response) => {
+      const input = parseBody(operatingExpenseSchema, request.body);
+      return sendSuccess(response, await service.createOperatingExpense(input, requireAuth(request.auth)), {
+        statusCode: 201,
+        message: "Operating expense recorded",
+      });
+    }),
+    operatingExpenseReport: asyncHandler(async (request, response) => {
+      const query = parseBody(operatingExpenseQuerySchema, request.query);
+      const pdf = await service.operatingExpenseReport(query, requireAuth(request.auth));
+      response
+        .set({
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="trackcoop-operating-expenses-${new Date().toISOString().slice(0, 10)}.pdf"`,
+          "Content-Length": String(pdf.length),
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        })
+        .status(200)
+        .send(pdf);
     }),
     summary: asyncHandler(async (_request, response) => {
       return sendSuccess(response, await service.summary());

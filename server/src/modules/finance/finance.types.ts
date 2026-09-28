@@ -10,6 +10,14 @@ export type FinancialSourceModule =
   | "Document"
   | "Other";
 export type FinancialRecordStatus = "Active" | "Corrected" | "Reversed" | "Voided";
+export type OperatingExpenseType =
+  | "Salaries"
+  | "Fuel"
+  | "Electricity"
+  | "Repairs"
+  | "Office expenses"
+  | "Insurance"
+  | "Other";
 
 export type FinancialCategory = {
   id: string;
@@ -70,6 +78,48 @@ export type FinancialRecordInput = {
 };
 
 export type UpdateFinancialRecordInput = Partial<FinancialRecordInput>;
+
+export type OperatingExpenseInput = {
+  expenseType: OperatingExpenseType;
+  otherDescription?: string | null;
+  amount: number;
+  expenseDate: string;
+  remarks?: string | null;
+};
+
+export type OperatingExpenseListQuery = {
+  startDate?: string;
+  endDate?: string;
+};
+
+export type OperatingExpenseRecord = {
+  id: string;
+  recordNumber: string;
+  expenseType: OperatingExpenseType;
+  categoryCode: string;
+  categoryName: string;
+  amount: number;
+  expenseDate: string;
+  remarks: string | null;
+  recordedBy: string;
+  approvedBy: string | null;
+  createdAt: Date;
+};
+
+export type OperatingExpenseTypeTotal = {
+  expenseType: OperatingExpenseType;
+  total: number;
+  count: number;
+};
+
+export type OperatingExpenseSummary = {
+  items: OperatingExpenseRecord[];
+  byType: OperatingExpenseTypeTotal[];
+  total: number;
+  count: number;
+  startDate: string | null;
+  endDate: string | null;
+};
 
 export type FinancialRecordListQuery = {
   page: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { apiRequest } from "@/lib/api-client";
+import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { env } from "@/config/env";
 
 export type ValidationStatus = "Pending" | "Validated" | "Rejected" | "Needs Clarification" | "Reversed";
@@ -116,6 +116,26 @@ export type CreatePaymentReferenceInput = {
 export type FinancialCategory = { id: string; categoryCode: string; categoryName: string; categoryType: "Income" | "Expense" | "Both"; isActive: boolean };
 export type FinancialRecord = { id: string; recordNumber: string; categoryName: string; recordType: "Income" | "Expense" | "Adjustment"; amount: number; recordDate: string; recordStatus: "Active" | "Corrected" | "Reversed" | "Voided"; approvedBy: string | null };
 export type FinancialSummary = { incomeTotal: number; expenseTotal: number; adjustmentTotal: number; netTotal: number; activeRecords: number; voidedRecords: number };
+export type OperatingExpenseType = "Salaries" | "Fuel" | "Electricity" | "Repairs" | "Office expenses" | "Insurance" | "Other";
+export const operatingExpenseTypes: OperatingExpenseType[] = ["Salaries", "Fuel", "Electricity", "Repairs", "Office expenses", "Insurance", "Other"];
+export type OperatingExpenseRecord = {
+  id: string; recordNumber: string; expenseType: OperatingExpenseType; categoryCode: string;
+  categoryName: string; amount: number; expenseDate: string; remarks: string | null;
+  recordedBy: string; approvedBy: string | null; createdAt: string;
+};
+export type OperatingExpenseSummary = {
+  items: OperatingExpenseRecord[];
+  byType: Array<{ expenseType: OperatingExpenseType; total: number; count: number }>;
+  total: number; count: number; startDate: string | null; endDate: string | null;
+};
+export type OperatingExpenseFilters = { startDate?: string; endDate?: string };
+export type CreateOperatingExpenseInput = {
+  expenseType: OperatingExpenseType;
+  otherDescription?: string | null;
+  amount: number;
+  expenseDate: string;
+  remarks?: string | null;
+};
 export type PaymentReferenceFilters = {
   search?: string; validationStatus?: string; paymentPurpose?: string; paymentChannel?: string;
   validationSource?: string; gatewayManual?: "all" | "gateway" | "manual";
@@ -161,3 +181,32 @@ export const getShareCapitalSummary = () => apiRequest<ShareCapitalSummary>("/ap
 export const listFinancialCategories = () => apiRequest<FinancialCategory[]>("/api/financial-categories");
 export function listFinancialRecords(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<FinancialRecord[]>(`/api/financial-records?${params}`); }
 export const getFinancialSummary = () => apiRequest<FinancialSummary>("/api/financial-records/summary");
+function operatingExpenseQuery(filters: OperatingExpenseFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.set("startDate", filters.startDate);
+  if (filters.endDate) params.set("endDate", filters.endDate);
+  return params.toString();
+}
+export function listOperatingExpenses(filters: OperatingExpenseFilters = {}) {
+  const query = operatingExpenseQuery(filters);
+  return apiRequest<OperatingExpenseSummary>(`/api/operating-expenses${query ? `?${query}` : ""}`);
+}
+export function createOperatingExpense(input: CreateOperatingExpenseInput) {
+  return apiRequest<OperatingExpenseRecord>("/api/operating-expenses", { method: "POST", body: JSON.stringify(input) });
+}
+export async function getOperatingExpenseReport(filters: OperatingExpenseFilters = {}) {
+  const query = operatingExpenseQuery(filters);
+  const response = await fetch(`${env.apiUrl}/api/operating-expenses/report${query ? `?${query}` : ""}`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    throw new ApiClientError(payload?.message ?? "The operating expense report could not be downloaded.", response.status);
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const quoted = /filename="([^"]+)"/.exec(disposition)?.[1];
+  return {
+    blob: await response.blob(),
+    fileName: quoted ?? `trackcoop-operating-expenses-${new Date().toISOString().slice(0, 10)}.pdf`,
+  };
+}
