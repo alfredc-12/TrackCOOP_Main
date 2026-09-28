@@ -35,6 +35,20 @@ export function createPatronageService(
           "PATRONAGE_POOL_EXCEEDS_SURPLUS",
         );
       }
+      if (basis.eligibleMemberPatronage <= 0) {
+        throw new AppError(
+          "No eligible member purchases or completed paid rentals were found for this period.",
+          409,
+          "PATRONAGE_NO_ELIGIBLE_MEMBER_USAGE",
+        );
+      }
+      if (input.refundPool > basis.eligibleMemberPatronage) {
+        throw new AppError(
+          "The refund pool cannot be greater than the members' paid purchases and rentals for this period.",
+          409,
+          "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
+        );
+      }
       return repository.createPeriod(input, auth);
     },
     recalculate: (periodId, auth) => repository.recalculate(periodId, auth),
@@ -50,6 +64,13 @@ export function createPatronageService(
           "The refund pool is greater than the current posted POS and rental operating surplus. Review the ledger or create a corrected period before finalizing.",
           409,
           "PATRONAGE_POOL_EXCEEDS_SURPLUS",
+        );
+      }
+      if (period.refundPool > Math.max(0, basis.eligibleMemberPatronage)) {
+        throw new AppError(
+          "The refund pool is greater than the members' paid purchases and rentals for this period. Review the period before finalizing.",
+          409,
+          "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
         );
       }
       return repository.finalize(periodId, auth);

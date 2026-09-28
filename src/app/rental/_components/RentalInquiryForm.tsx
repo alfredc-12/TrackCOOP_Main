@@ -21,10 +21,12 @@ import {
 import { BARANGAYS } from "../_lib/rentalConstants";
 import {
   BookingSchema,
+  normalizePhilippineMobile,
+  PERSON_NAME_PATTERN,
   validateUpload,
 } from "../_lib/rentalValidation";
 import { estimateRentalFee } from "../_lib/rentalEstimate";
-import { formatPeso } from "../_lib/rentalFormatting";
+import { formatPeso, formatRentalDateRange } from "../_lib/rentalFormatting";
 import { z } from "zod";
 import { useRental } from "../_context/RentalProvider";
 import { rentalApiRepository } from "../_lib/rentalApi";
@@ -35,10 +37,12 @@ import {
 } from "../_types/rental";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 const ClientBookingSchema = BookingSchema.safeExtend({
-  firstName: z.string().trim().min(2, "Enter your first name."),
-  lastName: z.string().trim().min(2, "Enter your last name."),
+  firstName: z.string().trim().min(2, "Enter your first name.").max(60, "First name must be 60 characters or fewer.").regex(PERSON_NAME_PATTERN, "Use letters, spaces, apostrophes, or hyphens only."),
+  lastName: z.string().trim().min(2, "Enter your last name.").max(60, "Last name must be 60 characters or fewer.").regex(PERSON_NAME_PATTERN, "Use letters, spaces, apostrophes, or hyphens only."),
 });
 type ClientFormValues = z.infer<typeof ClientBookingSchema>;
 
@@ -53,12 +57,12 @@ const defaultValues: ClientFormValues = {
   barangay: "",
   municipality: "Nasugbu",
   serviceId: "",
-  intendedUse: "Not specified",
+  intendedUse: "",
   preferredDate: "",
   preferredEndDate: "",
   preferredStartTime: "08:00",
   preferredEndTime: "17:00",
-  requestDescription: "No additional details provided.",
+  requestDescription: "",
   notes: "",
   validIdType: "",
   attachmentName: "",
@@ -101,6 +105,18 @@ const confirmationFields: FieldPath<ClientFormValues>[] = [
   "preferredPaymentMethod",
 ];
 
+const FARM_WORK_OPTIONS = [
+  "Plowing",
+  "Harrowing",
+  "Land preparation",
+  "Planting support",
+  "Irrigation",
+  "Spraying",
+  "Harvesting",
+  "Hauling or transport",
+] as const;
+const OTHER_FARM_WORK = "Other";
+
 export function RentalInquiryForm({
   member = false,
   hideBackButton = false,
@@ -128,6 +144,27 @@ export function RentalInquiryForm({
   const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
   const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
   const [blockedDatesError, setBlockedDatesError] = useState<string>();
+  const [selectedFarmWork, setSelectedFarmWork] = useState("");
+  const [otherFarmWork, setOtherFarmWork] = useState("");
+  const [contactDisplay, setContactDisplay] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([
+    "Nasugbu, Batangas",
+    "Lian, Batangas",
+    "Balayan, Batangas",
+    "Tagaytay City, Cavite",
+    "Batangas City, Batangas",
+    "Quezon City, Metro Manila",
+  ]);
+  const allBarangays = useMemo(() => {
+    const values = addressSuggestions
+      .filter((location) => location.split(",").length >= 3)
+      .filter((location) => {
+        const parts = location.split(",").map((part) => part.trim().toLowerCase());
+        return parts[1] === "nasugbu" && parts[2] === "batangas";
+      })
+      .map((location) => location.split(",")[0].trim());
+    return [...new Set(values.length ? values : BARANGAYS)].sort((a, b) => a.localeCompare(b));
+  }, [addressSuggestions]);
   const {
     register,
     reset,
@@ -136,6 +173,7 @@ export function RentalInquiryForm({
     clearErrors,
     trigger,
     control,
+    watch,
     getValues,
     formState: { errors },
   } = useForm<ClientFormValues>({
@@ -147,6 +185,30 @@ export function RentalInquiryForm({
       requesterType: member ? "Member" : "Public or Non-member",
     },
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refprovince.json"),
+      fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refcitymun.json"),
+      fetch("https://raw.githubusercontent.com/clavearnel/philippines-region-province-citymun-brgy/master/json/refbrgy.json"),
+    ]).then(async ([provinceResponse, cityResponse, barangayResponse]) => {
+      if (!provinceResponse.ok || !cityResponse.ok || !barangayResponse.ok || cancelled) return;
+      const provinces = (await provinceResponse.json()) as { RECORDS?: { provCode: string; provDesc: string }[] };
+      const cities = (await cityResponse.json()) as { RECORDS?: { provCode: string; citymunCode: string; citymunDesc: string }[] };
+      const barangays = (await barangayResponse.json()) as { RECORDS?: { provCode: string; citymunCode: string; brgyDesc: string }[] };
+      const titleCase = (value: string) => value.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+      const provinceNames = new Map((provinces.RECORDS ?? []).map((item) => [item.provCode, titleCase(item.provDesc)]));
+      const cityNames = new Map((cities.RECORDS ?? []).map((item) => [item.citymunCode, titleCase(item.citymunDesc)]));
+      const locations = [
+        ...(provinces.RECORDS ?? []).map((item) => titleCase(item.provDesc)),
+        ...(cities.RECORDS ?? []).map((item) => `${titleCase(item.citymunDesc)}, ${provinceNames.get(item.provCode) ?? ""}`),
+        ...(barangays.RECORDS ?? []).map((item) => `${titleCase(item.brgyDesc)}, ${cityNames.get(item.citymunCode) ?? ""}, ${provinceNames.get(item.provCode) ?? ""}`),
+      ].filter((location) => !location.includes(", ,"));
+      if (!cancelled) setAddressSuggestions([...new Set(locations)].sort((a, b) => a.localeCompare(b)));
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   const selectedServiceId = useWatch({ control, name: "serviceId" });
   const preferredDate = useWatch({ control, name: "preferredDate" });
@@ -201,6 +263,25 @@ export function RentalInquiryForm({
       shouldValidate: true,
     });
   }, [firstName, lastName, setValue]);
+
+  const intendedUse = useWatch({ control, name: "intendedUse" });
+  useEffect(() => {
+    setValue("requestDescription", intendedUse || "", {
+      shouldValidate: Boolean(intendedUse),
+    });
+  }, [intendedUse, setValue]);
+  function updateFarmWork(nextSelected: string, nextOther = otherFarmWork) {
+    const cleanOther = nextOther.trim();
+    const nextValue =
+      nextSelected === OTHER_FARM_WORK ? cleanOther : nextSelected;
+    setSelectedFarmWork(nextSelected);
+    setOtherFarmWork(nextOther);
+    setValue("intendedUse", nextValue, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -449,35 +530,53 @@ export function RentalInquiryForm({
         {currentStep === 1 && (
         <FormSection
           step="Step 1 of 3"
-          title="Requester Information"
-          description="Tell NFFAC who is making the rental booking and how we can contact you."
+          title="Your information"
+          description="Enter your name, mobile number, address, and one valid ID. We will use these only to review this request."
         >
           <div className="grid gap-5 sm:grid-cols-2">
               <Field label="First name" required error={errors.firstName?.message}>
-                <input {...register("firstName")} autoComplete="given-name" />
+                <input {...register("firstName")} autoComplete="given-name" maxLength={60} />
               </Field>
               <Field label="Last name" required error={errors.lastName?.message}>
-                <input {...register("lastName")} autoComplete="family-name" />
+                <input {...register("lastName", { onBlur: () => void trigger("lastName") })} autoComplete="family-name" maxLength={60} />
               </Field>
             <Field
               label="Contact number"
               required
-              hint="Example: 09171234567"
+              hint="Format: +63 9XXXXXXXXX"
               error={errors.contactNumber?.message}
             >
-              <input
-                {...register("contactNumber")}
+              <div className="flex overflow-hidden rounded-xl border border-[#d5e1d0] bg-white focus-within:border-[#1f6b43] focus-within:ring-4 focus-within:ring-[#1f6b43]/10">
+                <span className="flex min-w-[4.5rem] items-center justify-center border-r border-[#d5e1d0] bg-[#f7f3e8] px-3 text-sm font-bold text-[#365f4a]">+63</span>
+                <input
+                  value={contactDisplay}
+                  onChange={(event) => {
+                    const raw = event.target.value.replace(/\D/g, "");
+                    const localDigits = raw.startsWith("63")
+                      ? raw.slice(2)
+                      : raw.startsWith("0")
+                        ? raw.slice(1)
+                        : raw;
+                    const next = localDigits.slice(0, 10);
+                    setContactDisplay(next);
+                    setValue("contactNumber", next ? `+63${next}` : "", { shouldValidate: true });
+                  }}
+                  onBlur={() => setValue("contactNumber", contactDisplay ? `+63${contactDisplay}` : "", { shouldValidate: true })}
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="09XXXXXXXXX"
-              />
+                  placeholder="9171234567"
+                  maxLength={10}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-4 text-base outline-none"
+                />
+              </div>
             </Field>
-            <Field label="Email" required error={errors.email?.message}>
+            <Field label="Email (optional)" hint="Leave blank if you prefer SMS updates." error={errors.email?.message}>
               <input
                 {...register("email")}
                 type="email"
                 autoComplete="email"
                 placeholder="name@example.com"
+                maxLength={190}
               />
             </Field>
             <Field
@@ -486,26 +585,29 @@ export function RentalInquiryForm({
               error={errors.completeAddress?.message}
               wide
             >
-              <input {...register("completeAddress")} autoComplete="street-address" />
+              <AddressAutocomplete
+                value={watch("completeAddress") || ""}
+                suggestions={addressSuggestions}
+                error={errors.completeAddress?.message}
+                onChange={(value) => setValue("completeAddress", value, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             <Field label="Barangay" required error={errors.barangay?.message}>
-              <select {...register("barangay")}>
-                <option value="">Select barangay</option>
-                {BARANGAYS.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
+              <StyledSelect
+                value={watch("barangay") || "Select barangay"}
+                options={["Select barangay", ...allBarangays]}
+                onChange={(value) => setValue("barangay", value === "Select barangay" ? "" : value, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             <Field label="Municipality" required error={errors.municipality?.message}>
-              <input {...register("municipality")} />
+              <input {...register("municipality")} maxLength={100} readOnly className="bg-[#f1f4ef]" />
             </Field>
             <Field label="Valid ID type" required error={errors.validIdType?.message}>
-              <select {...register("validIdType")}>
-                <option value="">Select valid ID type</option>
-                {VALID_ID_TYPES.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </select>
+              <StyledSelect
+                value={watch("validIdType") || "Select valid ID type"}
+                options={["Select valid ID type", ...VALID_ID_TYPES]}
+                onChange={(value) => setValue("validIdType", value === "Select valid ID type" ? "" : value, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             <UploadField
               label="Valid ID file"
@@ -541,7 +643,7 @@ export function RentalInquiryForm({
         {currentStep === 2 && (
         <FormSection
           step="Step 2 of 3"
-          title="Rental Details"
+          title="Equipment and dates"
           description={preselectedServiceId
             ? "Review the selected equipment and check its availability schedule."
             : "Select the equipment and check its availability schedule."}
@@ -572,16 +674,20 @@ export function RentalInquiryForm({
                 error={errors.serviceId?.message}
                 wide
               >
-                <select {...register("serviceId")}>
-                  <option value="">Select equipment</option>
-                  {services.map((service) => (
-                    <option value={service.serviceId} key={service.serviceId}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
+                <StyledSelect
+                  value={services.find((service) => service.serviceId === selectedServiceId)?.name || "Select equipment"}
+                  options={["Select equipment", ...services.map((service) => service.name)]}
+                  onChange={(value) => setValue("serviceId", services.find((service) => service.name === value)?.serviceId ?? "", { shouldDirty: true, shouldValidate: true })}
+                />
               </Field>
             )}
+            <FarmWorkField
+              selected={selectedFarmWork}
+              otherValue={otherFarmWork}
+              error={errors.intendedUse?.message}
+              onChange={(work) => updateFarmWork(work)}
+              onOtherChange={(value) => updateFarmWork(selectedFarmWork, value)}
+            />
             <input type="hidden" {...register("intendedUse")} />
             <div className="sm:col-span-2">
               <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -590,20 +696,20 @@ export function RentalInquiryForm({
                   required
                   error={errors.preferredDate?.message}
                 >
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Start date"
+                    hideLabel
+                    value={preferredDate}
                     min={todayKey()}
-                    {...register("preferredDate", {
-                      onChange: (event) => {
-                        const date = event.target.value;
-                        const currentEndDate = getValues("preferredEndDate");
-                        if (!currentEndDate || currentEndDate < date) {
-                          setValue("preferredEndDate", date, {
-                            shouldValidate: true,
-                          });
-                        }
-                      },
-                    })}
+                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    placeholder="Select start date"
+                    onChange={(date) => {
+                      setValue("preferredDate", date, { shouldValidate: true });
+                      const currentEndDate = getValues("preferredEndDate");
+                      if (!currentEndDate || currentEndDate < date) {
+                        setValue("preferredEndDate", date, { shouldValidate: true });
+                      }
+                    }}
                   />
                 </Field>
                 <Field
@@ -611,10 +717,14 @@ export function RentalInquiryForm({
                   required
                   error={errors.preferredEndDate?.message}
                 >
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="End date"
+                    hideLabel
+                    value={preferredEndDate}
                     min={preferredDate || todayKey()}
-                    {...register("preferredEndDate")}
+                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    placeholder="Select end date"
+                    onChange={(date) => setValue("preferredEndDate", date, { shouldValidate: true })}
                   />
                 </Field>
               </div>
@@ -714,26 +824,43 @@ export function RentalInquiryForm({
         {currentStep === 3 && (
         <FormSection
           step="Step 3 of 3"
-          title="Review & Consent"
-          description="Acknowledge the policies and finalize your booking request."
+          title="Review and send"
+          description="Check the request below. This is not yet a confirmed schedule; NFFAC will contact you after reviewing availability."
         >
-          <div className="grid gap-3">
-            <ConsentField error={errors.dataPrivacyConsent?.message}>
-              <input type="checkbox" className="mt-0.5" {...register("dataPrivacyConsent")} />
-              <span>I consent to NFFAC collecting and processing my data in accordance with the Data Privacy Act for the purpose of this rental booking.</span>
-            </ConsentField>
-            <ConsentField error={errors.accuracyConfirmation?.message}>
-              <input type="checkbox" className="mt-0.5" {...register("accuracyConfirmation")} />
-              <span>I confirm that the information provided is accurate, and I agree to use the equipment only for the stated agricultural purpose.</span>
-            </ConsentField>
-            <ConsentField error={errors.contactConsent?.message}>
-              <input type="checkbox" className="mt-0.5" {...register("contactConsent")} />
-              <span>I agree to be contacted by NFFAC via SMS or email regarding my booking schedule, payment, and policy updates.</span>
-            </ConsentField>
+          <div className="mb-5 rounded-xl border border-[#cfd9d2] bg-white p-4 text-sm text-[#334b3d]">
+            <h3 className="font-extrabold text-[#123d2a]">Request summary</h3>
+            <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div><dt className="font-bold">Requester</dt><dd>{`${firstName || ""} ${lastName || ""}`.trim()}</dd></div>
+              <div><dt className="font-bold">Equipment</dt><dd>{selectedService?.name ?? "Not selected"}</dd></div>
+              <div><dt className="font-bold">Requested dates</dt><dd>{formatRentalDateRange(preferredDate, preferredEndDate, true)}</dd></div>
+              <div><dt className="font-bold">Farm work</dt><dd>{intendedUse || "Not provided"}</dd></div>
+            </dl>
           </div>
+          <ConsentField
+            error={
+              errors.dataPrivacyConsent?.message ||
+              errors.accuracyConfirmation?.message ||
+              errors.contactConsent?.message
+            }
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 size-5"
+              {...register("dataPrivacyConsent", {
+                onChange: (event) => {
+                  const checked = event.target.checked;
+                  setValue("accuracyConfirmation", checked, { shouldValidate: true });
+                  setValue("contactConsent", checked, { shouldValidate: true });
+                },
+              })}
+            />
+            <span>I confirm that my information is correct, I will use the equipment only for the stated farm work, and NFFAC may contact me about this request.</span>
+          </ConsentField>
+          <input type="hidden" {...register("accuracyConfirmation")} />
+          <input type="hidden" {...register("contactConsent")} />
           
           <div className="mt-6 border-t border-[#e3e9e5] pt-6">
-            <h3 className="mb-3 text-sm font-bold text-[#123d2a]">Preferred Payment Method</h3>
+            <h3 className="mb-3 text-sm font-bold text-[#123d2a]">How do you prefer to pay?</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${preferredPaymentMethod === "Cash" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
                 <input type="radio" value="Cash" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
@@ -769,7 +896,7 @@ export function RentalInquiryForm({
               type="submit"
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Submitting..." : "Submit Booking"}
+              {submitting ? "Sending request..." : "Send Rental Request"}
             </button>
           </FormActions>
         </FormSection>
@@ -815,6 +942,102 @@ function FormActions({ children, center }: { children: React.ReactNode; center?:
   );
 }
 
+function FarmWorkField({
+  selected,
+  otherValue,
+  error,
+  onChange,
+  onOtherChange,
+}: {
+  selected: string;
+  otherValue: string;
+  error?: string;
+  onChange: (work: string) => void;
+  onOtherChange: (value: string) => void;
+}) {
+  const otherSelected = selected === OTHER_FARM_WORK;
+
+  return (
+    <div className="grid gap-2 text-sm font-bold text-[#334b3d] sm:col-span-2">
+      <span>
+        What farm work will you do? <span className="text-red-700">*</span>
+      </span>
+      <div className="grid gap-3">
+        <StyledSelect
+          value={selected || "Select farm work"}
+          options={["Select farm work", ...FARM_WORK_OPTIONS, OTHER_FARM_WORK]}
+          onChange={(value) => onChange(value === "Select farm work" ? "" : value)}
+        />
+        {otherSelected ? (
+          <input
+            value={otherValue}
+            onChange={(event) => onOtherChange(event.target.value)}
+            maxLength={80}
+            placeholder="Please specify other farm work"
+            className="min-h-12 rounded-xl border border-[#cfd9d2] bg-white px-3.5 py-2.5 text-sm font-normal text-[#17211c] outline-none transition placeholder:text-[#98a39d] focus:border-[#168046] focus:ring-4 focus:ring-[#168046]/10"
+          />
+        ) : null}
+      </div>
+      {!error ? (
+        <span className="text-xs font-normal text-[#7a877f]">
+          Choose Other if the work is not listed.
+        </span>
+      ) : (
+        <span className="text-xs font-semibold text-red-700">{error}</span>
+      )}
+    </div>
+  );
+}
+
+function AddressAutocomplete({
+  value,
+  suggestions,
+  error,
+  onChange,
+}: {
+  value: string;
+  suggestions: string[];
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const query = value.trim().toLowerCase();
+  const matches = query.length < 2
+    ? []
+    : suggestions
+      .filter((location) => location.toLowerCase().includes(query))
+      .slice(0, 8);
+
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        autoComplete="street-address"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="rental-address-suggestions"
+        aria-expanded={open && matches.length > 0}
+        aria-invalid={Boolean(error)}
+        maxLength={250}
+        placeholder="Search barangay, municipality, or enter house/street"
+        className="mt-1 h-12 w-full rounded-xl border border-[#DDE8D8] bg-white px-4 text-base font-normal text-[#123D2A] outline-none transition placeholder:text-[#9AA8A0] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+      />
+      {open && matches.length > 0 ? (
+        <div id="rental-address-suggestions" role="listbox" className="absolute inset-x-0 top-[calc(100%+6px)] z-50 max-h-64 overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+          {matches.map((location) => (
+            <button key={location} type="button" role="option" aria-selected={location === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(location); setOpen(false); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A]">
+              {location}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function Field({
   label,
   required,
@@ -854,6 +1077,7 @@ function Field({
     </label>
   );
 }
+
 
 function withFieldStyles(
   element: React.ReactElement<{
@@ -925,7 +1149,7 @@ function ConsentField({
   children: React.ReactNode;
 }) {
   return (
-    <label className={`rounded-xl border bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec] ${error ? "border-red-400" : "border-[#e1e8e2]"}`}>
+    <label className={`block w-full rounded-xl border bg-[#f8fbf9] p-4 text-sm font-medium text-[#123d2a] hover:bg-[#eaf4ec] ${error ? "border-red-400" : "border-[#e1e8e2]"}`}>
       <span className="flex items-start gap-3">{children}</span>
       {error ? <span className="mt-2 block text-xs font-semibold text-red-700">{error}</span> : null}
     </label>
@@ -980,6 +1204,12 @@ function AvailabilityCalendar({
       parseDateKey(item.date).getFullYear() === month.getFullYear() &&
       parseDateKey(item.date).getMonth() === month.getMonth(),
   ).length;
+  const maintenanceCount = blockedDates.filter(
+    (item) =>
+      item.status === "Maintenance" &&
+      parseDateKey(item.date).getFullYear() === month.getFullYear() &&
+      parseDateKey(item.date).getMonth() === month.getMonth(),
+  ).length;
 
   return (
     <section className="rounded-2xl border border-[#d7e2dc] bg-[#fbfdfb] p-3">
@@ -991,7 +1221,7 @@ function AvailabilityCalendar({
           </div>
           <p className="mt-1 text-xs leading-5 text-[#6b786f]">
             {serviceName
-              ? `${serviceName}: crossed-out dates already have approved rental use.`
+              ? `${serviceName}: unavailable dates show approved rentals or maintenance.`
               : "Select equipment first to load unavailable dates."}
           </p>
         </div>
@@ -1044,17 +1274,26 @@ function AvailabilityCalendar({
             key >= selectedDate &&
             key <= selectedEndDate;
           const disabled = Boolean(blocked) || past || !serviceName;
+          const maintenance = blocked?.status === "Maintenance";
 
           return (
             <button
               key={key}
               type="button"
               disabled={disabled}
-              title={blocked ? blocked.reason : undefined}
+              title={
+                blocked
+                  ? maintenance
+                    ? "Unavailable: scheduled maintenance"
+                    : blocked.reason
+                  : undefined
+              }
               onClick={() => onSelect(key)}
               className={`relative min-h-9 rounded-xl border px-1 font-bold transition ${
                 blocked
-                  ? "border-red-200 bg-red-50 text-red-800 line-through"
+                  ? maintenance
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-red-200 bg-red-50 text-red-800 line-through"
                   : selected
                     ? "border-[#08753a] bg-[#08753a] text-white"
                     : inSelectedRange
@@ -1066,7 +1305,13 @@ function AvailabilityCalendar({
             >
               {date.getDate()}
               {blocked ? (
-                <span className="absolute inset-x-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-700/70" />
+                maintenance ? (
+                  <span className="absolute right-1 top-1 rounded bg-amber-200 px-1 text-[9px] font-black leading-3 text-amber-950">
+                    M
+                  </span>
+                ) : (
+                  <span className="absolute inset-x-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-700/70" />
+                )
               ) : null}
             </button>
           );
@@ -1080,7 +1325,11 @@ function AvailabilityCalendar({
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="size-3 rounded bg-red-50 ring-1 ring-red-200" />
-          Booked or maintenance
+          Booked
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="size-3 rounded bg-amber-50 ring-1 ring-amber-300" />
+          Maintenance
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="size-3 rounded bg-[#def0e2] ring-1 ring-[#9bc9aa]" />
@@ -1090,6 +1339,7 @@ function AvailabilityCalendar({
         {!loading && serviceName ? (
           <span>
             {unavailableCount} unavailable date{unavailableCount === 1 ? "" : "s"} this month
+            {maintenanceCount ? `, including ${maintenanceCount} maintenance` : ""}
           </span>
         ) : null}
       </div>

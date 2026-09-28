@@ -112,7 +112,7 @@ test("public payment UI keeps birth-date checkout safe without exposing internal
 test("Member payment UI uses owner-only routes and enforces contribution limits", () => {
   assert.match(memberPaymentUi, /Pay Share Capital/);
   assert.match(memberPaymentUi, /QRPH Test Mode/);
-  assert.match(memberPaymentUi, /Remaining to PHP 3,000/);
+  assert.match(memberPaymentUi, /Remaining to PHP 1,500/);
   assert.match(memberPaymentUi, /cannot make your total exceed PHP 15,000/);
   assert.match(memberPaymentUi, /Payment history/);
   assert.match(memberPaymentApi, /\/api\/paymongo\/members\/me\/share-capital/);

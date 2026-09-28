@@ -15,9 +15,11 @@ import {
 const payment = { referenceNumber: "PAY-00042" };
 
 test("mutation actions open a confirmation dialog before submission", () => {
-  const state = openPaymentAction("validate");
+  let state = openPaymentAction("validate");
   assert.equal(state.open, true);
   assert.equal(state.action, "validate");
+  assert.equal(canConfirmPaymentAction(state, payment), false);
+  state = updatePaymentAction(state, { evidenceChecked: true, detailsChecked: true });
   assert.equal(canConfirmPaymentAction(state, payment), true);
 });
 

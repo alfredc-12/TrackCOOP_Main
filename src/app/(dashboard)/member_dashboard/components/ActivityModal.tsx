@@ -9,7 +9,7 @@ import { format } from "date-fns";
 type ActivityItem = {
   id: string | number;
   date: string;
-  amount: number | string;
+  amount?: number | string | null;
   status: string;
   type: string;
 };
@@ -23,6 +23,7 @@ export default function ActivityModal({
 }) {
   const [data, setData] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
@@ -42,22 +43,51 @@ export default function ActivityModal({
     if (!open) return;
 
     setLoading(true);
-    expressFetch(`/api/members/me/activity?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(debouncedSearch)}`)
-      .then(res => res.json())
-      .then(result => {
-        if (result.records) {
-          setData(result.records);
-          setTotalPages(result.totalPages || 1);
+    setError("");
+    const activityUrl = `/api/members/me/activity?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(debouncedSearch)}`;
+    expressFetch(activityUrl)
+      .then(async res => {
+        const result = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(result?.error || "Failed to load recent activity.");
         }
+        return result;
       })
-      .catch(console.error)
+      .then(result => {
+        setData(Array.isArray(result?.records) ? result.records : []);
+        setTotalPages(Number(result?.totalPages) || 1);
+      })
+      .catch((requestError: unknown) => {
+        return expressFetch("/api/members/me/dashboard")
+          .then(async res => {
+            const result = await res.json().catch(() => null);
+            if (!res.ok || !Array.isArray(result?.recentActivity)) {
+              throw new Error(requestError instanceof Error ? requestError.message : "Failed to load recent activity.");
+            }
+            return result.recentActivity as ActivityItem[];
+          })
+          .then(recentActivity => {
+            const normalizedSearch = debouncedSearch.trim().toLowerCase();
+            const filtered = normalizedSearch
+              ? recentActivity.filter(item => `${item.type} ${item.status}`.toLowerCase().includes(normalizedSearch))
+              : recentActivity;
+            setData(filtered);
+            setTotalPages(1);
+          })
+          .catch((fallbackError: unknown) => {
+            console.error(fallbackError);
+            setData([]);
+            setTotalPages(1);
+            setError(fallbackError instanceof Error ? fallbackError.message : "Failed to load recent activity.");
+          });
+      })
       .finally(() => setLoading(false));
   }, [page, debouncedSearch, open]);
 
   return (
     <Modal
       title="All Recent Activity"
-      description="View all your transactions, purchases, and capital deposits."
+      description="View all your purchases, deposits, rentals, and announcements."
       open={open}
       onOpenChange={onOpenChange}
       trigger={<span className="hidden"></span>}
@@ -90,6 +120,10 @@ export default function ActivityModal({
                 <tr>
                   <td colSpan={4} className="py-12 text-center text-gray-500">Loading activity...</td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={4} className="py-12 text-center text-red-600">{error}</td>
+                </tr>
               ) : data.length > 0 ? (
                 data.map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 transition-colors">
@@ -101,6 +135,7 @@ export default function ActivityModal({
                       {item.date ? format(new Date(item.date), "MMM dd, yyyy") : "N/A"}
                     </td>
                     <td className="py-3 px-4 font-semibold text-[#123D2A]">
+                      {item.amount == null ? "—" : `₱${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                       ₱{Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4">

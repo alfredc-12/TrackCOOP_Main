@@ -75,6 +75,12 @@ export type PaymentReferenceListItem = PaymentReference & {
   applicationCode: string | null;
   applicationName: string | null;
   failedGatewayEvents: number;
+  rentalNumber?: string | null;
+  rentalEquipmentName?: string | null;
+  rentalStartAt?: Date | null;
+  rentalEndAt?: Date | null;
+  rentalQuantity?: string | null;
+  rentalUnit?: string | null;
 };
 
 export type PaymentReferenceListResult = {
@@ -186,6 +192,12 @@ export type PaymentReferenceDetail = PaymentReference & {
   checkoutAttempts?: PaymentCheckoutAttemptSummary[];
   activeAttemptId?: string | null;
   receipt?: PaymentReceiptSummary;
+  rentalNumber?: string | null;
+  rentalEquipmentName?: string | null;
+  rentalStartAt?: Date | null;
+  rentalEndAt?: Date | null;
+  rentalQuantity?: string | null;
+  rentalUnit?: string | null;
   posting: PaymentPostingSummary;
 };
 
@@ -206,6 +218,7 @@ export type PaymentReferenceInput = {
   payerEmail?: string | null;
   payerContact?: string | null;
   provider?: string;
+  paymentChannel?: PaymentReference["paymentChannel"];
   referenceNumber: string;
   paymentPurpose: PaymentPurpose;
   relatedEntityType?: string | null;

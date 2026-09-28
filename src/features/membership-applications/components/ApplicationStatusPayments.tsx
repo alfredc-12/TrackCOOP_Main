@@ -1067,6 +1067,7 @@ function ShareCapitalActionCard({
               max={status.shareCapital.remainingToMaximum}
               step="0.01"
               value={shareCapitalAmount}
+              readOnly
               disabled={status.shareCapital.pendingAmount > 0}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 onShareCapitalAmountChange(event.target.value)

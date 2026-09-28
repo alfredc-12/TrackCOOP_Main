@@ -255,6 +255,12 @@ export async function postMembershipSettlement(input: {
       "MEMBERSHIP_APPLICATION_NOT_FOUND",
     );
   }
+  if (
+    (application.requestedMembershipType === "True Member" && input.payment.paymentPurpose !== "Share Capital")
+    || (application.requestedMembershipType === "Associate" && input.payment.paymentPurpose !== "Associate Membership Fee")
+  ) {
+    throw new AppError("Payment purpose does not match the requested membership type", 409, "MEMBERSHIP_PAYMENT_PURPOSE_MISMATCH");
+  }
   const requirement = await selectSettlementRequirement(
     input.connection,
     application.id,

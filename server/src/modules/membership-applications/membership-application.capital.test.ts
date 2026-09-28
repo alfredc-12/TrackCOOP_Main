@@ -181,6 +181,21 @@ test("official membership type follows configured initial and true-member rules"
   );
 });
 
+test("PHP 1,500 share capital qualifies a True Member application", () => {
+  assert.deepEqual(
+    decideApprovalMembership({
+      requestedMembershipType: "True Member",
+      validatedCapitalAmount: 1500,
+      settings: { ...settings, trueMemberRequiredCapital: 1500 },
+    }),
+    {
+      membershipType: "True Member",
+      trueMemberEligible: true,
+      needsShareCapitalDeadline: false,
+    },
+  );
+});
+
 test("initial Share Capital requirement verifies at PHP 1,500 without approving the application", () => {
   const application = { applicationStatus: "Under Review", membershipType: null as string | null };
   const requirementStatus = synchronizedInitialCapitalRequirementStatus({

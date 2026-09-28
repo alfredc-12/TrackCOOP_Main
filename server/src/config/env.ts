@@ -13,6 +13,11 @@ const optionalTrimmedString = z
   .optional()
   .transform((value) => value || undefined);
 
+const optionalPortNumber = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.coerce.number().int().min(1).max(65535).optional(),
+);
+
 const optionalTrimmedUrl = z.preprocess(
   (value) => {
     if (typeof value !== "string") return value;
@@ -96,7 +101,7 @@ function activePaymongoPaymentMethodTypes(value: {
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  PORT: optionalPortNumber,
   API_PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   CORS_ALLOWED_ORIGINS: commaSeparatedOrigins,

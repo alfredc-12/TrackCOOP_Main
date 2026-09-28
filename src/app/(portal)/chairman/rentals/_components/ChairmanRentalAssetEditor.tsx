@@ -11,6 +11,7 @@ import { ErrorState, LoadingSkeleton } from "@/components/portal/PortalPrimitive
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import { getMemberDiscountedRate } from "@/app/rental/_lib/rentalEstimate";
 import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
+import { rentalServiceSchema } from "@/app/rental/_lib/rentalValidation";
 import {
   MAX_RENTAL_ASSET_PHOTOS,
   cleanRentalAssetPhotoUrls,
@@ -23,6 +24,47 @@ import type {
   ServiceVisibility,
 } from "@/app/rental/_types/rental";
 import { env } from "@/config/env";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+
+const ASSET_CATEGORIES = [
+  "Land Preparation",
+  "Irrigation",
+  "Crop Care",
+  "Harvesting",
+  "Transport",
+  "Post-harvest",
+  "Other Farm Service",
+];
+
+const USAGE_UNITS = ["Per Day", "Per Hour", "Per Hectare", "Per Trip", "Per Use"];
+const OPERATOR_REQUIREMENTS = [
+  "Cooperative operator required",
+  "Cooperative operator confirmation required",
+  "Trained member may operate",
+  "Requester may operate after approval",
+  "No operator required",
+];
+const ASSIGNED_CUSTODIANS = [
+  "Assign during booking review",
+  "Cooperative operator",
+  "Equipment custodian",
+  "Barangay coordinator",
+  "Chairman to assign",
+];
+const OPERATING_RULES = [
+  "Use only after cooperative schedule approval.",
+  "Use only with the assigned operator present.",
+  "Use only in safe field conditions.",
+  "Requester must report damage or problems immediately.",
+  "No special operating rules.",
+];
+const SAFETY_REMINDERS = [
+  "Follow the assigned operator's safety briefing.",
+  "Keep children and bystanders away from the equipment.",
+  "Use only in the approved farm or service area.",
+  "Stop work and report any damage or unusual noise.",
+  "Do not use during heavy rain or unsafe weather.",
+];
 
 const blank: RentalService = {
   serviceId: "",
@@ -188,36 +230,43 @@ export function ChairmanRentalAssetEditor({
   }
 
   function validateAsset(visibility: ServiceVisibility) {
-    const errors: Record<string, string> = {};
     const photos = cleanRentalAssetPhotoUrls([form.imageUrl, ...form.imageUrls]);
     const rentalRate = Number(form.standardRate ?? 0);
-
-    if (!form.serviceId.trim()) errors.serviceId = "Enter the asset code.";
-    if (!form.name.trim()) errors.name = "Enter the asset name.";
-    if (!form.category.trim()) errors.category = "Choose a category.";
-    if (!form.shortDescription.trim()) {
-      errors.shortDescription = "Enter a short description.";
+    const payload = {
+      ...form,
+      visibility,
+      imageUrl: photos[0] ?? "",
+      imageUrls: photos,
+      standardRate: form.standardRate,
+      memberRate: form.standardRate
+        ? getMemberDiscountedRate(rentalRate) ?? null
+        : null,
+      nonMemberRate: form.standardRate,
+      publicTitle: "",
+      publicDescription: "",
+      publicNotes: "",
+      publicAvailabilityMessage: "",
+      featured: false,
+      availableDays: [],
+      availableStartTime: "",
+      availableEndTime: "",
+      maximumBookingsPerDay: 1,
+      preparationMinutes: 0,
+      travelMinutes: 0,
+      bufferMinutes: 0,
+      assetCondition: "",
+      lastMaintenanceDate: "",
+      nextMaintenanceDate: "",
+    };
+    const result = rentalServiceSchema.safeParse(payload);
+    const errors: Record<string, string> = {};
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0] ?? "form");
+        errors[key] ??= issue.message;
+      }
     }
-    if (!form.description.trim()) errors.description = "Enter the full description.";
-    if (!form.unitOfUsage.trim()) errors.unitOfUsage = "Choose a unit.";
-    if (!form.standardRate || Number.isNaN(rentalRate) || rentalRate <= 0) {
-      errors.standardRate = "Enter the rental rate.";
-    }
-    if (visibility === "Public" && photos.length === 0) {
-      errors.imageUrls = "Upload at least one photo.";
-    }
-    if (
-      !["Available", "Limited Availability", "Unavailable", "By Schedule Only"].includes(
-        form.availability,
-      ) ||
-      !["Ready for Use", "Under Maintenance", "Out of Service", "Archived"].includes(
-        form.operationalStatus,
-      )
-    ) {
-      errors.status = "Choose a valid status.";
-    }
-
-    return { errors, photos, rentalRate };
+    return { errors, photos, rentalRate, payload };
   }
 
   async function save(visibility: ServiceVisibility) {
@@ -231,15 +280,7 @@ export function ChairmanRentalAssetEditor({
     setError("");
     setFieldErrors({});
     try {
-      const payload = {
-        ...form,
-        visibility,
-        imageUrl: validation.photos[0] ?? "",
-        imageUrls: validation.photos,
-        standardRate: validation.rentalRate,
-        memberRate: getMemberDiscountedRate(validation.rentalRate) ?? null,
-        nonMemberRate: validation.rentalRate,
-      };
+      const payload = validation.payload;
       if (serviceId) {
         await rentalApiRepository.updateRentalService(serviceId, payload);
       } else {
@@ -248,7 +289,13 @@ export function ChairmanRentalAssetEditor({
         ) as Omit<RentalService, "updatedAt">;
         await rentalApiRepository.createRentalService(createPayload);
       }
-      toast.success(visibility === "Public" ? "Rental asset published." : "Rental asset saved.");
+      toast.success(
+        visibility === "Public"
+          ? "Rental asset published."
+          : serviceId
+            ? "Rental asset changes saved."
+            : "Rental asset draft added.",
+      );
       router.push("/portal/chairman/rentals/assets");
       router.refresh();
     } catch (caught) {
@@ -268,7 +315,7 @@ export function ChairmanRentalAssetEditor({
       <PageHeader
         eyebrow="Operations - Rental Assets"
         title={serviceId ? "Edit Rental Asset" : "Add Rental Asset"}
-        description="Keep the asset easy to book: photos, simple details, status, and one rental rate."
+        description="Add the equipment name, photo, farm use, availability, and rental price. Keep it simple enough for cooperative staff to update quickly."
         actions={
           <Link
             href="/portal/chairman/rentals/assets"
@@ -280,6 +327,9 @@ export function ChairmanRentalAssetEditor({
         }
       />
       {error ? <ErrorState message={error} /> : null}
+      <div className="rounded-lg border border-[#B9CABD] bg-[#E7F2E4] p-4 text-sm leading-6 text-[#294B39]">
+        <strong className="text-[#123D2A]">Simple guide:</strong> Fields marked * are required. You can save without a photo or price by using Save Draft. Publish only when the asset is ready for requests.
+      </div>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -287,16 +337,18 @@ export function ChairmanRentalAssetEditor({
         }}
         className="grid gap-5"
       >
-        <Section title="Basic Information" icon={Tractor}>
+        <Section title="Equipment details" icon={Tractor}>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Asset name" required error={fieldErrors.name}>
+            <Field label="Rental asset name" required error={fieldErrors.name}>
               <input
                 required
                 value={form.name}
                 onChange={(event) => update("name", event.target.value)}
+                maxLength={190}
+                placeholder="Example: Four-wheel farm tractor"
               />
             </Field>
-            <Field label="Asset code" required error={fieldErrors.serviceId}>
+            <Field label="Rental asset code" required error={fieldErrors.serviceId}>
               <input
                 required
                 disabled={Boolean(serviceId)}
@@ -308,13 +360,11 @@ export function ChairmanRentalAssetEditor({
                   )
                 }
                 placeholder="RNT-TRACTOR-002"
+                maxLength={80}
               />
             </Field>
             <Field label="Category" required error={fieldErrors.category}>
-              <input
-                value={form.category}
-                onChange={(event) => update("category", event.target.value)}
-              />
+              <StyledSelect value={form.category} options={ASSET_CATEGORIES} onChange={(value) => update("category", value)} />
             </Field>
             <Field label="Short description" required error={fieldErrors.shortDescription}>
               <input
@@ -323,6 +373,8 @@ export function ChairmanRentalAssetEditor({
                 onChange={(event) =>
                   update("shortDescription", event.target.value)
                 }
+                maxLength={500}
+                placeholder="One short sentence farmers can understand"
               />
             </Field>
             <Field label="Full description" wide required error={fieldErrors.description}>
@@ -331,6 +383,8 @@ export function ChairmanRentalAssetEditor({
                 rows={5}
                 value={form.description}
                 onChange={(event) => update("description", event.target.value)}
+                maxLength={2000}
+                placeholder="Describe what the equipment does and its important limits"
               />
             </Field>
             <Field
@@ -393,84 +447,63 @@ export function ChairmanRentalAssetEditor({
           </div>
         </Section>
 
-        <Section title="Usage Details">
+        <Section title="Rental setup">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Unit of usage" required error={fieldErrors.unitOfUsage}>
-              <input
-                value={form.unitOfUsage}
-                onChange={(event) => update("unitOfUsage", event.target.value)}
-                placeholder="Per hour, hectare, trip, or use"
-              />
+              <StyledSelect value={form.unitOfUsage || "Choose a charging unit"} options={["Choose a charging unit", ...USAGE_UNITS]} onChange={(value) => update("unitOfUsage", value === "Choose a charging unit" ? "" : value)} />
             </Field>
-            <Field label="Capacity">
+            <Field label="Capacity" error={fieldErrors.capacity}>
               <input
                 value={form.capacity}
                 onChange={(event) => update("capacity", event.target.value)}
+                maxLength={160}
+                placeholder="Example: Up to 2 hectares per day"
               />
             </Field>
-            <Field label="Suitable agricultural activity">
+            <Field label="Suitable agricultural activity" required error={fieldErrors.suitableActivity}>
               <input
                 value={form.suitableActivity}
                 onChange={(event) =>
                   update("suitableActivity", event.target.value)
                 }
+                maxLength={160}
+                placeholder="Example: Plowing and land preparation"
               />
             </Field>
-            <Field label="Service area">
+            <Field label="Service area" required error={fieldErrors.serviceArea}>
               <input
                 value={form.serviceArea}
                 onChange={(event) => update("serviceArea", event.target.value)}
+                maxLength={190}
               />
             </Field>
-            <Field label="Operator required">
-              <input
-                value={form.operatorRequirement}
-                onChange={(event) =>
-                  update("operatorRequirement", event.target.value)
-                }
-              />
+            <Field label="Operator needed" required error={fieldErrors.operatorRequirement}>
+              <StyledSelect value={form.operatorRequirement} options={OPERATOR_REQUIREMENTS} onChange={(value) => update("operatorRequirement", value)} />
             </Field>
-            <Field label="Assigned operator or custodian">
-              <input
-                value={form.assignedCustodian ?? ""}
-                onChange={(event) =>
-                  update("assignedCustodian", event.target.value)
-                }
-              />
+            <Field label="Assigned operator or custodian" error={fieldErrors.assignedCustodian}>
+              <StyledSelect value={form.assignedCustodian || "Choose who usually handles this asset"} options={["Choose who usually handles this asset", ...ASSIGNED_CUSTODIANS]} onChange={(value) => update("assignedCustodian", value === "Choose who usually handles this asset" ? "" : value)} />
             </Field>
-            <Field label="Usage restrictions and operating instructions" wide>
-              <textarea
-                rows={4}
-                value={form.operationalNotes}
-                onChange={(event) =>
-                  update("operationalNotes", event.target.value)
-                }
-              />
+            <Field label="Use rule" wide error={fieldErrors.operationalNotes}>
+              <StyledSelect value={form.operationalNotes || "Choose a simple rule"} options={["Choose a simple rule", ...OPERATING_RULES]} onChange={(value) => update("operationalNotes", value === "Choose a simple rule" ? "" : value)} />
             </Field>
-            <Field label="Safety reminders" wide>
-              <textarea
-                rows={3}
-                value={form.safetyReminders.join("\n")}
-                onChange={(event) =>
-                  update(
-                    "safetyReminders",
-                    event.target.value
-                      .split("\n")
-                      .map((value) => value.trim())
-                      .filter(Boolean),
-                  )
+            <Field label="Safety reminders" wide error={fieldErrors.safetyReminders} hint="Tick the reminders that apply.">
+              <CheckboxGroup
+                options={SAFETY_REMINDERS}
+                value={form.safetyReminders}
+                onChange={(safetyReminders) =>
+                  update("safetyReminders", safetyReminders)
                 }
               />
             </Field>
           </div>
         </Section>
 
-        <Section title="Availability and Maintenance">
+        <Section title="Availability and maintenance">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SelectField
               label="Base availability"
               value={form.availability}
-              error={fieldErrors.status}
+              error={fieldErrors.availability}
               options={[
                 "Available",
                 "Limited Availability",
@@ -484,162 +517,26 @@ export function ChairmanRentalAssetEditor({
             <SelectField
               label="Operational status"
               value={form.operationalStatus}
-              error={fieldErrors.status}
+              error={fieldErrors.operationalStatus}
               options={[
                 "Ready for Use",
                 "Under Maintenance",
                 "Out of Service",
                 "Archived",
               ]}
-              onChange={(value) =>
-                update("operationalStatus", value as OperationalStatus)
-              }
+              onChange={(value) => {
+                const status = value as OperationalStatus;
+                update("operationalStatus", status);
+                if (["Under Maintenance", "Out of Service", "Archived"].includes(status)) {
+                  update("availability", "Unavailable");
+                }
+                if (status === "Archived") update("visibility", "Hidden");
+              }}
             />
-            <Field label="Available start time">
-              <input
-                type="time"
-                value={form.availableStartTime ?? ""}
-                onChange={(event) =>
-                  update("availableStartTime", event.target.value)
-                }
-              />
-            </Field>
-            <Field label="Available end time">
-              <input
-                type="time"
-                value={form.availableEndTime ?? ""}
-                onChange={(event) =>
-                  update("availableEndTime", event.target.value)
-                }
-              />
-            </Field>
-            <Field label="Available days">
-              <input
-                value={(form.availableDays ?? []).join(", ")}
-                onChange={(event) =>
-                  update(
-                    "availableDays",
-                    event.target.value
-                      .split(",")
-                      .map((value) => value.trim())
-                      .filter(Boolean),
-                  )
-                }
-              />
-            </Field>
-            <NumberField
-              label="Maximum bookings per day"
-              value={form.maximumBookingsPerDay ?? 1}
-              onChange={(value) => update("maximumBookingsPerDay", value)}
-            />
-            <NumberField
-              label="Preparation minutes"
-              value={form.preparationMinutes ?? 0}
-              onChange={(value) => update("preparationMinutes", value)}
-            />
-            <NumberField
-              label="Travel minutes"
-              value={form.travelMinutes ?? 0}
-              onChange={(value) => update("travelMinutes", value)}
-            />
-            <NumberField
-              label="Buffer minutes"
-              value={form.bufferMinutes ?? 0}
-              onChange={(value) => update("bufferMinutes", value)}
-            />
-            <Field label="Asset condition">
-              <input
-                value={form.assetCondition ?? ""}
-                onChange={(event) =>
-                  update("assetCondition", event.target.value)
-                }
-              />
-            </Field>
-            <Field label="Last maintenance date">
-              <input
-                type="date"
-                value={form.lastMaintenanceDate?.slice(0, 10) ?? ""}
-                onChange={(event) =>
-                  update("lastMaintenanceDate", event.target.value)
-                }
-              />
-            </Field>
-            <Field label="Next maintenance date">
-              <input
-                type="date"
-                value={form.nextMaintenanceDate?.slice(0, 10) ?? ""}
-                onChange={(event) =>
-                  update("nextMaintenanceDate", event.target.value)
-                }
-              />
-            </Field>
           </div>
         </Section>
 
-        <Section title="Public Listing">
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField
-              label="Public visibility"
-              value={form.visibility}
-              options={["Public", "Member-only", "Internal only", "Hidden"]}
-              onChange={(value) =>
-                update("visibility", value as ServiceVisibility)
-              }
-            />
-            <Field label="Public title">
-              <input
-                value={form.publicTitle ?? ""}
-                onChange={(event) => update("publicTitle", event.target.value)}
-              />
-            </Field>
-            <Field label="Public description" wide>
-              <textarea
-                rows={4}
-                value={form.publicDescription ?? ""}
-                onChange={(event) =>
-                  update("publicDescription", event.target.value)
-                }
-              />
-            </Field>
-            <Field label="Public notes">
-              <textarea
-                rows={3}
-                value={form.publicNotes ?? ""}
-                onChange={(event) => update("publicNotes", event.target.value)}
-              />
-            </Field>
-            <Field label="Public availability message">
-              <textarea
-                rows={3}
-                value={form.publicAvailabilityMessage ?? ""}
-                onChange={(event) =>
-                  update("publicAvailabilityMessage", event.target.value)
-                }
-              />
-            </Field>
-            <label className="flex min-h-11 items-center gap-3 text-sm font-bold text-[#294B39]">
-              <input
-                type="checkbox"
-                checked={Boolean(form.featured)}
-                onChange={(event) => update("featured", event.target.checked)}
-                className="size-5 accent-[#1F6B43]"
-              />
-              Feature this asset on the public listing
-            </label>
-          </div>
-        </Section>
-
-        <Section title="Internal Details">
-          <Field label="Internal notes">
-            <textarea
-              rows={4}
-              value={form.internalNotes ?? ""}
-              onChange={(event) => update("internalNotes", event.target.value)}
-            />
-          </Field>
-        </Section>
-
-        <Section title="Rental Rate">
+        <Section title="Rental price">
           <div className="grid gap-4 md:grid-cols-2">
             <Field
               label="Rental rate"
@@ -649,7 +546,8 @@ export function ChairmanRentalAssetEditor({
             >
               <input
                 type="number"
-                min="0"
+                min="0.01"
+                max="1000000"
                 step="0.01"
                 value={form.standardRate ?? ""}
                 onChange={(event) =>
@@ -693,7 +591,7 @@ export function ChairmanRentalAssetEditor({
             onClick={() => void save("Hidden")}
             className="min-h-11 rounded-md border border-[#CAD8CB] px-5 text-sm font-bold text-[#123D2A]"
           >
-            Save Draft
+            {saving ? (serviceId ? "Saving changes..." : "Adding rental asset...") : "Save Draft"}
           </button>
           {serviceId ? (
             <Link
@@ -711,10 +609,12 @@ export function ChairmanRentalAssetEditor({
           >
             <Save className="size-4" />
             {saving
-              ? "Saving..."
+              ? serviceId
+                ? "Saving changes..."
+                : "Adding rental asset..."
               : serviceId
-                ? "Update & Publish"
-                : "Publish Asset"}
+                ? "Save and Publish"
+                : "Publish Equipment"}
           </button>
         </div>
       </form>
@@ -726,11 +626,24 @@ function Section({
   title,
   icon: Icon,
   children,
+  optional = false,
 }: {
   title: string;
   icon?: typeof Tractor;
   children: React.ReactNode;
+  optional?: boolean;
 }) {
+  if (optional) {
+    return (
+      <details className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-sm">
+        <summary className="cursor-pointer text-lg font-black text-[#123D2A]">
+          {title}
+          <span className="ml-2 text-xs font-semibold text-[#6C7A70]">Open if needed</span>
+        </summary>
+        <div className="mt-5">{children}</div>
+      </details>
+    );
+  }
   return (
     <fieldset className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-sm">
       <legend className="flex items-center gap-2 px-2 text-xl font-black text-[#123D2A]">
@@ -767,7 +680,7 @@ function Field({
         {label}
         {required ? " *" : ""}
       </span>
-      <span className="[&>*]:min-h-11 [&>*]:w-full [&>*]:rounded-md [&>*]:border [&>*]:border-[#CAD8CB] [&>*]:bg-white [&>*]:p-3 [&>*]:font-normal [&>*]:outline-none focus-within:[&>*]:border-[#1F6B43] disabled:[&>*]:bg-[#EEF2EC]">
+      <span className={`[&>*]:min-h-11 [&>*]:w-full [&>*]:rounded-md [&>*]:border [&>*]:bg-white [&>*]:p-3 [&>*]:font-normal [&>*]:outline-none focus-within:[&>*]:border-[#1F6B43] disabled:[&>*]:bg-[#EEF2EC] ${error ? "[&>*]:border-[#B42318]" : "[&>*]:border-[#CAD8CB]"}`}>
         {children}
       </span>
       {hint && !error ? (
@@ -778,6 +691,42 @@ function Field({
           {error}
         </span>
       ) : null}
+    </div>
+  );
+}
+function CheckboxGroup({
+  options,
+  value,
+  onChange,
+  compact = false,
+}: {
+  options: string[];
+  value: string[];
+  onChange: (value: string[]) => void;
+  compact?: boolean;
+}) {
+  const selected = new Set(value);
+  return (
+    <div className={`grid gap-2 ${compact ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2"}`}>
+      {options.map((option) => (
+        <label
+          key={option}
+          className="flex min-h-11 items-center gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 py-2 text-sm font-semibold text-[#294B39]"
+        >
+          <input
+            type="checkbox"
+            checked={selected.has(option)}
+            onChange={(event) => {
+              const next = event.target.checked
+                ? [...value, option]
+                : value.filter((item) => item !== option);
+              onChange(next);
+            }}
+            className="size-5 accent-[#1F6B43]"
+          />
+          <span>{option}</span>
+        </label>
+      ))}
     </div>
   );
 }
@@ -797,32 +746,7 @@ function SelectField({
 }) {
   return (
     <Field label={label} error={error}>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
-    </Field>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <Field label={label}>
-      <input
-        type="number"
-        min="0"
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
+      <StyledSelect value={value} options={options} onChange={onChange} />
     </Field>
   );
 }

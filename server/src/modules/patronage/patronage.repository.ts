@@ -218,6 +218,11 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
   return {
     async financialBasis(startDate, endDate) {
+      const eligibleSources = await loadSources(databasePool(), startDate, endDate);
+      const eligibleMemberPatronage = eligibleSources.reduce(
+        (sum, item) => sum + item.purchasePatronage + item.rentalPatronage,
+        0,
+      );
       const [rows] = await databasePool().execute<FinancialBasisRow[]>(
         `SELECT
            COALESCE(SUM(CASE WHEN approved_by IS NOT NULL AND record_status = 'Active' AND source_module = 'POS' AND record_type = 'Income' THEN amount ELSE 0 END), 0) AS posIncome,
@@ -253,6 +258,8 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         totalOperatingExpenses,
         adjustments,
         netOperatingSurplus: totalOperatingIncome - totalOperatingExpenses + adjustments,
+        eligibleMemberPatronage,
+        eligibleMemberCount: eligibleSources.filter((item) => item.purchasePatronage + item.rentalPatronage > 0).length,
         postedRecordCount: Number(row?.postedRecordCount ?? 0),
         unpostedRecordCount: Number(row?.unpostedRecordCount ?? 0),
       };
@@ -273,6 +280,20 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
     async createPeriod(input, auth) {
       return withTransaction(async (connection) => {
+        const [duplicateNames] = await connection.execute<RowDataPacket[]>(
+          `SELECT patronage_period_id FROM patronage_periods
+            WHERE LOWER(TRIM(period_name)) = LOWER(TRIM(?)) LIMIT 1`,
+          [input.name],
+        );
+        if (duplicateNames.length) {
+          throw new AppError(
+            "A patronage period with this name already exists. Use a different period name.",
+            409,
+            "PATRONAGE_PERIOD_NAME_DUPLICATE",
+            [{ code: "PATRONAGE_PERIOD_NAME_DUPLICATE", field: "name", message: "This period name is already used." }],
+          );
+        }
+
         const [overlaps] = await connection.execute<RowDataPacket[]>(
           `SELECT patronage_period_id FROM patronage_periods
             WHERE period_start <= ? AND period_end >= ? LIMIT 1`,
@@ -280,6 +301,26 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         );
         if (overlaps.length) {
           throw new AppError("This date range overlaps an existing patronage period.", 409, "PATRONAGE_PERIOD_OVERLAP");
+        }
+
+        const calculated = calculatePatronageAllocations(
+          await loadSources(connection, input.startDate, input.endDate),
+          input.refundPool,
+        );
+        if (calculated.length === 0) {
+          throw new AppError(
+            "No eligible member purchases or completed paid rentals were found for this period.",
+            409,
+            "PATRONAGE_NO_ELIGIBLE_MEMBER_USAGE",
+          );
+        }
+        const totalEligiblePatronage = calculated.reduce((sum, item) => sum + item.totalPatronage, 0);
+        if (input.refundPool > totalEligiblePatronage) {
+          throw new AppError(
+            "The refund pool cannot be greater than the members' paid purchases and rentals for this period.",
+            409,
+            "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
+          );
         }
 
         const [result] = await connection.execute<ResultSetHeader>(
@@ -312,6 +353,21 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
           await loadSources(connection, period.startDate, period.endDate),
           period.refundPool,
         );
+        if (calculated.length === 0) {
+          throw new AppError(
+            "No eligible member purchases or completed paid rentals were found for this period.",
+            409,
+            "PATRONAGE_NO_ELIGIBLE_MEMBER_USAGE",
+          );
+        }
+        const totalEligiblePatronage = calculated.reduce((sum, item) => sum + item.totalPatronage, 0);
+        if (period.refundPool > totalEligiblePatronage) {
+          throw new AppError(
+            "The refund pool cannot be greater than the members' paid purchases and rentals for this period.",
+            409,
+            "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
+          );
+        }
         await connection.execute("DELETE FROM patronage_allocations WHERE patronage_period_id = ?", [periodId]);
         for (const item of calculated) {
           await connection.execute(
@@ -362,8 +418,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
     async markPaid(allocationId, notes, auth) {
       return withTransaction(async (connection) => {
-        const [rows] = await connection.execute<Array<RowDataPacket & { periodId: string; periodStatus: string }>>(
-          `SELECT CAST(a.patronage_period_id AS CHAR) AS periodId, p.period_status AS periodStatus
+        const [rows] = await connection.execute<Array<RowDataPacket & { periodId: string; periodStatus: string; paymentStatus: string }>>(
+          `SELECT CAST(a.patronage_period_id AS CHAR) AS periodId, p.period_status AS periodStatus,
+                  a.payment_status AS paymentStatus
              FROM patronage_allocations a
              JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
             WHERE a.patronage_allocation_id = ? FOR UPDATE`,
@@ -373,6 +430,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         if (!record) throw new AppError("Patronage allocation was not found.", 404, "PATRONAGE_ALLOCATION_NOT_FOUND");
         if (record.periodStatus === "Draft") {
           throw new AppError("Finalize the period before recording refund payments.", 409, "PATRONAGE_PERIOD_NOT_FINALIZED");
+        }
+        if (record.paymentStatus === "Paid") {
+          throw new AppError("This patronage refund is already recorded as paid.", 409, "PATRONAGE_REFUND_ALREADY_PAID");
         }
         await connection.execute(
           `UPDATE patronage_allocations
@@ -418,11 +478,20 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
       const [members] = await databasePool().execute<MemberRow[]>(
         `SELECT CAST(member_id AS CHAR) AS memberId, member_code AS memberCode,
                 full_name AS memberName, membership_type AS membershipType
-           FROM member_profiles WHERE user_id = ? LIMIT 1`,
+           FROM member_profiles
+          WHERE user_id = ?
+            AND approval_status = 'Approved'
+            AND official_member_status = 'Active'
+            AND membership_type IN ('Associate', 'True Member')
+          LIMIT 1`,
         [auth.user.id],
       );
       const member = members[0];
-      if (!member) throw new AppError("Member profile is required.", 403, "MEMBER_PROFILE_REQUIRED");
+      if (!member) throw new AppError(
+        "Only active Associate and True Members can view patronage refunds.",
+        403,
+        "MEMBER_PATRONAGE_NOT_ELIGIBLE",
+      );
 
       const year = new Date().getUTCFullYear();
       const startDate = `${year}-01-01`;

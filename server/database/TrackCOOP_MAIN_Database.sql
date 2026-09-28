@@ -2171,7 +2171,7 @@ VALUES (
     (
         'Business Rules',
         'business.true_member_share_capital_required',
-        '3000.00',
+        '1500.00',
         'Number',
         'Confirmed share capital required for true membership.',
         0,
@@ -2279,7 +2279,7 @@ VALUES (
     (
         'membership',
         'membership.true_member_required_capital',
-        '3000',
+        '1500',
         'Number',
         'Share-capital target required for true-member approval in Philippine pesos.',
         0,
@@ -2399,7 +2399,7 @@ SELECT
                         setting_key = 'business.true_member_share_capital_required'
                     LIMIT 1
                 ),
-                '3000.00'
+                '1500.00'
             ) AS DECIMAL(12, 2)
         ) - COALESCE(
             SUM(
@@ -2453,7 +2453,7 @@ SELECT
                         setting_key = 'business.true_member_share_capital_required'
                     LIMIT 1
                 ),
-                '3000.00'
+                '1500.00'
             ) AS DECIMAL(12, 2)
         ) THEN 1
         ELSE 0

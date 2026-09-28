@@ -6,6 +6,7 @@ import {
   Eye,
   FileSearch,
   ListChecks,
+  Percent,
   Plus,
   RefreshCcw,
   Search,
@@ -33,6 +34,8 @@ import {
   PaginationControls,
 } from "@/components/portal/PortalPrimitives";
 import { ChairmanRentalBookingDetailsModal } from "./ChairmanRentalBookingDetailsModal";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 type BookingView =
   | "All"
@@ -51,6 +54,31 @@ const bookingViews: BookingView[] = [
   "Done",
 ];
 
+const bookingViewLabels: Record<BookingView, string> = {
+  All: "All requests",
+  New: "Needs review",
+  "To Schedule": "Ready to schedule",
+  Payments: "Payment review",
+  Active: "In use",
+  Done: "Finished",
+};
+
+function paymentIsSettled(item: RentalInquiry) {
+  return item.paymentStatus === "Paid" || item.status === "Payment Confirmed";
+}
+
+function scheduleIsReady(item: RentalInquiry) {
+  return item.scheduleStatus === "Confirmed" || item.status === "Scheduled";
+}
+
+function needsPaymentReview(item: RentalInquiry) {
+  if (paymentIsSettled(item)) return false;
+  return (
+    ["Payment Pending", "Payment Under Review"].includes(item.status) ||
+    ["Pending", "Under Review", "Partially Paid", "Needs Clarification"].includes(item.paymentStatus)
+  );
+}
+
 function matchesBookingView(item: RentalInquiry, view: BookingView) {
   if (view === "All") return true;
   if (view === "New") {
@@ -67,14 +95,9 @@ function matchesBookingView(item: RentalInquiry, view: BookingView) {
       "Awaiting Confirmation",
       "Scheduled",
       "Rescheduled",
-    ].includes(item.status);
+    ].includes(item.status) || (paymentIsSettled(item) && !scheduleIsReady(item));
   }
-  if (view === "Payments") {
-    return (
-      ["Payment Pending", "Payment Under Review", "Payment Confirmed"].includes(item.status) ||
-      ["Under Review", "Partially Paid", "Paid", "Needs Clarification"].includes(item.paymentStatus)
-    );
-  }
+  if (view === "Payments") return needsPaymentReview(item);
   if (view === "Active") return item.status === "In Progress";
   return ["Completed", "Cancelled", "Rejected"].includes(item.status);
 }
@@ -110,6 +133,34 @@ function statusTone(status: string): "neutral" | "success" | "warning" | "danger
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value?: string) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function dateKeysBetween(startDate?: string, endDate?: string) {
+  const start = parseDateKey(startDate);
+  const end = parseDateKey(endDate ?? startDate);
+  if (!start || !end || start > end) return [];
+
+  const keys: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    keys.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
 }
 
 export function ChairmanRentalBookingsClient() {
@@ -171,22 +222,66 @@ export function ChairmanRentalBookingsClient() {
     [inquiries],
   );
 
+  const utilization = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthLabel = new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      year: "numeric",
+    }).format(new Date(year, month, 1));
+    const assetNames = unique([
+      ...inquiries.map((item) => item.equipmentName),
+      ...schedules.map((item) => item.equipmentName),
+    ]);
+    const countedStatuses = new Set(["Confirmed", "In Progress", "Completed"]);
+    const usedAssetDays = new Set<string>();
+
+    schedules.forEach((schedule) => {
+      if (!countedStatuses.has(schedule.status)) return;
+      dateKeysBetween(schedule.date, schedule.endDate).forEach((dateKey) => {
+        if (dateKey.startsWith(monthKey)) {
+          usedAssetDays.add(`${schedule.equipmentName}:${dateKey}`);
+        }
+      });
+    });
+
+    const availableAssetDays = assetNames.length * daysInMonth;
+    const rate = availableAssetDays
+      ? (usedAssetDays.size / availableAssetDays) * 100
+      : 0;
+
+    return {
+      availableAssetDays,
+      monthLabel,
+      rate: `${rate.toFixed(1)}%`,
+      usedAssetDays: usedAssetDays.size,
+    };
+  }, [inquiries, schedules]);
+
   const metrics = useMemo(
     () => [
-      { label: "All Bookings", value: inquiries.length, icon: ListChecks },
-      { label: "For Review", value: viewCounts.get("New") ?? 0, icon: FileSearch },
+      { label: "All requests", value: inquiries.length, icon: ListChecks },
+      { label: "Needs review", value: viewCounts.get("New") ?? 0, icon: FileSearch },
       {
-        label: "To Schedule",
+        label: "Ready to schedule",
         value: viewCounts.get("To Schedule") ?? 0,
         icon: CalendarCheck2,
       },
       {
-        label: "Payment Watch",
+        label: "Payment review",
         value: viewCounts.get("Payments") ?? 0,
         icon: WalletCards,
       },
+      {
+        label: "Utilization rate",
+        value: utilization.rate,
+        icon: Percent,
+      },
     ],
-    [inquiries.length, viewCounts],
+    [inquiries.length, utilization.rate, viewCounts],
   );
 
   const filtered = useMemo(() => {
@@ -218,7 +313,7 @@ export function ChairmanRentalBookingsClient() {
         canTransitionRentalStatus(item.status, status),
     );
     if (!records.length) {
-      toast.error(`None of the selected bookings can move to ${status}.`);
+      toast.error(`None of the selected rental requests can move to ${status}.`);
       return;
     }
     setSaving(true);
@@ -228,11 +323,11 @@ export function ChairmanRentalBookingsClient() {
           rentalApiRepository.updateRentalStatus(item.inquiryId, status),
         ),
       );
-      toast.success(`${records.length} booking(s) updated.`);
+      toast.success(`${records.length} rental request(s) updated.`);
       setSelected([]);
       await load();
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "Bulk update failed.");
+      toast.error(caught instanceof Error ? caught.message : "Updating rental requests failed.");
     } finally {
       setSaving(false);
     }
@@ -286,17 +381,19 @@ export function ChairmanRentalBookingsClient() {
     <div className="grid gap-6">
       <PageHeader
         eyebrow="Operations"
-        title="Rental Bookings"
-        description="Review, approve, schedule, reschedule, cancel, start, and complete rentals. Payment validation and receipts remain with the Bookkeeper."
+        title="Rental Requests"
+        description="Open a request and follow the next action shown. The Chairman reviews and schedules; the Bookkeeper confirms payments and receipts."
         actions={
           <>
             <button
               type="button"
               onClick={() => void load()}
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]"
+              disabled={loading}
+              aria-busy={loading}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] disabled:cursor-wait disabled:opacity-60"
             >
               <RefreshCcw className="size-4" />
-              Refresh
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
             <button
               type="button"
@@ -319,13 +416,13 @@ export function ChairmanRentalBookingsClient() {
               className="inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white"
             >
               <Plus className="size-4" />
-              New Booking
+              Create Request
             </Link>
           </>
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (
           <StatCard
             key={metric.label}
@@ -336,30 +433,14 @@ export function ChairmanRentalBookingsClient() {
         ))}
       </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-2">
-          {bookingViews.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setView(item);
-                setPage(1);
-              }}
-              className={`min-h-11 rounded-full px-4 text-xs font-bold ${
-                view === item
-                  ? "bg-[#123D2A] text-white"
-                  : "border border-[#CAD8CB] bg-white text-[#294B39]"
-              }`}
-            >
-              {item}
-              <span className="ml-2 opacity-70">{viewCounts.get(item) ?? 0}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 text-sm leading-6 text-[#294B39]">
+        <strong className="text-[#123D2A]">Utilization Rate:</strong>{" "}
+        how often equipment is used. For {utilization.monthLabel},{" "}
+        {utilization.usedAssetDays} of {utilization.availableAssetDays} available
+        equipment-day(s) are used or booked.
+      </section>
 
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(4,minmax(0,1fr))]">
+      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))]">
         <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
           Search
           <span className="relative">
@@ -376,6 +457,14 @@ export function ChairmanRentalBookingsClient() {
             />
           </span>
         </label>
+        <QueueFilter
+          value={view}
+          counts={viewCounts}
+          onChange={(value) => {
+            setView(value);
+            setPage(1);
+          }}
+        />
         <Filter
           label="Asset"
           value={asset}
@@ -403,18 +492,18 @@ export function ChairmanRentalBookingsClient() {
           }}
           options={["All", ...PAYMENT_STATUSES]}
         />
-        <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
-          Preferred date
-          <input
-            type="date"
-            value={preferredDate}
-            onChange={(event) => {
-              setPreferredDate(event.target.value);
-              setPage(1);
-            }}
-            className="h-11 w-full rounded-md border border-[#CAD8CB] px-3 text-sm font-normal"
-          />
-        </label>
+        <DatePicker
+          label="Preferred date"
+          value={preferredDate}
+          min="1900-01-01"
+          max="2100-12-31"
+          placeholder="Select preferred date"
+          onChange={(value) => {
+            setPreferredDate(value);
+            setPage(1);
+          }}
+          triggerClassName="h-11 rounded-md border-[#9BC7A9] bg-[#F7F8F3] text-[#294B39] hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+        />
       </section>
 
       {selected.length ? (
@@ -450,13 +539,13 @@ export function ChairmanRentalBookingsClient() {
         </section>
       ) : null}
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {loading ? (
         <LoadingSkeleton />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={CalendarCheck2}
-          title={inquiries.length ? "No bookings match these filters" : "No rental bookings"}
+          title={inquiries.length ? "No rental requests match these filters" : "No rental requests"}
           description={
             inquiries.length
               ? "Adjust the search, queue, or filters to see other rental requests."
@@ -702,15 +791,34 @@ function Filter({
   options: string[];
 }) {
   return (
+    <div className="grid gap-1 text-xs font-bold text-[#5D6D63]">
+      <span>{label}</span>
+      <StyledSelect value={value} options={options} onChange={onChange} />
+    </div>
+  );
+}
+
+function QueueFilter({
+  value,
+  counts,
+  onChange,
+}: {
+  value: BookingView;
+  counts: Map<BookingView, number>;
+  onChange: (value: BookingView) => void;
+}) {
+  return (
     <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
-      {label}
+      Request queue
       <select
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#294B39]"
+        onChange={(event) => onChange(event.target.value as BookingView)}
+        className="h-11 rounded-md border border-[#9BC7A9] bg-[#F7F8F3] px-4 text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
       >
-        {options.map((option) => (
-          <option key={option}>{option}</option>
+        {bookingViews.map((item) => (
+          <option key={item} value={item}>
+            {bookingViewLabels[item]} ({counts.get(item) ?? 0})
+          </option>
         ))}
       </select>
     </label>

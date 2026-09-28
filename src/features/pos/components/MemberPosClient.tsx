@@ -184,6 +184,22 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                     setPaymentEmail(prev => prev || user.email || "");
                 }
             }).catch(console.error);
+
+            expressFetch("/api/members/me/profile")
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to fetch member profile");
+                    return response.json() as Promise<{ contact_number?: string | null }>;
+                })
+                .then(profile => {
+                    const digits = String(profile.contact_number ?? "").replace(/\D/g, "");
+                    const normalized = digits.startsWith("63")
+                        ? digits.slice(2)
+                        : digits.startsWith("0")
+                            ? digits.slice(1)
+                            : digits;
+                    setPaymentContact(prev => prev || (normalized.length === 10 && normalized.startsWith("9") ? normalized : ""));
+                })
+                .catch(console.error);
         }
 
         return () => {
@@ -389,7 +405,7 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             const data = await res.json().catch(() => null);
 
             if (res.ok) {
-                if (data?.checkoutUrl) {
+                if (data?.checkoutUrl && paymentMethod === "QRPH") {
                     setCheckoutStatusMessage("Opening secure payment checkout...");
                     setCart([]);
                     setIsConfirmCheckoutModalOpen(false);

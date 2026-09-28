@@ -704,14 +704,14 @@ function reportQuery(
     case "incomplete-initial-capital": {
       const having =
         definition.key === "incomplete-initial-capital"
-          ? "HAVING validatedCapital < 3000"
+          ? "HAVING validatedCapital < 1500"
           : "";
       return {
         sql: `SELECT mp.member_code AS memberCode,
                      mp.full_name AS memberName,
                      mp.membership_type AS membershipType,
                      COALESCE(SUM(CASE WHEN scp.payment_status = 'Validated' THEN scp.amount ELSE 0 END), 0) AS validatedCapital,
-                     GREATEST(3000 - COALESCE(SUM(CASE WHEN scp.payment_status = 'Validated' THEN scp.amount ELSE 0 END), 0), 0) AS initialBalance,
+                     GREATEST(1500 - COALESCE(SUM(CASE WHEN scp.payment_status = 'Validated' THEN scp.amount ELSE 0 END), 0), 0) AS initialBalance,
                      mp.share_capital_deadline AS deadline
                 FROM member_profiles mp
                 LEFT JOIN share_capital_payments scp ON scp.member_id = mp.member_id
@@ -2275,9 +2275,10 @@ export async function getReportFilterOptions(
     db.query<(RowDataPacket & { value: string })[]>(
       "SELECT DISTINCT category AS value FROM documents WHERE category IS NOT NULL AND category <> '' ORDER BY category",
     ),
-    db.query<(RowDataPacket & { value: string })[]>(
-      "SELECT DISTINCT related_module AS value FROM documents WHERE related_module IS NOT NULL AND related_module <> '' ORDER BY related_module",
-    ),
+    Promise.resolve([[], []] as unknown as [
+      Array<RowDataPacket & { value: string }>,
+      unknown,
+    ]),
     user.role === "chairman"
       ? db.query<(RowDataPacket & { id: string; label: string })[]>(
           "SELECT CAST(user_id AS CHAR) AS id, display_name AS label FROM users ORDER BY display_name",

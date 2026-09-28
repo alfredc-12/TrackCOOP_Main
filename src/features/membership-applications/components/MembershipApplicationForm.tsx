@@ -74,7 +74,22 @@ const draftKey = "trackcoop.membershipApplicationDraft.v1";
 const maxUploadBytes = 5 * 1024 * 1024;
 const allowedUploadTypes = ["application/pdf", "image/jpeg", "image/png"];
 const allowedUploadExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
-const occupationOptions = ["Farmer", "Fisherfolk", "Entrepreneur", "Government employee", "Private employee", "Self-employed", "Student", "Retired", "Unemployed"] as const;
+const occupationOptions = [
+  "Farmer",
+  "Fisherfolk",
+  "Livestock raiser",
+  "Poultry raiser",
+  "Aquaculture worker",
+  "Agricultural worker",
+  "Fish vendor",
+  "Entrepreneur",
+  "Government employee",
+  "Private employee",
+  "Self-employed",
+  "Student",
+  "Retired",
+  "Unemployed",
+] as const;
 const motionEase = [0.22, 1, 0.36, 1] as const;
 
 function formatLocationName(value: string) {

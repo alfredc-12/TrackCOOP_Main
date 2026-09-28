@@ -3,6 +3,7 @@ import { VALID_ID_TYPES } from "./rental.types";
 import { MAX_RENTAL_ASSET_PHOTOS } from "./rental-photos";
 
 export const PHILIPPINE_MOBILE_PATTERN = /^(?:\+63|0)9\d{9}$/;
+export const PERSON_NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u;
 
 export function normalizePhilippineMobile(value: string) {
   const digits = value.replace(/\D/g, "");
@@ -23,35 +24,43 @@ const requiredConsent = z
 
 export const BookingSchema = z
   .object({
-    fullName: z.string().trim().min(2, "Enter the requester's full name."),
+    fullName: z
+      .string()
+      .trim()
+      .min(2, "Enter the requester's full name.")
+      .max(120, "Name must be 120 characters or fewer.")
+      .regex(PERSON_NAME_PATTERN, "Use letters, spaces, apostrophes, or hyphens only."),
     requesterType: z.enum(["Member", "Public or Non-member"]),
-    contactNumber: z.string().trim().regex(PHILIPPINE_MOBILE_PATTERN, "Use 09XXXXXXXXX or +639XXXXXXXXX."),
+    contactNumber: z
+      .string()
+      .trim()
+      .transform(normalizePhilippineMobile)
+      .refine((value) => PHILIPPINE_MOBILE_PATTERN.test(value), "Enter an 11-digit mobile number, for example 09171234567."),
     email: z
       .string()
       .trim()
-      .min(1, "Enter an email address so we can send your booking summary.")
       .max(190, "Email address is too long.")
       .refine(
-        (value) => z.email().safeParse(value).success,
+        (value) => !value || z.email().safeParse(value).success,
         "Enter a valid email address.",
       ),
-    completeAddress: z.string().trim().min(5, "Enter the complete address."),
-    barangay: z.string().min(1, "Select a barangay."),
-    municipality: z.string().trim().min(2, "Enter the municipality."),
-    serviceId: z.string().min(1, "Select equipment or a service."),
-    intendedUse: z.string().trim().min(3, "Describe the intended use."),
+    completeAddress: z.string().trim().min(5, "Enter the complete address.").max(250, "Address must be 250 characters or fewer."),
+    barangay: z.string().trim().min(1, "Select a barangay.").max(100),
+    municipality: z.string().trim().min(2, "Enter the municipality.").max(100),
+    serviceId: z.string().trim().min(1, "Select equipment or a service.").max(80),
+    intendedUse: z.string().trim().min(5, "Tell us what farm work the equipment will be used for.").max(160, "Farm use must be 160 characters or fewer."),
     preferredDate: z.iso.date("Choose a preferred start date."),
     preferredEndDate: z.iso.date("Choose a preferred end date."),
     preferredStartTime: z.string().min(1, "Choose a preferred start time."),
     preferredEndTime: z.string().min(1, "Choose a preferred end time."),
-    requestDescription: z.string().trim().min(10, "Add at least 10 characters of request details."),
-    notes: optionalText,
+    requestDescription: z.string().trim().min(5, "Tell us what farm work the equipment will be used for.").max(500),
+    notes: optionalText.max(500, "Notes must be 500 characters or fewer."),
     validIdType: z.string().refine(
       (value) => VALID_ID_TYPES.includes(value as (typeof VALID_ID_TYPES)[number]),
       "Select the valid ID you are providing.",
     ),
-    attachmentName: optionalText,
-    membershipProofName: optionalText,
+    attachmentName: optionalText.max(255),
+    membershipProofName: optionalText.max(255),
     clientRequestId: z.string().uuid().optional(),
     dataPrivacyConsent: requiredConsent,
     accuracyConfirmation: requiredConsent,
@@ -96,6 +105,21 @@ export const RentalSubmissionSchema = BookingSchema.safeExtend({
 export type BookingFormValues = z.infer<typeof BookingSchema>;
 
 const rentalAssetPhotoUrlSchema = z.string().trim().min(1).max(500);
+const assetRequiredText = (label: string, minimum = 2, maximum = 190) =>
+  z.string().trim().min(minimum, `Enter ${label}.`).max(maximum, `${label} must be ${maximum} characters or fewer.`);
+const assetOptionalText = (maximum: number) =>
+  z.string().trim().max(maximum, `Use ${maximum} characters or fewer.`).optional();
+const optionalDate = z.union([z.literal(""), z.iso.date()]).optional();
+const optionalTime = z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/, "Choose a valid time.")]).optional();
+const rentalWeekdays = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
 
 export const rentalServiceSchema = z
   .object({
@@ -108,14 +132,14 @@ export const rentalServiceSchema = z
         /^[A-Z0-9][A-Z0-9_-]*$/,
         "Use uppercase letters, numbers, hyphens, or underscores.",
       ),
-    name: z.string().trim().min(2, "Enter the asset name.").max(190),
-    category: z.string().trim().min(2, "Choose a category.").max(120),
+    name: assetRequiredText("the asset name"),
+    category: assetRequiredText("a category", 2, 120),
     shortDescription: z
       .string()
       .trim()
       .min(5, "Enter a short description.")
       .max(500),
-    description: z.string().trim().min(5, "Enter the full description."),
+    description: assetRequiredText("a clear description", 5, 2000),
     imageUrl: z.string().trim().max(500).optional(),
     imageUrls: z
       .array(rentalAssetPhotoUrlSchema)
@@ -130,15 +154,36 @@ export const rentalServiceSchema = z
       "Choose a valid status.",
     ),
     visibility: z.enum(
-      ["Public", "Member-only", "Internal only", "Hidden"],
+      ["Public", "Member-only", "Hidden"],
       "Choose a valid status.",
     ),
-    unitOfUsage: z.string().trim().min(1, "Choose a unit."),
-    capacity: z.string().trim(),
+    unitOfUsage: assetRequiredText("a unit of usage", 1, 80),
+    suitableActivity: assetRequiredText("the suitable farm activity", 2, 160),
+    capacity: z.string().trim().max(160, "Capacity must be 160 characters or fewer."),
+    serviceArea: assetRequiredText("the service area", 2, 190),
+    operatorRequirement: assetRequiredText("the operator requirement", 2, 190),
+    operationalNotes: z.string().trim().max(2000, "Operating instructions must be 2,000 characters or fewer."),
+    safetyReminders: z.array(z.string().trim().min(2).max(300)).max(10, "Add up to 10 safety reminders."),
+    lastMaintenanceDate: optionalDate,
+    nextMaintenanceDate: optionalDate,
+    assetCondition: assetOptionalText(120),
+    internalNotes: assetOptionalText(2000),
+    availableDays: z.array(z.enum(rentalWeekdays, "Choose valid available days.")).max(7).optional(),
+    availableStartTime: optionalTime,
+    availableEndTime: optionalTime,
+    assignedCustodian: assetOptionalText(190),
+    publicTitle: assetOptionalText(190),
+    publicDescription: assetOptionalText(1000),
+    publicNotes: assetOptionalText(1000),
+    publicAvailabilityMessage: assetOptionalText(500),
+    gasolineHandling: z.string().trim().max(500).nullable().optional(),
+    cancellationPolicy: z.string().trim().max(1000).nullable().optional(),
+    reschedulingPolicy: z.string().trim().max(1000).nullable().optional(),
+    paymentDeadline: z.string().trim().max(190).nullable().optional(),
     standardRate: z.number().nullable().optional(),
     memberRate: z.number().nullable().optional(),
     nonMemberRate: z.number().nullable().optional(),
-    maximumBookingsPerDay: z.number().int().min(0).max(100).optional(),
+    maximumBookingsPerDay: z.number().int().min(1, "Allow at least one booking per day.").max(20).optional(),
     preparationMinutes: z.number().int().min(0).max(1440).optional(),
     travelMinutes: z.number().int().min(0).max(1440).optional(),
     bufferMinutes: z.number().int().min(0).max(1440).optional(),
@@ -173,6 +218,29 @@ export const rentalServiceSchema = z
         path: ["standardRate"],
       });
     }
+    if (
+      service.availableStartTime &&
+      service.availableEndTime &&
+      service.availableEndTime <= service.availableStartTime
+    ) {
+      context.addIssue({ code: "custom", message: "Available end time must be after the start time.", path: ["availableEndTime"] });
+    }
+    if (
+      service.lastMaintenanceDate &&
+      service.nextMaintenanceDate &&
+      service.nextMaintenanceDate < service.lastMaintenanceDate
+    ) {
+      context.addIssue({ code: "custom", message: "Next maintenance cannot be before the last maintenance date.", path: ["nextMaintenanceDate"] });
+    }
+    if (
+      ["Under Maintenance", "Out of Service", "Archived"].includes(service.operationalStatus) &&
+      service.availability !== "Unavailable"
+    ) {
+      context.addIssue({ code: "custom", message: "An asset under maintenance, out of service, or archived must be unavailable.", path: ["availability"] });
+    }
+    if (service.operationalStatus === "Archived" && service.visibility === "Public") {
+      context.addIssue({ code: "custom", message: "An archived asset cannot be published.", path: ["visibility"] });
+    }
   });
 
 export const rentalScheduleSchema = z
@@ -186,7 +254,10 @@ export const rentalScheduleSchema = z
     preparationMinutes: z.number().int().min(0).max(1440),
     travelMinutes: z.number().int().min(0).max(1440),
     bufferMinutes: z.number().int().min(0).max(1440),
-    serviceLocation: z.string().trim().min(3),
+    serviceLocation: z.string().trim().min(3, "Enter the service location.").max(250),
+    barangay: z.string().trim().min(2, "Enter the barangay.").max(100),
+    assignedOperator: z.string().trim().max(190).optional(),
+    specialInstructions: z.string().trim().max(1000).optional(),
   })
   .refine((value) => value.endDate >= value.date, {
     message: "Schedule end date cannot be before the start date.",

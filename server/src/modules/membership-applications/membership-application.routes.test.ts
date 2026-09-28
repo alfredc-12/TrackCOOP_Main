@@ -779,16 +779,35 @@ test("POST /api/membership-applications/public/:applicationCode/documents remove
   );
 });
 
-test("Chairman membership application endpoints reject Bookkeeper and Member roles", async () => {
-  for (const role of ["bookkeeper", "member"] as const) {
-    const { app } = createChairmanApp(role);
-    const response = await request(app)
-      .get("/api/membership-applications")
-      .set("Cookie", "trackcoop_session=opaque-cookie-value");
+test("Membership application reads allow Bookkeeper, but writes stay Chairman-only", async () => {
+  const bookkeeperApp = createChairmanApp("bookkeeper").app;
+  const listResponse = await request(bookkeeperApp)
+    .get("/api/membership-applications")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value");
 
-    assert.equal(response.status, 403);
-    assert.equal(response.body.errors[0].code, "FORBIDDEN");
-  }
+  assert.equal(listResponse.status, 200);
+
+  const detailResponse = await request(bookkeeperApp)
+    .get("/api/membership-applications/1")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value");
+
+  assert.equal(detailResponse.status, 200);
+
+  const updateResponse = await request(bookkeeperApp)
+    .patch("/api/membership-applications/1")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value")
+    .send({ firstName: "Maria" });
+
+  assert.equal(updateResponse.status, 403);
+  assert.equal(updateResponse.body.errors[0].code, "FORBIDDEN");
+
+  const memberApp = createChairmanApp("member").app;
+  const memberResponse = await request(memberApp)
+    .get("/api/membership-applications")
+    .set("Cookie", "trackcoop_session=opaque-cookie-value");
+
+  assert.equal(memberResponse.status, 403);
+  assert.equal(memberResponse.body.errors[0].code, "FORBIDDEN");
 });
 
 test("GET /api/membership-applications returns Chairman application list with paging metadata", async () => {

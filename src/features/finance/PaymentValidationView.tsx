@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Clock3,
   Eye,
-  FileWarning,
   History,
   Pencil,
   ReceiptText,
@@ -17,6 +16,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  SlidersHorizontal,
   WalletCards,
   X,
 } from "lucide-react";
@@ -83,11 +83,25 @@ const purposeOptions = ["", "Associate Membership Fee", "Share Capital", "Rental
 const channelOptions = ["", "PayMongo", "Manual GCash", "Cash", "Bank Transfer", "Other"];
 const sourceOptions = ["", "Manual Bookkeeper", "PayMongo Webhook", "System"];
 const actionLabels: Record<PaymentMutationAction, string> = {
-  validate: "Validate manual payment",
+  validate: "Approve payment",
   reject: "Reject payment",
-  clarification: "Request clarification",
+  clarification: "Ask for correction",
   reverse: "Reverse payment",
-  retry: "Retry failed gateway settlement",
+  retry: "Retry payment processing",
+};
+const selectLabels: Record<string, string> = {
+  all: "All",
+  gateway: "Online QRPH",
+  manual: "Manual payments",
+  failed: "Has a system issue",
+  submittedAt: "Date submitted",
+  paidAt: "Date paid",
+  amount: "Amount",
+  referenceNumber: "Reference number",
+  Validated: "Approved",
+  "Needs Clarification": "Needs correction",
+  desc: "Newest or highest first",
+  asc: "Oldest or lowest first",
 };
 
 function money(value: number) {
@@ -102,6 +116,14 @@ function paymentChannelLabel(value: string | null | undefined) {
 }
 function paymentSourceLabel(value: string | null | undefined) {
   return value === "PayMongo Webhook" ? "QRPH Gateway" : value || "Not recorded";
+}
+function paidThroughLabel(payment: Pick<PaymentReferenceListItem, "paymentChannel">) {
+  return paymentChannelLabel(payment.paymentChannel);
+}
+function statusLabel(value: string) {
+  if (value === "Validated") return "Approved";
+  if (value === "Needs Clarification") return "Needs correction";
+  return value;
 }
 function filterOptionLabel(option: string, emptyLabel: string) {
   if (!option) return emptyLabel;
@@ -125,7 +147,7 @@ function mutationAllowed(payment: PaymentReferenceDetail) {
 
 function Select({ value, onChange, options, label }: { value: string; onChange: (value: string) => void; options: string[]; label: string }) {
   return (
-    <select value={value} onChange={(event: any) => onChange(event.target.value)} aria-label={label}
+    <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={label}
       className="h-11 min-w-0 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-semibold text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
       {options.map((option) => <option key={option || label} value={option}>{filterOptionLabel(option, label)}</option>)}
     </select>
@@ -156,7 +178,7 @@ function ActionConfirmationDialog({
   payment: PaymentReferenceDetail | null;
   state: PaymentActionDialogState;
   event: PaymentGatewayEvent | null;
-  onChange: (patch: Partial<Pick<PaymentActionDialogState, "reason" | "confirmation" | "recoveryNote">>) => void;
+  onChange: (patch: Partial<Pick<PaymentActionDialogState, "reason" | "confirmation" | "recoveryNote" | "evidenceChecked" | "detailsChecked">>) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -164,7 +186,7 @@ function ActionConfirmationDialog({
   const valid = payment && action ? canConfirmPaymentAction(state, payment) : false;
   return <FormDialog open={state.open} onOpenChange={(open: boolean) => { if (!open && !state.submitting) onClose(); }}
     title={action ? actionLabels[action] : "Confirm payment action"}
-    description="Review the saved TrackCOOP information and the effect before confirming."
+    description="Check the payment details carefully before you continue."
     contentClassName="w-[min(42rem,calc(100vw-2rem))]">
     {payment && action ? <div className="grid gap-4 pt-3">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -175,19 +197,32 @@ function ActionConfirmationDialog({
       </div>
       {event ? <Info label="Gateway event" value={`${event.eventType} / ${event.processingStatus}`} sub={`Retry count ${event.retryCount} · Payment ${safe(event.paymentId)}`} /> : null}
       <div className="rounded-lg border border-[#F3D08A] bg-[#FFF8E8] p-4 text-sm leading-6 text-[#775200]">
-        <p className="font-black uppercase tracking-[0.12em]">Effect</p>
+        <p className="font-black uppercase tracking-[0.12em]">What will happen</p>
         <p className="mt-1">{paymentActionEffect(action)}</p>
       </div>
-      {["reject", "clarification", "reverse"].includes(action) ? <FormField label="Reason" hint="Required, at least 8 characters.">
-        <textarea value={state.reason} onChange={(e: any) => onChange({ reason: e.target.value })}
+      {action === "validate" ? <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4">
+        <p className="font-bold text-[#123D2A]">Confirm both checks</p>
+        <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#294B39]">
+          <input type="checkbox" checked={state.evidenceChecked} onChange={(e) => onChange({ evidenceChecked: e.target.checked })}
+            className="mt-1 size-5 shrink-0 accent-[#1F6B43]" disabled={state.submitting} />
+          <span>I checked the receipt, proof, cash record, or bank/GCash reference.</span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#294B39]">
+          <input type="checkbox" checked={state.detailsChecked} onChange={(e) => onChange({ detailsChecked: e.target.checked })}
+            className="mt-1 size-5 shrink-0 accent-[#1F6B43]" disabled={state.submitting} />
+          <span>The payer, amount, reference number, and payment purpose all match.</span>
+        </label>
+      </div> : null}
+      {["reject", "clarification", "reverse"].includes(action) ? <FormField label={action === "clarification" ? "What needs to be corrected?" : "Reason"} hint="Required. Write at least 8 characters so the decision is clear in the audit record.">
+        <textarea value={state.reason} onChange={(e) => onChange({ reason: e.target.value })}
           className="min-h-24 rounded-md border border-[#CAD8CB] bg-white px-3 py-2 text-sm" disabled={state.submitting} />
       </FormField> : null}
       {action === "reverse" ? <FormField label="Type the payment reference to confirm" hint={payment.referenceNumber}>
-        <input value={state.confirmation} onChange={(e: any) => onChange({ confirmation: e.target.value })}
+        <input value={state.confirmation} onChange={(e) => onChange({ confirmation: e.target.value })}
           className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" disabled={state.submitting} />
       </FormField> : null}
       {action === "retry" ? <FormField label="Recovery note" hint="Required, at least 8 characters. This note is added to the audit record.">
-        <textarea value={state.recoveryNote} onChange={(e: any) => onChange({ recoveryNote: e.target.value })}
+        <textarea value={state.recoveryNote} onChange={(e) => onChange({ recoveryNote: e.target.value })}
           className="min-h-24 rounded-md border border-[#CAD8CB] bg-white px-3 py-2 text-sm" disabled={state.submitting} />
       </FormField> : null}
       <div className="flex justify-end gap-3 border-t border-[#E2E8E2] pt-4">
@@ -214,6 +249,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSecondarySubmitting, setIsSecondarySubmitting] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [error, setError] = useState("");
   const mutationLock = useRef(false);
 
@@ -276,10 +312,14 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
 
   const saveEdit = async () => {
     if (!selected || !canMutate) return;
+    const referenceNumber = editReference.trim();
+    const amount = Number(editAmount);
+    if (referenceNumber.length < 2) { toast.error("Enter a valid reference number."); return; }
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 99_999_999.99) { toast.error("Enter a valid amount greater than zero."); return; }
     setIsSecondarySubmitting(true);
     try {
-      await updatePaymentReference(selected.id, { referenceNumber: editReference, amount: Number(editAmount) });
-      toast.success("Payment reference updated."); await Promise.all([load(), reloadSelected()]);
+      await updatePaymentReference(selected.id, { referenceNumber, amount });
+      toast.success("Payment details saved."); await Promise.all([load(), reloadSelected()]);
     } catch (caught) { toast.error(caught instanceof ApiClientError ? caught.message : "Payment update failed."); }
     finally { setIsSecondarySubmitting(false); }
   };
@@ -303,7 +343,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
 
   return <div className="grid gap-6">
     <PageHeader eyebrow="Payments" title={role === "bookkeeper" ? "Payment Validation" : "Payments"}
-      description={role === "bookkeeper" ? "Review manual payments, inspect safe QRPH outcomes, and recover verified failed settlement events." : "Read-only payment oversight, safe gateway status, posting history, and receipts."}
+      description={role === "bookkeeper" ? "Review manual payments, inspect QRPH outcomes, and recover verified failed settlement events." : "Read-only payment oversight, QRPH status, posting history, and receipts."}
       actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper controls" : "Chairman read-only"}</StatusBadge>} />
     <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
       <StatCard label="Total" value={String(summary.total)} icon={ReceiptText} />
@@ -316,40 +356,40 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
     </div>
 
     <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(10rem,12rem))]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(11rem,13rem)_auto_auto]">
         <label className="relative block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
-          <input value={filters.search ?? ""} onChange={(e: any) => setFilter("search", e.target.value)} type="search"
-            placeholder="Search reference, payer, member, or application"
+          <input value={filters.search ?? ""} onChange={(e) => setFilter("search", e.target.value)} type="search"
+            placeholder="Search payer or reference number"
             className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" />
         </label>
         <Select value={filters.validationStatus ?? ""} onChange={(v) => setFilter("validationStatus", v)} options={statusOptions} label="All statuses" />
+        <button type="button" onClick={() => setShowAdvancedFilters((current) => !current)} aria-expanded={showAdvancedFilters}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><SlidersHorizontal className="size-4" />{showAdvancedFilters ? "Hide filters" : "More filters"}</button>
+        <button type="button" onClick={() => void load()} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><RefreshCcw className="size-4" />Refresh</button>
+      </div>
+      {showAdvancedFilters ? <div className="grid gap-3 border-t border-[#E2E8E2] pt-3 md:grid-cols-3 xl:grid-cols-4">
         <Select value={filters.paymentPurpose ?? ""} onChange={(v) => setFilter("paymentPurpose", v)} options={purposeOptions} label="All purposes" />
-        <Select value={filters.paymentChannel ?? ""} onChange={(v) => setFilter("paymentChannel", v)} options={channelOptions} label="All channels" />
-      </div>
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Select value={filters.validationSource ?? ""} onChange={(v) => setFilter("validationSource", v)} options={sourceOptions} label="All sources" />
-        <Select value={filters.gatewayManual ?? "all"} onChange={(v) => setFilter("gatewayManual", v)} options={["all", "gateway", "manual"]} label="Gateway/manual" />
-        <Select value={filters.failedEvents ? "failed" : "all"} onChange={(v) => setFilter("failedEvents", v === "failed")} options={["all", "failed"]} label="Gateway event state" />
-        <input value={filters.dateFrom ?? ""} onChange={(e: any) => setFilter("dateFrom", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="Date from" />
-        <input value={filters.dateTo ?? ""} onChange={(e: any) => setFilter("dateTo", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="Date to" />
-        <button type="button" onClick={() => void load()} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><RefreshCcw className="size-4" />Reload TrackCOOP Status</button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <input value={filters.amountMin ?? ""} onChange={(e: any) => setFilter("amountMin", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Minimum amount" />
-        <input value={filters.amountMax ?? ""} onChange={(e: any) => setFilter("amountMax", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Maximum amount" />
-        <Select value={filters.sortBy ?? "submittedAt"} onChange={(v) => setFilter("sortBy", v)} options={["submittedAt", "paidAt", "amount", "referenceNumber"]} label="Sort by" />
-        <Select value={filters.sortDirection ?? "desc"} onChange={(v) => setFilter("sortDirection", v)} options={["desc", "asc"]} label="Sort direction" />
-        <Select value={String(filters.pageSize ?? 20)} onChange={(v) => setFilter("pageSize", Number(v))} options={["10", "20", "50", "100"]} label="Rows per page" />
+        <Select value={filters.paymentChannel ?? ""} onChange={(v) => setFilter("paymentChannel", v)} options={channelOptions} label="All payment methods" />
+        <Select value={filters.validationSource ?? ""} onChange={(v) => setFilter("validationSource", v)} options={sourceOptions} label="All validation sources" />
+        <Select value={filters.gatewayManual ?? "all"} onChange={(v) => setFilter("gatewayManual", v)} options={["all", "gateway", "manual"]} label="Online or manual" />
+        <Select value={filters.failedEvents ? "failed" : "all"} onChange={(v) => setFilter("failedEvents", v === "failed")} options={["all", "failed"]} label="Payment system issues" />
+        <input value={filters.dateFrom ?? ""} onChange={(e) => setFilter("dateFrom", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="From date" />
+        <input value={filters.dateTo ?? ""} onChange={(e) => setFilter("dateTo", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" type="date" aria-label="To date" />
+        <input value={filters.amountMin ?? ""} onChange={(e) => setFilter("amountMin", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Minimum amount" aria-label="Minimum amount" />
+        <input value={filters.amountMax ?? ""} onChange={(e) => setFilter("amountMax", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Maximum amount" aria-label="Maximum amount" />
+        <Select value={filters.sortBy ?? "submittedAt"} onChange={(v) => setFilter("sortBy", v)} options={["submittedAt", "paidAt", "amount", "referenceNumber"]} label="Sort payments by" />
+        <Select value={filters.sortDirection ?? "desc"} onChange={(v) => setFilter("sortDirection", v)} options={["desc", "asc"]} label="Sort order" />
+        <Select value={String(filters.pageSize ?? 20)} onChange={(v) => setFilter("pageSize", Number(v))} options={["10", "20", "50", "100"]} label="Payments per page" />
         <button type="button" onClick={() => setFilters({ page: 1, pageSize: 20, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" })}
-          className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]">Clear filters</button>
-      </div>
+          className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]">Clear all filters</button>
+      </div> : null}
     </div>
 
     {error ? <ErrorState message={error} /> : null}
     {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? <EmptyState icon={ReceiptText} title="No payment references found" description="No saved TrackCOOP payments match the selected filters." /> : <DataTable>
       <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
         <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]"><tr>
-          <th className="px-5 py-4">Reference</th><th className="px-5 py-4">Payer / Subject</th><th className="px-5 py-4">Purpose</th><th className="px-5 py-4">Channel</th><th className="px-5 py-4">Amount</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Action</th>
+          <th className="px-5 py-4">Payer</th><th className="px-5 py-4">Bought / Rented</th><th className="px-5 py-4">Qty / Count</th><th className="px-5 py-4">Amount paid</th><th className="px-5 py-4">Paid through</th><th className="px-5 py-4">Status</th><th className="px-5 py-4"><span className="sr-only">Action</span></th>
         </tr></thead>
         <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">{payments.map((payment) => <tr key={payment.id} className="hover:bg-[#F7F8F3]">
           <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{payment.referenceNumber}</p><div className="mt-1 flex flex-wrap gap-1">{payment.gatewayEnvironment === "Test" ? <StatusBadge tone="warning">Test Mode</StatusBadge> : null}{payment.failedGatewayEvents ? <StatusBadge tone="danger">{payment.failedGatewayEvents} failed event</StatusBadge> : null}</div></td>
@@ -357,7 +397,8 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
           <td className="px-5 py-4">{payment.paymentPurpose}</td>
           <td className="px-5 py-4"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{paymentChannelLabel(payment.paymentChannel)}</StatusBadge></td>
           <td className="px-5 py-4"><CurrencyDisplay value={payment.amount} /></td>
-          <td className="px-5 py-4"><StatusBadge tone={badgeTone(payment.validationStatus)}>{payment.validationStatus}</StatusBadge></td>
+          <td className="px-5 py-4"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{paidThroughLabel(payment)}</StatusBadge></td>
+          <td className="px-5 py-4"><StatusBadge tone={badgeTone(payment.validationStatus)}>{statusLabel(payment.validationStatus)}</StatusBadge></td>
           <td className="px-5 py-4"><button type="button" onClick={() => void openDetail(payment.id)} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><Eye className="size-4" />Review</button></td>
         </tr>)}</tbody>
       </table>
@@ -404,7 +445,49 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
             {selected.receipt?.processingStatus === "Failed" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void retryReceipt()}><ReceiptText className="size-4" />Retry Receipt</MutateButton> : null}
             {selected.proofFilePath ? <a href={paymentReferenceProofUrl(selected.id)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]">Proof</a> : null}
           </div>
+          <p className="mt-3 text-xs font-semibold text-[#5D6D63]">Reference: {selected.referenceNumber}</p>
+        </section> : null}
+        {canMutate ? <section className="grid gap-4 rounded-lg border-2 border-[#B7D7BD] bg-[#F2FAF3] p-4 sm:p-5">
+          <div><h3 className="text-lg font-bold text-[#123D2A]">Make a decision</h3><p className="mt-1 text-sm text-[#5D6D63]">Approve only after the payment evidence and all saved details match.</p></div>
+          {selected.proofFilePath ? <a href={paymentReferenceProofUrl(selected.id)} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border-2 border-[#1F6B43] bg-white px-5 text-base font-bold text-[#123D2A] hover:bg-[#EEF7EF]"><Eye className="size-5" />Open payment proof</a>
+            : selected.paymentChannel !== "PayMongo" ? <div className="rounded-md border border-[#F3D08A] bg-[#FFF8E8] p-3 text-sm text-[#775200]"><strong>No proof was uploaded.</strong> Check the cash book, bank record, or GCash record before approving.</div> : null}
+          <div className="flex flex-wrap gap-2">
+            <MutateButton disabled={!manualValidationEligible(selected)} onClick={() => setDialog(openPaymentAction("validate"))}><BadgeCheck className="size-4" />Approve payment</MutateButton>
+            {selected.paymentChannel === "PayMongo" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void refreshFromPaymongo()}><RefreshCcw className="size-4" />Check QRPH status</MutateButton> : null}
+            <button type="button" disabled={!mutationAllowed(selected)} onClick={() => setDialog(openPaymentAction("clarification"))} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#1F6B43] bg-white px-4 text-sm font-bold text-[#123D2A] disabled:cursor-not-allowed disabled:border-[#CAD8CB] disabled:text-[#87948B]"><Send className="size-4" />Ask for correction</button>
+            <button type="button" disabled={!mutationAllowed(selected)} onClick={() => setDialog(openPaymentAction("reject"))} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#D9A99F] bg-white px-4 text-sm font-bold text-[#7A3023] disabled:cursor-not-allowed disabled:border-[#CAD8CB] disabled:text-[#87948B]"><X className="size-4" />Reject payment</button>
+          </div>
+          {selected.paymentChannel === "PayMongo" ? <p className="text-sm text-[#5D6D63]">QRPH payments are approved after the gateway confirms the payment. Use Check QRPH status when the payer says they already paid.</p> : null}
+          <details className="rounded-md border border-[#CAD8CB] bg-white p-3">
+            <summary className="cursor-pointer font-bold text-[#123D2A]">Correct the reference number or amount</summary>
+            <div className="mt-4 grid gap-3 md:grid-cols-2"><FormField label="Reference number"><input value={editReference} onChange={(e) => setEditReference(e.target.value)} disabled={!mutationAllowed(selected)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm disabled:bg-[#EEF2EC]" /></FormField>
+              <FormField label="Amount"><input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} disabled={!mutationAllowed(selected)} inputMode="decimal" className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm disabled:bg-[#EEF2EC]" /></FormField></div>
+            <button type="button" disabled={!mutationAllowed(selected) || isSecondarySubmitting} onClick={() => void saveEdit()} className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] disabled:opacity-50"><Pencil className="size-4" />Save corrected details</button>
+          </details>
         </section> : <div className="rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4 text-sm text-[#5D6D63]">Chairman access is read-only. Payment mutation and recovery controls are available only to the Bookkeeper.</div>}
+
+        <details className="rounded-lg border border-[#CAD8CB] bg-white p-4">
+          <summary className="cursor-pointer text-sm font-bold text-[#123D2A]">View records, history, and technical details</summary>
+          <div className="mt-5 grid gap-5 border-t border-[#E2E8E2] pt-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Info label="Member" value={safe(selected.memberCode)} sub={safe(selected.memberName)} />
+              <Info label="Application" value={safe(selected.applicationCode)} sub={safe(selected.applicationName)} />
+              <Info label="Validation source" value={selected.validationSource ?? "Not yet validated"} sub={`Validated by ${safe(selected.validatedByName)}`} />
+              <Info label="Paid time" value={dateTime(selected.paidAt)} sub={`Webhook ${dateTime(selected.webhookReceivedAt)}`} />
+              <Info label="Finance posting" value={safe(selected.posting.financialRecordNumber)} sub={selected.posting.financialRecordStatus ?? "No finance posting"} />
+              <Info label="Share Capital" value={safe(selected.posting.shareCapitalPaymentId)} sub={selected.posting.shareCapitalStatus ?? "Not posted"} />
+              <Info label="Membership requirement" value={selected.posting.membershipRequirementStatus ?? "Not linked"} sub={selected.posting.membershipApplicationStatus ?? "No application status"} />
+              <Info label="Receipt" value={selected.receipt?.processingStatus ?? "Not queued"} sub={selected.receipt ? `${selected.receipt.receiptNumber} · attempts ${selected.receipt.attemptCount}` : undefined} />
+              <Info label="Gateway status" value={selected.gatewayEnvironment} sub={selected.gatewayStatus ?? "No gateway status"} />
+              <Info label="Gateway IDs" value={safe(selected.gatewayCheckoutId)} sub={`Payment ${safe(selected.gatewayPaymentId)} · Intent ${safe(selected.gatewayPaymentIntentId)}`} />
+            </div>
+
+            {canMutate ? <div className="flex flex-wrap gap-2 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-4">
+              <p className="w-full text-xs font-black uppercase tracking-[0.16em] text-[#5D6D63]">Support and recovery tools</p>
+              <MutateButton disabled={selected.validationStatus !== "Validated"} onClick={() => setDialog(openPaymentAction("reverse"))}><RotateCcw className="size-4" />Reverse approved payment</MutateButton>
+              {selected.paymentChannel === "PayMongo" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void refreshFromPaymongo()}><RefreshCcw className="size-4" />Check QRPH status</MutateButton> : null}
+              {selected.receipt?.processingStatus === "Failed" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void retryReceipt()}><ReceiptText className="size-4" />Retry receipt</MutateButton> : null}
+            </div> : null}
 
         <section className="grid gap-3"><h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]"><WalletCards className="size-4" />Checkout attempts</h3>
           {selected.checkoutAttempts.length ? selected.checkoutAttempts.map((attempt) => <div key={attempt.id} className="rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-[#123D2A]">Attempt {attempt.attemptNumber} · {attempt.checkoutId}</p><div className="flex gap-2">{attempt.active ? <StatusBadge tone="warning">Active attempt</StatusBadge> : null}<StatusBadge tone={attempt.gatewayEnvironment === "Test" ? "warning" : "neutral"}>{attempt.gatewayEnvironment} Mode</StatusBadge></div></div><p className="mt-1 text-[#5D6D63]">{money(attempt.amount)} · {attempt.gatewayStatus ?? "No gateway status"} · reusable until {dateTime(attempt.reusableUntil)}</p></div>) : <p className="text-sm text-[#5D6D63]">No checkout attempts recorded.</p>}
@@ -417,6 +500,8 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
         <section className="grid gap-3"><h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]"><History className="size-4" />Validation history</h3>
           {selected.validationHistory.length ? selected.validationHistory.map((entry) => <div key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm"><p className="font-bold text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p><p className="mt-1 text-[#5D6D63]">{paymentSourceLabel(entry.validationSource)} · {safe(entry.changedByName)} · {dateTime(entry.changedAt)}</p>{entry.reason ? <p className="mt-2 text-[#294B39]">{entry.reason}</p> : null}</div>) : <p className="text-sm text-[#5D6D63]">No validation history yet.</p>}
         </section>
+          </div>
+        </details>
       </div>}
     </FormDialog>
 

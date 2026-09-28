@@ -23,7 +23,7 @@ export function calculatePatronageAllocations(
     .filter((source) => source.totalPatronage > 0);
 
   const totalPatronage = normalized.reduce((sum, source) => sum + source.totalPatronage, 0);
-  const poolCents = Math.round(Math.max(0, refundPool) * 100);
+  const poolCents = Math.round(Math.min(Math.max(0, refundPool), totalPatronage) * 100);
   if (totalPatronage <= 0 || poolCents <= 0) return [];
 
   const provisional = normalized.map((source) => {

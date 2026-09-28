@@ -159,7 +159,7 @@ export function MemberShareCapitalLauncher() {
             {[
               ["Validated Capital", money(summary.validatedCapital)],
               ["Active Pending", money(summary.activePendingCapital)],
-              ["Remaining to PHP 3,000", money(summary.remainingToTrueMember)],
+              ["Remaining to PHP 1,500", money(summary.remainingToTrueMember)],
               ["Maximum", money(summary.maximumShareCapital)],
             ].map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-[#D7E1D9] bg-[#F8FAF7] p-4">

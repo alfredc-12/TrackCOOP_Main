@@ -529,9 +529,10 @@ async function selectPublicApplication(
        FROM membership_application_requirements r
        LEFT JOIN payment_references pr ON pr.payment_reference_id = r.payment_reference_id
       WHERE r.membership_application_id = ?
-        AND r.requirement_type IN ('Associate Membership Fee', 'Initial Share Capital')
+        AND ((? = 'Associate' AND r.requirement_type = 'Associate Membership Fee')
+          OR (? = 'True Member' AND r.requirement_type = 'Initial Share Capital'))
       ORDER BY r.membership_application_requirement_id ASC`,
-    [application.id],
+    [application.id, application.requestedMembershipType, application.requestedMembershipType],
   );
 
   return {
@@ -830,7 +831,7 @@ export function createMembershipApplicationRepository(
             nullable(application.occupation),
             application.orientationCommitmentAccepted,
             application.membershipFeeCommitmentAccepted,
-            input.settings.associateFee,
+            application.requestedMembershipType === "Associate" ? input.settings.associateFee : 0,
             application.shareSubscriptionCommitmentAccepted,
             input.settings.initialShareCapital,
             input.settings.trueMemberRequiredCapital,
@@ -1179,7 +1180,7 @@ export function createMembershipApplicationRepository(
             nullable(application.occupation),
             application.orientationCommitmentAccepted,
             application.membershipFeeCommitmentAccepted,
-            input.settings.associateFee,
+            application.requestedMembershipType === "Associate" ? input.settings.associateFee : 0,
             application.shareSubscriptionCommitmentAccepted,
             input.settings.initialShareCapital,
             input.settings.trueMemberRequiredCapital,

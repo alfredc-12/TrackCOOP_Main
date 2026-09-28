@@ -21,19 +21,27 @@ const roleDestinations: Record<AuthUser["role"], string> = {
   member: "/portal/member/dashboard",
 };
 
+function getTimeGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [formError, setFormError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [savedEmails, setSavedEmails] = useState<string[]>([]);
   const [capsLockOn, setCapsLockOn] = useState(false);
+  const [greeting, setGreeting] = useState("Welcome back");
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  };
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setGreeting(getTimeGreeting());
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const removeSavedEmail = (emailToRemove: string) => {
     const newEmails = savedEmails.filter(e => e !== emailToRemove);
@@ -72,28 +80,37 @@ export default function LoginPage() {
   }, [router]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("trackcoop_saved_logins");
-      if (stored) {
-        setSavedEmails(JSON.parse(stored));
+    const savedEmailsFrame = window.requestAnimationFrame(() => {
+      try {
+        const stored = localStorage.getItem("trackcoop_saved_logins");
+        if (stored) {
+          setSavedEmails(JSON.parse(stored));
+        }
+      } catch {
+        // ignore
       }
-    } catch (e) {
-      // ignore
-    }
+    });
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.getModifierState) {
-        setCapsLockOn(e.getModifierState("CapsLock"));
+    try {
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.getModifierState) {
+          setCapsLockOn(event.getModifierState("CapsLock"));
+        }
+      };
+
+      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyDown);
+
+      return () => {
+        window.cancelAnimationFrame(savedEmailsFrame);
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keyup", handleKeyDown);
+      };
+    } catch {
+      return () => {
+        window.cancelAnimationFrame(savedEmailsFrame);
       }
-    };
-    
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyDown);
-    
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyDown);
-    };
+    }
   }, []);
 
   async function onSubmit(values: LoginFormValues) {
@@ -112,7 +129,7 @@ export default function LoginPage() {
           localStorage.setItem("trackcoop_saved_logins", JSON.stringify(emails));
           setSavedEmails(emails);
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
 
@@ -184,7 +201,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6 rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
-            <p className="text-sm font-semibold text-[#365F4A] mb-1">{getGreeting()}</p>
+            <p className="text-sm font-semibold text-[#365F4A] mb-1">{greeting}</p>
             <h1 className="text-3xl font-black text-[#123D2A] tracking-tight">Sign in to your account</h1>
             <p className="mt-2 text-sm leading-5 text-[#5D6D63]">
               Use the email address or username assigned to your cooperative account.
@@ -195,6 +212,7 @@ export default function LoginPage() {
                 Email or username
                 <input
                   {...register("identifier")}
+                  suppressHydrationWarning
                   autoComplete="username"
                   aria-invalid={Boolean(errors.identifier)}
                   className="h-12 rounded-xl border border-[#BFD1C2]/60 bg-gray-50/50 px-4 text-[#17211C] outline-none transition-all focus:bg-white focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20 shadow-sm"
@@ -237,6 +255,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <input
                     {...register("password")}
+                    suppressHydrationWarning
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     aria-invalid={Boolean(errors.password)}
@@ -244,6 +263,7 @@ export default function LoginPage() {
                   />
                   <button
                     type="button"
+                    suppressHydrationWarning
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 hover:text-[#123D2A] transition-colors focus:outline-none"
                     aria-label={showPassword ? "Hide password" : "Show password"}
@@ -274,6 +294,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
+                suppressHydrationWarning
                 disabled={isSubmitting}
                 className="mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-5 text-sm font-bold text-white shadow-md shadow-[#123D2A]/20 transition-all hover:bg-[#1F6B43] hover:shadow-lg hover:shadow-[#1F6B43]/30 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:cursor-wait disabled:opacity-65 disabled:hover:translate-y-0 disabled:hover:shadow-md"
               >

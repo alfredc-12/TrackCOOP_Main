@@ -303,6 +303,7 @@ function PaymentPanel({
                     max={15000}
                     step={100}
                     value={shareCapitalAmount}
+                    readOnly
                     onChange={(event) => onShareCapitalAmountChange(event.target.value)}
                     className="mt-2 h-11 w-full rounded-full border border-[#DDE8D8] bg-white px-4 text-base font-bold text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
                   />

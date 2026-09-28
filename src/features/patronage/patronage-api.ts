@@ -59,6 +59,8 @@ export type PatronageFinancialBasis = {
   totalOperatingExpenses: number;
   adjustments: number;
   netOperatingSurplus: number;
+  eligibleMemberPatronage: number;
+  eligibleMemberCount: number;
   postedRecordCount: number;
   unpostedRecordCount: number;
 };

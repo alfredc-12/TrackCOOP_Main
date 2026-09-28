@@ -256,7 +256,7 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
         trueMemberRequiredCapital: numberSetting(
           rows,
           "membership.true_member_required_capital",
-          3000,
+          1500,
         ),
         maximumShareCapital: numberSetting(rows, "membership.maximum_share_capital", 15000),
       };

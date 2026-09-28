@@ -51,10 +51,16 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Overview",
       items: [
         {
-          label: "Dashboard",
+          label: "Member Dashboard",
           href: "/portal/chairman/dashboard",
           icon: LayoutDashboard,
-          summary: "Chairman oversight and cooperative health signals.",
+          summary: "Membership, cooperative operations, and oversight signals.",
+        },
+        {
+          label: "Financial Dashboard",
+          href: "/portal/chairman/finance",
+          icon: Landmark,
+          summary: "Financial performance, ledger totals, and cooperative finance activity.",
         },
       ],
     },
@@ -219,10 +225,10 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Overview",
       items: [
         {
-          label: "Dashboard",
+          label: "Home",
           href: "/portal/bookkeeper/dashboard",
           icon: LayoutDashboard,
-          summary: "Bookkeeper workload and financial operations overview.",
+          summary: "See today's payments and the work that needs attention.",
         },
       ],
     },
@@ -230,22 +236,22 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Payments",
       items: [
         {
-          label: "Payment Validation",
+          label: "Payments to Check",
           href: "/portal/bookkeeper/payment-validation",
           icon: ReceiptText,
-          summary: "Validate, reject, or clarify member payment references.",
+          summary: "Check cash payments and confirm PayMongo payments.",
         },
         {
           label: "Membership Payments",
           href: "/portal/bookkeeper/members/payments",
           icon: ClipboardList,
-          summary: "Validate payments submitted with approved membership applications.",
+          summary: "Check payments from approved membership applications.",
         },
         {
           label: "Share Capital",
           href: "/portal/bookkeeper/share-capital",
           icon: WalletCards,
-          summary: "Record and correct share capital transactions.",
+          summary: "See member contributions, payments, and limits.",
         },
       ],
     },
@@ -253,16 +259,22 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Finance",
       items: [
         {
-          label: "Financial Ledger",
+          label: "Money Records",
           href: "/portal/bookkeeper/financial-ledger",
           icon: Landmark,
-          summary: "Post, review, and void controlled financial entries.",
+          summary: "Review cooperative income, expenses, and corrections.",
         },
         {
-          label: "Financial Categories",
+          label: "Income & Expense Types",
           href: "/portal/bookkeeper/financial-categories",
           icon: Tags,
-          summary: "Maintain financial categories for ledger entries.",
+          summary: "See the types used to organize money records.",
+        },
+        {
+          label: "Patronage",
+          href: "/portal/bookkeeper/patronage",
+          icon: HandCoins,
+          summary: "Monitor member cooperative use, shares, and patronage refunds.",
         },
       ],
     },
@@ -270,22 +282,22 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Operations",
       items: [
         {
-          label: "POS Sales",
+          label: "Sales",
           href: "/portal/bookkeeper/pos-sales",
           icon: ShoppingCart,
-          summary: "Process cooperative POS sales and receipts.",
+          summary: "Process cooperative product sales and receipts.",
         },
         {
-          label: "Products and Inventory",
+          label: "Products & Stock",
           href: "/portal/bookkeeper/products-inventory",
           icon: Boxes,
-          summary: "Manage products, stock, and inventory movement records.",
+          summary: "Check products, available stock, and stock movements.",
         },
         {
-          label: "Rental Transactions",
+          label: "Rental Payments",
           href: "/portal/bookkeeper/rental-transactions",
           icon: Tractor,
-          summary: "Record rental charges, payments, and financial status.",
+          summary: "Check rental payments and approve received cash.",
         },
       ],
     },
@@ -293,10 +305,10 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Records",
       items: [
         {
-          label: "Documents",
+          label: "Receipts & Documents",
           href: "/portal/bookkeeper/documents",
           icon: FileText,
-          summary: "Upload and manage financial supporting documents.",
+          summary: "Find receipts and keep supporting documents.",
         },
         {
           label: "Reports",

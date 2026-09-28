@@ -57,6 +57,7 @@ export type DemographicData = {
   activeMembers: number;
   needsMonitoring: number;
   inactiveMembers: number;
+  sectorCounts: { sector: string; count: number }[];
 };
 
 export type InventoryAlert = {
@@ -74,7 +75,7 @@ export type TransactionItem = {
 };
 
 export type OperationsSnapshot = {
-  pos: { totalSales: number; transactions: number };
+  pos: { totalSales: number; transactions: number; productsSold: number };
   rental: { totalIncome: number; completed: number; pending: number; upcoming: number };
   inventory: { lowStock: number; outOfStock: number; alerts: InventoryAlert[] };
 };

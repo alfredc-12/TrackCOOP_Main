@@ -22,7 +22,6 @@ import {
 import {
   archiveGeneratedReport,
   generateReport,
-  getReportFilterOptions,
   listGeneratedReports,
   recordReportAction,
   recordReportRegisterExport,
@@ -36,6 +35,7 @@ import type {
   DocumentAccessLevel,
   DocumentStatus,
   ReportFilterKey,
+  ReportFilterOptions,
   ReportFilters,
 } from "./records-types";
 
@@ -71,6 +71,19 @@ const filterKeys: ReportFilterKey[] = [
   "role",
   "auditAction",
 ];
+
+const emptyReportFilterOptions: ReportFilterOptions = {
+  barangays: [],
+  sectors: [],
+  paymentMethods: [],
+  rentalAssets: [],
+  products: [],
+  productCategories: [],
+  documentCategories: [],
+  relatedModules: [],
+  users: [],
+  roles: [],
+};
 
 function metadata(request: Request): RequestMetadata {
   const forwarded = request.headers["x-forwarded-for"];
@@ -379,21 +392,16 @@ async function documentsExportRoute(request: Request, response: Response) {
 async function reportsHomeRoute(request: Request, response: Response) {
   try {
     const actor = user(request);
-    const [history, filterOptions] = await Promise.all([
-      listGeneratedReports(actor),
-      getReportFilterOptions(actor),
-    ]);
-    const thisMonth = new Date().toISOString().slice(0, 7);
+    const catalog = reportCatalogFor(actor);
+    const summary = reportCatalogSummary(actor);
     response.json({
-      catalog: reportCatalogFor(actor),
+      catalog,
       summary: {
-        ...reportCatalogSummary(actor),
-        generatedThisMonth: history.filter((item) =>
-          item.generatedAt.startsWith(thisMonth),
-        ).length,
+        ...summary,
+        generatedThisMonth: 0,
       },
-      recent: history.slice(0, 8),
-      filterOptions,
+      recent: [],
+      filterOptions: emptyReportFilterOptions,
     });
   } catch (error) {
     handleRecordsError(response, error);

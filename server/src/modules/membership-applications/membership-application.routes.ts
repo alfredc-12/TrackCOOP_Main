@@ -170,6 +170,7 @@ export function createMembershipApplicationRouter(
     message: "Too many document upload requests. Please try again later.",
   });
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
+  const staffReadOnly = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper")];
 
   router.post(
     "/membership-applications/public",
@@ -199,10 +200,10 @@ export function createMembershipApplicationRouter(
     controller.viewPublicDocument,
   );
 
-  router.get("/membership-applications/summary", ...chairmanOnly, controller.summary);
-  router.get("/membership-applications", ...chairmanOnly, controller.list);
+  router.get("/membership-applications/summary", ...staffReadOnly, controller.summary);
+  router.get("/membership-applications", ...staffReadOnly, controller.list);
   router.post("/membership-applications", ...chairmanOnly, controller.createChairman);
-  router.get("/membership-applications/:id", ...chairmanOnly, controller.detail);
+  router.get("/membership-applications/:id", ...staffReadOnly, controller.detail);
   router.patch("/membership-applications/:id", ...chairmanOnly, controller.update);
   router.post(
     "/membership-applications/:id/beneficiaries",

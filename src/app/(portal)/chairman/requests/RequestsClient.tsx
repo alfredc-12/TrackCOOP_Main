@@ -30,7 +30,6 @@ import { ApiClientError } from "@/lib/api-client";
 import {
   listRequests,
   updateRequestStatus,
-  addRequestReply,
   getRequestDetail,
 } from "@/features/communication/communication-api";
 import { getAuthenticatedUser } from "@/lib/auth-client";
@@ -85,17 +84,26 @@ function getPriorityClass(priority: string) {
   return "bg-[#EEF4EF] text-[#52705D]";
 }
 
-export function RequestsClient() {
+export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolean }) {
   const [query, setQuery] = useState<ListRequestsQuery>(defaultQuery);
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [identityReady, setIdentityReady] = useState(!assignedOnly);
 
   useEffect(() => {
-    getAuthenticatedUser().then(setUser).catch(console.error);
-  }, []);
+    getAuthenticatedUser()
+      .then((authenticatedUser) => {
+        setUser(authenticatedUser);
+        if (assignedOnly) {
+          setQuery((current) => ({ ...current, assignedTo: authenticatedUser.id, page: 1 }));
+        }
+      })
+      .catch(() => setError("Your assigned requests could not be identified."))
+      .finally(() => setIdentityReady(true));
+  }, [assignedOnly]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<RequestRecord | null>(null);
@@ -153,6 +161,7 @@ export function RequestsClient() {
   }, [modalMode, selectedRequestHistory]);
 
   const fetchRequests = useCallback(async () => {
+    if (!identityReady) return;
     setIsLoading(true);
     setError("");
     try {
@@ -168,7 +177,7 @@ export function RequestsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [query]);
+  }, [identityReady, query]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void fetchRequests(), 0);
@@ -262,7 +271,7 @@ export function RequestsClient() {
         <div className="absolute -right-12 -top-20 size-64 rounded-full border-[24px] border-[#D8F0DE]/10" />
         <div className="absolute -bottom-20 right-48 size-40 rounded-full bg-[#F6D354]/10 blur-2xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Communication center</div><h1 className="text-3xl font-black tracking-tight sm:text-4xl">Requests & Inquiries</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">Review questions from members and the public, respond clearly, and keep every conversation organized.</p></div>
+          <div><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> {assignedOnly ? "Bookkeeper support" : "Communication center"}</div><h1 className="text-3xl font-black tracking-tight sm:text-4xl">{assignedOnly ? "My Assigned Requests" : "Requests & Inquiries"}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">{assignedOnly ? "Read and answer payment or record questions assigned to you." : "Review questions from members and the public, respond clearly, and keep every conversation organized."}</p></div>
           <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm"><div className="flex size-11 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><MessageSquare className="size-5" /></div><div><p className="text-xs font-semibold text-white/60">Inbox status</p><p className="font-bold">{metrics.unread ? `${metrics.unread} unread message${metrics.unread > 1 ? "s" : ""}` : "All messages reviewed"}</p></div></div>
         </div>
         <button type="button" onClick={() => void fetchRequests()} disabled={isLoading} aria-busy={isLoading} className="relative mt-6 inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 disabled:cursor-wait disabled:opacity-70"><RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} /> {isLoading ? "Refreshing..." : "Refresh inbox"}</button>
@@ -301,7 +310,7 @@ export function RequestsClient() {
         </label>
         <div className="flex flex-wrap gap-2"><RequestThemedSelect prefix="Status" value={query.status || "All"} onChange={(value) => setQuery({ ...query, status: value, page: 1 })} ariaLabel="Filter request status" options={["All", "Submitted", "Under Review", "Assigned", "In Progress", "Resolved", "Closed", "Rejected"]} /><RequestThemedSelect prefix="Type" value={query.requestType || "All"} onChange={(value) => setQuery({ ...query, requestType: value, page: 1 })} ariaLabel="Filter request type" options={["All", ...requestTypes]} /><RequestThemedSelect prefix="Priority" value={query.priority || "All"} onChange={(value) => setQuery({ ...query, priority: value, page: 1 })} ariaLabel="Filter request priority" options={["All", ...requestPriorities]} /></div>
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {requests.length} of {total} requests</span><button type="button" onClick={() => setQuery(defaultQuery)} className="font-bold text-[#1F6B43] hover:underline">Clear filters</button></div>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {requests.length} of {total} requests</span><button type="button" onClick={() => setQuery({ ...defaultQuery, assignedTo: assignedOnly ? user?.id : undefined })} className="font-bold text-[#1F6B43] hover:underline">Clear filters</button></div>
       </div>
 
       {error ? <ErrorState message={error} onRetry={() => void fetchRequests()} /> : null}
@@ -522,7 +531,6 @@ export function RequestsClient() {
                       .map((historyItem, idx) => {
                         const isOwnReply = Boolean(user && historyItem.changedBy === user.id);
                         const isPublicReply = !historyItem.changedBy;
-                        const isOtherReply = !isOwnReply;
 
                         let senderLabel = "";
                         if (isOwnReply) {

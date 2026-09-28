@@ -8,6 +8,8 @@ export type PaymentActionDialogState = {
   reason: string;
   confirmation: string;
   recoveryNote: string;
+  evidenceChecked: boolean;
+  detailsChecked: boolean;
   submitting: boolean;
 };
 
@@ -18,6 +20,8 @@ export const initialPaymentActionDialogState: PaymentActionDialogState = {
   reason: "",
   confirmation: "",
   recoveryNote: "",
+  evidenceChecked: false,
+  detailsChecked: false,
   submitting: false,
 };
 
@@ -36,7 +40,7 @@ export function beginPaymentAction(state: PaymentActionDialogState) {
 }
 export function updatePaymentAction(
   state: PaymentActionDialogState,
-  patch: Partial<Pick<PaymentActionDialogState, "reason" | "confirmation" | "recoveryNote">>,
+  patch: Partial<Pick<PaymentActionDialogState, "reason" | "confirmation" | "recoveryNote" | "evidenceChecked" | "detailsChecked">>,
 ) {
   return { ...state, ...patch };
 }
@@ -57,6 +61,7 @@ export function canConfirmPaymentAction(
   payment: Pick<PaymentReferenceDetail, "referenceNumber">,
 ) {
   if (!state.open || !state.action || state.submitting) return false;
+  if (state.action === "validate" && (!state.evidenceChecked || !state.detailsChecked)) return false;
   if (["reject", "clarification", "reverse"].includes(state.action) && state.reason.trim().length < 8) return false;
   if (state.action === "reverse" && state.confirmation.trim() !== payment.referenceNumber) return false;
   if (state.action === "retry" && state.recoveryNote.trim().length < 8) return false;

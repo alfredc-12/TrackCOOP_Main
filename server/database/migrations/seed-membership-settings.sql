@@ -25,7 +25,7 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.true_member_required_capital',
-        '3000',
+        '1500',
         'Number',
         'Share-capital target required for true-member approval in Philippine pesos.',
         0

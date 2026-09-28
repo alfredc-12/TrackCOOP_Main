@@ -95,6 +95,9 @@ export function createPaymongoMembershipInstallmentRepository(
             "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
           );
         }
+        if (input.purpose === "Associate Membership Fee" && application.requestedMembershipType !== "Associate") {
+          throw new AppError("True Member applicants pay share capital only", 409, "MEMBERSHIP_FEE_NOT_REQUIRED");
+        }
 
         const aggregate = await paymentAggregate(connection, {
           applicationId: input.application.id,
@@ -188,6 +191,9 @@ export function createPaymongoMembershipInstallmentRepository(
             409,
             "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
           );
+        }
+        if (input.purpose === "Associate Membership Fee" && application.requestedMembershipType !== "Associate") {
+          throw new AppError("True Member applicants pay share capital only", 409, "MEMBERSHIP_FEE_NOT_REQUIRED");
         }
 
         const aggregate = await paymentAggregate(connection, {

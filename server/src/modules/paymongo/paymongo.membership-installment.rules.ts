@@ -110,6 +110,13 @@ export function validateApplicationShareCapitalAmount(input: {
       "SHARE_CAPITAL_AMOUNT_BELOW_MINIMUM",
     );
   }
+  if (validated + pending === 0 && requested !== roundMoney(input.initialShareCapital)) {
+    throw new AppError(
+      `True Member payment must be PHP ${input.initialShareCapital.toLocaleString("en-US")}`,
+      400,
+      "INITIAL_SHARE_CAPITAL_AMOUNT_MISMATCH",
+    );
+  }
   if (roundMoney(validated + pending + requested) > roundMoney(input.maximumShareCapital)) {
     throw new AppError(
       "Share capital payment would exceed the maximum allowed amount",
