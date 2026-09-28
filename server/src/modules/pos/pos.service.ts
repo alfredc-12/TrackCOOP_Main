@@ -4,6 +4,11 @@ import { createPosRepository, type PosRepository } from "./pos.repository";
 import { sendCashPaymentInstructions, sendPosPaymentReceipt } from "./pos-email";
 import type { CheckoutPayload, CompleteOrderInput, ConfirmOrderInput, PosReasonInput } from "./pos.types";
 
+type PosEmailSender = {
+  sendCashPaymentInstructions: typeof sendCashPaymentInstructions;
+  sendPosPaymentReceipt: typeof sendPosPaymentReceipt;
+};
+
 export interface PosService {
   listOrders(): ReturnType<PosRepository["listOrders"]>;
   listMemberHistory(auth: AuthContext): ReturnType<PosRepository["listMemberHistory"]>;
@@ -17,6 +22,7 @@ export interface PosService {
 export function createPosService(
   repository: PosRepository = createPosRepository(),
   paymongoService: PaymongoService = createPaymongoService(),
+  emailSender: PosEmailSender = { sendCashPaymentInstructions, sendPosPaymentReceipt },
 ): PosService {
   return {
     listOrders: () => repository.listOrders(),
@@ -24,7 +30,7 @@ export function createPosService(
     async checkout(input, auth) {
       const sale = await repository.createCheckout(input, auth);
       if (input.paymentMethod === "Cash") {
-        await sendCashPaymentInstructions(String(sale.paymentReferenceId));
+        void emailSender.sendCashPaymentInstructions(String(sale.paymentReferenceId));
         return {
           success: true,
           saleId: sale.saleId,
@@ -52,7 +58,7 @@ export function createPosService(
     async confirmOrder(orderId, input, auth) {
       const result = await repository.confirmOrder(orderId, input, auth);
       if (result.paymentReferenceId) {
-        await sendPosPaymentReceipt(String(result.paymentReferenceId));
+        await emailSender.sendPosPaymentReceipt(String(result.paymentReferenceId));
       }
       return result;
     },
