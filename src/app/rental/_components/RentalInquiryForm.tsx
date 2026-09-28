@@ -1127,11 +1127,11 @@ function UploadField({
           <span className="block truncate text-sm text-[#365f4a]">
             {fileName ?? "Choose ID file"}
           </span>
-          <span className="block text-xs font-normal text-[#7a877f]">JPG, PNG, or PDF; up to 5 MB</span>
+          <span className="block text-xs font-normal text-[#7a877f]">Any image or PDF; up to 5 MB</span>
         </span>
         <input
           type="file"
-          accept=".jpg,.jpeg,.png,.pdf"
+          accept="image/*,application/pdf"
           className="sr-only"
           aria-invalid={Boolean(error)}
           onChange={(event) => onChange(event.target.files?.[0])}

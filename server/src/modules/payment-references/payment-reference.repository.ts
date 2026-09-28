@@ -197,6 +197,10 @@ export function createPaymentReferenceRepository(
 
   return {
     async list(query) {
+      // Create review references for newly scheduled rental payments before
+      // applying pagination and creation-time sorting.
+      await syncMissingRentalPaymentReferencesForReview(databasePool());
+
       const where: string[] = [];
       const values: Array<string | number> = [];
 
@@ -253,7 +257,7 @@ export function createPaymentReferenceRepository(
       const [rows] = await databasePool().execute<PaymentRow[]>(
         `${paymentSelect()}
          ${whereSql}
-         ORDER BY ${sortColumns[query.sortBy]} ${orderDirection}, p.payment_reference_id DESC
+         ORDER BY ${query.sortBy === "submittedAt" ? "p.payment_reference_id" : sortColumns[query.sortBy]} ${orderDirection}, p.payment_reference_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
         values,
       );

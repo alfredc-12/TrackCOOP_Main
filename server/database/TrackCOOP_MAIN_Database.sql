@@ -327,7 +327,7 @@ CREATE TABLE member_status_history (
         'Terminated'
     ) NULL,
     reason TEXT NULL,
-    changed_by BIGINT UNSIGNED NOT NULL,
+    changed_by BIGINT UNSIGNED NULL,
     changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_member_status_history_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_member_status_history_user FOREIGN KEY (changed_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
@@ -1359,6 +1359,7 @@ CREATE TABLE documents (
     document_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     document_reference VARCHAR(60) NULL,
     uploaded_by BIGINT UNSIGNED NULL,
+    member_id BIGINT UNSIGNED NULL,
     title VARCHAR(255) NOT NULL,
     category VARCHAR(80) NULL,
     document_type ENUM(
@@ -1388,11 +1389,13 @@ CREATE TABLE documents (
     original_file_name VARCHAR(255) NULL,
     mime_type VARCHAR(120) NULL,
     file_size_bytes BIGINT UNSIGNED NULL,
+    checksum_sha256 CHAR(64) NULL,
     expiration_date DATE NULL,
     description TEXT NULL,
     uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_documents_reference UNIQUE (document_reference),
+    CONSTRAINT fk_documents_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_documents_uploader FOREIGN KEY (uploaded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 
@@ -1403,6 +1406,8 @@ CREATE INDEX `idx_documents_access_type` ON `documents` (
 );
 
 CREATE INDEX `idx_documents_title` ON `documents` (title);
+
+CREATE INDEX `idx_documents_member` ON `documents` (member_id, uploaded_at);
 
 CREATE TABLE payment_receipts (
     payment_receipt_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1718,6 +1723,8 @@ CREATE TABLE requests_inquiries (
     closed_at DATETIME NULL,
     submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_read_by_admin TINYINT(1) NOT NULL DEFAULT 1,
+    is_read_by_member TINYINT(1) NOT NULL DEFAULT 1,
     CONSTRAINT uq_requests_reference_code UNIQUE (reference_code),
     CONSTRAINT fk_requests_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_requests_submitter FOREIGN KEY (submitted_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,

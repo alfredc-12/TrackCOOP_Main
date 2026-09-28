@@ -56,7 +56,7 @@ export default function ForceChangePasswordPage() {
         if (user?.role === "chairman") {
           router.replace("/portal/chairman/dashboard");
         } else if (user?.role === "bookkeeper") {
-          router.replace("/portal/bookkeeper/dashboard");
+          router.replace("/portal/bookkeeper/financial-dashboard");
         } else {
           router.replace("/portal/member/dashboard");
         }

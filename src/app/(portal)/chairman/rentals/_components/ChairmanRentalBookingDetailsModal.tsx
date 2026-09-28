@@ -44,6 +44,7 @@ import {
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { Modal } from "@/components/ui/Modal";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 
 type ReviewDraft = {
   decision: RentalStatus;
@@ -278,6 +279,8 @@ export function ChairmanRentalBookingDetailsModal({
     if (!inquiry) return;
     setActiveAction(action);
     if (action.kind === "status" && action.targetStatus) {
+      setScheduleOpen(false);
+      setConfirmAction(undefined);
       setReview({
         decision: action.targetStatus,
         publicNote: defaultPublicResponse(action, inquiry),
@@ -306,10 +309,14 @@ export function ChairmanRentalBookingDetailsModal({
     );
     setConflict(undefined);
     setScheduleErrors({});
+    setReviewOpen(false);
+    setConfirmAction(undefined);
     setScheduleOpen(true);
   }
 
   function openScheduleEditor() {
+    setReviewOpen(false);
+    setConfirmAction(undefined);
     setActiveAction(undefined);
     setConflict(undefined);
     setScheduleErrors({});
@@ -509,9 +516,10 @@ export function ChairmanRentalBookingDetailsModal({
   const estimateDetails = rentalEstimateDetails(inquiry);
 
   return (
+    <>
     <Modal
       trigger={null}
-      open={open}
+      open={open && !reviewOpen && !scheduleOpen && !confirmAction}
       onOpenChange={(val) => !val && onClose()}
       maxWidth="max-w-6xl"
         title={`Rental Request Details: ${inquiry.inquiryId}`}
@@ -885,9 +893,11 @@ export function ChairmanRentalBookingDetailsModal({
         </div>
       </div>
       )}
+      </div>
+    </Modal>
 
       <FormDialog
-        open={reviewOpen}
+        open={reviewOpen && !confirmAction}
         onOpenChange={(open) => {
           setReviewOpen(open);
           if (!open && !saving) setActiveAction(undefined);
@@ -961,7 +971,7 @@ export function ChairmanRentalBookingDetailsModal({
       </FormDialog>
 
       <FormDialog
-        open={scheduleOpen}
+        open={scheduleOpen && !confirmAction}
         onOpenChange={(open) => {
           setScheduleOpen(open);
           if (!open) {
@@ -1051,20 +1061,23 @@ export function ChairmanRentalBookingDetailsModal({
               required={scheduleDraft.status === "Confirmed"}
               error={scheduleErrors.assignedOperator}
             >
-              <select
-                value={scheduleDraft.assignedOperator}
-                onChange={(event) => updateScheduleDraft("assignedOperator", event.target.value)}
-                className="rounded-md border border-[#CAD8CB] p-3"
-              >
-                <option value="">Choose operator</option>
-                {scheduleDraft.assignedOperator &&
-                !ASSIGNED_OPERATOR_OPTIONS.includes(scheduleDraft.assignedOperator) ? (
-                  <option>{scheduleDraft.assignedOperator}</option>
-                ) : null}
-                {ASSIGNED_OPERATOR_OPTIONS.map((operator) => (
-                  <option key={operator}>{operator}</option>
-                ))}
-              </select>
+              <StyledSelect
+                value={scheduleDraft.assignedOperator || "Choose operator"}
+                options={[
+                  "Choose operator",
+                  ...(scheduleDraft.assignedOperator &&
+                  !ASSIGNED_OPERATOR_OPTIONS.includes(scheduleDraft.assignedOperator)
+                    ? [scheduleDraft.assignedOperator]
+                    : []),
+                  ...ASSIGNED_OPERATOR_OPTIONS,
+                ]}
+                onChange={(operator) =>
+                  updateScheduleDraft(
+                    "assignedOperator",
+                    operator === "Choose operator" ? "" : operator,
+                  )
+                }
+              />
             </FormField>
             <ScheduleInput
               label="Service location"
@@ -1188,8 +1201,7 @@ export function ChairmanRentalBookingDetailsModal({
             : saveReview())
         }
       />
-    </div>
-    </Modal>
+    </>
   );
 }
 

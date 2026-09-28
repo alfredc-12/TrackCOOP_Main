@@ -3,6 +3,7 @@ import type {
   ListRequestsQuery,
   ListResult,
   RequestRecord,
+  RequestAssigneeRecord,
   UpdateRequestStatusInput,
   CreatePublicRequestInput,
   CreateAuthenticatedRequestInput,
@@ -37,6 +38,10 @@ export async function listRequests(query: ListRequestsQuery): Promise<ListResult
     page: (response.meta.page as number) ?? 1,
     pageSize: (response.meta.pageSize as number) ?? 20,
   };
+}
+
+export async function listRequestAssignees(): Promise<RequestAssigneeRecord[]> {
+  return apiRequest<RequestAssigneeRecord[]>("/api/requests/assignees");
 }
 
 export async function getRequestDetail(id: string): Promise<RequestDetailResponse> {

@@ -222,7 +222,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
            FROM payment_references p
            ${identityJoins()}
            ${sql}
-          ORDER BY ${sortColumns[query.sortBy]} ${direction}, p.payment_reference_id DESC
+          ORDER BY ${query.sortBy === "submittedAt" ? "p.payment_reference_id" : sortColumns[query.sortBy]} ${direction}, p.payment_reference_id DESC
           LIMIT ${query.pageSize} OFFSET ${offset}`,
         values,
       );

@@ -13,7 +13,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
   CurrencyDisplay,
@@ -158,6 +158,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const refreshInFlight = useRef(false);
 
   // Add Share Capital modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -178,23 +179,32 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [moneyReceived, setMoneyReceived] = useState(false);
   const [detailsCorrect, setDetailsCorrect] = useState(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    if (!silent) {
+      setIsLoading(true);
+      setError("");
+    }
     try {
       const [nextPayments, nextSummary] = await Promise.all([listShareCapital(search), getShareCapitalSummary()]);
       setPayments(nextPayments);
       setSummary(nextSummary);
+      setError("");
     } catch (caught) {
-      setError(caught instanceof ApiClientError ? caught.message : "Share capital records could not be loaded.");
+      if (!silent) setError(caught instanceof ApiClientError ? caught.message : "Share capital records could not be loaded.");
     } finally {
-      setIsLoading(false);
+      refreshInFlight.current = false;
+      if (!silent) setIsLoading(false);
     }
   }, [search]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timeoutId);
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 15_000);
+    return () => { window.clearTimeout(timeoutId); window.clearInterval(refreshTimer); };
   }, [load]);
 
   // Fetch members for dropdown when modal opens or search changes
@@ -469,24 +479,34 @@ export function FinancialLedgerView() {
   const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const ledgerRefreshInFlight = useRef(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (ledgerRefreshInFlight.current) return;
+    ledgerRefreshInFlight.current = true;
+    if (!silent) {
+      setIsLoading(true);
+      setError("");
+    }
     try {
       const [nextRecords, nextSummary] = await Promise.all([listFinancialRecords(search), getFinancialSummary()]);
       setRecords(nextRecords);
       setSummary(nextSummary);
+      setError("");
     } catch (caught) {
-      setError(caught instanceof ApiClientError ? caught.message : "Financial records could not be loaded.");
+      if (!silent) setError(caught instanceof ApiClientError ? caught.message : "Financial records could not be loaded.");
     } finally {
-      setIsLoading(false);
+      ledgerRefreshInFlight.current = false;
+      if (!silent) setIsLoading(false);
     }
   }, [search]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timeoutId);
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 15_000);
+    return () => { window.clearTimeout(timeoutId); window.clearInterval(refreshTimer); };
   }, [load]);
 
   const pageCount = Math.max(1, Math.ceil(records.length / pageSize));
@@ -518,7 +538,7 @@ export function FinancialLedgerView() {
                   <td className="px-5 py-4">{record.categoryName}</td>
                   <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(record.recordType)}>{record.recordType}</StatusBadge></td>
                   <td className="px-5 py-4 text-center"><CurrencyDisplay value={record.amount} /></td>
-                  <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(record.approvedBy ? "Posted" : record.recordStatus)}>{record.approvedBy ? "Posted" : record.recordStatus}</StatusBadge></td>
+                  <td className="px-5 py-4 text-center"><StatusBadge tone={badgeTone(record.recordStatus)}>{record.recordStatus}</StatusBadge></td>
                 </tr>
               ))}
             </tbody>

@@ -39,7 +39,7 @@ export const listDocumentsQuerySchema = paginationSchema.extend({
   documentType: z.enum(documentTypes).optional(),
   accessLevel: z.enum(documentAccessLevels).optional(),
   status: z.enum(documentStatuses).optional(),
-  sortBy: z.enum(["uploadedAt", "title", "documentType", "accessLevel"]).default("uploadedAt"),
+  sortBy: z.enum(["uploadedAt", "title", "documentType", "accessLevel", "insertionOrder"]).default("uploadedAt"),
 });
 
 export const createDocumentSchema = z.object({

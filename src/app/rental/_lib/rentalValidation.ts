@@ -13,7 +13,12 @@ const optionalText = z.string().trim();
 const validIdDocumentSchema = z.object({
   originalFileName: z.string().trim().min(1).max(255),
   storagePath: z.string().trim().startsWith("public/uploads/rental-valid-ids/"),
-  mimeType: z.enum(["image/jpeg", "image/png", "application/pdf"]),
+  mimeType: z
+    .string()
+    .refine(
+      (value) => value === "application/pdf" || value.startsWith("image/"),
+      "Valid ID file must be an image or PDF.",
+    ),
   fileSizeBytes: z.number().int().positive().max(5 * 1024 * 1024),
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
@@ -189,19 +194,8 @@ export const rentalServiceSchema = z
     bufferMinutes: z.number().int().min(0).max(1440).optional(),
   })
   .superRefine((service, context) => {
-    const photos = [service.imageUrl, ...(service.imageUrls ?? [])].filter(
-      (url) => Boolean(url?.trim()),
-    );
     const hasRate =
       typeof service.standardRate === "number" && service.standardRate > 0;
-
-    if (service.visibility === "Public" && photos.length === 0) {
-      context.addIssue({
-        code: "custom",
-        message: "Upload at least one photo.",
-        path: ["imageUrls"],
-      });
-    }
 
     if (typeof service.standardRate === "number" && service.standardRate <= 0) {
       context.addIssue({
@@ -351,13 +345,14 @@ export const rentalRescheduleSchema = z
 
 export const fileRules = {
   maxSize: 5 * 1024 * 1024,
-  accepted: ["image/jpeg", "image/png", "application/pdf"],
 };
 
 export function validateUpload(file?: File) {
   if (!file) return undefined;
   if (file.size <= 0) return "Choose a non-empty file.";
-  if (!fileRules.accepted.includes(file.type)) return "Use a JPG, PNG, or PDF file.";
+  if (file.type !== "application/pdf" && !file.type.startsWith("image/")) {
+    return "Use an image file or PDF.";
+  }
   if (file.size > fileRules.maxSize) return "File must be 5 MB or smaller.";
   return undefined;
 }

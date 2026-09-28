@@ -1,5 +1,5 @@
-import { BookkeeperDashboardView } from "@/features/finance/BookkeeperDashboardView";
+import { redirect } from "next/navigation";
 
 export default function BookkeeperDashboardPage() {
-  return <BookkeeperDashboardView />;
+  redirect("/portal/bookkeeper/financial-dashboard");
 }

@@ -210,7 +210,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
          FROM patronage_allocations a
          JOIN member_profiles m ON m.member_id = a.member_id
         WHERE a.patronage_period_id = ?
-        ORDER BY a.total_patronage DESC, m.full_name ASC`,
+        ORDER BY a.patronage_allocation_id DESC`,
       [periodId],
     );
     return rows.map(mapAllocation);
@@ -267,7 +267,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
     async overview(periodId) {
       const [periodRows] = await databasePool().execute<PeriodRow[]>(
-        `${periodSelect} GROUP BY p.patronage_period_id ORDER BY p.period_end DESC, p.patronage_period_id DESC`,
+        `${periodSelect} GROUP BY p.patronage_period_id ORDER BY p.patronage_period_id DESC`,
       );
       const periods = periodRows.map(mapPeriod);
       const selectedPeriod = periods.find((period) => period.id === periodId) ?? periods[0] ?? null;

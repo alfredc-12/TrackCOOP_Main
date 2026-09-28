@@ -8,7 +8,7 @@ import { getAuthenticatedUser } from "@/lib/auth-client";
 
 const destinations: Record<AuthUser["role"], string> = {
   chairman: "/portal/chairman/dashboard",
-  bookkeeper: "/portal/bookkeeper/dashboard",
+  bookkeeper: "/portal/bookkeeper/financial-dashboard",
   member: "/portal/member/dashboard",
 };
 

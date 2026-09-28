@@ -309,10 +309,15 @@ export function MembershipPaymentsView() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const refreshInFlight = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const [feePayments, capitalPayments, pendingApplications] = await Promise.all([
         listPaymentReferences({
@@ -340,23 +345,34 @@ export function MembershipPaymentsView() {
         }),
       ]);
       const combinedPayments = [...feePayments.items, ...capitalPayments.items]
-        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+        .sort((a, b) => {
+          const idDifference = Number(b.id) - Number(a.id);
+          return Number.isFinite(idDifference) && idDifference !== 0
+            ? idDifference
+            : new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+        });
       setPayments(combinedPayments);
       setApplications(pendingApplications.applications);
+      setError("");
     } catch (caught) {
-      setError(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Membership payments could not be loaded.",
-      );
+      if (!silent) {
+        setError(
+          caught instanceof ApiClientError
+            ? caught.message
+            : "Membership payments could not be loaded.",
+        );
+      }
     } finally {
-      setLoading(false);
+      refreshInFlight.current = false;
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 120);
-    const refreshTimer = window.setInterval(() => void load(), 30000);
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 15_000);
     return () => { window.clearTimeout(timer); window.clearInterval(refreshTimer); };
   }, [load]);
 

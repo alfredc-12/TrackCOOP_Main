@@ -156,8 +156,8 @@ export const getPaymongoPaymentStatus = (id: string) => apiRequest<PaymongoPayme
 export const retryGatewaySettlement = (eventId: string, note: string) => apiRequest<GatewayRetryResult>(`/api/payment-gateway-events/${eventId}/retry`, { method: "POST", body: JSON.stringify({ note }) });
 export const retryPaymentReceipt = (id: string) => apiRequest<PaymentReceipt>(`/api/payment-references/${id}/receipt/retry`, { method: "POST", body: JSON.stringify({}) });
 export const paymentReferenceProofUrl = (id: string) => `${env.apiUrl}/api/payment-references/${id}/proof`;
-export function listShareCapital(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "paymentDate", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<ShareCapitalPayment[]>(`/api/share-capital?${params}`); }
+export function listShareCapital(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<ShareCapitalPayment[]>(`/api/share-capital?${params}`); }
 export const getShareCapitalSummary = () => apiRequest<ShareCapitalSummary>("/api/share-capital/summary");
 export const listFinancialCategories = () => apiRequest<FinancialCategory[]>("/api/financial-categories");
-export function listFinancialRecords(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "recordDate", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<FinancialRecord[]>(`/api/financial-records?${params}`); }
+export function listFinancialRecords(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<FinancialRecord[]>(`/api/financial-records?${params}`); }
 export const getFinancialSummary = () => apiRequest<FinancialSummary>("/api/financial-records/summary");

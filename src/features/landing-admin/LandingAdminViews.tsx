@@ -573,7 +573,7 @@ function PartnersCertificationsManager({
       </section>
 
       <FormDialog
-        open={Boolean(uploadDraft)}
+        open={Boolean(uploadDraft) && !confirmUploadOpen}
         onOpenChange={(open) => {
           if (!open && uploadDraft) {
             URL.revokeObjectURL(uploadDraft.previewUrl);

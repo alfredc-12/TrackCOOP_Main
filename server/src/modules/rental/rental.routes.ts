@@ -198,10 +198,11 @@ async function rentalSubmission(request: Request): Promise<{
   try {
     const validIdFile = await validateDocumentFile(multerFileLike(validId));
     if (
-      !["jpg", "jpeg", "png", "pdf"].includes(validIdFile.extension) ||
+      (validIdFile.mimeType !== "application/pdf" &&
+        !validIdFile.mimeType.startsWith("image/")) ||
       validIdFile.size > 5 * 1024 * 1024
     ) {
-      throw new Error("Valid ID must be a JPG, PNG, or PDF file no larger than 5 MB.");
+      throw new Error("Valid ID must be an image or PDF file no larger than 5 MB.");
     }
     return { draft, validIdFile };
   } catch (error) {
@@ -306,11 +307,7 @@ async function getRental(request: Request, response: Response) {
       const document = await rentalDatabase.getRentalValidId(id);
       if (!document) return notFound(response, "Valid ID was not found for this rental request.");
       const file = await readProtectedDocument(document.storagePath);
-      const extension = document.mimeType === "application/pdf"
-        ? "pdf"
-        : document.mimeType === "image/png"
-          ? "png"
-          : "jpg";
+      const extension = document.storagePath.split(".").pop() || "jpg";
       response.set({
         "Content-Type": document.mimeType,
         "Content-Disposition": `inline; filename="rental-valid-id-${id}.${extension}"`,

@@ -391,12 +391,27 @@ type PendingAction = {
   run: () => Promise<unknown>;
 };
 
-type AssetStatusFilter = "All" | "Available" | "Maintenance" | "Unavailable" | "Archived";
+type AssetStatusFilter =
+  | "All"
+  | "Available"
+  | "Reserved"
+  | "In Use"
+  | "Limited Availability"
+  | "By Schedule Only"
+  | "Under Maintenance"
+  | "Out of Service"
+  | "Unavailable"
+  | "Archived";
 
 const statusFilters: AssetStatusFilter[] = [
   "All",
   "Available",
-  "Maintenance",
+  "Reserved",
+  "In Use",
+  "Limited Availability",
+  "By Schedule Only",
+  "Under Maintenance",
+  "Out of Service",
   "Unavailable",
   "Archived",
 ];
@@ -443,8 +458,23 @@ function matchesStatusFilter(
   if (filter === "Available") {
     return effectiveStatus === "Available" && asset.operationalStatus === "Ready for Use";
   }
-  if (filter === "Maintenance") {
+  if (filter === "Reserved") {
+    return effectiveStatus === "Reserved";
+  }
+  if (filter === "In Use") {
+    return effectiveStatus === "In Use";
+  }
+  if (filter === "Limited Availability") {
+    return effectiveStatus === "Limited Availability" || asset.availability === "Limited Availability";
+  }
+  if (filter === "By Schedule Only") {
+    return effectiveStatus === "By Schedule Only" || asset.availability === "By Schedule Only";
+  }
+  if (filter === "Under Maintenance") {
     return effectiveStatus === "Under Maintenance" || asset.operationalStatus === "Under Maintenance";
+  }
+  if (filter === "Out of Service") {
+    return asset.operationalStatus === "Out of Service";
   }
   if (filter === "Unavailable") {
     return effectiveStatus === "Unavailable" || asset.operationalStatus === "Out of Service";

@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/Button";
 import { ApiClientError } from "@/lib/api-client";
 import {
   listRequests,
+  listRequestAssignees,
   updateRequestStatus,
   getRequestDetail,
 } from "@/features/communication/communication-api";
@@ -37,11 +38,11 @@ import type { AuthUser } from "@/features/auth/types";
 import type {
   ListRequestsQuery,
   RequestRecord,
+  RequestAssigneeRecord,
   RequestStatus,
   RequestStatusHistoryRecord,
 } from "@/features/communication/communication-types";
 import { requestTypes, requestPriorities } from "@/features/communication/communication-types";
-import { listUsersPaginated, type UserSummary } from "@/features/chairman/people-api";
 
 function getAssigneeLabel(assigneeName: string | null | undefined) {
   if (!assigneeName) return "Unassigned";
@@ -92,16 +93,14 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [assignees, setAssignees] = useState<UserSummary[]>([]);
+  const [assignees, setAssignees] = useState<RequestAssigneeRecord[]>([]);
   const [identityReady, setIdentityReady] = useState(!assignedOnly);
+  const requestFetchInFlightRef = useRef(false);
 
   useEffect(() => {
     getAuthenticatedUser()
       .then((authenticatedUser) => {
         setUser(authenticatedUser);
-        if (assignedOnly) {
-          setQuery((current) => ({ ...current, assignedTo: authenticatedUser.id, page: 1 }));
-        }
       })
       .catch(() => setError("Your assigned requests could not be identified."))
       .finally(() => setIdentityReady(true));
@@ -109,9 +108,12 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
 
   useEffect(() => {
     if (assignedOnly) return;
-    void listUsersPaginated({ role: "all", status: "Active", pageSize: 100, sortBy: "displayName", sortDirection: "asc" })
-      .then((result) => setAssignees(result.users.filter((account) => account.role === "chairman" || account.role === "bookkeeper")))
-      .catch(() => setAssignees([]));
+    void listRequestAssignees()
+      .then(setAssignees)
+      .catch((caught) => {
+        setAssignees([]);
+        toast.error(caught instanceof ApiClientError ? caught.message : "Assignees could not be loaded.");
+      });
   }, [assignedOnly]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -169,22 +171,28 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
     }
   }, [modalMode, selectedRequestHistory]);
 
-  const fetchRequests = useCallback(async () => {
-    if (!identityReady) return;
-    setIsLoading(true);
-    setError("");
+  const fetchRequests = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!identityReady || requestFetchInFlightRef.current) return;
+    requestFetchInFlightRef.current = true;
+    if (!silent) {
+      setIsLoading(true);
+      setError("");
+    }
     try {
       const result = await listRequests(query);
       setRequests(result.items);
       setTotal(result.total);
     } catch (caught) {
-      setError(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Failed to load requests and inquiries."
-      );
+      if (!silent) {
+        setError(
+          caught instanceof ApiClientError
+            ? caught.message
+            : "Failed to load requests and inquiries."
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
+      requestFetchInFlightRef.current = false;
     }
   }, [identityReady, query]);
 
@@ -192,6 +200,23 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
     const timeoutId = window.setTimeout(() => void fetchRequests(), 0);
     return () => window.clearTimeout(timeoutId);
   }, [fetchRequests]);
+
+  useEffect(() => {
+    if (!identityReady) return;
+
+    const refreshSilently = () => {
+      if (document.visibilityState === "visible") {
+        void fetchRequests({ silent: true });
+      }
+    };
+    const intervalId = window.setInterval(refreshSilently, 15_000);
+    document.addEventListener("visibilitychange", refreshSilently);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshSilently);
+    };
+  }, [fetchRequests, identityReady]);
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
@@ -227,7 +252,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
         publicResponse: trimmedReply || undefined,
       });
       toast.success(modalMode === "thread" ? "Reply sent successfully." : "Request status updated successfully.");
-      void fetchRequests();
+      void fetchRequests({ silent: true });
       
       // Refresh the details instead of closing the modal
       const detail = await getRequestDetail(selectedRequest.id);
@@ -254,7 +279,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
       });
       setSelectedRequest(detail.request);
       setSelectedRequestHistory(detail.history || []);
-      void fetchRequests();
+      void fetchRequests({ silent: true });
       toast.success(assignedTo ? "Request assigned to you." : "Request unassigned.");
     } catch (caught) {
       toast.error(caught instanceof ApiClientError ? caught.message : "Failed to update request assignment.");
@@ -273,7 +298,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
       });
       setSelectedRequest(detail.request);
       setSelectedRequestHistory(detail.history || []);
-      void fetchRequests();
+      void fetchRequests({ silent: true });
       toast.success(assigneeId ? "Request assigned to the selected bookkeeper." : "Request unassigned.");
     } catch (caught) {
       toast.error(caught instanceof ApiClientError ? caught.message : "Failed to assign request.");
@@ -338,7 +363,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
         </label>
         <div className="flex flex-wrap gap-2"><RequestThemedSelect prefix="Status" value={query.status || "All"} onChange={(value) => setQuery({ ...query, status: value, page: 1 })} ariaLabel="Filter request status" options={["All", "Submitted", "Under Review", "Assigned", "In Progress", "Resolved", "Closed", "Rejected"]} /><RequestThemedSelect prefix="Type" value={query.requestType || "All"} onChange={(value) => setQuery({ ...query, requestType: value, page: 1 })} ariaLabel="Filter request type" options={["All", ...requestTypes]} /><RequestThemedSelect prefix="Priority" value={query.priority || "All"} onChange={(value) => setQuery({ ...query, priority: value, page: 1 })} ariaLabel="Filter request priority" options={["All", ...requestPriorities]} /></div>
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {requests.length} of {total} requests</span><button type="button" onClick={() => setQuery({ ...defaultQuery, assignedTo: assignedOnly ? user?.id : undefined })} className="font-bold text-[#1F6B43] hover:underline">Clear filters</button></div>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {requests.length} of {total} requests</span><button type="button" onClick={() => setQuery(defaultQuery)} className="font-bold text-[#1F6B43] hover:underline">Clear filters</button></div>
       </div>
 
       {error ? <ErrorState message={error} onRetry={() => void fetchRequests()} /> : null}

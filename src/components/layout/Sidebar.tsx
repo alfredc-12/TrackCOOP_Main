@@ -38,7 +38,7 @@ const chairmanNavItems = [
 ];
 
 const bookkeeperNavItems = [
-  { href: "/portal/bookkeeper/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/portal/bookkeeper/financial-dashboard", label: "Financial Dashboard", icon: LayoutDashboard },
   { href: "/portal/bookkeeper/share-capital", label: "Share Capital", icon: Wallet },
   { href: "/portal/bookkeeper/financial-ledger", label: "Financial Ledger", icon: LineChart },
   { href: "/portal/bookkeeper/financial-categories", label: "Categories", icon: PhilippinePeso },

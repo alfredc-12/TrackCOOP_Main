@@ -212,7 +212,7 @@ type RentalValidIdDocument = {
   type: ValidIdType;
   originalFileName: string;
   storagePath: string;
-  mimeType: "image/jpeg" | "image/png" | "application/pdf";
+  mimeType: string;
   fileSizeBytes: number;
   checksumSha256: string;
 };
@@ -307,7 +307,7 @@ function rentalValidIdDocument(meta: JsonRecord): RentalValidIdDocument | undefi
     !VALID_ID_TYPES.includes(type as ValidIdType) ||
     !originalFileName ||
     !storagePath.startsWith("public/uploads/rental-valid-ids/") ||
-    !["image/jpeg", "image/png", "application/pdf"].includes(mimeType) ||
+    (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) ||
     fileSizeBytes <= 0 ||
     !/^[a-f0-9]{64}$/.test(checksumSha256)
   ) {
@@ -1664,11 +1664,11 @@ export const rentalDatabase = {
   ) {
     const parsed = BookingSchema.parse(draft);
     if (
-      !["jpg", "jpeg", "png", "pdf"].includes(validIdFile.extension) ||
-      !["image/jpeg", "image/png", "application/pdf"].includes(validIdFile.mimeType) ||
+      (validIdFile.mimeType !== "application/pdf" &&
+        !validIdFile.mimeType.startsWith("image/")) ||
       validIdFile.size > 5 * 1024 * 1024
     ) {
-      throw new Error("Valid ID must be a JPG, PNG, or PDF file no larger than 5 MB.");
+      throw new Error("Valid ID must be an image or PDF file no larger than 5 MB.");
     }
     if (member && (!actor || actor.role !== "member" || !actor.memberId)) {
       throw new Error("An authenticated member profile is required.");
@@ -2971,7 +2971,7 @@ export const rentalDatabase = {
            payment_channel, reference_number, payment_purpose, related_entity_type,
            related_entity_id, amount, proof_file_path, validation_status,
            notes, submitted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
         cleanParams([
           booking.member_id,
           actor?.userId,
@@ -2993,7 +2993,6 @@ export const rentalDatabase = {
             receiptNumber: payment.receiptNumber,
             notes: payment.notes,
           }),
-          `${payment.paymentDate} 00:00:00`,
         ]),
         connection,
       );

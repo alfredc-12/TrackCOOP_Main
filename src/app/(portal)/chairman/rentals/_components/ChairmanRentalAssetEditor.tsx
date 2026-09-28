@@ -281,20 +281,18 @@ export function ChairmanRentalAssetEditor({
     setFieldErrors({});
     try {
       const payload = validation.payload;
+      const { updatedAt: _updatedAt, ...payloadForSave } = payload;
       if (serviceId) {
-        await rentalApiRepository.updateRentalService(serviceId, payload);
+        await rentalApiRepository.updateRentalService(serviceId, payloadForSave);
       } else {
-        const createPayload = Object.fromEntries(
-          Object.entries(payload).filter(([key]) => key !== "updatedAt"),
-        ) as Omit<RentalService, "updatedAt">;
-        await rentalApiRepository.createRentalService(createPayload);
+        await rentalApiRepository.createRentalService(payloadForSave);
       }
       toast.success(
-        visibility === "Public"
+        serviceId
+          ? "Rental asset changes saved."
+          : visibility === "Public"
           ? "Rental asset published."
-          : serviceId
-            ? "Rental asset changes saved."
-            : "Rental asset draft added.",
+          : "Rental asset draft added.",
       );
       router.push("/portal/chairman/rentals/assets");
       router.refresh();
@@ -333,7 +331,7 @@ export function ChairmanRentalAssetEditor({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          void save("Public");
+          void save(serviceId ? form.visibility : "Public");
         }}
         className="grid gap-5"
       >
@@ -533,6 +531,13 @@ export function ChairmanRentalAssetEditor({
                 if (status === "Archived") update("visibility", "Hidden");
               }}
             />
+            <SelectField
+              label="Public listing"
+              value={form.visibility}
+              error={fieldErrors.visibility}
+              options={["Public", "Member-only", "Hidden"]}
+              onChange={(value) => update("visibility", value as ServiceVisibility)}
+            />
           </div>
         </Section>
 
@@ -591,7 +596,13 @@ export function ChairmanRentalAssetEditor({
             onClick={() => void save("Hidden")}
             className="min-h-11 rounded-md border border-[#CAD8CB] px-5 text-sm font-bold text-[#123D2A]"
           >
-            {saving ? (serviceId ? "Saving changes..." : "Adding rental asset...") : "Save Draft"}
+            {saving
+              ? serviceId
+                ? "Saving changes..."
+                : "Adding rental asset..."
+              : serviceId
+                ? "Save as Hidden"
+                : "Save Draft"}
           </button>
           {serviceId ? (
             <Link
@@ -613,7 +624,7 @@ export function ChairmanRentalAssetEditor({
                 ? "Saving changes..."
                 : "Adding rental asset..."
               : serviceId
-                ? "Save and Publish"
+                ? "Save Changes"
                 : "Publish Equipment"}
           </button>
         </div>

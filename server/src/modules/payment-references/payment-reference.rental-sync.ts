@@ -41,7 +41,7 @@ export async function syncMissingRentalPaymentReferencesForReview(
               'paymentDate', DATE(COALESCE(rb.updated_at, rb.created_at)),
               'notes', 'Auto-created so the bookkeeper can review this rental payment.'
             ),
-            COALESCE(rb.updated_at, rb.created_at, UTC_TIMESTAMP())
+            CURRENT_TIMESTAMP
        FROM rental_bookings rb
        LEFT JOIN member_profiles mp ON mp.member_id = rb.member_id
       WHERE rb.payment_reference_id IS NULL
