@@ -3,6 +3,30 @@ import { AppError } from "../utils/app-error";
 import { logger } from "../utils/logger";
 import { sendFailure } from "../utils/response";
 
+type ErrorDiagnostics = {
+  errorMessage?: string;
+  errorCode?: string;
+  databaseErrno?: number;
+  databaseState?: string;
+  databaseMessage?: string;
+};
+
+function diagnosticsFor(error: unknown): ErrorDiagnostics {
+  if (!error || typeof error !== "object") return {};
+
+  const candidate = error as Record<string, unknown>;
+  const text = (value: unknown) => typeof value === "string" ? value : undefined;
+  const number = (value: unknown) => typeof value === "number" ? value : undefined;
+
+  return {
+    errorMessage: error instanceof Error ? error.message : undefined,
+    errorCode: text(candidate.code),
+    databaseErrno: number(candidate.errno),
+    databaseState: text(candidate.sqlState),
+    databaseMessage: text(candidate.sqlMessage),
+  };
+}
+
 export const errorHandler: ErrorRequestHandler = (
   error: unknown,
   request,
@@ -30,6 +54,7 @@ export const errorHandler: ErrorRequestHandler = (
   if (appError.statusCode >= 500) {
     logger.error(`[${request.requestId}] Internal server error`, {
       ...logMeta,
+      ...diagnosticsFor(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
   } else {
