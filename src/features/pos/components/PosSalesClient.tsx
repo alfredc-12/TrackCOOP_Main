@@ -25,6 +25,7 @@ type PosOrder = {
   customer_contact?: string | null;
   payment_reference_id?: number | string | null;
   provider?: string | null;
+  payment_channel?: string | null;
   reference_number?: string | null;
   items?: PosOrderItem[];
 };
@@ -40,6 +41,12 @@ function PosThemedSelect({ value, onChange, options, ariaLabel }: { value: strin
 
 function formatMoney(value: number | string) {
   return `₱ ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+}
+
+function paymentLabel(order: PosOrder) {
+  if (order.payment_channel === "Cash" || order.provider === "Cash") return "Cash";
+  if (order.payment_channel === "PayMongo" || order.provider === "PayMongo") return "QRPH";
+  return order.provider ?? "Other";
 }
 
 export default function PosSalesClient() {
@@ -65,6 +72,7 @@ export default function PosSalesClient() {
   const [rejectReason, setRejectReason] = useState("");
   const [revokeReason, setRevokeReason] = useState("");
   const [isRevoking, setIsRevoking] = useState(false);
+  const [isCompletingOrderId, setIsCompletingOrderId] = useState<number | null>(null);
   const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
   const [detailsOrder, setDetailsOrder] = useState<PosOrder | null>(null);
 
@@ -158,8 +166,8 @@ export default function PosSalesClient() {
   const totalSales = orders
     .filter((order) => order.sale_status === "Paid" || order.sale_status === "Completed")
     .reduce((sum, order) => sum + Number(order.total_amount), 0);
-  const cashSales = orders.filter((order) => (order.sale_status === "Paid" || order.sale_status === "Completed") && !order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
-  const gcashSales = orders.filter((order) => (order.sale_status === "Paid" || order.sale_status === "Completed") && order.payment_reference_id).reduce((sum, order) => sum + Number(order.total_amount), 0);
+  const cashSales = orders.filter((order) => (order.sale_status === "Paid" || order.sale_status === "Completed") && paymentLabel(order) === "Cash").reduce((sum, order) => sum + Number(order.total_amount), 0);
+  const qrphSales = orders.filter((order) => (order.sale_status === "Paid" || order.sale_status === "Completed") && paymentLabel(order) === "QRPH").reduce((sum, order) => sum + Number(order.total_amount), 0);
 
   const confirmPayment = (orderId: number) => {
     setOrderToConfirmId(orderId);
@@ -280,6 +288,30 @@ export default function PosSalesClient() {
     }
   };
 
+  const processCompleteOrder = async (orderId: number) => {
+    if (isCompletingOrderId !== null) return;
+    setIsCompletingOrderId(orderId);
+    try {
+      const response = await expressFetch(`/api/pos/orders/${orderId}/complete`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: "Released to customer." }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Order release failed." }));
+        toast.error(payload.error ?? "Order release failed.");
+        return;
+      }
+      toast.success("Order released.");
+      await fetchOrders();
+    } catch (error) {
+      console.error("Failed to release order", error);
+      toast.error("Order release failed.");
+    } finally {
+      setIsCompletingOrderId(null);
+    }
+  };
+
   return (
     <main className="-mx-4 -my-6 flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6">
       <div className="mx-auto max-w-7xl">
@@ -304,7 +336,7 @@ export default function PosSalesClient() {
             ["Validated Orders", String(validatedCount), "Paid or completed transactions"],
             ["Validated Sales", formatMoney(totalSales), "All paid orders"],
             ["Cash Sales", formatMoney(cashSales), "Paid POS orders"],
-            ["GCash Sales", formatMoney(gcashSales), "Paid online orders"],
+            ["QRPH Sales", formatMoney(qrphSales), "Paid QRPH orders"],
           ].map(([label, value, hint], index) => (
             <div key={`${label}-${index}`} className="flex min-h-[118px] items-center gap-3 rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
               <div className="shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">{index === 0 ? <AlertCircle className="size-5" /> : index === 1 ? <CheckCircle className="size-5" /> : index === 4 ? <Smartphone className="size-5" /> : <Banknote className="size-5" />}</div>
@@ -450,6 +482,16 @@ export default function PosSalesClient() {
                           <>
                             <button
                               type="button"
+                              onClick={() => void processCompleteOrder(order.id)}
+                              disabled={isCompletingOrderId === order.id}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#123D2A] px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#0d2f20] disabled:opacity-60"
+                              title="Release order"
+                            >
+                              {isCompletingOrderId === order.id ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle className="size-3.5" />}
+                              Release
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setReceiptOrder(order)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-[#d8e4d6] bg-white px-2.5 py-1.5 text-xs font-bold text-[#123D2A] transition hover:bg-[#edf5ed]"
                               title="View Receipt"
@@ -565,8 +607,8 @@ export default function PosSalesClient() {
                 <div>
                   <p className="text-xs font-bold uppercase text-gray-500 mb-1">Payment Method</p>
                   <div className="flex items-center gap-1.5 font-semibold text-gray-900">
-                    {detailsOrder.payment_reference_id ? <Smartphone className="size-4" /> : <Banknote className="size-4" />}
-                    {detailsOrder.payment_reference_id ? "Online Payment" : "Cash Payment"}
+                    {paymentLabel(detailsOrder) === "QRPH" ? <Smartphone className="size-4" /> : <Banknote className="size-4" />}
+                    {paymentLabel(detailsOrder)}
                   </div>
                   <p className="text-gray-600 mt-1">{detailsOrder.reference_number ? `Ref: ${detailsOrder.reference_number}` : "No reference ID"}</p>
                 </div>
@@ -776,7 +818,7 @@ export default function PosSalesClient() {
               <div className="text-center">
                 <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Payment Method</p>
                 <p className="text-sm font-bold text-gray-900">
-                  {receiptOrder.payment_reference_id && receiptOrder.provider !== 'Cash' ? `${receiptOrder.provider || 'GCash'} (${receiptOrder.reference_number})` : 'Cash'}
+                  {paymentLabel(receiptOrder) === "QRPH" ? `QRPH (${receiptOrder.reference_number})` : paymentLabel(receiptOrder)}
                 </p>
               </div>
             </div>

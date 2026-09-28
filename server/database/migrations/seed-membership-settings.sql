@@ -17,7 +17,7 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.initial_share_capital',
-        '3000',
+        '1500',
         'Number',
         'Initial share-capital payment in Philippine pesos.',
         0
@@ -41,9 +41,9 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.share_capital_deadline_months',
-        '12',
+        '1',
         'Number',
-        'Number of months allowed to complete the true-member share-capital target.',
+        'Number of months allowed to complete the true-member share-capital target after approval.',
         0
     ),
     (

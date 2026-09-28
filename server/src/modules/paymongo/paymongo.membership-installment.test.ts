@@ -223,7 +223,7 @@ test("public aggregates are safe and active checkout is not treated as confirmed
     applicationStatus: "Under Review",
     requestedMembershipType: "True Member",
     settings,
-    feeValidatedAmount: 200,
+    feeValidatedAmount: 0,
     feePendingAmount: 0,
     capitalValidatedAmount: 1500,
     capitalPendingAmount: 1500,
@@ -237,11 +237,11 @@ test("public aggregates are safe and active checkout is not treated as confirmed
       reusableUntil: new Date("2026-07-27T08:30:00.000Z"),
       isReusable: true,
     },
-    feeRequirementStatus: "Verified",
+    feeRequirementStatus: null,
     capitalRequirementStatus: "Verified",
   });
 
-  assert.equal(summary.membershipFee.status, "Confirmed");
+  assert.equal(summary.membershipFee.status, "Not Required");
   assert.equal(summary.shareCapital.validatedAmount, 1500);
   assert.equal(summary.shareCapital.pendingAmount, 1500);
   assert.equal(summary.shareCapital.remainingToTarget, 0);
@@ -251,4 +251,48 @@ test("public aggregates are safe and active checkout is not treated as confirmed
   assert.ok(!("paymentReferenceId" in summary));
   assert.ok(!("trackingTokenHash" in summary));
   assert.ok(!("checkoutUrl" in (summary.latestCheckout ?? {})));
+});
+
+for (const mode of ["test", "live"] as const) {
+  test(`${mode} mode payment is eligible when gateway is enabled and application requires payment`, () => {
+    const summary = buildPublicMembershipPaymentSummary({
+      mode,
+      gatewayEnabled: true,
+      applicationStatus: "Payment Required",
+      requestedMembershipType: "Associate",
+      settings,
+      feeValidatedAmount: 0,
+      feePendingAmount: 0,
+      capitalValidatedAmount: 0,
+      capitalPendingAmount: 0,
+      installmentCount: 0,
+      latestCheckout: null,
+      feeRequirementStatus: "Pending",
+      capitalRequirementStatus: null,
+    });
+
+    assert.equal(summary.membershipFee.status, "Required");
+    assert.equal(summary.membershipFee.canStartCheckout, true);
+  });
+}
+
+test("payment is unavailable when gateway is disabled even if application requires payment", () => {
+  const summary = buildPublicMembershipPaymentSummary({
+    mode: "test",
+    gatewayEnabled: false,
+    applicationStatus: "Payment Required",
+    requestedMembershipType: "Associate",
+    settings,
+    feeValidatedAmount: 0,
+    feePendingAmount: 0,
+    capitalValidatedAmount: 0,
+    capitalPendingAmount: 0,
+    installmentCount: 0,
+    latestCheckout: null,
+    feeRequirementStatus: "Pending",
+    capitalRequirementStatus: null,
+  });
+
+  assert.equal(summary.membershipFee.status, "Required");
+  assert.equal(summary.membershipFee.canStartCheckout, false);
 });

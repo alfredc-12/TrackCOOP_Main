@@ -81,7 +81,7 @@ async function synchronizeCapitalRequirement(input: {
     membershipNumberSetting(
       input.connection,
       "membership.initial_share_capital",
-      3000,
+      1500,
     ),
     validatedApplicationPaymentTotal(
       input.connection,
@@ -167,15 +167,17 @@ async function maybeMarkApplicationPaymentConfirmed(input: {
     200,
   );
   const [feeTotal, initialCapital] = await Promise.all([
-    validatedApplicationPaymentTotal(
-      input.connection,
-      input.application.id,
-      "Associate Membership Fee",
-    ),
+    input.application.requestedMembershipType === "Associate"
+      ? validatedApplicationPaymentTotal(
+          input.connection,
+          input.application.id,
+          "Associate Membership Fee",
+        )
+      : Promise.resolve(expectedFee),
     membershipNumberSetting(
       input.connection,
       "membership.initial_share_capital",
-      3000,
+      1500,
     ),
   ]);
   const capitalTotal = input.application.requestedMembershipType === "True Member"

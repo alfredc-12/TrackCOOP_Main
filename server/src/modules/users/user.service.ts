@@ -50,7 +50,7 @@ function hashToken(token: string) {
 }
 
 function activationUrl(rawToken: string) {
-  return `${env.FRONTEND_URL.replace(/\/$/, "")}/activate?token=${encodeURIComponent(rawToken)}`;
+  return `${env.FRONTEND_URL.replace(/\/$/, "")}/membership/activate/${encodeURIComponent(rawToken)}`;
 }
 
 async function createActivation(repository: UserRepository) {

@@ -33,7 +33,7 @@ export function MembershipFollowUpForm({
     }
   });
   const [information, setInformation] = useState("");
-  const [provider, setProvider] = useState("Direct GCash");
+  const [provider, setProvider] = useState("QRPH Reference Upload");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
@@ -124,8 +124,7 @@ export function MembershipFollowUpForm({
               className="h-11 rounded-md border border-[#CAD8CB] px-3"
             >
               {[
-                "Direct GCash",
-                "GCash Reference Upload",
+                "QRPH Reference Upload",
                 "Cash",
                 "Bank Transfer",
                 "Other Approved Method",

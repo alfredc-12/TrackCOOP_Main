@@ -1310,6 +1310,51 @@ export function createMembershipRepository(
       const tokenHash = createHash("sha256").update(token).digest("hex");
       const passwordHash = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
       await withTransaction(async (connection) => {
+        const [userActivations] = await connection.execute<
+          (RowDataPacket & {
+            id: string;
+            userId: string;
+          })[]
+        >(
+          `SELECT CAST(user_activation_token_id AS CHAR) AS id,
+                  CAST(user_id AS CHAR) AS userId
+             FROM user_activation_tokens
+            WHERE token_hash = ? AND used_at IS NULL
+            FOR UPDATE`,
+          [tokenHash],
+        );
+        const userActivation = userActivations[0];
+        if (userActivation) {
+          await connection.execute(
+            `UPDATE users
+                SET password_hash = ?, account_status = 'Active',
+                    email_verified_at = UTC_TIMESTAMP(), failed_login_count = 0,
+                    locked_until = NULL
+              WHERE user_id = ?`,
+            [passwordHash, userActivation.userId],
+          );
+          await connection.execute(
+            `UPDATE member_profiles
+                SET official_member_status = 'Active'
+              WHERE user_id = ?`,
+            [userActivation.userId],
+          );
+          await connection.execute(
+            `UPDATE user_activation_tokens
+                SET used_at = UTC_TIMESTAMP()
+              WHERE user_activation_token_id = ?`,
+            [userActivation.id],
+          );
+          await connection.execute(
+            `INSERT INTO audit_logs
+               (user_id, action, entity_table, record_id, description)
+             VALUES (?, 'membership.account_activated', 'users', ?,
+                     'The user activated the account using a one-time token.')`,
+            [userActivation.userId, userActivation.userId],
+          );
+          return;
+        }
+
         const [activations] = await connection.execute<
           (RowDataPacket & {
             id: string;
@@ -1321,14 +1366,14 @@ export function createMembershipRepository(
                   CAST(user_id AS CHAR) AS userId,
                   CAST(membership_application_id AS CHAR) AS applicationId
              FROM membership_account_activations
-            WHERE token_hash = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()
+            WHERE token_hash = ? AND used_at IS NULL
             FOR UPDATE`,
           [tokenHash],
         );
         const activation = activations[0];
         if (!activation) {
           throw new AppError(
-            "Activation link is invalid or expired",
+            "Activation link is invalid or has already been used",
             410,
             "ACTIVATION_INVALID",
           );

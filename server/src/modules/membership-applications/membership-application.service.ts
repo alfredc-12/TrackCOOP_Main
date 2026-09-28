@@ -25,13 +25,16 @@ import type {
   ChairmanMembershipApplicationUpdateInput,
   MembershipApplicationBeneficiaryInput,
   PublicApplicationStatus,
+  PublicActivationResult,
   PublicDocumentUploadInput,
   PublicMembershipApplicationInput,
   PublicSubmissionContext,
   PublicSubmissionResult,
   RequirementInput,
+  RequirementType,
   RequirementUpdateInput,
   StatusTransitionInput,
+  StoredChairmanApplicationDocument,
   StoredMembershipApplicationDocument,
 } from "./membership-application.types";
 import type { AuthContext } from "../auth/auth.types";
@@ -46,6 +49,7 @@ import {
   buildSubmittedEmail,
   triggerMembershipEmail,
 } from "./membership-application-email";
+import { assertPrePaymentRequirementsComplete } from "./membership-application.requirements";
 
 const duplicateWarningMessage =
   "A recent application with matching applicant details already exists. The new application was still submitted for Chairman review.";
@@ -174,7 +178,30 @@ function normalizeChairmanApplication(input: ChairmanMembershipApplicationInput)
 }
 
 function activationUrl(rawToken: string) {
-  return `${env.FRONTEND_URL.replace(/\/$/, "")}/activate?token=${encodeURIComponent(rawToken)}`;
+  return `${env.FRONTEND_URL.replace(/\/$/, "")}/membership/activate/${encodeURIComponent(rawToken)}`;
+}
+
+const applicantDocumentRequirementTypes = new Set<RequirementType>([
+  "Signed Application",
+  "Valid ID",
+  "Proof of Residency",
+  "Other",
+]);
+
+function shouldEmailApplicantForRequirement(input: RequirementInput) {
+  return applicantDocumentRequirementTypes.has(input.requirementType)
+    && (input.requirementStatus ?? "Pending") === "Pending";
+}
+
+function documentRequirementEmailMessage(requirement: ChairmanApplicationRequirement) {
+  const note = requirement.remarks?.trim();
+  return [
+    "The cooperative needs an additional document or information to continue reviewing your membership application.",
+    note
+      ? `${requirement.requirementType}: ${note}`
+      : `Requested item: ${requirement.requirementType}`,
+    "Open your application status page to upload the requested file.",
+  ].join("\n");
 }
 
 function addPdfLine(document: PDFKit.PDFDocument, label: string, value: unknown) {
@@ -266,11 +293,17 @@ export interface MembershipApplicationService {
     context: PublicSubmissionContext,
   ): Promise<PublicSubmissionResult>;
   getPublicStatus(applicationCode: string, rawDateOfBirth: string | undefined): Promise<PublicApplicationStatus>;
+  issuePublicActivationLink(applicationCode: string, rawDateOfBirth: string | undefined): Promise<PublicActivationResult>;
   uploadPublicDocument(
     applicationCode: string,
     rawDateOfBirth: string | undefined,
     document: PublicDocumentUploadInput,
   ): Promise<StoredMembershipApplicationDocument>;
+  viewPublicDocument(applicationCode: string, documentId: string, rawDateOfBirth: string | undefined): Promise<{
+    contents: Buffer;
+    originalFileName: string;
+    mimeType: string;
+  }>;
   summary(auth: AuthContext): Promise<ChairmanApplicationSummary>;
   list(query: ChairmanApplicationListQuery, auth: AuthContext): Promise<ChairmanApplicationListResult>;
   createChairmanApplication(
@@ -351,6 +384,22 @@ export function createMembershipApplicationService(
     return application;
   }
 
+  async function readStoredDocument(document: StoredChairmanApplicationDocument) {
+    const contents = await readProtectedFile(document.storedFilePath).catch(() => {
+      throw new AppError(
+        "Document file was not found",
+        404,
+        "MEMBERSHIP_DOCUMENT_FILE_NOT_FOUND",
+      );
+    });
+
+    return {
+      contents,
+      originalFileName: document.originalFileName,
+      mimeType: document.mimeType,
+    };
+  }
+
   return {
     async submitPublicApplication(input, context) {
       const normalizedInput = {
@@ -391,8 +440,39 @@ export function createMembershipApplicationService(
         submittedAt: application.submittedAt,
         applicationStatus: application.applicationStatus,
         latestApplicantMessage: application.latestApplicantMessage,
+        memberCode: application.memberCode,
+        activationAvailable: application.activationAvailable,
+        activationTokenExpiresAt: application.activationTokenExpiresAt,
         missingOrRejectedRequirements: application.missingOrRejectedRequirements,
         paymentRequirements: application.paymentRequirements,
+      };
+    },
+
+    async issuePublicActivationLink(applicationCode, rawDateOfBirth) {
+      const application = await findVerifiedApplication(applicationCode, rawDateOfBirth);
+      if (application.applicationStatus !== "Approved" || !application.activationAvailable) {
+        throw new AppError(
+          "Activation is not available for this application",
+          409,
+          "MEMBERSHIP_ACTIVATION_UNAVAILABLE",
+        );
+      }
+
+      const settings = await repository.getMembershipSettings();
+      const rawActivationToken = generateActivationToken();
+      const activationTokenExpiresAt = new Date(
+        Date.now() + settings.activationTokenHours * 60 * 60_000,
+      );
+
+      await repository.issuePublicActivationLink({
+        applicationId: application.id,
+        tokenHash: hashToken(rawActivationToken),
+        expiresAt: activationTokenExpiresAt,
+      });
+
+      return {
+        activationUrl: activationUrl(rawActivationToken),
+        activationTokenExpiresAt,
       };
     },
 
@@ -422,6 +502,24 @@ export function createMembershipApplicationService(
         await deleteProtectedFile(storedFilePath).catch(() => undefined);
         throw error;
       }
+    },
+
+    async viewPublicDocument(applicationCode, documentId, rawDateOfBirth) {
+      const application = await findVerifiedApplication(applicationCode, rawDateOfBirth);
+      const document = await repository.findStoredDocument(documentId);
+      if (
+        !document
+        || document.applicationId !== application.id
+        || document.uploadedByUserId !== null
+      ) {
+        throw new AppError(
+          "Document was not found",
+          404,
+          "MEMBERSHIP_DOCUMENT_NOT_FOUND",
+        );
+      }
+
+      return readStoredDocument(document);
     },
 
     summary() {
@@ -525,23 +623,26 @@ export function createMembershipApplicationService(
         );
       }
 
-      const contents = await readProtectedFile(document.storedFilePath).catch(() => {
-        throw new AppError(
-          "Document file was not found",
-          404,
-          "MEMBERSHIP_DOCUMENT_FILE_NOT_FOUND",
-        );
-      });
-
-      return {
-        contents,
-        originalFileName: document.originalFileName,
-        mimeType: document.mimeType,
-      };
+      return readStoredDocument(document);
     },
 
-    createRequirement(applicationId, input, auth) {
-      return repository.createRequirement(applicationId, input, auth);
+    async createRequirement(applicationId, input, auth) {
+      const requirement = await repository.createRequirement(applicationId, input, auth);
+      if (shouldEmailApplicantForRequirement(input)) {
+        const detail = await repository.findChairmanApplicationById(applicationId);
+        if (detail) {
+          void triggerMembershipEmail(buildStatusEmail({
+            event: "membership.application.needs_information",
+            email: detail.email,
+            name: detail.fullName,
+            applicationCode: detail.applicationCode,
+            status: detail.applicationStatus,
+            subject: `Membership document requested: ${detail.applicationCode}`,
+            message: documentRequirementEmailMessage(requirement),
+          }));
+        }
+      }
+      return requirement;
     },
 
     updateRequirement(requirementId, input, auth) {
@@ -576,6 +677,16 @@ export function createMembershipApplicationService(
     },
 
     async approveForPayment(applicationId, input, auth) {
+      const application = await repository.findChairmanApplicationById(applicationId);
+      if (!application) {
+        throw new AppError(
+          "Membership application was not found",
+          404,
+          "MEMBERSHIP_APPLICATION_NOT_FOUND",
+        );
+      }
+      assertPrePaymentRequirementsComplete(application.requirements);
+
       const detail = await repository.transitionStatus(applicationId, "Payment Required", {
         ...input,
         applicantMessage: input.applicantMessage
@@ -588,7 +699,7 @@ export function createMembershipApplicationService(
         applicationCode: detail.applicationCode,
         status: detail.applicationStatus,
         subject: `Membership payment is ready: ${detail.applicationCode}`,
-        message: "Your membership application was approved for payment. Please complete the required PayMongo checkout from your application status page.",
+        message: "Your membership application was approved for payment. Please complete the required payment from your application status page.",
       }));
       return detail;
     },
@@ -656,7 +767,10 @@ export function createMembershipApplicationService(
           ? `Your membership was approved. Activate your member portal account here: ${approvalResult.activationUrl}`
           : "Your membership was approved. Welcome to the cooperative.",
       }));
-      return approvalResult;
+      return {
+        ...approvalResult,
+        activationUrl: null,
+      };
     },
 
     async printablePdf(applicationId) {

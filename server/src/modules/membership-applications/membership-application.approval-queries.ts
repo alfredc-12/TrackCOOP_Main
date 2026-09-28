@@ -9,6 +9,23 @@ import type {
 export type ValidatedReference = { id: string; amount: number };
 type ValidatedReferenceRow = RowDataPacket & { id: string; amount: string | number };
 
+const applicationStatusSql = `
+  COALESCE(
+    NULLIF(CASE a.application_status
+      WHEN 'SUBMITTED' THEN 'Submitted'
+      WHEN 'UNDER_REVIEW' THEN 'Under Review'
+      WHEN 'NEEDS_INFORMATION' THEN 'Needs Information'
+      WHEN 'APPROVED_PENDING_PAYMENT' THEN 'Payment Required'
+      WHEN 'PAYMENT_UNDER_REVIEW' THEN 'Payment Required'
+      WHEN 'APPROVED' THEN 'Approved'
+      WHEN 'REJECTED' THEN 'Rejected'
+      WHEN 'WITHDRAWN' THEN 'Withdrawn'
+      ELSE a.application_status
+    END, ''),
+    'Payment Required'
+  )
+`;
+
 export async function selectApprovalApplication(
   connection: PoolConnection,
   applicationId: string,
@@ -37,7 +54,7 @@ export async function selectApprovalApplication(
             a.applicant_signature_name AS applicantSignatureName,
             a.signed_at AS signedAt,
             a.signed_place AS signedPlace,
-            a.application_status AS applicationStatus,
+            ${applicationStatusSql} AS applicationStatus,
             CAST(a.converted_member_id AS CHAR) AS convertedMemberId,
             a.submitted_at AS submittedAt
        FROM membership_applications a

@@ -332,7 +332,7 @@ test("Validated, Reversed, and unsupported-purpose payments cannot create checko
   for (const [overrides, code] of [
     [{ validationStatus: "Validated" as const }, "PAYMENT_ALREADY_VALIDATED"],
     [{ validationStatus: "Reversed" as const }, "PAYMENT_REVERSED"],
-    [{ paymentPurpose: "Rental" }, "PAYMENT_PURPOSE_GATEWAY_NOT_IMPLEMENTED"],
+    [{ paymentPurpose: "Document/Certificate" }, "PAYMENT_PURPOSE_GATEWAY_NOT_IMPLEMENTED"],
   ] as const) {
     const fixture = makeFixture(overrides);
     await assert.rejects(

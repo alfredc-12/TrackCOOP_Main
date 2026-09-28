@@ -41,9 +41,13 @@ export function createMembershipApprovalController(
     approve: asyncHandler(async (request, response) => {
       const params = parse<{ id: string }>(idParamsSchema, request.params);
       const input = parse<ApprovalInput>(approvalSchema, request.body);
+      const result = await service.approve(params.id, input, authContext(request));
       return sendSuccess(
         response,
-        await service.approve(params.id, input, authContext(request)),
+        {
+          ...result,
+          activationUrl: null,
+        },
         { message: "Membership application approved" },
       );
     }),

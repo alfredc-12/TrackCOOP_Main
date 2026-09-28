@@ -145,8 +145,7 @@ function userSelect() {
                  (SELECT MAX(t.expires_at)
                     FROM user_activation_tokens t
                    WHERE t.user_id = u.user_id
-                     AND t.used_at IS NULL
-                     AND t.expires_at > UTC_TIMESTAMP()) AS activationTokenExpiresAt
+                     AND t.used_at IS NULL) AS activationTokenExpiresAt
             FROM users u
             JOIN roles r ON r.role_id = u.role_id
             LEFT JOIN member_profiles m ON m.user_id = u.user_id`;

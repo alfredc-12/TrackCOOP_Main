@@ -745,8 +745,8 @@ export function RentalInquiryForm({
               <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${preferredPaymentMethod === "Online" ? "border-[#08753a] bg-[#f2f8f4]" : "border-[#e1e8e2] bg-[#f8fbf9] hover:bg-[#eaf4ec]"}`}>
                 <input type="radio" value="Online" {...register("preferredPaymentMethod")} className="size-4 text-[#08753a] focus:ring-[#08753a]" />
                 <div>
-                  <span className="block text-sm font-bold text-[#123d2a]">Online (GCash)</span>
-                  <span className="block text-xs text-[#6b786f]">Pay via GCash transfer and upload receipt</span>
+                  <span className="block text-sm font-bold text-[#123d2a]">QRPH</span>
+                  <span className="block text-xs text-[#6b786f]">Pay through QRPH after NFFAC opens payment</span>
                 </div>
               </label>
             </div>

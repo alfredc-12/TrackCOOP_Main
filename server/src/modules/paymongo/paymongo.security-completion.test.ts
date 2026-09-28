@@ -97,19 +97,21 @@ test("browser payment modules contain no server PayMongo secrets", () => {
   }
 });
 
-test("public payment UI keeps birth-date checkout safe and test-mode explicit", () => {
+test("public payment UI keeps birth-date checkout safe without exposing internals", () => {
   assert.match(publicPaymentUi, /application code and the date of birth/i);
-  assert.match(publicPaymentUi, /PayMongo Test Mode — No real money will be charged/);
-  assert.match(publicPaymentUi, /Remaining to PHP 3,000/);
-  assert.match(publicPaymentUi, /Remaining to PHP 15,000 max/);
+  assert.match(publicPaymentUi, /useState\("1500"\)/);
+  assert.match(publicPaymentUi, /To PHP 15,000 max/);
   assert.match(publicPaymentUi, /Start Share Capital Installment/);
-  assert.match(publicPaymentUi, /Internal IDs,[\s\S]*webhook data,[\s\S]*tracking hashes stay hidden/);
+  assert.match(publicPaymentUi, /status\.requestedMembershipType === "True Member"[\s\S]*Number\(shareCapitalAmount \|\| 0\)/);
+  assert.match(publicPaymentUi, /const totalDue = membershipFeeDue \+ shareCapitalDue/);
+  assert.doesNotMatch(publicPaymentUi, /PayMongo Test Mode|No real money will be charged/);
+  assert.doesNotMatch(publicPaymentUi, /Internal IDs|webhook data|tracking hashes/);
   assert.doesNotMatch(publicPaymentUi, /PAYMONGO_SECRET_KEY|PAYMONGO_WEBHOOK_SECRET|signatureHeader|rawBodyUtf8/);
 });
 
 test("Member payment UI uses owner-only routes and enforces contribution limits", () => {
-  assert.match(memberPaymentUi, /Pay Share Capital with PayMongo/);
-  assert.match(memberPaymentUi, /PayMongo Test Mode/);
+  assert.match(memberPaymentUi, /Pay Share Capital/);
+  assert.match(memberPaymentUi, /QRPH Test Mode/);
   assert.match(memberPaymentUi, /Remaining to PHP 3,000/);
   assert.match(memberPaymentUi, /cannot make your total exceed PHP 15,000/);
   assert.match(memberPaymentUi, /Payment history/);

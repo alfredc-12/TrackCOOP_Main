@@ -47,7 +47,7 @@ export function paymentActionEffect(action: PaymentMutationAction) {
     reject: "Marks the payment as Rejected, records your reason, and prevents settlement until it is returned to Pending.",
     clarification: "Marks the payment as Needs Clarification and records the reason for staff and applicant follow-up.",
     reverse: "Creates reversing accounting entries and marks linked payment postings Reversed without automatically revoking membership.",
-    retry: "Replays settlement from the stored, previously verified PayMongo event fields. No browser webhook payload is accepted.",
+    retry: "Replays settlement from the stored, previously verified gateway event fields. No browser webhook payload is accepted.",
   };
   return effects[action];
 }

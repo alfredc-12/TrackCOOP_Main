@@ -7,6 +7,23 @@ import type {
 
 type AmountRow = RowDataPacket & { total: string | number | null };
 
+const membershipApplicationStatusSql = `
+  COALESCE(
+    NULLIF(CASE a.application_status
+      WHEN 'SUBMITTED' THEN 'Submitted'
+      WHEN 'UNDER_REVIEW' THEN 'Under Review'
+      WHEN 'NEEDS_INFORMATION' THEN 'Needs Information'
+      WHEN 'APPROVED_PENDING_PAYMENT' THEN 'Payment Required'
+      WHEN 'PAYMENT_UNDER_REVIEW' THEN 'Payment Required'
+      WHEN 'APPROVED' THEN 'Approved'
+      WHEN 'REJECTED' THEN 'Rejected'
+      WHEN 'WITHDRAWN' THEN 'Withdrawn'
+      ELSE a.application_status
+    END, ''),
+    'Payment Required'
+  )
+`;
+
 export function settlementMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -55,7 +72,7 @@ export async function selectSettlementApplication(
   const [rows] = await connection.execute<MembershipApplicationSettlementRow[]>(
     `SELECT CAST(a.membership_application_id AS CHAR) AS id,
             a.application_code AS applicationCode,
-            a.application_status AS applicationStatus,
+            ${membershipApplicationStatusSql} AS applicationStatus,
             a.requested_membership_type AS requestedMembershipType,
             CAST(a.converted_member_id AS CHAR) AS convertedMemberId,
             CAST(m.user_id AS CHAR) AS memberUserId,

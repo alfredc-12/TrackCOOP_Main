@@ -1,7 +1,7 @@
 import type { RentalFeeEstimate, RentalService, RequesterType } from "./rental.types";
 
 const MS_PER_DAY = 86_400_000;
-export const MEMBER_RENTAL_DISCOUNT_PERCENT = 20;
+export const MEMBER_RENTAL_DISCOUNT_PERCENT = 5;
 export const MEMBER_RENTAL_DISCOUNT_RATE = MEMBER_RENTAL_DISCOUNT_PERCENT / 100;
 
 function parseDateOnly(value: string) {

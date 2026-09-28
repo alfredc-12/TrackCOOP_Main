@@ -88,7 +88,7 @@ export type PublicMembershipApplicationInput = {
   spouseName?: string | null;
   occupation?: string | null;
   orientationCommitmentAccepted: true;
-  membershipFeeCommitmentAccepted: true;
+  membershipFeeCommitmentAccepted: boolean;
   shareSubscriptionCommitmentAccepted: true;
   patronageRefundAcknowledged: boolean;
   bylawsAgreementAccepted: true;
@@ -128,6 +128,9 @@ export type PublicStatusRequirement = {
   requirementType: RequirementType;
   requirementStatus: RequirementStatus;
   remarks: string | null;
+  documentId: string | null;
+  documentOriginalFileName: string | null;
+  documentMimeType: string | null;
 };
 
 export type PublicPaymentRequirement = {
@@ -145,6 +148,9 @@ export type PublicApplicationStatus = {
   submittedAt: Date;
   applicationStatus: MembershipApplicationStatus;
   latestApplicantMessage: string | null;
+  memberCode: string | null;
+  activationAvailable: boolean;
+  activationTokenExpiresAt: Date | null;
   missingOrRejectedRequirements: PublicStatusRequirement[];
   paymentRequirements: PublicPaymentRequirement[];
 };
@@ -153,6 +159,11 @@ export type PublicApplicationRecord = PublicApplicationStatus & {
   id: string;
   dateOfBirth: string | null;
   publicTrackingTokenHash: string;
+};
+
+export type PublicActivationResult = {
+  activationUrl: string;
+  activationTokenExpiresAt: Date;
 };
 
 export type PublicDocumentUploadInput = {
@@ -175,6 +186,7 @@ export type StoredMembershipApplicationDocument = {
 export type StoredChairmanApplicationDocument = StoredMembershipApplicationDocument & {
   id: string;
   applicationId: string;
+  uploadedByUserId: string | null;
   storedFilePath: string;
 };
 

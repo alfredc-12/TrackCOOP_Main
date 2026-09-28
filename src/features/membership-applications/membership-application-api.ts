@@ -5,12 +5,14 @@ import type {
   ApprovalResult,
   BeneficiaryInput,
   ChairmanApplicationDetail,
+  ChairmanApplicationDocument,
   ChairmanApplicationListQuery,
   ChairmanApplicationListResult,
   ChairmanApplicationSummary,
   ChairmanMembershipApplicationInput,
   ChairmanMembershipApplicationUpdateInput,
   MembershipDocumentType,
+  PublicActivationResult,
   PublicApplicationStatus,
   PublicMembershipApplicationInput,
   PublicPaymongoCheckoutInput,
@@ -100,6 +102,45 @@ export function uploadMembershipApplicationDocument(input: {
   );
 }
 
+export async function getMembershipApplicationPublicDocument(input: {
+  applicationCode: string;
+  dateOfBirth: string;
+  documentId: string;
+}) {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${env.apiUrl}/api/membership-applications/public/${encodeURIComponent(input.applicationCode)}/documents/${encodeURIComponent(input.documentId)}/view`,
+      {
+        headers: {
+          "X-Application-Date-Of-Birth": input.dateOfBirth,
+        },
+        cache: "no-store",
+        credentials: "include",
+      },
+    );
+  } catch {
+    throw new ApiClientError(
+      "TrackCOOP could not reach the server. Please try again.",
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiFailure | null;
+    throw new ApiClientError(
+      payload?.message ?? "The document preview could not be loaded",
+      response.status,
+      payload?.errors,
+    );
+  }
+
+  return {
+    blob: await response.blob(),
+    mimeType: response.headers.get("Content-Type") ?? "application/octet-stream",
+  };
+}
+
 export function getMembershipApplicationStatus(input: {
   applicationCode: string;
   dateOfBirth: string;
@@ -111,6 +152,21 @@ export function getMembershipApplicationStatus(input: {
         "X-Application-Date-Of-Birth": input.dateOfBirth,
       },
       cache: "no-store",
+    },
+  );
+}
+
+export function issueMembershipApplicationActivationLink(input: {
+  applicationCode: string;
+  dateOfBirth: string;
+}) {
+  return apiRequest<PublicActivationResult>(
+    `/api/membership-applications/public/${encodeURIComponent(input.applicationCode)}/activation-link`,
+    {
+      method: "POST",
+      headers: {
+        "X-Application-Date-Of-Birth": input.dateOfBirth,
+      },
     },
   );
 }
@@ -228,7 +284,7 @@ export function uploadChairmanApplicationDocument(input: {
   formData.append("documentType", input.documentType);
   formData.append("document", input.file);
 
-  return apiRequest(`/api/membership-applications/${input.applicationId}/documents`, {
+  return apiRequest<ChairmanApplicationDocument>(`/api/membership-applications/${input.applicationId}/documents`, {
     method: "POST",
     body: formData,
   });

@@ -95,6 +95,21 @@ function money(value: number) {
 }
 function safe(value: string | null | undefined) { return value?.trim() || "Not recorded"; }
 function dateTime(value: string | null | undefined) { return value ? new Date(value).toLocaleString() : "Not recorded"; }
+function paymentChannelLabel(value: string | null | undefined) {
+  if (value === "PayMongo") return "QRPH";
+  if (value === "Manual GCash") return "QRPH Reference";
+  return value || "Not recorded";
+}
+function paymentSourceLabel(value: string | null | undefined) {
+  return value === "PayMongo Webhook" ? "QRPH Gateway" : value || "Not recorded";
+}
+function filterOptionLabel(option: string, emptyLabel: string) {
+  if (!option) return emptyLabel;
+  if (option === "PayMongo") return "QRPH";
+  if (option === "Manual GCash") return "QRPH Reference";
+  if (option === "PayMongo Webhook") return "QRPH Gateway";
+  return option;
+}
 function badgeTone(status: string) {
   if (["Validated", "Active", "Processed", "Generated", "paid"].includes(status)) return "success" as const;
   if (["Pending", "Processing", "Received", "Needs Clarification"].includes(status)) return "warning" as const;
@@ -112,7 +127,7 @@ function Select({ value, onChange, options, label }: { value: string; onChange: 
   return (
     <select value={value} onChange={(event: any) => onChange(event.target.value)} aria-label={label}
       className="h-11 min-w-0 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-semibold text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-      {options.map((option) => <option key={option || label} value={option}>{option || label}</option>)}
+      {options.map((option) => <option key={option || label} value={option}>{filterOptionLabel(option, label)}</option>)}
     </select>
   );
 }
@@ -156,7 +171,7 @@ function ActionConfirmationDialog({
         <Info label="Reference" value={payment.referenceNumber} sub={payment.provider} />
         <Info label="Payer" value={safe(payment.payerName)} sub={safe(payment.payerContact)} />
         <Info label="Amount" value={money(payment.amount)} sub={payment.paymentPurpose} />
-        <Info label="Channel / Status" value={payment.paymentChannel} sub={payment.validationStatus} />
+        <Info label="Channel / Status" value={paymentChannelLabel(payment.paymentChannel)} sub={payment.validationStatus} />
       </div>
       {event ? <Info label="Gateway event" value={`${event.eventType} / ${event.processingStatus}`} sub={`Retry count ${event.retryCount} · Payment ${safe(event.paymentId)}`} /> : null}
       <div className="rounded-lg border border-[#F3D08A] bg-[#FFF8E8] p-4 text-sm leading-6 text-[#775200]">
@@ -273,9 +288,9 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
     setIsSecondarySubmitting(true);
     try {
       const status = await getPaymongoPaymentStatus(selected.id);
-      toast.success(`PayMongo inquiry complete. TrackCOOP status: ${status.validationStatus}`);
+      toast.success(`QRPH inquiry complete. TrackCOOP status: ${status.validationStatus}`);
       await reloadSelected();
-    } catch (caught) { toast.error(caught instanceof ApiClientError ? caught.message : "PayMongo status could not be refreshed."); }
+    } catch (caught) { toast.error(caught instanceof ApiClientError ? caught.message : "QRPH status could not be refreshed."); }
     finally { setIsSecondarySubmitting(false); }
   };
   const retryReceipt = async () => {
@@ -288,14 +303,14 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
 
   return <div className="grid gap-6">
     <PageHeader eyebrow="Payments" title={role === "bookkeeper" ? "Payment Validation" : "Payments"}
-      description={role === "bookkeeper" ? "Review manual payments, inspect safe PayMongo outcomes, and recover verified failed settlement events." : "Read-only payment oversight, safe gateway status, posting history, and receipts."}
+      description={role === "bookkeeper" ? "Review manual payments, inspect safe QRPH outcomes, and recover verified failed settlement events." : "Read-only payment oversight, safe gateway status, posting history, and receipts."}
       actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper controls" : "Chairman read-only"}</StatusBadge>} />
     <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
       <StatCard label="Total" value={String(summary.total)} icon={ReceiptText} />
       <StatCard label="Pending Manual" value={String(summary.pendingManual)} icon={Clock3} />
       <StatCard label="Clarification" value={String(summary.needsClarification)} icon={Send} />
       <StatCard label="Validated Today" value={String(summary.validatedToday)} icon={BadgeCheck} />
-      <StatCard label="PayMongo Test" value={String(summary.paymongoTestPayments)} icon={WalletCards} />
+      <StatCard label="QRPH Test" value={String(summary.paymongoTestPayments)} icon={WalletCards} />
       <StatCard label="Rejected" value={String(summary.rejected)} icon={X} />
       <StatCard label="Validated Amount" value={money(summary.validatedAmount)} icon={Banknote} />
     </div>
@@ -340,7 +355,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
           <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{payment.referenceNumber}</p><div className="mt-1 flex flex-wrap gap-1">{payment.gatewayEnvironment === "Test" ? <StatusBadge tone="warning">Test Mode</StatusBadge> : null}{payment.failedGatewayEvents ? <StatusBadge tone="danger">{payment.failedGatewayEvents} failed event</StatusBadge> : null}</div></td>
           <td className="px-5 py-4"><p className="font-semibold text-[#123D2A]">{safe(payment.payerName)}</p><p className="mt-1 text-xs text-[#6C7A70]">{payment.memberCode ? `${payment.memberCode} · ${safe(payment.memberName)}` : payment.applicationCode ? `${payment.applicationCode} · ${safe(payment.applicationName)}` : safe(payment.payerContact)}</p></td>
           <td className="px-5 py-4">{payment.paymentPurpose}</td>
-          <td className="px-5 py-4"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{payment.paymentChannel}</StatusBadge></td>
+          <td className="px-5 py-4"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{paymentChannelLabel(payment.paymentChannel)}</StatusBadge></td>
           <td className="px-5 py-4"><CurrencyDisplay value={payment.amount} /></td>
           <td className="px-5 py-4"><StatusBadge tone={badgeTone(payment.validationStatus)}>{payment.validationStatus}</StatusBadge></td>
           <td className="px-5 py-4"><button type="button" onClick={() => void openDetail(payment.id)} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><Eye className="size-4" />Review</button></td>
@@ -355,7 +370,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
     </div>
 
     <FormDialog open={Boolean(selected)} onOpenChange={(open: boolean) => { if (!open && !dialog.open) setSelected(null); }} title={selected?.referenceNumber ?? "Payment reference"}
-      description={selected ? `${selected.paymentPurpose} / ${selected.paymentChannel}` : undefined} contentClassName="w-[min(74rem,calc(100vw-2rem))]">
+      description={selected ? `${selected.paymentPurpose} / ${paymentChannelLabel(selected.paymentChannel)}` : undefined} contentClassName="w-[min(74rem,calc(100vw-2rem))]">
       {isDetailLoading || !selected ? <LoadingSkeleton /> : <div className="grid gap-5 pt-3">
         {selected.posting.warnings.length ? <div className="rounded-lg border border-[#F3D08A] bg-[#FFF8E8] p-4 text-sm text-[#775200]"><p className="flex items-center gap-2 font-bold"><AlertTriangle className="size-4" />Warnings</p><ul className="mt-2 list-disc pl-5">{selected.posting.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div> : null}
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
@@ -364,7 +379,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
           <Info label="Member" value={safe(selected.memberCode)} sub={safe(selected.memberName)} />
           <Info label="Application" value={safe(selected.applicationCode)} sub={safe(selected.applicationName)} />
           <Info label="Amount / Purpose" value={money(selected.amount)} sub={selected.paymentPurpose} />
-          <Info label="Channel / Source" value={selected.paymentChannel} sub={selected.validationSource ?? "No validation source"} />
+          <Info label="Channel / Source" value={paymentChannelLabel(selected.paymentChannel)} sub={paymentSourceLabel(selected.validationSource)} />
           <Info label="Current status" value={selected.validationStatus} sub={`Validated by ${safe(selected.validatedByName)}`} />
           <Info label="Gateway mode" value={selected.gatewayEnvironment} sub={selected.gatewayEnvironment === "Test" ? "Test Mode" : selected.gatewayStatus ?? "No gateway status"} />
           <Info label="Gateway IDs" value={safe(selected.gatewayCheckoutId)} sub={`Payment ${safe(selected.gatewayPaymentId)} · Intent ${safe(selected.gatewayPaymentIntentId)}`} />
@@ -385,7 +400,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
             <MutateButton disabled={!mutationAllowed(selected)} onClick={() => setDialog(openPaymentAction("clarification"))}><Send className="size-4" />Request Clarification</MutateButton>
             <MutateButton disabled={!mutationAllowed(selected) || isSecondarySubmitting} onClick={() => void saveEdit()}><Pencil className="size-4" />Save Edit</MutateButton>
             <MutateButton disabled={selected.validationStatus !== "Validated"} onClick={() => setDialog(openPaymentAction("reverse"))}><RotateCcw className="size-4" />Reverse</MutateButton>
-            {selected.paymentChannel === "PayMongo" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void refreshFromPaymongo()}><RefreshCcw className="size-4" />Refresh from PayMongo</MutateButton> : null}
+            {selected.paymentChannel === "PayMongo" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void refreshFromPaymongo()}><RefreshCcw className="size-4" />Refresh QRPH Status</MutateButton> : null}
             {selected.receipt?.processingStatus === "Failed" ? <MutateButton disabled={isSecondarySubmitting} onClick={() => void retryReceipt()}><ReceiptText className="size-4" />Retry Receipt</MutateButton> : null}
             {selected.proofFilePath ? <a href={paymentReferenceProofUrl(selected.id)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A]">Proof</a> : null}
           </div>
@@ -400,7 +415,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
         </section>
 
         <section className="grid gap-3"><h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]"><History className="size-4" />Validation history</h3>
-          {selected.validationHistory.length ? selected.validationHistory.map((entry) => <div key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm"><p className="font-bold text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p><p className="mt-1 text-[#5D6D63]">{entry.validationSource} · {safe(entry.changedByName)} · {dateTime(entry.changedAt)}</p>{entry.reason ? <p className="mt-2 text-[#294B39]">{entry.reason}</p> : null}</div>) : <p className="text-sm text-[#5D6D63]">No validation history yet.</p>}
+          {selected.validationHistory.length ? selected.validationHistory.map((entry) => <div key={entry.id} className="rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm"><p className="font-bold text-[#123D2A]">{entry.oldStatus ?? "New"} to {entry.newStatus}</p><p className="mt-1 text-[#5D6D63]">{paymentSourceLabel(entry.validationSource)} · {safe(entry.changedByName)} · {dateTime(entry.changedAt)}</p>{entry.reason ? <p className="mt-2 text-[#294B39]">{entry.reason}</p> : null}</div>) : <p className="text-sm text-[#5D6D63]">No validation history yet.</p>}
         </section>
       </div>}
     </FormDialog>

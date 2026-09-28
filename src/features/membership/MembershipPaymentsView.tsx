@@ -107,7 +107,7 @@ export function MembershipPaymentsView() {
       <PageHeader
         eyebrow="Payments"
         title="Membership Payment Validation"
-        description="Validate associate membership fees, initial share-capital payments, GCash references, and uploaded payment proof for approved applications."
+        description="Validate associate membership fees, initial share-capital payments, QRPH references, and uploaded payment proof for approved applications."
         actions={<StatusBadge tone="success">Bookkeeper workflow</StatusBadge>}
       />
       <div className="grid gap-4 sm:grid-cols-3">

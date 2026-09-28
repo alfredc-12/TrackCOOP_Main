@@ -17,6 +17,7 @@ const commitments = [
   {
     name: "membershipFeeCommitmentAccepted",
     text: "I agree to pay the configured PHP 200 associate membership fee.",
+    membershipTypes: ["Associate"],
   },
   {
     name: "shareSubscriptionCommitmentAccepted",
@@ -24,11 +25,13 @@ const commitments = [
   },
   {
     name: "initialShareCapitalAcknowledged",
-    text: "When pursuing True Member status, I acknowledge the configured PHP 3,000 initial share-capital amount.",
+    text: "When pursuing True Member status, I acknowledge the configured PHP 1,500 initial share-capital payment.",
+    membershipTypes: ["True Member"],
   },
   {
     name: "trueMemberRequirementAcknowledged",
-    text: "I acknowledge the PHP 3,000 True Member requirement and the 12-month completion period.",
+    text: "I acknowledge the PHP 3,000 True Member target and the 1-month completion period after approval.",
+    membershipTypes: ["True Member"],
   },
   {
     name: "bylawsAgreementAccepted",
@@ -46,30 +49,21 @@ const commitments = [
 
 export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewProps) {
   const values = watch();
-  const allAccepted = commitments.every((item) => values[item.name]);
+  const activeCommitments = commitments.filter(
+    (item) =>
+      !("membershipTypes" in item)
+      || (item.membershipTypes as readonly string[]).includes(values.requestedMembershipType),
+  );
+  const allAccepted = activeCommitments.every((item) => values[item.name]);
 
   function setAllAccepted(accepted: boolean) {
-    commitments.forEach((item) => {
+    activeCommitments.forEach((item) => {
       setValue(item.name, accepted, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
     });
   }
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 rounded-[1.5rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm md:grid-cols-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b62a]">Required Share Capital</p>
-          <p className="mt-2 text-2xl font-black text-[#123D2A]">PHP 3,000</p>
-        </div>
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b62a]">Membership Fee</p>
-          <p className="mt-2 text-2xl font-black text-[#123D2A]">PHP 200</p>
-        </div>
-        <div className="rounded-2xl bg-white p-4 text-sm font-semibold leading-6 text-[#365F4A]">
-          You do not pay now. Payment is only requested after NFFAC completes the first review.
-        </div>
-      </div>
-
       <div className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 text-sm leading-6 text-[#123D2A] shadow-sm">
         <label className="flex cursor-pointer gap-3 rounded-2xl border border-[#1F6B43]/40 bg-[#EAF3E8] px-4 py-3 font-semibold transition hover:border-[#1F6B43]">
           <input
@@ -89,7 +83,7 @@ export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewPr
           </span>
         </label>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {commitments.map((item) => (
+          {activeCommitments.map((item) => (
             <div key={item.name} className="rounded-2xl border border-[#EEF2EC] bg-[#FFFAF2] p-4">
               <p className="text-sm font-semibold leading-6 text-[#365F4A]">{item.text}</p>
             </div>

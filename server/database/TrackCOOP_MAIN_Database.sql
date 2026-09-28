@@ -1,5 +1,5 @@
 -- ============================================================================
--- TRACKCOOP RDS / PHPMYADMIN COMPATIBLE DATABASE - VERSION 4
+-- TRACKCOOP RDS / PHPMYADMIN COMPATIBLE DATABASE - VERSION 5
 -- Target DBMS : MySQL 8.0+ / MariaDB 10.6+
 -- Database    : currently selected database
 -- Purpose     : Complete database for the TrackCOOP public website, portal,
@@ -10,6 +10,9 @@
 -- Compatibility note: this edition uses no triggers, stored procedures,
 -- stored functions, custom statement separators, or CHECK constraints. It is intended for
 -- AWS RDS and shared-hosting accounts that do not have SUPER privilege.
+-- Membership application status includes the payment workflow states
+-- `Payment Required` and `Payment Confirmed`; existing online databases created
+-- before this version must run the live ALTER script before using public payments.
 -- ============================================================================
 
 SET NAMES utf8mb4;
@@ -366,9 +369,9 @@ CREATE TABLE membership_applications (
     membership_fee_amount DECIMAL(12, 2) NOT NULL DEFAULT 200.00,
     share_subscription_commitment_accepted TINYINT(1) NOT NULL DEFAULT 0,
     subscribed_shares SMALLINT UNSIGNED NULL,
-    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
+    initial_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 1500.00,
     target_share_capital_amount DECIMAL(12, 2) NOT NULL DEFAULT 3000.00,
-    share_capital_deadline_months SMALLINT UNSIGNED NOT NULL DEFAULT 12,
+    share_capital_deadline_months SMALLINT UNSIGNED NOT NULL DEFAULT 1,
     annual_interest_rate DECIMAL(5, 2) NULL,
     patronage_refund_acknowledged TINYINT(1) NOT NULL DEFAULT 0,
     bylaws_agreement_accepted TINYINT(1) NOT NULL DEFAULT 0,
@@ -2177,7 +2180,7 @@ VALUES (
     (
         'Business Rules',
         'business.initial_share_capital_payment',
-        '3000.00',
+        '1500.00',
         'Number',
         'Confirmed initial share capital payment amount.',
         0,
@@ -2186,7 +2189,7 @@ VALUES (
     (
         'Business Rules',
         'business.share_capital_completion_months',
-        '12',
+        '1',
         'Number',
         'Confirmed completion period in months.',
         0,
@@ -2267,7 +2270,7 @@ VALUES (
     (
         'membership',
         'membership.initial_share_capital',
-        '3000',
+        '1500',
         'Number',
         'Initial share-capital payment in Philippine pesos.',
         0,
@@ -2294,7 +2297,7 @@ VALUES (
     (
         'membership',
         'membership.share_capital_deadline_months',
-        '12',
+        '1',
         'Number',
         'Number of months allowed to complete the true-member share-capital target.',
         0,
@@ -2427,7 +2430,7 @@ SELECT
                         setting_key = 'business.initial_share_capital_payment'
                     LIMIT 1
                 ),
-                '3000.00'
+                '1500.00'
             ) AS DECIMAL(12, 2)
         ) THEN 1
         ELSE 0

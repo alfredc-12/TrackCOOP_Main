@@ -23,6 +23,7 @@ import {
   triggerRentalStatusEmail,
   triggerRentalSubmittedEmail,
 } from "./rental-email";
+import { createPaymongoService } from "../paymongo/paymongo.service";
 import {
   MAX_RENTAL_ASSET_PHOTOS,
   validateRentalAssetPhoto,
@@ -239,6 +240,18 @@ function handleRentalError(response: Response, error: unknown) {
     { message: error instanceof Error ? error.message : "Rental request failed." },
     500,
   );
+}
+
+async function rentalPaymentStartResponse(result: Awaited<ReturnType<typeof rentalDatabase.startRentalPayment>>) {
+  if (result.paymentMethod !== "QRPH") return result;
+  const checkout = await createPaymongoService().createRentalCheckout(result.paymentReferenceId);
+  return {
+    ...result,
+    checkoutUrl: checkout.checkoutUrl,
+    checkoutId: checkout.checkoutId,
+    gatewayStatus: checkout.gatewayStatus,
+    mode: checkout.mode,
+  };
 }
 
 async function getRental(request: Request, response: Response) {
@@ -517,6 +530,17 @@ async function postRental(request: Request, response: Response) {
         ),
         201,
       );
+    }
+    if (resource === "payments" && id === "start") {
+      let actor: RentalActor | undefined;
+      if (request.auth) {
+        const authorizedActor = await authorizeActor(request, response, ["member", "bookkeeper"]);
+        if (!authorizedActor) return;
+        actor = authorizedActor;
+      }
+      const payload = body<Parameters<typeof rentalDatabase.startRentalPayment>[0]>(request);
+      const result = await rentalDatabase.startRentalPayment(payload, actor);
+      return json(response, await rentalPaymentStartResponse(result), 201);
     }
     if (resource === "payments" && id === "proof") {
       const actor = await authorizeActor(request, response, ["member", "bookkeeper"]);

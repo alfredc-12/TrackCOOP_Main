@@ -114,7 +114,7 @@ function makeMembershipService(options: {
       async getMembershipPaymentSettings() {
         return {
           associateFee: 200,
-            initialShareCapital: 3000,
+          initialShareCapital: 1500,
           trueMemberRequiredCapital: 3000,
           maximumShareCapital: 15000,
         };
@@ -282,6 +282,25 @@ test("createMembershipApplicationCheckout rejects an already-paid membership fee
   );
 });
 
+test("createMembershipApplicationCheckout rejects membership fee for True Member applicants", async () => {
+  const { service } = makeMembershipService({
+    applicationRecord: {
+      ...application,
+      requestedMembershipType: "True Member",
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      service.createMembershipApplicationCheckout(application.applicationCode, dateOfBirth, {
+        paymentPurpose: "Associate Membership Fee",
+      }),
+    (error) =>
+      error instanceof AppError
+      && error.code === "MEMBERSHIP_FEE_NOT_REQUIRED_FOR_TRUE_MEMBER",
+  );
+});
+
 test("createMembershipApplicationCheckout supports True Member share capital", async () => {
   const { service, checkoutCalls } = makeMembershipService({
     applicationRecord: {
@@ -293,12 +312,12 @@ test("createMembershipApplicationCheckout supports True Member share capital", a
   const result = await service.createMembershipApplicationCheckout(
     application.applicationCode,
     dateOfBirth,
-    { paymentPurpose: "Share Capital", requestedAmount: 3000 },
+    { paymentPurpose: "Share Capital", requestedAmount: 1500 },
   );
 
   assert.equal(result.paymentPurpose, "Share Capital");
-  assert.equal(result.amount, 3000);
-  assert.equal(checkoutCalls[0].input.lineItems[0].amount, 300_000);
+  assert.equal(result.amount, 1500);
+  assert.equal(checkoutCalls[0].input.lineItems[0].amount, 150_000);
 });
 
 test("createMembershipApplicationCheckout prevents exceeding maximum share capital", async () => {
@@ -353,7 +372,7 @@ test("payment return pages are informational and do not mutate status", () => {
     "utf8",
   );
 
-  assert.match(successPage, /webhook confirms/i);
+  assert.match(successPage, /gateway[\s\S]*confirms it/i);
   assert.match(successPage, /PaymentStatusPoller/);
   assert.doesNotMatch(successPage, /apiRequest|fetch\(/);
   assert.match(cancelledPage, /does not reject your membership application/i);

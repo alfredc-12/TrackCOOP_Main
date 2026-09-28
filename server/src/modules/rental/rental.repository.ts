@@ -35,6 +35,8 @@ import type {
   RentalNotification,
   RentalOverview,
   RentalPayment,
+  RentalPaymentStartInput,
+  RentalPaymentStartResult,
   PublicRentalBlockedDate,
   RentalReceipt,
   RentalReportFilter,
@@ -142,6 +144,7 @@ interface PaymentRow extends RowDataPacket {
   payer_email: string | null;
   payer_contact: string | null;
   provider: string;
+  payment_channel: "PayMongo" | "Manual GCash" | "Cash" | "Bank Transfer" | "Other";
   reference_number: string;
   amount: string;
   proof_file_path: string | null;
@@ -542,10 +545,35 @@ function requesterType(value: string): RequesterType {
 }
 
 function paymentMethod(value: string): PaymentMethod {
-  if (["Direct GCash", "GCash Reference Upload", "Cash", "Bank Transfer", "Other Approved Method"].includes(value)) {
+  if (value === "PayMongo" || value === "QRPH") return "QRPH";
+  if (value === "Manual GCash" || value === "Direct GCash" || value === "GCash Reference Upload") return "QRPH Reference Upload";
+  if (["QRPH Reference Upload", "Cash", "Bank Transfer", "Other Approved Method"].includes(value)) {
     return value as PaymentMethod;
   }
   return "Other Approved Method";
+}
+
+function paymentChannelForRentalMethod(method: PaymentMethod) {
+  if (method === "Cash") return "Cash";
+  if (method === "Bank Transfer") return "Bank Transfer";
+  if (method === "QRPH") return "PayMongo";
+  if (method === "QRPH Reference Upload") return "Manual GCash";
+  return "Other";
+}
+
+function payableRentalAmount(row: BookingRow) {
+  const storedTotal = numberValue(row.total_amount);
+  if (storedTotal > 0) return storedTotal;
+  const meta = parseJson(row.purpose);
+  const estimate = rentalFeeEstimateValue(meta);
+  return estimate?.total && estimate.total > 0 ? estimate.total : 0;
+}
+
+function rentalPaymentDeadline(createdAt: RentalDatabaseDate) {
+  const date = new Date(rentalIsoDateTime(createdAt));
+  if (Number.isNaN(date.getTime())) return undefined;
+  date.setDate(date.getDate() + 3);
+  return date.toISOString().slice(0, 10);
 }
 
 function assetStatusFromService(service: Partial<RentalService>): AssetRow["asset_status"] {
@@ -807,7 +835,7 @@ function mapPayment(row: PaymentRow): RentalPayment {
     scheduleDate: stringValue(meta, "scheduleDate", rentalDatePart(row.start_datetime)),
     amount: numberValue(row.amount),
     paymentDate: stringValue(meta, "paymentDate", rentalDatePart(row.submitted_at)),
-    paymentMethod: paymentMethod(stringValue(meta, "paymentMethod", row.provider)),
+    paymentMethod: paymentMethod(stringValue(meta, "paymentMethod", row.payment_channel || row.provider)),
     gcashReference: row.reference_number || undefined,
     receiptNumber: stringValue(meta, "receiptNumber") || undefined,
     status: paymentStatusFromValidation(row.validation_status, meta),
@@ -934,6 +962,9 @@ function mapPublicInquiryStatus(
     paymentStatus: inquiry.paymentStatus,
     confirmedSchedule: confirmed,
     publicNote: inquiry.publicNote,
+    payableAmount: inquiry.estimatedFee?.total,
+    paymentDeadline: undefined,
+    canStartPayment: inquiry.status === "Payment Pending" || inquiry.status === "Approved for Scheduling",
     updatedAt: inquiry.updatedAt,
   };
 }
@@ -2018,8 +2049,13 @@ export const rentalDatabase = {
     const schedule = (await this.getRentalSchedules()).find(
       (item) => item.rentalId === inquiry.rentalId,
     );
+    const booking = await bookingByRentalId(inquiry.rentalId);
+    const meta = parseJson(booking?.purpose ?? null);
     return {
       ...mapPublicInquiryStatus(inquiry),
+      payableAmount: booking ? payableRentalAmount(booking) : inquiry.estimatedFee?.total,
+      paymentDeadline: stringValue(meta, "paymentDeadline") || (booking ? rentalPaymentDeadline(booking.created_at) : undefined),
+      canStartPayment: inquiry.status === "Payment Pending" && inquiry.paymentStatus !== "Paid",
       confirmedSchedule:
         schedule &&
         ["Confirmed", "In Progress", "Completed"].includes(schedule.status)
@@ -2064,11 +2100,22 @@ export const rentalDatabase = {
       if (decision === "Completed") meta.scheduleStatus = "Completed";
       if (decision === "Cancelled") meta.scheduleStatus = "Cancelled";
       if (decision === "Rescheduled") meta.scheduleStatus = "Proposed";
+      const approvedPayableAmount =
+        decision === "Payment Pending" || decision === "Approved for Scheduling"
+          ? payableRentalAmount(row)
+          : numberValue(row.total_amount);
+      if ((decision === "Payment Pending" || decision === "Approved for Scheduling") && approvedPayableAmount <= 0) {
+        throw new Error("Set a valid rental amount before opening payment.");
+      }
+      if (decision === "Payment Pending") {
+        meta.paymentDeadline = stringValue(meta, "paymentDeadline") || rentalPaymentDeadline(row.created_at);
+        meta.paymentStatusOverride = "Pending";
+      }
       const nextStatus = bookingStatusFromRental(decision);
       const userId = await actorUserId(actor, connection);
       await execute(
         `UPDATE rental_bookings
-            SET booking_status = ?, purpose = ?,
+            SET booking_status = ?, total_amount = ?, purpose = ?,
                 approved_by = CASE
                   WHEN ? IN ('Approved', 'Scheduled') THEN ?
                   ELSE approved_by
@@ -2083,6 +2130,7 @@ export const rentalDatabase = {
           WHERE rental_booking_id = ?`,
         cleanParams([
           nextStatus,
+          approvedPayableAmount,
           JSON.stringify(meta),
           nextStatus,
           userId,
@@ -2202,6 +2250,9 @@ export const rentalDatabase = {
       );
       const row = await bookingByRentalId(schedule.rentalId, connection);
       if (!row) throw new Error("Rental inquiry was not found.");
+      if (row.payment_status !== "Paid") {
+        throw new Error("Rental payment must be confirmed before scheduling.");
+      }
       const currentStatus = rentalStatusFromBooking(
         row.booking_status,
         parseJson(row.purpose),
@@ -2700,6 +2751,161 @@ export const rentalDatabase = {
     return row.proof_file_path;
   },
 
+  async startRentalPayment(
+    input: RentalPaymentStartInput,
+    actor?: RentalActor,
+  ): Promise<RentalPaymentStartResult> {
+    const method = input.method === "Cash" ? "Cash" : "QRPH";
+    return withRentalTransaction(async (connection) => {
+      await queryRows(
+        "SELECT rental_booking_id FROM rental_bookings WHERE booking_number = ? FOR UPDATE",
+        [input.rentalId],
+        connection,
+      );
+      const booking = await bookingByRentalId(input.rentalId, connection);
+      if (!booking) throw new Error("Rental request was not found.");
+
+      if (actor?.role === "member") {
+        if (!actor.memberId || booking.member_id !== actor.memberId) {
+          throw new Error("You can start payment only for your own booking.");
+        }
+      } else {
+        const lookupContact = normalizePhilippineMobile(input.contact ?? "");
+        if (
+          !lookupContact ||
+          normalizePhilippineMobile(booking.requester_contact ?? "") !== lookupContact
+        ) {
+          throw new Error("Rental reference and contact number do not match.");
+        }
+      }
+
+      const meta = parseJson(booking.purpose);
+      const publicStatus = rentalStatusFromBooking(booking.booking_status, meta);
+      if (publicStatus !== "Payment Pending") {
+        throw new Error("This rental request is not open for payment.");
+      }
+      if (booking.payment_status === "Paid") {
+        throw new Error("This rental payment is already confirmed.");
+      }
+
+      const amount = payableRentalAmount(booking);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Set a valid rental amount before payment.");
+      }
+
+      const [existing] = await connection.execute<
+        Array<RowDataPacket & {
+          payment_reference_id: number;
+          reference_number: string;
+          amount: string | number;
+          validation_status: string;
+          payment_channel: string;
+        }>
+      >(
+        `SELECT payment_reference_id, reference_number, amount, validation_status, payment_channel
+           FROM payment_references
+          WHERE payment_purpose = 'Rental'
+            AND related_entity_type = 'rental_bookings'
+            AND related_entity_id = ?
+            AND validation_status IN ('Pending', 'Needs Clarification', 'Validated')
+          ORDER BY payment_reference_id DESC
+          LIMIT 1`,
+        [booking.rental_booking_id],
+      );
+      if (existing[0]) {
+        if (existing[0].validation_status === "Validated") {
+          throw new Error("This rental payment is already confirmed.");
+        }
+        if (
+          (method === "Cash" && existing[0].payment_channel !== "Cash") ||
+          (method === "QRPH" && existing[0].payment_channel !== "PayMongo")
+        ) {
+          throw new Error("A rental payment is already pending using another method.");
+        }
+        return {
+          paymentReferenceId: String(existing[0].payment_reference_id),
+          referenceNumber: existing[0].reference_number,
+          amount: Number(existing[0].amount),
+          paymentMethod: method,
+          paymentStatus: method === "Cash" ? "Pending" : "Waiting",
+        };
+      }
+
+      const referenceNumber = `${booking.booking_number}-${method}-${Date.now()}`;
+      const paymentMethod: PaymentMethod = method === "Cash" ? "Cash" : "QRPH";
+      const [result] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO payment_references
+          (member_id, submitted_by, payer_name, payer_email, payer_contact,
+           provider, payment_channel, reference_number, payment_purpose,
+           related_entity_type, related_entity_id, amount, validation_status,
+           notes, submitted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, 'Pending', ?, NOW())`,
+        cleanParams([
+          booking.member_id,
+          actor?.userId,
+          booking.requester_name,
+          stringValue(meta, "email") || null,
+          booking.requester_contact,
+          method === "Cash" ? "Cash" : "PayMongo",
+          paymentChannelForRentalMethod(paymentMethod),
+          referenceNumber,
+          booking.rental_booking_id,
+          amount,
+          JSON.stringify({
+            paymentId: `PAY-PENDING`,
+            recordedBy: actor?.displayName ?? "Rental requester",
+            status: "Pending",
+            paymentDate: new Date().toISOString().slice(0, 10),
+            scheduleDate: rentalDatePart(booking.start_datetime),
+            paymentMethod,
+            notes: method === "Cash"
+              ? "Cash payment selected; bookkeeper validation required."
+              : "QRPH checkout started.",
+          }),
+        ]),
+      );
+      const paymentId = `PAY-${String(result.insertId).padStart(4, "0")}`;
+      const notes = {
+        paymentId,
+        recordedBy: actor?.displayName ?? "Rental requester",
+        status: "Pending",
+        paymentDate: new Date().toISOString().slice(0, 10),
+        scheduleDate: rentalDatePart(booking.start_datetime),
+        paymentMethod,
+        notes: method === "Cash"
+          ? "Cash payment selected; bookkeeper validation required."
+          : "QRPH checkout started.",
+      };
+      await execute(
+        "UPDATE payment_references SET notes = ? WHERE payment_reference_id = ?",
+        [JSON.stringify(notes), result.insertId],
+        connection,
+      );
+      await execute(
+        "UPDATE rental_bookings SET payment_reference_id = ?, payment_status = 'Unpaid' WHERE rental_booking_id = ?",
+        [result.insertId, booking.rental_booking_id],
+        connection,
+      );
+      await addRentalAudit(
+        "Payment Started",
+        "payment_references",
+        result.insertId,
+        `${method} rental payment started.`,
+        undefined,
+        "Pending",
+        actor,
+        connection,
+      );
+      return {
+        paymentReferenceId: String(result.insertId),
+        referenceNumber,
+        amount,
+        paymentMethod: method,
+        paymentStatus: method === "Cash" ? "Pending" : "Waiting",
+      };
+    });
+  },
+
   async recordRentalPayment(
     payment: Omit<RentalPayment, "paymentId" | "submittedAt">,
     actor?: RentalActor,
@@ -2725,16 +2931,17 @@ export const rentalDatabase = {
       const result = await execute(
         `INSERT INTO payment_references
           (member_id, submitted_by, payer_name, payer_contact, provider,
-           reference_number, payment_purpose, related_entity_type,
+           payment_channel, reference_number, payment_purpose, related_entity_type,
            related_entity_id, amount, proof_file_path, validation_status,
            notes, submitted_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, ?)`,
         cleanParams([
           booking.member_id,
           actor?.userId,
           payment.requesterName,
           booking.requester_contact,
           payment.paymentMethod,
+          paymentChannelForRentalMethod(payment.paymentMethod),
           reference,
           booking.rental_booking_id,
           payment.amount,
@@ -2929,14 +3136,16 @@ export const rentalDatabase = {
       if (!booking) throw new Error("Linked rental booking was not found.");
       const bookingMeta = parseJson(booking.purpose);
       if (status === "Paid") {
-        bookingMeta.statusOverride = "Payment Confirmed";
+        bookingMeta.statusOverride = "Approved for Scheduling";
+        bookingMeta.scheduleStatus = "Proposed";
         bookingMeta.paymentStatusOverride = "Paid";
       } else if (status === "Rejected" || status === "Needs Clarification") {
         bookingMeta.paymentStatusOverride = status;
       }
       await execute(
-        "UPDATE rental_bookings SET payment_status = ?, purpose = ? WHERE rental_booking_id = ?",
+        "UPDATE rental_bookings SET booking_status = CASE WHEN ? = 'Paid' THEN 'Approved' ELSE booking_status END, payment_status = ?, purpose = ? WHERE rental_booking_id = ?",
         cleanParams([
+          status,
           bookingPaymentStatusFromPayment(status),
           JSON.stringify(bookingMeta),
           booking.rental_booking_id,
@@ -3074,7 +3283,7 @@ export const rentalDatabase = {
       scheduleDate: inquiry.preferredDate,
       amount,
       paymentDate,
-      paymentMethod: "GCash Reference Upload",
+      paymentMethod: "QRPH Reference Upload",
       gcashReference: reference,
       status: "Under Review",
       proofFileName: storedPath,

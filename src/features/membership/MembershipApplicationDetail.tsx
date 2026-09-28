@@ -191,8 +191,8 @@ export function MembershipApplicationDetail() {
           <p className="font-bold">One-time activation link created</p>
           <p className="mt-1 break-all">{activationLink}</p>
           <p className="mt-2">
-            Deliver this link through an approved private channel. It expires in
-            72 hours and is not stored in plaintext.
+            Deliver this link through an approved private channel. It can only be
+            used once and is not stored in plaintext.
           </p>
         </div>
       ) : null}

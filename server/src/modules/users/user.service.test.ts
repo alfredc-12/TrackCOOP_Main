@@ -183,7 +183,7 @@ test("activation-link account creation creates pending account without returning
   }, chairmanAuth);
 
   assert.equal(result.user.accountStatus, "Pending");
-  assert.match(result.activationUrl ?? "", /\/activate\?token=/);
+  assert.match(result.activationUrl ?? "", /\/membership\/activate\//);
   assert.notEqual(createdInput, undefined);
   const input = createdInput as CreateCallInput;
   assert.ok(input.activationTokenHash);

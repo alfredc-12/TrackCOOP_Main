@@ -35,6 +35,7 @@ import { createPaymentReferenceRouter } from "./modules/payment-references/payme
 import { createPatronageRouter } from "./modules/patronage/patronage.routes";
 import { createPosRouter } from "./modules/pos/pos.routes";
 import { createRecordsRouter } from "./modules/records/records.routes";
+import { createRealtimeRouter } from "./modules/realtime/realtime.routes";
 import { createRentalRouter } from "./modules/rental/rental.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
@@ -172,6 +173,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createCommunicationRouter(options.authService));
   app.use("/api", createLandingRouter(options.authService));
   app.use("/api", createDashboardRouter(options.authService));
+  app.use("/api", createRealtimeRouter(options.authService));
 
   app.use(notFound);
   app.use(errorHandler);

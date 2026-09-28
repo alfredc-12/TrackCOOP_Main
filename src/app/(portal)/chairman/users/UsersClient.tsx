@@ -770,7 +770,7 @@ function UserAccountList({
                       <Info label="Last Login" value={formatDate(user.lastLoginAt)} />
                       <Info
                         label="Activation Link"
-                        value={user.activationTokenExpiresAt ? `Expires ${formatDate(user.activationTokenExpiresAt)}` : "None pending"}
+                        value={user.activationTokenExpiresAt ? "Available" : "None pending"}
                       />
                     </dl>
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -921,7 +921,7 @@ function UserDetailDialog({
             <IconInfo
               icon={RefreshCcw}
               label="Pending Activation"
-              value={user.activationTokenExpiresAt ? formatDate(user.activationTokenExpiresAt) : "None"}
+              value={user.activationTokenExpiresAt ? "Available" : "None"}
             />
           </div>
           <div className="mt-6 border-t border-[#E7EEE5] pt-6">
@@ -1309,7 +1309,6 @@ function ActivationResultDialog({ result, onOpenChange }: { result: ActivationLi
       {result ? (
         <div className="grid gap-4">
           <Info label="For Account" value={result.user.displayName} />
-          <Info label="Link Expires On" value={formatDate(result.activationTokenExpiresAt)} />
           <div className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-3 text-sm font-semibold text-[#123D2A] break-all">
             {result.activationUrl}
           </div>

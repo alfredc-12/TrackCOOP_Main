@@ -258,7 +258,7 @@ export function createPaymongoMembershipInstallmentRepository(
       const feeRequirement = requirementRows.find(
         (row) => row.requirementType === "Associate Membership Fee",
       );
-      if (!feeRequirement) {
+      if (input.application.requestedMembershipType === "Associate" && !feeRequirement) {
         throw new AppError(
           "The membership fee requirement was not found",
           409,
@@ -318,7 +318,7 @@ export function createPaymongoMembershipInstallmentRepository(
         capitalPendingAmount: capital.pendingAmount,
         installmentCount: capital.installmentCount,
         latestCheckout,
-        feeRequirementStatus: feeRequirement.requirementStatus,
+        feeRequirementStatus: feeRequirement?.requirementStatus ?? null,
         capitalRequirementStatus: capitalRequirement?.requirementStatus ?? null,
       });
     },

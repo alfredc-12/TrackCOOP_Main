@@ -11,6 +11,7 @@ import type {
 } from "react-hook-form";
 import { useState } from "react";
 import type { MembershipApplicationFormValues } from "./MembershipApplicationForm";
+import { calculateAgeFromBirthDate } from "./beneficiary-age";
 
 type BeneficiaryFieldsProps = {
   count: number;
@@ -43,11 +44,15 @@ export function BeneficiaryFields({
 }: BeneficiaryFieldsProps) {
   return (
     <div className="space-y-4">
-      {Array.from({ length: count }).map((_, index) => (
-        <div
-          key={index}
-          className="rounded-[1.25rem] border border-[#DDE8D8] bg-white p-4 shadow-sm"
-        >
+      {Array.from({ length: count }).map((_, index) => {
+        const birthDateValue = watch(`beneficiaries.${index}.birthDate`) ?? "";
+        const derivedAge = calculateAgeFromBirthDate(birthDateValue);
+
+        return (
+          <div
+            key={index}
+            className="rounded-[1.25rem] border border-[#DDE8D8] bg-white p-4 shadow-sm"
+          >
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-base font-bold text-[#123D2A]">
               Beneficiary {index + 1}
@@ -80,14 +85,39 @@ export function BeneficiaryFields({
               error={errors.beneficiaries?.[index]?.relationship?.message}
               onChange={(value) => setValue(`beneficiaries.${index}.relationship`, value, { shouldDirty: true, shouldValidate: true })}
             />
+            <div>
+              <input type="hidden" {...register(`beneficiaries.${index}.birthDate`)} />
+              <DatePicker
+                label="Birth date"
+                value={birthDateValue}
+                onChange={(value) => {
+                  const nextAge = calculateAgeFromBirthDate(value);
+                  setValue(`beneficiaries.${index}.birthDate`, value, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  });
+                  setValue(`beneficiaries.${index}.age`, nextAge === null ? "" : String(nextAge), {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  });
+                }}
+                min="1900-01-01"
+                max={todayDateKey()}
+                placeholder="Select birth date"
+                error={errors.beneficiaries?.[index]?.birthDate?.message}
+              />
+            </div>
             <label className="grid gap-2 text-sm font-semibold text-[#365F4A]">
               Age
+              <input type="hidden" {...register(`beneficiaries.${index}.age`)} />
               <input
-                type="number"
-                min="0"
-                max="130"
-                className="h-11 rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-                {...register(`beneficiaries.${index}.age`)}
+                readOnly
+                aria-readonly="true"
+                value={derivedAge ?? ""}
+                placeholder="Calculated from birth date"
+                className="h-11 rounded-xl border border-[#DDE8D8] bg-[#F7F8F3] px-3 text-[#123D2A] outline-none placeholder:text-[#6C7A70]"
               />
               {errors.beneficiaries?.[index]?.age ? (
                 <span className="text-xs text-red-700">
@@ -95,27 +125,10 @@ export function BeneficiaryFields({
                 </span>
               ) : null}
             </label>
-            <div>
-              <input type="hidden" {...register(`beneficiaries.${index}.birthDate`)} />
-              <DatePicker
-                label="Birth date"
-                value={watch(`beneficiaries.${index}.birthDate`) ?? ""}
-                onChange={(value) =>
-                  setValue(`beneficiaries.${index}.birthDate`, value, {
-                    shouldDirty: true,
-                    shouldTouch: true,
-                    shouldValidate: true,
-                  })
-                }
-                min="1900-01-01"
-                max={todayDateKey()}
-                placeholder="Select birth date"
-                error={errors.beneficiaries?.[index]?.birthDate?.message}
-              />
-            </div>
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <button
         type="button"

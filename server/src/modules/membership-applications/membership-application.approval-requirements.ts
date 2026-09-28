@@ -65,7 +65,10 @@ export function validateApplicationForApproval(
 
   if (
     !application.orientationCommitmentAccepted
-    || !application.membershipFeeCommitmentAccepted
+    || (
+      application.requestedMembershipType === "Associate"
+      && !application.membershipFeeCommitmentAccepted
+    )
     || !application.shareSubscriptionCommitmentAccepted
     || !application.bylawsAgreementAccepted
     || !application.privacyConsentAccepted
@@ -81,6 +84,7 @@ export function validateApplicationForApproval(
 export async function synchronizeApprovalRequirements(input: {
   connection: PoolConnection;
   actorUserId: string;
+  requestedMembershipType: "Associate" | "True Member";
   requirements: RequirementRow[];
   settings: MembershipSettings;
   feeReferences: ValidatedReference[];
@@ -90,7 +94,7 @@ export async function synchronizeApprovalRequirements(input: {
   const feeRequirement = input.requirements.find(
     (item) => item.requirementType === "Associate Membership Fee",
   );
-  if (!feeRequirement) {
+  if (input.requestedMembershipType === "Associate" && !feeRequirement) {
     throw new AppError(
       "The Associate Membership Fee requirement is incomplete",
       409,
@@ -103,7 +107,9 @@ export async function synchronizeApprovalRequirements(input: {
   );
   const latestFeeReferenceId = input.feeReferences.at(-1)?.id ?? null;
   if (
-    feeRequirement.requirementStatus !== "Waived"
+    input.requestedMembershipType === "Associate"
+    && feeRequirement
+    && feeRequirement.requirementStatus !== "Waived"
     && feeTotal >= approvalMoney(input.settings.associateFee)
   ) {
     await input.connection.execute(
@@ -156,12 +162,12 @@ export function validateApprovalRequirements(
 ) {
   const byType = new Map(requirements.map((item) => [item.requirementType, item]));
   const requiredTypes: RequirementType[] = [
-    "Orientation/Seminar",
-    "Associate Membership Fee",
     "Signed Application",
   ];
   if (application.requestedMembershipType === "True Member") {
     requiredTypes.push("Initial Share Capital");
+  } else {
+    requiredTypes.push("Associate Membership Fee");
   }
 
   const incomplete = requiredTypes.find((type) => {
@@ -173,13 +179,6 @@ export function validateApprovalRequirements(
       `The ${incomplete} requirement is incomplete`,
       409,
       "MEMBERSHIP_APPLICATION_REQUIREMENT_INCOMPLETE",
-    );
-  }
-  if (byType.get("Orientation/Seminar")?.requirementStatus !== "Verified") {
-    throw new AppError(
-      "Orientation must be verified before approval",
-      409,
-      "MEMBERSHIP_ORIENTATION_INCOMPLETE",
     );
   }
   return byType;

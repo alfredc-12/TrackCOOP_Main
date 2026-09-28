@@ -1,9 +1,9 @@
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { ZodError, type ZodType } from "zod";
-import { env } from "../../config/env";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";
+import { publishRealtimeEvent } from "../realtime/realtime.events";
 import {
   approvalSchema,
   beneficiaryCreateSchema,
@@ -12,6 +12,7 @@ import {
   chairmanMembershipApplicationSchema,
   chairmanMembershipApplicationUpdateSchema,
   idParamsSchema,
+  publicDocumentViewParamsSchema,
   publicDocumentUploadSchema,
   publicMembershipApplicationSchema,
   publicStatusParamsSchema,
@@ -84,16 +85,50 @@ function documentFile(request: UploadRequest): MulterFile {
   return request.file;
 }
 
+function publishMembershipApplicationEvent(input: {
+  type: string;
+  entityId?: string | null;
+  actor?: AuthContext | null;
+  message?: string;
+}) {
+  publishRealtimeEvent({
+    channel: "membership-applications",
+    type: input.type,
+    entityId: input.entityId,
+    actorRole: input.actor?.user.role ?? null,
+    message: input.message,
+  });
+}
+
+function streamInlineDocument(
+  response: Response,
+  document: { contents: Buffer; originalFileName: string; mimeType: string },
+) {
+  response.removeHeader("X-Frame-Options");
+  response.setHeader("Content-Type", document.mimeType);
+  response.setHeader(
+    "Content-Disposition",
+    `inline; filename="${document.originalFileName.replace(/["\r\n]/g, "")}"`,
+  );
+  return response.send(document.contents);
+}
+
 export function createMembershipApplicationController(
   service: MembershipApplicationService,
 ) {
   return {
     submitPublic: asyncHandler(async (request, response) => {
       const input = parse(publicMembershipApplicationSchema, request.body);
+      const result = await service.submitPublicApplication(input, publicContext(request));
+      publishMembershipApplicationEvent({
+        type: "membership-application.submitted",
+        entityId: result.applicationCode,
+        message: "A public membership application was submitted.",
+      });
 
       return sendSuccess(
         response,
-        await service.submitPublicApplication(input, publicContext(request)),
+        result,
         {
           statusCode: 201,
           message: "Membership application submitted",
@@ -110,6 +145,19 @@ export function createMembershipApplicationController(
       );
     }),
 
+    issuePublicActivationLink: asyncHandler(async (request, response) => {
+      const params = parse(publicStatusParamsSchema, request.params);
+
+      return sendSuccess(
+        response,
+        await service.issuePublicActivationLink(
+          params.applicationCode,
+          dateOfBirthCredential(request),
+        ),
+        { message: "Membership activation link issued" },
+      );
+    }),
+
     uploadPublicDocument: asyncHandler(async (request, response) => {
       const params = parse(publicStatusParamsSchema, request.params);
       const body = parse(publicDocumentUploadSchema, request.body);
@@ -121,19 +169,35 @@ export function createMembershipApplicationController(
         fileSizeBytes: file.size,
         buffer: file.buffer,
       };
+      const result = await service.uploadPublicDocument(
+        params.applicationCode,
+        dateOfBirthCredential(request),
+        document,
+      );
+      publishMembershipApplicationEvent({
+        type: "membership-application.document-uploaded",
+        entityId: params.applicationCode,
+        message: "An applicant uploaded a requested document.",
+      });
 
       return sendSuccess(
         response,
-        await service.uploadPublicDocument(
-          params.applicationCode,
-          dateOfBirthCredential(request),
-          document,
-        ),
+        result,
         {
           statusCode: 201,
           message: "Membership application document uploaded",
         },
       );
+    }),
+
+    viewPublicDocument: asyncHandler(async (request, response) => {
+      const params = parse(publicDocumentViewParamsSchema, request.params);
+      const document = await service.viewPublicDocument(
+        params.applicationCode,
+        params.documentId,
+        dateOfBirthCredential(request),
+      );
+      return streamInlineDocument(response, document);
     }),
 
     summary: asyncHandler(async (request, response) => {
@@ -154,9 +218,17 @@ export function createMembershipApplicationController(
 
     createChairman: asyncHandler(async (request, response) => {
       const input = parse(chairmanMembershipApplicationSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.createChairmanApplication(input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.created",
+        entityId: result.id,
+        actor: auth,
+        message: "A membership application was created by the chairman.",
+      });
       return sendSuccess(
         response,
-        await service.createChairmanApplication(input, authContext(request)),
+        result,
         {
           statusCode: 201,
           message: "Membership application created",
@@ -175,18 +247,34 @@ export function createMembershipApplicationController(
     update: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(chairmanMembershipApplicationUpdateSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.updateApplication(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.updated",
+        entityId: params.id,
+        actor: auth,
+        message: "Membership application details were updated.",
+      });
       return sendSuccess(
         response,
-        await service.updateApplication(params.id, input, authContext(request)),
+        result,
       );
     }),
 
     createBeneficiary: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(beneficiaryCreateSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.createBeneficiary(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.beneficiary-created",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application beneficiary was added.",
+      });
       return sendSuccess(
         response,
-        await service.createBeneficiary(params.id, input, authContext(request)),
+        result,
         {
           statusCode: 201,
           message: "Beneficiary added",
@@ -197,15 +285,30 @@ export function createMembershipApplicationController(
     updateBeneficiary: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(beneficiaryUpdateSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.updateBeneficiary(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.beneficiary-updated",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application beneficiary was updated.",
+      });
       return sendSuccess(
         response,
-        await service.updateBeneficiary(params.id, input, authContext(request)),
+        result,
       );
     }),
 
     deleteBeneficiary: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
-      await service.deleteBeneficiary(params.id, authContext(request));
+      const auth = authContext(request);
+      await service.deleteBeneficiary(params.id, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.beneficiary-deleted",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application beneficiary was removed.",
+      });
       return sendSuccess(response, { deleted: true });
     }),
 
@@ -220,9 +323,17 @@ export function createMembershipApplicationController(
         fileSizeBytes: file.size,
         buffer: file.buffer,
       };
+      const auth = authContext(request);
+      const result = await service.uploadChairmanDocument(params.id, document, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.document-uploaded",
+        entityId: params.id,
+        actor: auth,
+        message: "A chairman uploaded a membership application document.",
+      });
       return sendSuccess(
         response,
-        await service.uploadChairmanDocument(params.id, document, authContext(request)),
+        result,
         {
           statusCode: 201,
           message: "Membership application document uploaded",
@@ -232,29 +343,37 @@ export function createMembershipApplicationController(
 
     deleteDocument: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
-      await service.deleteDocument(params.id, authContext(request));
+      const auth = authContext(request);
+      await service.deleteDocument(params.id, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.document-deleted",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application document was removed.",
+      });
       return sendSuccess(response, { deleted: true });
     }),
 
     viewDocument: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const document = await service.viewDocument(params.id, authContext(request));
-      response.removeHeader("X-Frame-Options");
-      response.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${env.FRONTEND_URL}`);
-      response.setHeader("Content-Type", document.mimeType);
-      response.setHeader(
-        "Content-Disposition",
-        `inline; filename="${document.originalFileName.replace(/["\r\n]/g, "")}"`,
-      );
-      return response.send(document.contents);
+      return streamInlineDocument(response, document);
     }),
 
     createRequirement: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(requirementCreateSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.createRequirement(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.requirement-created",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application requirement was added.",
+      });
       return sendSuccess(
         response,
-        await service.createRequirement(params.id, input, authContext(request)),
+        result,
         {
           statusCode: 201,
           message: "Requirement added",
@@ -265,15 +384,30 @@ export function createMembershipApplicationController(
     updateRequirement: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(requirementUpdateSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.updateRequirement(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.requirement-updated",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application requirement was updated.",
+      });
       return sendSuccess(
         response,
-        await service.updateRequirement(params.id, input, authContext(request)),
+        result,
       );
     }),
 
     deleteRequirement: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
-      await service.deleteRequirement(params.id, authContext(request));
+      const auth = authContext(request);
+      await service.deleteRequirement(params.id, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.requirement-deleted",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application requirement was removed.",
+      });
       return sendSuccess(response, { deleted: true });
     }),
 
@@ -285,27 +419,45 @@ export function createMembershipApplicationController(
     startReview: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(statusTransitionSchema, request.body);
-      return sendSuccess(
-        response,
-        await service.startReview(params.id, input, authContext(request)),
-      );
+      const auth = authContext(request);
+      const result = await service.startReview(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.status-changed",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application review was started.",
+      });
+      return sendSuccess(response, result);
     }),
 
     requestInformation: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(statusTransitionSchema, request.body);
-      return sendSuccess(
-        response,
-        await service.requestInformation(params.id, input, authContext(request)),
-      );
+      const auth = authContext(request);
+      const result = await service.requestInformation(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.status-changed",
+        entityId: params.id,
+        actor: auth,
+        message: "More information was requested for a membership application.",
+      });
+      return sendSuccess(response, result);
     }),
 
     approveForPayment: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(statusTransitionSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.approveForPayment(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.status-changed",
+        entityId: params.id,
+        actor: auth,
+        message: "Payment was opened for a membership application.",
+      });
       return sendSuccess(
         response,
-        await service.approveForPayment(params.id, input, authContext(request)),
+        result,
         { message: "Membership application approved for payment" },
       );
     }),
@@ -313,27 +465,48 @@ export function createMembershipApplicationController(
     reject: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(statusTransitionSchema, request.body);
-      return sendSuccess(
-        response,
-        await service.reject(params.id, input, authContext(request)),
-      );
+      const auth = authContext(request);
+      const result = await service.reject(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.status-changed",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application was rejected.",
+      });
+      return sendSuccess(response, result);
     }),
 
     withdraw: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(statusTransitionSchema, request.body);
-      return sendSuccess(
-        response,
-        await service.withdraw(params.id, input, authContext(request)),
-      );
+      const auth = authContext(request);
+      const result = await service.withdraw(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.status-changed",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application was withdrawn.",
+      });
+      return sendSuccess(response, result);
     }),
 
     approve: asyncHandler(async (request, response) => {
       const params = parse(idParamsSchema, request.params);
       const input = parse(approvalSchema, request.body);
+      const auth = authContext(request);
+      const result = await service.approve(params.id, input, auth);
+      publishMembershipApplicationEvent({
+        type: "membership-application.approved",
+        entityId: params.id,
+        actor: auth,
+        message: "A membership application was approved.",
+      });
       return sendSuccess(
         response,
-        await service.approve(params.id, input, authContext(request)),
+        {
+          ...result,
+          activationUrl: null,
+        },
         {
           message: "Membership application approved",
         },

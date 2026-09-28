@@ -90,9 +90,17 @@ type PosOrder = {
     customer_contact?: string | null;
     payment_reference_id?: number | string | null;
     provider?: string | null;
+    payment_channel?: string | null;
     reference_number?: string | null;
     items?: PosOrderItem[];
 };
+
+function orderPaymentLabel(order: Pick<PosOrder, "payment_channel" | "provider" | "payment_reference_id">) {
+    if (order.payment_channel === "Cash" || order.provider === "Cash") return "Cash";
+    if (order.payment_channel === "PayMongo" || order.provider === "PayMongo") return "QRPH";
+    if (order.payment_reference_id) return "QRPH";
+    return "Cash";
+}
 
 function uniqueCategories(categories: string[]) {
     const categoryMap = new Map<string, string>();
@@ -740,12 +748,14 @@ export default function ChairmanPosInventoryClient() {
 
     const totalValue = inventory.reduce((sum, item) => sum + (item.price * item.stock), 0);
 
-    const totalCashSales = orders
-        .filter(o => o.sale_status === 'Paid' && !o.payment_reference_id)
+    const settledOrders = orders.filter(o => ['Paid', 'Completed'].includes(o.sale_status));
+
+    const totalCashSales = settledOrders
+        .filter(o => orderPaymentLabel(o) === 'Cash')
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
-    const totalGCashSales = orders
-        .filter(o => o.sale_status === 'Paid' && o.payment_reference_id)
+    const totalQRPHSales = settledOrders
+        .filter(o => orderPaymentLabel(o) === 'QRPH')
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
     const existingCategories = useMemo(
@@ -886,9 +896,9 @@ export default function ChairmanPosInventoryClient() {
                         <Smartphone className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold text-gray-500">GCash Sales</p>
-                        <p className="text-[10px] leading-4 text-gray-400">Paid online orders</p>
-                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalGCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="mb-0.5 text-xs font-bold text-gray-500">QRPH Sales</p>
+                        <p className="text-[10px] leading-4 text-gray-400">Paid QRPH orders</p>
+                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
             </div>
@@ -2040,11 +2050,11 @@ export default function ChairmanPosInventoryClient() {
                                                 ))}
                                             </div>
 
-                                            {order.payment_reference_id && order.provider !== 'Cash' && (
+                                            {orderPaymentLabel(order) === 'QRPH' && order.payment_reference_id && (
                                                 <div className="mb-4 bg-blue-50 rounded-xl p-4 border border-blue-100 flex justify-between items-center">
                                                     <div>
-                                                        <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">Online Payment Details</p>
-                                                        <p className="text-sm font-semibold text-gray-800">Provider: {order.provider}</p>
+                                                        <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">QRPH Payment Details</p>
+                                                        <p className="text-sm font-semibold text-gray-800">Method: QRPH</p>
                                                         <p className="text-sm text-gray-600">Ref No: <span className="font-mono font-bold">{order.reference_number}</span></p>
                                                     </div>
                                                 </div>
@@ -2293,7 +2303,7 @@ export default function ChairmanPosInventoryClient() {
                             <div className="text-center">
                                 <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Payment Method</p>
                                 <p className="text-sm font-bold text-gray-900">
-                                    {receiptOrder.payment_reference_id && receiptOrder.provider !== 'Cash' ? `${receiptOrder.provider || 'GCash'} (${receiptOrder.reference_number})` : 'Cash'}
+                                    {orderPaymentLabel(receiptOrder) === 'QRPH' ? `QRPH (${receiptOrder.reference_number})` : 'Cash'}
                                 </p>
                             </div>
                         </div>

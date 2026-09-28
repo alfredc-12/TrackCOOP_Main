@@ -39,7 +39,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ConfirmDialog,
@@ -54,7 +54,9 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import type { AuthUser } from "@/features/auth/types";
 import { ApiClientError } from "@/lib/api-client";
 import { getAuthenticatedUser } from "@/lib/auth-client";
+import { useRealtimeEvents } from "@/lib/realtime";
 import {
+  addApplicationRequirement,
   addApplicationBeneficiary,
   applicationDocumentViewUrl,
   approveApplication,
@@ -66,6 +68,7 @@ import {
   getChairmanApplicationSummary,
   listChairmanApplications,
   transitionApplication,
+  updateApplicationRequirement,
   updateChairmanApplication,
   uploadChairmanApplicationDocument,
 } from "@/features/membership-applications/membership-application-api";
@@ -92,22 +95,26 @@ import {
 } from "@/features/chairman/people-api";
 import {
   civilStatuses,
-  documentTypes,
   membershipApplicationSources,
   membershipApplicationStatuses,
+  requirementTypes,
   requestedMembershipTypes,
   type ApprovalInput,
   type ApprovalResult,
   type BeneficiaryInput,
+  type ChairmanApplicationDocument,
   type ChairmanApplicationDetail,
   type ChairmanApplicationListItem,
   type ChairmanApplicationListQuery,
+  type ChairmanApplicationRequirement,
   type ChairmanApplicationSummary,
   type ChairmanMembershipApplicationInput,
   type ChairmanMembershipApplicationUpdateInput,
   type MembershipApplicationSource,
   type MembershipApplicationStatus,
   type MembershipDocumentType,
+  type RequirementStatus,
+  type RequirementType,
   type RequestedMembershipType,
 } from "@/features/membership-applications/membership-application-types";
 
@@ -254,9 +261,44 @@ type MemberAccountAction =
   | { type: "link"; member: MemberDetail }
   | { type: "unlink"; member: MemberDetail };
 type ConfirmAction =
-  | { type: "transition"; action: "start-review" | "request-information" | "approve-for-payment" | "reject" | "withdraw"; label: string }
+  | {
+      type: "transition";
+      action: "start-review" | "request-information" | "approve-for-payment" | "reject" | "withdraw";
+      label: string;
+      applicantMessage?: string | null;
+      internalNote?: string | null;
+      reason?: string | null;
+    }
   | { type: "delete-beneficiary"; beneficiaryId: string; label: string }
   | { type: "delete-document"; documentId: string; label: string };
+
+function confirmationCopy(action: ConfirmAction | null) {
+  if (action?.type === "transition") {
+    if (action.action === "start-review") {
+      return {
+        title: "Start application review?",
+        description: "This opens the review workspace so requirements can be verified, rejected, or waived.",
+      };
+    }
+    if (action.action === "approve-for-payment") {
+      return {
+        title: "Open payment for applicant?",
+        description: "The applicant will be emailed that payment is now available from the application status page.",
+      };
+    }
+    if (action.action === "request-information") {
+      return {
+        title: "Request applicant information?",
+        description: "The application will pause until the applicant submits the requested follow-up details.",
+      };
+    }
+  }
+
+  return {
+    title: "Confirm action",
+    description: `Continue with ${action?.label ?? "this action"}? This will be recorded in the application history and audit log.`,
+  };
+}
 
 export function MembersClient() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -297,6 +339,7 @@ export function MembersClient() {
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyError, setHistoryError] = useState("");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const realtimeRefreshTimer = useRef<number | null>(null);
 
   const selectedDetail = selectedId ? detailsById[selectedId] ?? null : null;
 
@@ -444,7 +487,7 @@ export function MembersClient() {
     return applications.filter((application) => {
       const detail = detailsById[application.id];
       if (requirementCompletion !== "All" && detail) {
-        const completed = requirementProgress(detail).isComplete;
+        const completed = prePaymentRequirementProgress(detail).isComplete;
         if (requirementCompletion === "Complete" && !completed) return false;
         if (requirementCompletion === "Incomplete" && completed) return false;
       }
@@ -467,6 +510,31 @@ export function MembersClient() {
     setDetailsById((current) => ({ ...current, [id]: detail }));
     return detail;
   };
+
+  useRealtimeEvents((event) => {
+    if (event.channel !== "membership-applications") return;
+
+    if (realtimeRefreshTimer.current) {
+      window.clearTimeout(realtimeRefreshTimer.current);
+    }
+
+    realtimeRefreshTimer.current = window.setTimeout(() => {
+      void loadApplications();
+      if (selectedId) {
+        void refreshDetail(selectedId).catch(() => undefined);
+      }
+    }, 500);
+  }, {
+    enabled: currentUser?.role === "chairman",
+  });
+
+  useEffect(() => {
+    return () => {
+      if (realtimeRefreshTimer.current) {
+        window.clearTimeout(realtimeRefreshTimer.current);
+      }
+    };
+  }, []);
 
   const refreshMemberDetail = async (id: string) => {
     const detail = await getMemberDetail(id);
@@ -493,11 +561,12 @@ export function MembersClient() {
     if (confirmAction.type === "transition") {
       void runMutation(`${confirmAction.label} completed.`, async () => {
         await transitionApplication(selectedDetail.id, confirmAction.action, {
-          reason: `${confirmAction.label} from Chairman Members page.`,
-          internalNote: `${confirmAction.label} confirmed by Chairman.`,
+          reason: confirmAction.reason ?? `${confirmAction.label} from Chairman Members page.`,
+          internalNote: confirmAction.internalNote ?? `${confirmAction.label} confirmed by Chairman.`,
           applicantMessage:
             confirmAction.action === "request-information"
-              ? "The cooperative needs more information to continue reviewing your application."
+              ? confirmAction.applicantMessage
+                ?? "The cooperative needs more information to continue reviewing your application."
               : null,
         });
       });
@@ -528,6 +597,8 @@ export function MembersClient() {
       window.setTimeout(() => window.URL.revokeObjectURL(url), 20_000);
     });
   };
+
+  const confirmCopy = confirmationCopy(confirmAction);
 
   return (
     <div className="grid gap-6">
@@ -591,11 +662,9 @@ export function MembersClient() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <ApplicationMetricCard label="Submitted" value={summary.submitted} icon={FileText} />
             <ApplicationMetricCard label="Under Review" value={summary.underReview} icon={ClipboardCheck} />
-            <ApplicationMetricCard label="Needs Info" value={summary.needsInformation} icon={Send} />
             <ApplicationMetricCard label="Payment Due" value={summary.paymentRequired} icon={WalletCards} />
             <ApplicationMetricCard label="Payment OK" value={summary.paymentConfirmed} icon={CheckCircle2} />
             <ApplicationMetricCard label="Approved" value={summary.approved} icon={CheckCircle2} />
-            <ApplicationMetricCard label="Rejected" value={summary.rejected} icon={X} />
           </div>
 
           <ApplicationFilters
@@ -707,8 +776,8 @@ export function MembersClient() {
         onOpenChange={(open) => {
           if (!open) setConfirmAction(null);
         }}
-        title="Confirm action"
-        description={`Continue with ${confirmAction?.label ?? "this action"}? This will be recorded in the application history and audit log.`}
+        title={confirmCopy.title}
+        description={confirmCopy.description}
         confirmLabel={isMutating ? "Working..." : "Confirm"}
         onConfirm={handleConfirmedAction}
       />
@@ -1938,7 +2007,7 @@ function SortableHeader({
   );
 }
 
-function RequirementProgress({ progress }: { progress: ReturnType<typeof requirementProgress> | null }) {
+function RequirementProgress({ progress }: { progress: ReturnType<typeof prePaymentRequirementProgress> | null }) {
   const completed = progress?.completed ?? 0;
   const total = progress?.total ?? 0;
   const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
@@ -2256,7 +2325,7 @@ function ApplicationsResponsiveList({
             <tbody className="divide-y divide-[#EEF2EC] text-[#0F241A]">
               {applications.map((application) => {
                 const detail = detailsById[application.id];
-                const progress = detail ? requirementProgress(detail) : null;
+                const progress = detail ? prePaymentRequirementProgress(detail) : null;
                 return (
                   <tr key={application.id} className="hover:bg-[#FBFCF8]">
                     <td className="px-5 py-3">
@@ -2296,7 +2365,7 @@ function ApplicationsResponsiveList({
       <div className="grid divide-y divide-[#EEF2EC] lg:hidden">
         {applications.map((application) => {
           const detail = detailsById[application.id];
-          const progress = detail ? requirementProgress(detail) : null;
+          const progress = detail ? prePaymentRequirementProgress(detail) : null;
           return (
             <article key={application.id} className="bg-white p-4">
               <div className="flex min-w-0 items-start justify-between gap-3">
@@ -2399,15 +2468,42 @@ function ApplicationDetailDialog({
     applicationId: null,
     decisionReason: "",
   });
-  const [documentType, setDocumentType] = useState<MembershipDocumentType>("Valid ID");
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [requestedRequirementType, setRequestedRequirementType] = useState<RequirementType>("Valid ID");
+  const [requestedRequirementNote, setRequestedRequirementNote] = useState("");
   const [previewDocument, setPreviewDocument] = useState<ChairmanApplicationDetail["documents"][number] | null>(null);
+  const [activeRequirementId, setActiveRequirementId] = useState<string | null>(null);
+  const [requirementDecision, setRequirementDecision] = useState<{
+    action: "reject" | "waive";
+    requirement: ChairmanApplicationRequirement;
+  } | null>(null);
+  const [requirementDecisionReason, setRequirementDecisionReason] = useState("");
 
   if (!detail) return null;
 
-  const progress = requirementProgress(detail);
-  const canStartReview = detail.applicationStatus === "Submitted";
-  const canApproveForPayment = detail.applicationStatus === "Under Review";
+  const progress = prePaymentRequirementProgress(detail);
+  const requirementByType = new Map(detail.requirements.map((requirement) => [requirement.requirementType, requirement]));
+  const signedApplicationStatus = requirementByType.get("Signed Application")?.requirementStatus ?? "Pending";
+  const followUpRequirements = detail.requirements.filter(isPublicFollowUpRequirement);
+  const availableRequestRequirementTypes = availableRequestableRequirementTypes(
+    detail.requirements,
+    detail.documents,
+  );
+  const selectedRequestRequirementType = availableRequestRequirementTypes.includes(requestedRequirementType)
+    ? requestedRequirementType
+    : availableRequestRequirementTypes[0] ?? null;
+  const requestInformationMessage = applicantFollowUpMessage(followUpRequirements);
+  const paymentStatus: RequirementStatus =
+    detail.applicationStatus === "Payment Confirmed" || detail.applicationStatus === "Approved"
+      ? "Verified"
+      : detail.applicationStatus === "Payment Required"
+        ? "Pending"
+        : "Pending";
+  const reviewStarted = detail.applicationStatus === "Under Review";
+  const canStartReview = detail.applicationStatus === "Submitted" || detail.applicationStatus === "Needs Information";
+  const canRequestInformationStatus = detail.applicationStatus === "Under Review" || detail.applicationStatus === "Payment Required";
+  const canRequestInformation = canRequestInformationStatus && followUpRequirements.length > 0;
+  const canApproveForPayment = detail.applicationStatus === "Under Review" && progress.isComplete;
+  const showApproveForPayment = detail.applicationStatus === "Under Review";
   const canApproveAndConvert = detail.applicationStatus === "Payment Confirmed";
   const approvalDate = getTodayInputDate();
   const approvedBy = currentUser?.displayName ?? "Current chairman";
@@ -2415,9 +2511,146 @@ function ApplicationDetailDialog({
   const approvalDecisionReason = approvalDecisionDraft.applicationId === detail.id
     ? approvalDecisionDraft.decisionReason
     : detail.decisionReason ?? "";
+
   const openDocument = (document: ChairmanApplicationDetail["documents"][number]) => {
     setPreviewDocument(document);
   };
+  const runRequirementMutation = async (
+    requirementId: string,
+    successMessage: string,
+    action: () => Promise<unknown>,
+  ) => {
+    setActiveRequirementId(requirementId);
+    try {
+      await runMutation(successMessage, async () => {
+        await action();
+        await onRefresh();
+      });
+    } finally {
+      setActiveRequirementId(null);
+    }
+  };
+  const verifyRequirement = async (
+    requirement: ChairmanApplicationRequirement,
+    document: ChairmanApplicationDocument | null,
+  ) => {
+    await runRequirementMutation(requirement.id, "Requirement verified.", () =>
+      updateApplicationRequirement(requirement.id, {
+        requirementStatus: "Verified",
+        documentId: document?.id ?? requirement.documentId,
+        completionDate: getTodayInputDate(),
+        remarks: "Verified during Chairman review.",
+      }),
+    );
+  };
+  const verifyDocument = async (
+    document: ChairmanApplicationDocument,
+    requirement: ChairmanApplicationRequirement | null,
+  ) => {
+    if (requirement) {
+      await verifyRequirement(requirement, document);
+      return;
+    }
+
+    const requirementType = requirementTypeForDocument(document.documentType);
+    if (!requirementType) return;
+
+    const activeId = `document:${document.id}`;
+    setActiveRequirementId(activeId);
+    try {
+      await runMutation("Document verified.", async () => {
+        await addApplicationRequirement(detail.id, {
+          requirementType,
+          requirementStatus: "Verified",
+          documentId: document.id,
+          completionDate: getTodayInputDate(),
+          remarks: "Verified during Chairman review.",
+        });
+        await onRefresh();
+      });
+    } finally {
+      setActiveRequirementId(null);
+    }
+  };
+  const uploadRequirementDocument = async (
+    requirement: ChairmanApplicationRequirement,
+    file: File,
+  ) => {
+    const documentType = documentTypeForRequirement(requirement.requirementType);
+    if (!documentType) return;
+
+    await runRequirementMutation(requirement.id, "Document uploaded.", async () => {
+      const document = await uploadChairmanApplicationDocument({
+        applicationId: detail.id,
+        documentType,
+        file,
+      });
+      await updateApplicationRequirement(requirement.id, {
+        requirementStatus: "Submitted",
+        documentId: document.id,
+        remarks: requirement.remarks ?? `${documentType} uploaded during Chairman review.`,
+      });
+    });
+  };
+  const rejectRequirement = async (requirement: ChairmanApplicationRequirement) => {
+    setRequirementDecision({ action: "reject", requirement });
+    setRequirementDecisionReason("");
+  };
+  const waiveRequirement = async (requirement: ChairmanApplicationRequirement) => {
+    setRequirementDecision({ action: "waive", requirement });
+    setRequirementDecisionReason("");
+  };
+  const confirmRequirementDecision = async () => {
+    if (!requirementDecision) return;
+    const { action, requirement } = requirementDecision;
+    const reason = requirementDecisionReason.trim();
+    setRequirementDecision(null);
+    setRequirementDecisionReason("");
+
+    if (action === "reject") {
+      await runRequirementMutation(requirement.id, "Requirement rejected.", () =>
+        updateApplicationRequirement(requirement.id, {
+          requirementStatus: "Rejected",
+          remarks: reason || "Rejected during Chairman review.",
+        }),
+      );
+      return;
+    }
+
+    await runRequirementMutation(requirement.id, "Requirement waived.", () =>
+      updateApplicationRequirement(requirement.id, {
+        requirementStatus: "Waived",
+        completionDate: getTodayInputDate(),
+        remarks: reason || "Waived during Chairman review.",
+      }),
+    );
+  };
+  const addRequestedRequirement = async () => {
+    const note = requestedRequirementNote.trim();
+    if (!selectedRequestRequirementType) return;
+
+    await runMutation("Requested document added.", async () => {
+      await addApplicationRequirement(detail.id, {
+        requirementType: selectedRequestRequirementType,
+        requirementStatus: "Pending",
+        remarks: note || `Applicant must submit ${selectedRequestRequirementType}.`,
+      });
+      setRequestedRequirementNote("");
+      await onRefresh();
+    });
+  };
+  const renderRequestRequirementPanel = () => (
+    <RequestRequirementPanel
+      value={selectedRequestRequirementType}
+      options={availableRequestRequirementTypes}
+      note={requestedRequirementNote}
+      reviewStarted={reviewStarted}
+      isMutating={isMutating}
+      onValueChange={setRequestedRequirementType}
+      onNoteChange={setRequestedRequirementNote}
+      onAdd={() => void addRequestedRequirement()}
+    />
+  );
 
   return (
     <FormDialog
@@ -2448,18 +2681,29 @@ function ApplicationDetailDialog({
           </ReviewWorkspaceSection>
 
           <ReviewWorkspaceSection title="Family & Beneficiaries" icon={UsersRound}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {detail.beneficiaries.map((beneficiary) => (
-                <div key={beneficiary.id} className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
-                  <p className="font-black text-[#123D2A]">{beneficiary.fullName}</p>
-                  <p className="mt-1 text-sm font-semibold text-[#5D6D63]">{beneficiary.relationship ?? "Beneficiary"}</p>
-                  <p className="mt-1 text-sm text-[#365F4A]">Age {beneficiary.ageAtApplication ?? beneficiary.birthDate ?? "not provided"}</p>
+            {detail.beneficiaries.length ? (
+              <div className="overflow-hidden rounded-2xl border border-[#DDE8D8] bg-white">
+                <div className="grid grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1fr)] gap-3 border-b border-[#DDE8D8] bg-[#F8F1E5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#5D6D63]">
+                  <span>Name</span>
+                  <span>Age</span>
+                  <span>Relationship</span>
                 </div>
-              ))}
-              {!detail.beneficiaries.length ? (
-                <p className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold text-[#5D6D63]">No beneficiaries listed.</p>
-              ) : null}
-            </div>
+                <div className="divide-y divide-[#EEF2EC]">
+                  {detail.beneficiaries.map((beneficiary) => (
+                    <div
+                      key={beneficiary.id}
+                      className="grid grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1fr)] gap-3 px-4 py-3 text-sm"
+                    >
+                      <span className="min-w-0 truncate font-black text-[#123D2A]">{beneficiary.fullName}</span>
+                      <span className="font-semibold text-[#365F4A]">{beneficiary.ageAtApplication ?? beneficiary.birthDate ?? "Not provided"}</span>
+                      <span className="min-w-0 truncate font-semibold text-[#365F4A]">{beneficiary.relationship ?? "Beneficiary"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold text-[#5D6D63]">No beneficiaries listed.</p>
+            )}
             <div className="mt-4 grid gap-2 rounded-2xl border border-dashed border-[#B9CABD] p-3 md:grid-cols-4">
               <input className={inputClass} placeholder="Full name" value={beneficiaryDraft.fullName} onChange={(event) => setBeneficiaryDraft((current) => ({ ...current, fullName: event.target.value }))} />
               <input className={inputClass} placeholder="Relationship" value={beneficiaryDraft.relationship ?? ""} onChange={(event) => setBeneficiaryDraft((current) => ({ ...current, relationship: event.target.value }))} />
@@ -2478,48 +2722,83 @@ function ApplicationDetailDialog({
             </div>
           </ReviewWorkspaceSection>
 
+          <ReviewWorkspaceSection title="Requirements" icon={ClipboardCheck}>
+            {renderRequestRequirementPanel()}
+            <RequirementsReviewList
+              requirements={detail.requirements}
+              documents={detail.documents}
+              reviewStarted={reviewStarted}
+              isMutating={isMutating}
+              activeRequirementId={activeRequirementId}
+              onPreviewDocument={openDocument}
+              onVerify={verifyRequirement}
+              onUploadDocument={uploadRequirementDocument}
+              onReject={rejectRequirement}
+              onWaive={waiveRequirement}
+            />
+          </ReviewWorkspaceSection>
+
           <ReviewWorkspaceSection title="Documents & Signed Application" icon={FileText}>
             <div className="grid gap-3">
-              {detail.documents.map((document) => (
-                <div key={document.id} className="flex flex-col gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-[#123D2A]">{document.documentType}</p>
-                    <p className="mt-1 break-words text-sm font-semibold text-[#5D6D63]">{document.originalFileName}</p>
+              {detail.documents.map((document) => {
+                const reviewRequirement = documentRequirementForReview(document, detail.requirements);
+                const verificationRequirementType = reviewRequirement?.requirementType
+                  ?? requirementTypeForDocument(document.documentType);
+                const activeDocumentKey = reviewRequirement?.id ?? `document:${document.id}`;
+                const canVerifyDocument = reviewStarted
+                  && Boolean(verificationRequirementType)
+                  && (!reviewRequirement || reviewRequirement.requirementStatus !== "Verified")
+                  && !isPaymentRequirement(verificationRequirementType as RequirementType);
+                const canRejectDocument = reviewStarted
+                  && reviewRequirement
+                  && isDocumentRequirement(reviewRequirement.requirementType)
+                  && reviewRequirement.requirementStatus !== "Rejected";
+                const busy = isMutating && activeRequirementId === activeDocumentKey;
+
+                return (
+                  <div key={document.id} className="flex flex-col gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-black text-[#123D2A]">{document.documentType}</p>
+                        {reviewRequirement ? <RequirementStatusPill status={reviewRequirement.requirementStatus} /> : null}
+                      </div>
+                      <p className="mt-1 break-words text-sm font-semibold text-[#5D6D63]">{document.originalFileName}</p>
+                      {reviewRequirement?.remarks ? (
+                        <p className="mt-2 text-xs leading-5 text-[#365F4A]">{reviewRequirement.remarks}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      <Button type="button" className="h-10 rounded-full border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => openDocument(document)}>
+                        <Eye className="size-4" /> Preview
+                      </Button>
+                      {canVerifyDocument ? (
+                        <Button
+                          type="button"
+                          disabled={busy}
+                          className="h-10 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43] disabled:opacity-60"
+                          onClick={() => void verifyDocument(document, reviewRequirement)}
+                        >
+                          {busy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                          Verify
+                        </Button>
+                      ) : null}
+                      {canRejectDocument && reviewRequirement ? (
+                        <Button
+                          type="button"
+                          disabled={busy}
+                          className="h-10 rounded-full border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          onClick={() => void rejectRequirement(reviewRequirement)}
+                        >
+                          Reject
+                        </Button>
+                      ) : null}
+                      <Button type="button" className="h-10 rounded-full border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50" onClick={() => onConfirmAction({ type: "delete-document", documentId: document.id, label: "Remove document" })}>
+                        Remove
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" className="h-10 rounded-full border border-[#CAD8CB] bg-white px-4 text-[#123D2A] hover:bg-[#EEF2EC]" onClick={() => openDocument(document)}>
-                      <Eye className="size-4" /> Preview
-                    </Button>
-                    <Button type="button" className="h-10 rounded-full border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50" onClick={() => onConfirmAction({ type: "delete-document", documentId: document.id, label: "Remove document" })}>
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 grid gap-2 rounded-2xl border border-dashed border-[#B9CABD] p-3 md:grid-cols-[220px_1fr_auto]">
-              <Select value={documentType} onChange={(value) => setDocumentType(value as MembershipDocumentType)}>
-                {documentTypes.map((type) => <option key={type}>{type}</option>)}
-              </Select>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-[#123D2A] file:mr-4 file:h-11 file:rounded-full file:border-0 file:bg-[#123D2A] file:px-4 file:font-bold file:text-white"
-              />
-              <Button
-                type="button"
-                disabled={!documentFile}
-                className="h-11 rounded-full bg-[#123D2A] text-white hover:bg-[#1F6B43]"
-                onClick={() => void runMutation("Document uploaded.", async () => {
-                  if (!documentFile) return;
-                  await uploadChairmanApplicationDocument({ applicationId: detail.id, documentType, file: documentFile });
-                  setDocumentFile(null);
-                  await onRefresh();
-                })}
-              >
-                Upload
-              </Button>
+                );
+              })}
             </div>
           </ReviewWorkspaceSection>
 
@@ -2549,18 +2828,41 @@ function ApplicationDetailDialog({
           </div>
           <RequirementProgressBadge progress={progress} />
           <div className="grid gap-2 text-sm font-semibold text-[#365F4A]">
-            <ReviewCheck label="Application Received" done />
-            <ReviewCheck label="Signed Application" done={detail.documents.some((document) => document.documentType === "Signed Application")} />
-            <ReviewCheck label="Documents" done={progress.isComplete} />
-            <ReviewCheck label="Payment" done={detail.applicationStatus === "Payment Confirmed" || detail.applicationStatus === "Approved"} />
+            <ReviewCheck label="Application Received" status="Verified" />
+            <ReviewCheck label="Signed Application" status={signedApplicationStatus} />
+            <ReviewCheck label="Payment prerequisites" status={progress.isComplete ? "Verified" : "Pending"} completeLabel="Complete" />
+            <ReviewCheck label="Payment" status={paymentStatus} completeLabel="Confirmed" />
           </div>
           <div className="grid gap-2 border-t border-[#DDE8D8] pt-4">
             {canStartReview ? (
               <ActionButton icon={Play} label="Start Review" primary onClick={() => onConfirmAction({ type: "transition", action: "start-review", label: "Start review" })} />
             ) : null}
-            <ActionButton icon={Send} label="Request Information" onClick={() => onConfirmAction({ type: "transition", action: "request-information", label: "Request information" })} />
-            {canApproveForPayment ? (
-              <ActionButton icon={WalletCards} label="Approve for Payment" primary onClick={() => onConfirmAction({ type: "transition", action: "approve-for-payment", label: "Approve for payment" })} />
+            {canRequestInformation ? (
+              <ActionButton
+                icon={Send}
+                label="Request Documents / Information"
+                onClick={() => onConfirmAction({
+                  type: "transition",
+                  action: "request-information",
+                  label: "Request documents / information",
+                  applicantMessage: requestInformationMessage,
+                  internalNote: `Requested applicant follow-up: ${followUpRequirements.map((requirement) => requirement.requirementType).join(", ")}.`,
+                })}
+              />
+            ) : canRequestInformationStatus ? (
+              <p className="rounded-2xl border border-[#DDE8D8] bg-white px-3 py-2 text-xs font-semibold leading-5 text-[#5D6D63]">
+                Add or reject an applicant document requirement before requesting more information.
+              </p>
+            ) : null}
+            {showApproveForPayment ? (
+              <>
+                <ActionButton icon={WalletCards} label="Open Payment for Applicant" primary disabled={!canApproveForPayment} onClick={() => onConfirmAction({ type: "transition", action: "approve-for-payment", label: "Open payment for applicant" })} />
+                {!canApproveForPayment ? (
+                  <p className="text-xs font-semibold leading-5 text-[#8A6200]">
+                    Verify or waive all payment prerequisites before opening payment.
+                  </p>
+                ) : null}
+              </>
             ) : null}
             {canApproveAndConvert ? (
               <Button type="button" disabled={isMutating} className="h-12 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]" onClick={() => setApprovalConfirmOpen(true)}>
@@ -2599,6 +2901,21 @@ function ApplicationDetailDialog({
           });
         }}
       />
+      <RequirementDecisionDialog
+        open={Boolean(requirementDecision)}
+        action={requirementDecision?.action ?? "reject"}
+        requirementType={requirementDecision?.requirement.requirementType ?? "Requirement"}
+        reason={requirementDecisionReason}
+        isSubmitting={isMutating || Boolean(requirementDecision && activeRequirementId === requirementDecision.requirement.id)}
+        onReasonChange={setRequirementDecisionReason}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setRequirementDecision(null);
+            setRequirementDecisionReason("");
+          }
+        }}
+        onConfirm={() => void confirmRequirementDecision()}
+      />
       <FormDialog
         open={Boolean(previewDocument)}
         onOpenChange={(nextOpen) => {
@@ -2633,6 +2950,84 @@ function ApplicationDetailDialog({
   );
 }
 
+function RequirementDecisionDialog({
+  open,
+  action,
+  requirementType,
+  reason,
+  isSubmitting,
+  onOpenChange,
+  onReasonChange,
+  onConfirm,
+}: {
+  open: boolean;
+  action: "reject" | "waive";
+  requirementType: RequirementType | "Requirement";
+  reason: string;
+  isSubmitting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReasonChange: (value: string) => void;
+  onConfirm: () => void;
+}) {
+  const isReject = action === "reject";
+  const title = isReject ? "Reject requirement" : "Waive requirement";
+  const actionLabel = isReject ? "Reject" : "Waive";
+  const description = isReject
+    ? "Add a short note explaining why this requirement is not accepted."
+    : "Add a short note explaining why this requirement can be waived.";
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      contentClassName="w-[min(30rem,calc(100vw-2rem))] p-5 sm:p-6"
+      bodyClassName="mt-5"
+    >
+      <div className="grid gap-4">
+        <div className="rounded-2xl border border-[#DDE8D8] bg-[#F8FBF5] px-4 py-3">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#5D6D63]">Requirement</p>
+          <p className="mt-1 text-base font-black text-[#123D2A]">{requirementType}</p>
+        </div>
+        <label className="grid gap-2">
+          <span className="text-sm font-black text-[#123D2A]">Review note</span>
+          <textarea
+            value={reason}
+            onChange={(event) => onReasonChange(event.target.value)}
+            rows={4}
+            placeholder={isReject ? "Example: Uploaded file is unreadable." : "Example: Requirement already satisfied through manual review."}
+            className="min-h-28 resize-y rounded-2xl border border-[#CAD8CB] bg-white px-4 py-3 text-sm leading-6 text-[#123D2A] outline-none transition placeholder:text-[#7B8D82] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#1F6B43]/10"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <Button
+            type="button"
+            disabled={isSubmitting}
+            className="h-11 rounded-xl border border-[#CAD8CB] bg-white text-[#123D2A] hover:bg-[#EEF2EC]"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={isSubmitting}
+            className={
+              isReject
+                ? "h-11 rounded-xl bg-[#8F2F25] text-white hover:bg-[#73251D]"
+                : "h-11 rounded-xl bg-[#123D2A] text-white hover:bg-[#1F6B43]"
+            }
+            onClick={onConfirm}
+          >
+            {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+            {isSubmitting ? "Saving..." : actionLabel}
+          </Button>
+        </div>
+      </div>
+    </FormDialog>
+  );
+}
+
 function ReviewWorkspaceSection({
   title,
   icon: Icon,
@@ -2655,12 +3050,279 @@ function ReviewWorkspaceSection({
   );
 }
 
-function ReviewCheck({ label, done }: { label: string; done: boolean }) {
+function RequestRequirementPanel({
+  value,
+  options,
+  note,
+  reviewStarted,
+  isMutating,
+  onValueChange,
+  onNoteChange,
+  onAdd,
+}: {
+  value: RequirementType | null;
+  options: RequirementType[];
+  note: string;
+  reviewStarted: boolean;
+  isMutating: boolean;
+  onValueChange: (value: RequirementType) => void;
+  onNoteChange: (value: string) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="mb-4 grid gap-3 rounded-2xl border border-dashed border-[#B9CABD] bg-white p-4 lg:grid-cols-[13rem_minmax(0,1fr)_auto] lg:items-end">
+      <label className="grid gap-2 text-sm font-black text-[#123D2A]">
+        Request document
+        {value ? (
+          <Select value={value} onChange={(nextValue) => onValueChange(nextValue as RequirementType)}>
+            {options.map((type) => (
+              <option key={type}>{type}</option>
+            ))}
+          </Select>
+        ) : (
+          <div className="flex h-11 items-center rounded-md border border-[#CAD8CB] bg-[#EEF2EC] px-3 text-sm font-black text-[#5D6D63]">
+            All document types requested
+          </div>
+        )}
+      </label>
+      <label className="grid gap-2 text-sm font-black text-[#123D2A]">
+        Applicant note
+        <input
+          className={inputClass}
+          value={note}
+          disabled={!value}
+          onChange={(event) => onNoteChange(event.target.value)}
+          placeholder={value ? `Example: Please upload a clear ${value}.` : "No available document requests."}
+        />
+      </label>
+      <Button
+        type="button"
+        disabled={!reviewStarted || isMutating || !value}
+        className="h-11 rounded-md bg-[#123D2A] px-4 text-sm font-black text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
+        onClick={onAdd}
+      >
+        <FilePlus2 className="size-4" />
+        Add Request
+      </Button>
+    </div>
+  );
+}
+
+function RequirementsReviewList({
+  requirements,
+  documents,
+  reviewStarted,
+  isMutating,
+  activeRequirementId,
+  onPreviewDocument,
+  onVerify,
+  onUploadDocument,
+  onReject,
+  onWaive,
+}: {
+  requirements: ChairmanApplicationRequirement[];
+  documents: ChairmanApplicationDocument[];
+  reviewStarted: boolean;
+  isMutating: boolean;
+  activeRequirementId: string | null;
+  onPreviewDocument: (document: ChairmanApplicationDocument) => void;
+  onVerify: (
+    requirement: ChairmanApplicationRequirement,
+    document: ChairmanApplicationDocument | null,
+  ) => Promise<void>;
+  onUploadDocument: (
+    requirement: ChairmanApplicationRequirement,
+    file: File,
+  ) => Promise<void>;
+  onReject: (requirement: ChairmanApplicationRequirement) => Promise<void>;
+  onWaive: (requirement: ChairmanApplicationRequirement) => Promise<void>;
+}) {
+  if (!requirements.length) {
+    return (
+      <p className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold text-[#5D6D63]">
+        No requirements are listed for this application.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {!reviewStarted ? (
+        <div className="rounded-2xl border border-[#F0D99C] bg-[#FFF8DF] px-4 py-3 text-sm font-semibold leading-6 text-[#7A5A00]">
+          Start the application review before verifying, rejecting, or waiving requirements.
+        </div>
+      ) : null}
+      {requirements.map((requirement) => {
+        const paymentRequirement = isPaymentRequirement(requirement.requirementType);
+        const matchingDocument = matchingRequirementDocument(requirement, documents);
+        const documentRequired = isDocumentRequirement(requirement.requirementType);
+        const canVerify = reviewStarted
+          && !paymentRequirement
+          && requirement.requirementStatus !== "Verified"
+          && (!documentRequired || Boolean(matchingDocument));
+        const canUpload = reviewStarted
+          && !paymentRequirement
+          && documentRequired
+          && !matchingDocument
+          && requirement.requirementStatus !== "Verified"
+          && requirement.requirementStatus !== "Waived";
+        const canReject = reviewStarted
+          && !paymentRequirement
+          && documentRequired
+          && requirement.requirementStatus !== "Rejected";
+        const canWaive = reviewStarted
+          && canWaiveRequirement(requirement.requirementType)
+          && requirement.requirementStatus !== "Waived";
+        const busy = isMutating && activeRequirementId === requirement.id;
+
+        return (
+          <article
+            key={requirement.id}
+            className="grid gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 transition-colors hover:border-[#B9CABD] md:grid-cols-[minmax(0,1fr)_auto]"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-black text-[#123D2A]">{requirement.requirementType}</p>
+                <RequirementStatusPill status={requirement.requirementStatus} />
+              </div>
+              <p className="mt-2 text-sm font-semibold text-[#5D6D63]">
+                {paymentRequirement
+                  ? "Payment-managed requirement"
+                  : matchingDocument
+                    ? matchingDocument.originalFileName
+                    : documentRequired
+                      ? "Upload a matching document before verification."
+                      : "Manual checklist requirement"}
+              </p>
+              {requirement.remarks ? (
+                <p className="mt-2 text-xs leading-5 text-[#365F4A]">{requirement.remarks}</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              {matchingDocument ? (
+                <Button
+                  type="button"
+                  className="h-9 rounded-full border border-[#CAD8CB] bg-white px-3 text-xs font-black text-[#123D2A] hover:bg-[#EEF2EC]"
+                  onClick={() => onPreviewDocument(matchingDocument)}
+                >
+                  <Eye className="size-3.5" /> Preview
+                </Button>
+              ) : null}
+              {canVerify ? (
+                <Button
+                  type="button"
+                  disabled={busy}
+                  className="h-9 rounded-full bg-[#123D2A] px-3 text-xs font-black text-white hover:bg-[#1F6B43] disabled:opacity-60"
+                  onClick={() => void onVerify(requirement, matchingDocument)}
+                >
+                  {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  Verify
+                </Button>
+              ) : null}
+              {canUpload ? (
+                <RequirementDocumentUploadButton
+                  requirement={requirement}
+                  busy={busy}
+                  onUpload={onUploadDocument}
+                />
+              ) : null}
+              {canReject ? (
+                <Button
+                  type="button"
+                  disabled={busy}
+                  className="h-9 rounded-full border border-red-200 bg-white px-3 text-xs font-black text-red-700 hover:bg-red-50 disabled:opacity-60"
+                  onClick={() => void onReject(requirement)}
+                >
+                  Reject
+                </Button>
+              ) : null}
+              {canWaive ? (
+                <Button
+                  type="button"
+                  disabled={busy}
+                  className="h-9 rounded-full border border-[#CAD8CB] bg-white px-3 text-xs font-black text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60"
+                  onClick={() => void onWaive(requirement)}
+                >
+                  Waive
+                </Button>
+              ) : null}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function RequirementStatusPill({ status }: { status: RequirementStatus }) {
+  const className =
+    status === "Verified" || status === "Waived"
+      ? "bg-[#DDF4E4] text-[#1F6B43]"
+      : status === "Rejected"
+        ? "bg-[#FFE6E0] text-[#9A392A]"
+        : status === "Submitted"
+          ? "bg-[#DDEEFF] text-[#14517A]"
+          : "bg-[#FFF2CC] text-[#946600]";
+
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-black ${className}`}>
+      {status}
+    </span>
+  );
+}
+
+function RequirementDocumentUploadButton({
+  requirement,
+  busy,
+  onUpload,
+}: {
+  requirement: ChairmanApplicationRequirement;
+  busy: boolean;
+  onUpload: (requirement: ChairmanApplicationRequirement, file: File) => Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.currentTarget.value = "";
+          if (file) void onUpload(requirement, file);
+        }}
+      />
+      <Button
+        type="button"
+        disabled={busy}
+        className="h-9 rounded-full border border-[#CAD8CB] bg-white px-3 text-xs font-black text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60"
+        onClick={() => inputRef.current?.click()}
+      >
+        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FilePlus2 className="size-3.5" />}
+        Upload
+      </Button>
+    </>
+  );
+}
+
+function ReviewCheck({
+  label,
+  status,
+  completeLabel = "Verified",
+}: {
+  label: string;
+  status: RequirementStatus;
+  completeLabel?: string;
+}) {
+  const complete = status === "Verified" || status === "Waived";
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-3 py-2">
       <span>{label}</span>
-      <span className={done ? "text-[#1F6B43]" : "text-[#8A6200]"}>
-        {done ? "Verified" : "Pending"}
+      <span className={complete ? "text-[#1F6B43]" : status === "Rejected" ? "text-red-700" : "text-[#8A6200]"}>
+        {complete ? completeLabel : status}
       </span>
     </div>
   );
@@ -2870,8 +3532,8 @@ function ApplicationFormDialog({
 
       {step === 3 && (
       <div className="grid gap-4 md:grid-cols-2">
-        <TextInput label="Father name" value={draft.fatherName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, fatherName: value }))} />
-        <TextInput label="Mother name" value={draft.motherName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, motherName: value }))} />
+        <TextInput label="Father's name" value={draft.fatherName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, fatherName: value }))} />
+        <TextInput label="Mother's name" value={draft.motherName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, motherName: value }))} />
         <TextInput label="Spouse name" value={draft.spouseName ?? ""} onChange={(value) => setDraft((current) => ({ ...current, spouseName: value }))} />
         <TextInput label="Occupation" value={draft.occupation ?? ""} onChange={(value) => setDraft((current) => ({ ...current, occupation: value }))} />
         <TextInput label="Signature name" value={draft.applicantSignatureName} onChange={(value) => setDraft((current) => ({ ...current, applicantSignatureName: value }))} />
@@ -2945,29 +3607,27 @@ function ActivationResultDialog({
       open={Boolean(result)}
       onOpenChange={onOpenChange}
       title="Application Approved"
-      description="The activation URL is shown once. Store it before closing this dialog."
+      description="The applicant was notified by email and can access activation from the public status page."
     >
       {result ? (
         <div className="grid gap-4">
-          <Info label="Member code" value={result.memberCode} />
-          {result.activationUrl ? (
-            <div className="rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-4">
-              <p className="text-sm font-bold text-[#123D2A]">Activation URL</p>
-              <code className="mt-2 block break-all text-sm text-[#294B39]">{result.activationUrl}</code>
-              <Button
-                type="button"
-                className="mt-3 h-10 bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
-                onClick={() => {
-                  void navigator.clipboard.writeText(result.activationUrl ?? "");
-                  toast.success("Activation URL copied.");
-                }}
-              >
-                Copy URL
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-[#5D6D63]">No portal account was created.</p>
-          )}
+          <div className="rounded-xl border border-[#BBD9C0] bg-[#EAF3E8] p-4">
+            <p className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
+              <CheckCircle2 className="size-4 text-[#1F6B43]" />
+              Member profile created
+            </p>
+            <p className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
+              {result.memberCode}
+            </p>
+          </div>
+          <div className="flex gap-3 rounded-xl border border-[#DDE8D8] bg-white p-4 text-sm text-[#365F4A]">
+            <Mail className="mt-0.5 size-4 shrink-0 text-[#1F6B43]" />
+            <p>
+              {result.activationTokenExpiresAt
+                ? "The activation link was emailed to the applicant. They can also open activation from the public status page after verifying their application."
+                : "No portal account was created for this approval."}
+            </p>
+          </div>
         </div>
       ) : null}
     </FormDialog>
@@ -3087,7 +3747,7 @@ function ReviewSection({
   );
 }
 
-function RequirementProgressBadge({ progress }: { progress: ReturnType<typeof requirementProgress> }) {
+function RequirementProgressBadge({ progress }: { progress: ReturnType<typeof prePaymentRequirementProgress> }) {
   const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
 
   return (
@@ -3255,9 +3915,127 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function requirementProgress(detail: ChairmanApplicationDetail) {
-  const total = detail.requirements.length;
-  const completed = detail.requirements.filter((requirement) =>
+const paymentRequirementTypes = new Set<RequirementType>([
+  "Associate Membership Fee",
+  "Initial Share Capital",
+]);
+
+const documentRequirementTypes = new Set<RequirementType>([
+  "Signed Application",
+  "Valid ID",
+  "Proof of Residency",
+  "Other",
+]);
+
+const requestableRequirementTypes = requirementTypes.filter((requirementType) =>
+  documentRequirementTypes.has(requirementType),
+);
+
+const singleUploadRequestDocumentTypes = new Set<MembershipDocumentType>([
+  "Valid ID",
+  "Proof of Residency",
+]);
+
+function isPaymentRequirement(requirementType: RequirementType) {
+  return paymentRequirementTypes.has(requirementType);
+}
+
+function isDocumentRequirement(requirementType: RequirementType) {
+  return documentRequirementTypes.has(requirementType);
+}
+
+function canWaiveRequirement(requirementType: RequirementType) {
+  return requirementType === "Orientation/Seminar" || requirementType === "Other";
+}
+
+function isPublicFollowUpRequirement(requirement: ChairmanApplicationRequirement) {
+  if (!isDocumentRequirement(requirement.requirementType)) return false;
+  if (!["Pending", "Rejected"].includes(requirement.requirementStatus)) return false;
+
+  return requirement.requirementType !== "Signed Application"
+    || requirement.requirementStatus === "Rejected"
+    || Boolean(requirement.remarks?.trim());
+}
+
+function applicantFollowUpMessage(requirements: ChairmanApplicationRequirement[]) {
+  const requestedItems = requirements.map((requirement) => {
+    const note = requirement.remarks?.trim();
+    return note ? `${requirement.requirementType}: ${note}` : requirement.requirementType;
+  });
+
+  return [
+    "The cooperative needs the following document or information to continue reviewing your membership application:",
+    ...requestedItems.map((item) => `- ${item}`),
+    "Open your application status page to upload the requested file.",
+  ].join("\n");
+}
+
+function documentTypeForRequirement(requirementType: RequirementType): MembershipDocumentType | null {
+  return isDocumentRequirement(requirementType)
+    ? requirementType as MembershipDocumentType
+    : null;
+}
+
+function requirementTypeForDocument(documentType: MembershipDocumentType): RequirementType | null {
+  return isDocumentRequirement(documentType as RequirementType)
+    ? documentType as RequirementType
+    : null;
+}
+
+function availableRequestableRequirementTypes(
+  requirements: ChairmanApplicationRequirement[],
+  documents: ChairmanApplicationDocument[],
+) {
+  const requirementByType = new Set(requirements.map((requirement) => requirement.requirementType));
+  const uploadedSingleRequestTypes = new Set(
+    documents
+      .map((document) => document.documentType)
+      .filter((documentType) => singleUploadRequestDocumentTypes.has(documentType)),
+  );
+
+  return requestableRequirementTypes.filter((requirementType) => {
+    if (requirementByType.has(requirementType)) return false;
+    const documentType = documentTypeForRequirement(requirementType);
+    if (!documentType) return false;
+    return !uploadedSingleRequestTypes.has(documentType);
+  });
+}
+
+function matchingRequirementDocument(
+  requirement: ChairmanApplicationRequirement,
+  documents: ChairmanApplicationDocument[],
+) {
+  if (requirement.documentId) {
+    return documents.find((document) => document.id === requirement.documentId) ?? null;
+  }
+
+  const documentType = documentTypeForRequirement(requirement.requirementType);
+  if (!documentType) return null;
+
+  return documents.find((document) => document.documentType === documentType) ?? null;
+}
+
+function documentRequirementForReview(
+  document: ChairmanApplicationDocument,
+  requirements: ChairmanApplicationRequirement[],
+) {
+  return requirements.find((requirement) => {
+    if (requirement.documentId) return requirement.documentId === document.id;
+    return documentTypeForRequirement(requirement.requirementType) === document.documentType;
+  }) ?? null;
+}
+
+function prePaymentRequirements(detail: ChairmanApplicationDetail) {
+  return detail.requirements.filter((requirement) =>
+    !isPaymentRequirement(requirement.requirementType)
+      && requirement.requirementType !== "Orientation/Seminar",
+  );
+}
+
+function prePaymentRequirementProgress(detail: ChairmanApplicationDetail) {
+  const requirements = prePaymentRequirements(detail);
+  const total = requirements.length;
+  const completed = requirements.filter((requirement) =>
     ["Verified", "Waived"].includes(requirement.requirementStatus),
   ).length;
   return { completed, total, isComplete: total > 0 && completed === total };
