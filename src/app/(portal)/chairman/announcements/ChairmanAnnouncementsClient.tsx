@@ -736,7 +736,7 @@ export function ChairmanAnnouncementsClient() {
       />
 
       <FormDialog
-        open={modalOpen}
+        open={modalOpen && !confirmSubmitModalOpen}
         onOpenChange={(open) => {
           setModalOpen(open);
           if (!open) resetForm();
@@ -1440,7 +1440,7 @@ export function ChairmanAnnouncementsClient() {
       )}
 
       <FormDialog
-        open={deletedModalOpen}
+        open={deletedModalOpen && !restoringId}
         onOpenChange={(open) => {
           setDeletedModalOpen(open);
           if (!open) {

@@ -580,7 +580,7 @@ export function UsersClient() {
       />
 
       <UserDetailDialog
-        user={selectedUser}
+        user={pendingAction || activationResult || auditLogsOpen ? null : selectedUser}
         currentUserId={currentUserId}
         isMutating={isMutating}
         onOpenChange={(open) => {

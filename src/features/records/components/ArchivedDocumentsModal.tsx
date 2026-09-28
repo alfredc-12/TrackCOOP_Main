@@ -23,6 +23,7 @@ export function ArchivedDocumentsModal({
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [mutating, setMutating] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<DocumentRecord | null>(null);
 
   const load = useCallback(async () => {
     if (!open) return;
@@ -60,6 +61,7 @@ export function ArchivedDocumentsModal({
       toast.success("Document restored successfully.");
       await load();
       onRestoreSuccess();
+      setRestoreTarget(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to restore document.");
     } finally {
@@ -70,8 +72,9 @@ export function ArchivedDocumentsModal({
   const totalPages = Math.max(1, Math.ceil((data?.summary.archived ?? 0) / 5));
 
   return (
+    <>
     <FormDialog
-      open={open}
+      open={open && !restoreTarget}
       onOpenChange={onOpenChange}
       title="Archived Documents"
       description="View and restore previously archived cooperative documents."
@@ -101,22 +104,15 @@ export function ArchivedDocumentsModal({
                   <div className="text-xs text-[#5D6D63]">{doc.reference} &middot; Archived on {formatDate(doc.updatedAt)}</div>
                 </div>
                 <div className="flex gap-2">
-                  <ConfirmDialog
-                    title="Restore Document"
-                    description={`Are you sure you want to restore "${doc.title}"?`}
-                    confirmLabel="Restore Document"
-                    onConfirm={() => void restoreDocument(doc.id)}
-                    trigger={
-                      <button
-                        type="button"
-                        disabled={mutating === doc.id}
-                        className={primaryButtonClass}
-                      >
-                        <ArchiveRestore className="size-4" />
-                        {mutating === doc.id ? "Restoring..." : "Restore"}
-                      </button>
-                    }
-                  />
+                  <button
+                    type="button"
+                    disabled={mutating === doc.id}
+                    onClick={() => setRestoreTarget(doc)}
+                    className={primaryButtonClass}
+                  >
+                    <ArchiveRestore className="size-4" />
+                    {mutating === doc.id ? "Restoring..." : "Restore"}
+                  </button>
                 </div>
               </div>
             ))}
@@ -168,5 +164,19 @@ export function ArchivedDocumentsModal({
         </div>
       </div>
     </FormDialog>
+    <ConfirmDialog
+      open={Boolean(restoreTarget)}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !mutating) setRestoreTarget(null);
+      }}
+      title="Restore Document"
+      description={`Are you sure you want to restore "${restoreTarget?.title ?? "this document"}"?`}
+      confirmLabel="Restore Document"
+      loading={Boolean(mutating)}
+      onConfirm={() => {
+        if (restoreTarget) void restoreDocument(restoreTarget.id);
+      }}
+    />
+    </>
   );
 }

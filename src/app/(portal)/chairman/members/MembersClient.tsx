@@ -729,7 +729,7 @@ export function MembersClient() {
 
       <ApplicationDetailDialog
         detail={selectedDetail}
-        open={Boolean(selectedDetail)}
+        open={Boolean(selectedDetail) && !confirmAction}
         isMutating={isMutating}
         currentUser={currentUser}
         onOpenChange={(open) => {
@@ -2647,8 +2647,9 @@ function ApplicationDetailDialog({
   );
 
   return (
+    <>
     <FormDialog
-      open={open}
+      open={open && !approvalConfirmOpen && !requirementDecision && !previewDocument}
       onOpenChange={onOpenChange}
       title={
         <div className="flex w-full min-w-0 flex-col gap-4 pr-2 lg:flex-row lg:items-start lg:justify-between">
@@ -2868,6 +2869,7 @@ function ApplicationDetailDialog({
           </div>
         </aside>
       </div>
+    </FormDialog>
 
       <ApprovalConfirmDialog
         open={approvalConfirmOpen}
@@ -2940,7 +2942,7 @@ function ApplicationDetailDialog({
           </div>
         ) : null}
       </FormDialog>
-    </FormDialog>
+    </>
   );
 }
 

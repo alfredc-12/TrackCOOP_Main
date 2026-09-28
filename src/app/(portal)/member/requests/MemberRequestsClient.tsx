@@ -491,7 +491,7 @@ export function MemberRequestsClient() {
       </FormDialog>
 
       <FormDialog
-        open={Boolean(selectedId)}
+        open={Boolean(selectedId) && !isCancelConfirmOpen}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedId(null);

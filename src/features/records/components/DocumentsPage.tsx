@@ -819,7 +819,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       ) : null}
 
       <FormDialog
-        open={uploadOpen}
+        open={uploadOpen && !confirmUpload}
         onOpenChange={(open) => {
           setUploadOpen(open);
           if (!open) {
