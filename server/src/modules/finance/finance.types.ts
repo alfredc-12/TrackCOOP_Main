@@ -77,7 +77,7 @@ export type FinancialRecordListQuery = {
   search?: string;
   recordType?: FinancialRecordType;
   recordStatus?: FinancialRecordStatus;
-  sortBy: "recordDate" | "amount" | "recordNumber";
+  sortBy: "recordDate" | "amount" | "recordNumber" | "createdAt";
   sortDirection: "asc" | "desc";
 };
 

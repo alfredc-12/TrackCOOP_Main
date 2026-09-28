@@ -57,6 +57,12 @@ export type RequestRecord = {
   replyCount?: number;
 };
 
+export type RequestAssigneeRecord = {
+  id: string;
+  displayName: string;
+  role: "chairman" | "bookkeeper";
+};
+
 export type ListRequestsQuery = {
   page: number;
   pageSize: number;
@@ -83,7 +89,7 @@ export type RequestStatusHistoryRecord = {
   newStatus: RequestStatus;
   internalNote: string | null;
   userVisibleMessage: string | null;
-  changedBy: string;
+  changedBy: string | null;
   changedByName: string | null;
   changedAt: string;
 };

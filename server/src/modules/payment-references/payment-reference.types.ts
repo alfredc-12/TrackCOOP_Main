@@ -81,6 +81,7 @@ export type PaymentReferenceListItem = PaymentReference & {
   rentalEndAt?: Date | null;
   rentalQuantity?: string | null;
   rentalUnit?: string | null;
+  posQuantity?: number | string | null;
 };
 
 export type PaymentReferenceListResult = {

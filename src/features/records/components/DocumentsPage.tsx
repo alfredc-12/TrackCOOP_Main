@@ -109,6 +109,8 @@ function queryFor(filters: Filters, page = 1) {
   const parameters = new URLSearchParams({
     page: String(page),
     pageSize: "5",
+    sortBy: "insertionOrder",
+    sortDirection: "desc",
   });
   Object.entries(filters).forEach(([key, value]) => {
     if (value) parameters.set(key, value);
@@ -141,6 +143,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isZipping, setIsZipping] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+  const refreshInFlight = useRef(false);
 
   const debouncedSearch = useDebounce(draftFilters.search, 300);
 
@@ -149,7 +152,9 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     setPage(1);
   }, [debouncedSearch]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     try {
       const response = await expressFetch(
         `/api/documents?${queryFor(filters, page)}`,
@@ -161,13 +166,16 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       setError(null);
       setData((await response.json()) as DocumentListResponse);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Documents could not be loaded.",
-      );
+      if (!silent) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Documents could not be loaded.",
+        );
+      }
     } finally {
-      setLoading(false);
+      refreshInFlight.current = false;
+      if (!silent) setLoading(false);
     }
   }, [filters, page]);
 
@@ -175,6 +183,10 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     // The async loader updates state only after the external request resolves.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 15_000);
+    return () => window.clearInterval(refreshTimer);
   }, [load]);
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / 5));

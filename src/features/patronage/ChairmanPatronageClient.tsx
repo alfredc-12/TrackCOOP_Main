@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, HandCoins, Plus, RefreshCw, ShoppingCart, Tractor, TrendingDown, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
@@ -88,6 +88,7 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
   const [basisError, setBasisError] = useState("");
   const [allocationPage, setAllocationPage] = useState(1);
   const [allocationPageSize, setAllocationPageSize] = useState(5);
+  const refreshInFlight = useRef(false);
   const year = new Date().getFullYear();
   const [draft, setDraft] = useState({ name: `${year} Patronage Refund`, startDate: `${year}-01-01`, endDate: `${year}-12-31`, refundPool: "", notes: "" });
   const yearOptions = Array.from({ length: 8 }, (_, index) => year - 5 + index);
@@ -104,20 +105,27 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
     : 0;
   const refundPoolTooHigh = Boolean(financialBasis && draftRefundPool > fairRefundLimit);
 
-  const load = useCallback(async (periodId?: string) => {
+  const load = useCallback(async (periodId?: string, silent = false) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     try {
       const result = await getPatronageOverview(periodId);
       setData(result);
       setSelectedId(result.selectedPeriod?.id);
       setError("");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load patronage records.");
+      if (!silent) setError(loadError instanceof Error ? loadError.message : "Unable to load patronage records.");
+    } finally {
+      refreshInFlight.current = false;
     }
   }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(selectedId), 0);
-    return () => window.clearTimeout(timeoutId);
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(selectedId, true);
+    }, 15_000);
+    return () => { window.clearTimeout(timeoutId); window.clearInterval(refreshTimer); };
   }, [load, selectedId]);
 
   useEffect(() => {

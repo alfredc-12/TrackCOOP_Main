@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BadgeCheck,
   Banknote,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -19,7 +18,6 @@ import {
   Search,
   Send,
   ShieldCheck,
-  SlidersHorizontal,
   WalletCards,
   X,
 } from "lucide-react";
@@ -85,9 +83,6 @@ const emptySummary: PaymentReferenceSummary = {
   validatedAmount: 0,
 };
 const statusOptions = ["", "Pending", "Needs Clarification", "Validated", "Rejected", "Reversed"];
-const purposeOptions = ["", "Associate Membership Fee", "Share Capital", "Rental", "POS/Product", "Preorder", "Bulk Order", "Document/Certificate", "Other"];
-const channelOptions = ["", "PayMongo", "Manual GCash", "Cash", "Bank Transfer", "Other"];
-const sourceOptions = ["", "Manual Bookkeeper", "PayMongo Webhook", "System"];
 const actionLabels: Record<PaymentMutationAction, string> = {
   validate: "Approve payment",
   reject: "Reject payment",
@@ -143,9 +138,14 @@ function rentedItemSubLabel(payment: Pick<PaymentReferenceListItem, "paymentPurp
   const period = start === end ? start : `${start} to ${end}`;
   return `${payment.rentalNumber ?? payment.referenceNumber} - ${period}`;
 }
-function paymentCountLabel(payment: Pick<PaymentReferenceListItem, "paymentPurpose" | "relatedEntityType" | "rentalQuantity" | "rentalUnit">) {
+function paymentCountLabel(payment: Pick<PaymentReferenceListItem, "paymentPurpose" | "relatedEntityType" | "rentalQuantity" | "rentalUnit" | "posQuantity">) {
   if (payment.paymentPurpose === "Rental") return payment.rentalQuantity ? [payment.rentalQuantity, payment.rentalUnit].filter(Boolean).join(" ") : "1 rental";
-  if (payment.paymentPurpose === "POS/Product") return "Not listed";
+  if (payment.paymentPurpose === "POS/Product") {
+    const quantity = Number(payment.posQuantity);
+    return Number.isFinite(quantity) && quantity > 0
+      ? `${quantity} item${quantity === 1 ? "" : "s"}`
+      : "Not listed";
+  }
   return "1 payment";
 }
 function paymentForLabel(payment: Pick<PaymentReferenceListItem, "memberCode" | "memberName" | "applicationCode" | "applicationName" | "payerContact">) {
@@ -189,7 +189,8 @@ function Select({ value, onChange, options, label }: { value: string; onChange: 
   );
 }
 
-function DatePicker({ value, onChange, label }: { value?: string; onChange: (value: string) => void; label: string }) {
+/* Date filtering is intentionally handled by the server defaults; the advanced panel only exposes page size. */
+/*
   const [open, setOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const initial = value ? new Date(`${value}T12:00:00`) : new Date();
@@ -221,7 +222,7 @@ function DatePicker({ value, onChange, label }: { value?: string; onChange: (val
     </div> : null}
     </div>
   </div>;
-}
+} */
 function Info({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
     <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6C7A70]">{label}</p>
@@ -319,22 +320,34 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSecondarySubmitting, setIsSecondarySubmitting] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [error, setError] = useState("");
   const mutationLock = useRef(false);
+  const refreshInFlight = useRef(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true); setError("");
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    if (!silent) { setIsLoading(true); setError(""); }
     try {
       const [page, nextSummary] = await Promise.all([listPaymentReferences(filters), getPaymentReferenceSummary()]);
       setPayments(page.items); setTotal(page.total); setSummary(nextSummary);
+      setError("");
       if (page.page !== filters.page) setFilters((current) => ({ ...current, page: page.page }));
     } catch (caught) {
-      setError(caught instanceof ApiClientError ? caught.message : "Payment references could not be loaded.");
-    } finally { setIsLoading(false); }
+      if (!silent) setError(caught instanceof ApiClientError ? caught.message : "Payment references could not be loaded.");
+    } finally {
+      refreshInFlight.current = false;
+      if (!silent) setIsLoading(false);
+    }
   }, [filters]);
 
-  useEffect(() => { const timeout = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(timeout); }, [load]);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void load(), 180);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 15_000);
+    return () => { window.clearTimeout(timeout); window.clearInterval(interval); };
+  }, [load]);
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 5;
   const pages = totalPaymentPages(total, pageSize);
@@ -437,26 +450,9 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
             className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" />
         </label>
         <Select value={filters.validationStatus ?? ""} onChange={(v) => setFilter("validationStatus", v)} options={statusOptions} label="All statuses" />
-        <button type="button" onClick={() => setShowAdvancedFilters((current) => !current)} aria-expanded={showAdvancedFilters}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><SlidersHorizontal className="size-4" />{showAdvancedFilters ? "Hide filters" : "More filters"}</button>
+        <Select value={String(filters.pageSize ?? 5)} onChange={(v) => setFilter("pageSize", Number(v))} options={["5", "10", "20", "50", "100"]} label="5 per page" />
         <button type="button" onClick={() => void load()} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><RefreshCcw className="size-4" />Refresh</button>
       </div>
-      {showAdvancedFilters ? <div className="grid gap-3 border-t border-[#E2E8E2] pt-3 md:grid-cols-3 xl:grid-cols-4">
-        <Select value={filters.paymentPurpose ?? ""} onChange={(v) => setFilter("paymentPurpose", v)} options={purposeOptions} label="All purposes" />
-        <Select value={filters.paymentChannel ?? ""} onChange={(v) => setFilter("paymentChannel", v)} options={channelOptions} label="All payment methods" />
-        <Select value={filters.validationSource ?? ""} onChange={(v) => setFilter("validationSource", v)} options={sourceOptions} label="All validation sources" />
-        <Select value={filters.gatewayManual ?? "all"} onChange={(v) => setFilter("gatewayManual", v)} options={["all", "gateway", "manual"]} label="Online or manual" />
-        <Select value={filters.failedEvents ? "failed" : "all"} onChange={(v) => setFilter("failedEvents", v === "failed")} options={["all", "failed"]} label="Payment system issues" />
-        <DatePicker value={filters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} label="From date" />
-        <DatePicker value={filters.dateTo} onChange={(value) => setFilter("dateTo", value)} label="To date" />
-        <input value={filters.amountMin ?? ""} onChange={(e) => setFilter("amountMin", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Minimum amount" aria-label="Minimum amount" />
-        <input value={filters.amountMax ?? ""} onChange={(e) => setFilter("amountMax", e.target.value)} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm" inputMode="decimal" placeholder="Maximum amount" aria-label="Maximum amount" />
-        <Select value={filters.sortBy ?? "submittedAt"} onChange={(v) => setFilter("sortBy", v)} options={["submittedAt", "paidAt", "amount", "referenceNumber"]} label="Sort payments by" />
-        <Select value={filters.sortDirection ?? "desc"} onChange={(v) => setFilter("sortDirection", v)} options={["desc", "asc"]} label="Sort order" />
-        <Select value={String(filters.pageSize ?? 5)} onChange={(v) => setFilter("pageSize", Number(v))} options={["5", "10", "20", "50", "100"]} label="Payments per page" />
-        <button type="button" onClick={() => setFilters({ page: 1, pageSize: 5, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" })}
-          className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]">Clear all filters</button>
-      </div> : null}
     </div>
 
     {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}

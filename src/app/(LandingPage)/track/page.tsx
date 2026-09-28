@@ -24,6 +24,8 @@ function TrackContent() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const timelineRef = useRef<HTMLDivElement | null>(null);
+  const silentRefreshInFlightRef = useRef(false);
+  const timelineMessageCount = result?.history?.length ?? 0;
   useEffect(() => {
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousBodyOverflow = document.body.style.overflow;
@@ -35,8 +37,8 @@ function TrackContent() {
     };
   }, []);
   useEffect(() => {
-    if (result?.history?.length) requestAnimationFrame(() => { if (timelineRef.current) timelineRef.current.scrollTop = timelineRef.current.scrollHeight; });
-  }, [result]);
+    if (timelineMessageCount > 0) requestAnimationFrame(() => { if (timelineRef.current) timelineRef.current.scrollTop = timelineRef.current.scrollHeight; });
+  }, [timelineMessageCount]);
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -68,6 +70,41 @@ function TrackContent() {
     const timer = window.setTimeout(() => void handleSearch(), 0);
     return () => window.clearTimeout(timer);
   }, [code, handleSearch]);
+
+  useEffect(() => {
+    const trackingCode = result?.request.referenceCode;
+    if (!trackingCode) return;
+
+    const refreshSilently = async () => {
+      if (
+        document.visibilityState !== "visible" ||
+        silentRefreshInFlightRef.current ||
+        isSubmittingReply ||
+        isCancelling
+      ) return;
+
+      silentRefreshInFlightRef.current = true;
+      try {
+        const data = await trackPublicRequest(trackingCode);
+        setResult(data);
+      } catch {
+        // Keep the last successful result visible during background refresh failures.
+      } finally {
+        silentRefreshInFlightRef.current = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => void refreshSilently(), 15_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshSilently();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isCancelling, isSubmittingReply, result?.request.referenceCode]);
 
   const handlePaste = async () => {
     try {

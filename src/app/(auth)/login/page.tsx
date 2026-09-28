@@ -17,7 +17,7 @@ import { ApiClientError } from "@/lib/api-client";
 
 const roleDestinations: Record<AuthUser["role"], string> = {
   chairman: "/portal/chairman/dashboard",
-  bookkeeper: "/portal/bookkeeper/dashboard",
+  bookkeeper: "/portal/bookkeeper/financial-dashboard",
   member: "/portal/member/dashboard",
 };
 

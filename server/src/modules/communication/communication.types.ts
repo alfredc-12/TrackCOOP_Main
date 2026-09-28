@@ -206,6 +206,12 @@ export type RequestRecord = {
   isReadByMember: boolean;
 };
 
+export type RequestAssigneeRecord = {
+  id: string;
+  displayName: string;
+  role: "chairman" | "bookkeeper";
+};
+
 export type RequestStatusHistoryRecord = {
   id: string;
   requestId: string;
@@ -213,7 +219,7 @@ export type RequestStatusHistoryRecord = {
   newStatus: RequestStatus;
   internalNote: string | null;
   userVisibleMessage: string | null;
-  changedBy: string;
+  changedBy: string | null;
   changedByName: string | null;
   changedAt: Date;
 };

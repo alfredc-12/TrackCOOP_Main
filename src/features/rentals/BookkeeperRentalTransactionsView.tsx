@@ -12,7 +12,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
@@ -116,10 +116,15 @@ export function BookkeeperRentalTransactionsView() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const refreshInFlight = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const result = await listPaymentReferences({
         paymentPurpose: "Rental",
@@ -129,16 +134,21 @@ export function BookkeeperRentalTransactionsView() {
         sortDirection: "desc",
       });
       setPayments(result.items);
+      setError("");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Rental payments could not be loaded.");
+      if (!silent) setError(loadError instanceof Error ? loadError.message : "Rental payments could not be loaded.");
     } finally {
-      setLoading(false);
+      refreshInFlight.current = false;
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timeout);
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ silent: true });
+    }, 15_000);
+    return () => { window.clearTimeout(timeout); window.clearInterval(refreshTimer); };
   }, [load]);
 
   const filtered = useMemo(() => {

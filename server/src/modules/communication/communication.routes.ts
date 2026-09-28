@@ -77,6 +77,7 @@ export function createCommunicationRouter(
   router.get("/announcements/:id/acknowledgments", ...chairmanOnly, controller.getAnnouncementAcknowledgments);
 
   router.get("/requests", ...authenticated, controller.listRequests);
+  router.get("/requests/assignees", ...chairmanOnly, controller.listRequestAssignees);
   router.get("/requests/track/:code", controller.trackPublicRequest);
   router.post("/requests/track/:code/reply", controller.addPublicRequestReply);
   router.post("/requests/public", controller.createPublicRequest);

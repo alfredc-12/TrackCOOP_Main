@@ -323,7 +323,7 @@ CREATE TABLE member_status_history (
         'Terminated'
     ) NULL,
     reason TEXT NULL,
-    changed_by BIGINT UNSIGNED NOT NULL,
+    changed_by BIGINT UNSIGNED NULL,
     changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_member_status_history_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_member_status_history_user FOREIGN KEY (changed_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
@@ -1719,6 +1719,8 @@ CREATE TABLE requests_inquiries (
     closed_at DATETIME NULL,
     submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_read_by_admin TINYINT(1) NOT NULL DEFAULT 1,
+    is_read_by_member TINYINT(1) NOT NULL DEFAULT 1,
     CONSTRAINT uq_requests_reference_code UNIQUE (reference_code),
     CONSTRAINT fk_requests_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_requests_submitter FOREIGN KEY (submitted_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,

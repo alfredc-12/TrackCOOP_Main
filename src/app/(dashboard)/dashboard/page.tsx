@@ -12,7 +12,7 @@ export default async function LegacyDashboardPage({
   }
 
   if (params.role === "bookkeeper") {
-    redirect("/portal/bookkeeper/dashboard");
+    redirect("/portal/bookkeeper/financial-dashboard");
   }
 
   if (params.tab) {

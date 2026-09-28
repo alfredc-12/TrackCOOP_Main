@@ -64,6 +64,8 @@ export function MemberRequestsClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const requestFetchInFlightRef = useRef(false);
+  const detailRefreshInFlightRef = useRef(false);
 
   useEffect(() => {
     getAuthenticatedUser().then(setUser).catch(console.error);
@@ -81,37 +83,47 @@ export function MemberRequestsClient() {
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<RequestRecord | null>(null);
   const [selectedRequestHistory, setSelectedRequestHistory] = useState<RequestStatusHistoryRecord[]>([]);
   const threadScrollRef = useRef<HTMLDivElement | null>(null);
+  const threadMessageCount = selectedRequestHistory.length;
   useEffect(() => {
-    if (modalMode === "thread" && selectedRequestHistory.length > 0) {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+  useEffect(() => {
+    if (modalMode === "thread" && threadMessageCount > 0) {
       requestAnimationFrame(() => { if (threadScrollRef.current) threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight; });
     }
-  }, [modalMode, selectedRequestHistory]);
+  }, [modalMode, threadMessageCount]);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [memberReply, setMemberReply] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const fetchRequests = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
+  const fetchRequests = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (requestFetchInFlightRef.current) return;
+    requestFetchInFlightRef.current = true;
+    if (!silent) {
+      setIsLoading(true);
+      setError("");
+    }
     try {
-      // NOTE: For a real app, the backend should filter by the logged-in member.
-      // Assuming listRequests endpoint naturally scopes to the user if they are a 'member'.
       const result = await listRequests(query);
       setRequests(result.items);
       setTotal(result.total);
     } catch (caught) {
-      setError(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Failed to load your requests."
-      );
+      if (!silent) {
+        setError(
+          caught instanceof ApiClientError
+            ? caught.message
+            : "Failed to load your requests."
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
+      requestFetchInFlightRef.current = false;
     }
   }, [query]);
 
@@ -119,6 +131,47 @@ export function MemberRequestsClient() {
     const timeoutId = window.setTimeout(() => void fetchRequests(), 0);
     return () => window.clearTimeout(timeoutId);
   }, [fetchRequests]);
+
+  useEffect(() => {
+    const refreshSilently = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      void fetchRequests({ silent: true });
+
+      const openRequestId = selectedIdRef.current;
+      if (
+        !openRequestId ||
+        detailRefreshInFlightRef.current ||
+        isSendingReply ||
+        isCancelling ||
+        isDetailLoading
+      ) return;
+
+      detailRefreshInFlightRef.current = true;
+      try {
+        const detail = await getRequestDetail(openRequestId);
+        if (selectedIdRef.current === openRequestId) {
+          setSelectedRequest(detail.request);
+          setSelectedRequestHistory(detail.history || []);
+        }
+      } catch {
+        // Keep the last successful conversation visible during background failures.
+      } finally {
+        detailRefreshInFlightRef.current = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => void refreshSilently(), 15_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshSilently();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchRequests, isCancelling, isDetailLoading, isSendingReply]);
 
   const openDetail = async (id: string) => {
     setSelectedId(id);
@@ -146,6 +199,7 @@ export function MemberRequestsClient() {
       setSelectedRequest(detail.request);
       setSelectedRequestHistory(detail.history || []);
       setMemberReply("");
+      void fetchRequests({ silent: true });
       toast.success("Reply sent successfully.");
     } catch (error) {
       toast.error("Failed to send reply. Please try again.");
@@ -162,6 +216,7 @@ export function MemberRequestsClient() {
       const detail = await addRequestReply(selectedId, "The member would like to cancel this inquiry.");
       setSelectedRequest(detail.request);
       setSelectedRequestHistory(detail.history || []);
+      void fetchRequests({ silent: true });
       toast.success("Cancellation request sent to the Chairman.");
     } catch {
       toast.error("Unable to send the cancellation request.");
@@ -206,7 +261,7 @@ export function MemberRequestsClient() {
       setIsFormOpen(false);
       setFormData({ requestType: "General", priority: "Normal", subject: "", message: "" });
       setErrors({});
-      void fetchRequests();
+      void fetchRequests({ silent: true });
     } catch (caught) {
       toast.error("Failed to submit request. Please try again.");
     } finally {

@@ -2971,7 +2971,7 @@ export const rentalDatabase = {
            payment_channel, reference_number, payment_purpose, related_entity_type,
            related_entity_id, amount, proof_file_path, validation_status,
            notes, submitted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Rental', 'rental_bookings', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
         cleanParams([
           booking.member_id,
           actor?.userId,
@@ -2993,7 +2993,6 @@ export const rentalDatabase = {
             receiptNumber: payment.receiptNumber,
             notes: payment.notes,
           }),
-          `${payment.paymentDate} 00:00:00`,
         ]),
         connection,
       );

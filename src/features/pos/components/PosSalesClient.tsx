@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Loader2, RefreshCw, CalendarDays, CircleDollarSign } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
@@ -60,6 +60,7 @@ export default function PosSalesClient() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const refreshInFlight = useRef(false);
 
   // Modal States
   const [orderToConfirmId, setOrderToConfirmId] = useState<number | null>(null);
@@ -76,7 +77,9 @@ export default function PosSalesClient() {
   const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
   const [detailsOrder, setDetailsOrder] = useState<PosOrder | null>(null);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     try {
       const response = await expressFetch("/api/pos/orders", { cache: "no-store" });
       if (!response.ok) {
@@ -88,9 +91,10 @@ export default function PosSalesClient() {
       setLastUpdated(new Date());
     } catch (error) {
       console.error("Failed to fetch POS orders", error);
-      setLoadError("POS sales could not be loaded. Please try again.");
+      if (!silent) setLoadError("POS sales could not be loaded. Please try again.");
     } finally {
-      setIsLoading(false);
+      refreshInFlight.current = false;
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
@@ -114,8 +118,8 @@ export default function PosSalesClient() {
     }, 0);
 
     const intervalId = window.setInterval(() => {
-      void fetchOrders();
-    }, 5000);
+      if (document.visibilityState === "visible") void fetchOrders({ silent: true });
+    }, 15_000);
 
     return () => {
       window.clearTimeout(timeoutId);

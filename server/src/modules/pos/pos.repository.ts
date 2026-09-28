@@ -155,7 +155,7 @@ export function createPosRepository(pool?: Pool): PosRepository {
            LEFT JOIN payment_references pr ON s.payment_reference_id = pr.payment_reference_id
            LEFT JOIN member_profiles mp ON s.member_id = mp.member_id
            LEFT JOIN users u ON mp.user_id = u.user_id
-           ORDER BY s.sale_date DESC`,
+           ORDER BY s.pos_sale_id DESC`,
         );
 
         return attachItems(connection, rows);

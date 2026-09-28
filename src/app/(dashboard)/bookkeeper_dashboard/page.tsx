@@ -9,7 +9,7 @@ export default async function BookkeeperDashboardPage({
   const tab = params.tab || "dashboard";
 
   const legacyMap: Record<string, string> = {
-    dashboard: "/portal/bookkeeper/dashboard",
+    dashboard: "/portal/bookkeeper/financial-dashboard",
     payments: "/portal/bookkeeper/payment-validation",
     "payment-validation": "/portal/bookkeeper/payment-validation",
     "share-capital": "/portal/bookkeeper/share-capital",
@@ -27,5 +27,5 @@ export default async function BookkeeperDashboardPage({
     requests: "/portal/bookkeeper/requests",
   };
 
-  redirect(legacyMap[tab] ?? "/portal/bookkeeper/dashboard");
+  redirect(legacyMap[tab] ?? "/portal/bookkeeper/financial-dashboard");
 }

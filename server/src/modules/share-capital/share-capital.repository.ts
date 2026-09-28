@@ -151,7 +151,7 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
       const [rows] = await databasePool().execute<ShareRow[]>(
         `${shareSelect()}
          ${whereSql}
-         ORDER BY ${sortColumns[query.sortBy]} ${orderDirection}, s.share_payment_id DESC
+         ORDER BY ${query.sortBy === "createdAt" ? "s.share_payment_id" : sortColumns[query.sortBy]} ${orderDirection}, s.share_payment_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
         values,
       );

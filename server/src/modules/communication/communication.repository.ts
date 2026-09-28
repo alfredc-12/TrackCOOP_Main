@@ -10,6 +10,7 @@ import type {
   DocumentRecord,
   NotificationRecord,
   ReportRecord,
+  RequestAssigneeRecord,
   RequestRecord,
   RequestStatus,
   RequestStatusHistoryRecord,
@@ -29,7 +30,7 @@ export type ListDocumentsQuery = {
   documentType?: string;
   accessLevel?: string;
   status?: string;
-  sortBy: "uploadedAt" | "title" | "documentType" | "accessLevel";
+  sortBy: "uploadedAt" | "title" | "documentType" | "accessLevel" | "insertionOrder";
   sortDirection: "asc" | "desc";
 };
 
@@ -253,7 +254,7 @@ type RequestStatusHistoryRow = RowDataPacket & {
   newStatus: RequestStatus;
   internalNote: string | null;
   userVisibleMessage: string | null;
-  changedBy: string;
+  changedBy: string | null;
   changedByName: string | null;
   changedAt: Date;
 };
@@ -276,6 +277,7 @@ const documentSortColumns: Record<ListDocumentsQuery["sortBy"], string> = {
   title: "d.title",
   documentType: "d.document_type",
   accessLevel: "d.access_level",
+  insertionOrder: "d.document_id",
 };
 
 const reportSortColumns: Record<ListReportsQuery["sortBy"], string> = {
@@ -777,7 +779,7 @@ function applyRequestAccess(
 ) {
   if (auth.user.role === "chairman") return;
   if (auth.user.role === "bookkeeper") {
-    where.push("(ri.assigned_to = ? OR ri.request_type IN ('Payment', 'Document', 'General'))");
+    where.push("ri.assigned_to = ?");
     values.push(auth.user.id);
     return;
   }
@@ -800,6 +802,7 @@ export interface CommunicationRepository {
   setAnnouncementStatus(id: string, status: "Published" | "Archived", auth: AuthContext): Promise<AnnouncementRecord>;
   acknowledgeAnnouncement(id: string, auth: AuthContext): Promise<void>;
   getAnnouncementAcknowledgments(id: string, auth: AuthContext): Promise<{ userId: string; fullName: string; acknowledgedAt: Date }[]>;
+  listRequestAssignees(): Promise<RequestAssigneeRecord[]>;
   listRequests(query: ListRequestsQuery, auth: AuthContext): Promise<ListResult<RequestRecord>>;
   createRequest(input: CreateRequestInput, auth?: AuthContext): Promise<RequestRecord>;
   getRequest(id: string, auth: AuthContext): Promise<{ request: RequestRecord; history: RequestStatusHistoryRecord[] } | null>;
@@ -1340,6 +1343,24 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
         fullName: r.fullName,
         acknowledgedAt: r.acknowledgedAt
       }));
+    },
+
+    async listRequestAssignees() {
+      const [rows] = await databasePool().execute<(RowDataPacket & RequestAssigneeRecord)[]>(
+        `SELECT CAST(u.user_id AS CHAR) AS id,
+                u.display_name AS displayName,
+                r.role_slug AS role
+           FROM users u
+           JOIN roles r ON r.role_id = u.role_id
+          WHERE u.account_status = 'Active'
+            AND r.role_slug IN ('chairman', 'bookkeeper')
+            AND u.username <> 'paymongo-system'
+            AND u.email <> 'paymongo-system@trackcoop.local'
+          ORDER BY CASE r.role_slug WHEN 'chairman' THEN 0 ELSE 1 END,
+                   u.display_name ASC,
+                   u.user_id ASC`,
+      );
+      return rows.map((row) => ({ id: row.id, displayName: row.displayName, role: row.role }));
     },
 
     async listRequests(query, auth) {

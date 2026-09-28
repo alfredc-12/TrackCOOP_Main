@@ -33,7 +33,7 @@ export const listFinancialRecordsQuerySchema = z.object({
   search: z.string().trim().min(1).max(190).optional(),
   recordType: z.enum(financialRecordTypes).optional(),
   recordStatus: z.enum(financialRecordStatuses).optional(),
-  sortBy: z.enum(["recordDate", "amount", "recordNumber"]).default("recordDate"),
+  sortBy: z.enum(["recordDate", "amount", "recordNumber", "createdAt"]).default("recordDate"),
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
 });
 

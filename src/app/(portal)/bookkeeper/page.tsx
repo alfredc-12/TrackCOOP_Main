@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function BookkeeperPortalIndexPage() {
-  redirect("/portal/bookkeeper/dashboard");
+  redirect("/portal/bookkeeper/financial-dashboard");
 }

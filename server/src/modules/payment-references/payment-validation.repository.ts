@@ -19,6 +19,7 @@ type ListRow = RowDataPacket & PaymentReferenceListItem & {
   gatewayFeeAmount: string | number | null;
   gatewayNetAmount: string | number | null;
   failedGatewayEvents: string | number;
+  posQuantity: string | number | null;
 };
 type CountRow = RowDataPacket & { total: string | number };
 type DetailRow = RowDataPacket & PaymentReference & {
@@ -102,7 +103,12 @@ function paymentColumns() {
           p.rejection_reason AS rejectionReason,
           p.notes,
           p.submitted_at AS submittedAt,
-          p.updated_at AS updatedAt`;
+          p.updated_at AS updatedAt,
+          CASE WHEN p.payment_purpose = 'POS/Product' THEN
+            (SELECT COALESCE(SUM(psi.quantity), 0)
+               FROM pos_sale_items psi
+              WHERE psi.pos_sale_id = p.related_entity_id)
+            ELSE NULL END AS posQuantity`;
 }
 
 function identityJoins() {
@@ -208,7 +214,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
            FROM payment_references p
            ${identityJoins()}
            ${sql}
-          ORDER BY ${sortColumns[query.sortBy]} ${direction}, p.payment_reference_id DESC
+          ORDER BY ${query.sortBy === "submittedAt" ? "p.payment_reference_id" : sortColumns[query.sortBy]} ${direction}, p.payment_reference_id DESC
           LIMIT ${query.pageSize} OFFSET ${offset}`,
         values,
       );

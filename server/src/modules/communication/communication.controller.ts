@@ -173,6 +173,9 @@ export function createCommunicationController(service: CommunicationService) {
     listRequests: asyncHandler(async (request, response) => {
       return sendList(response, await service.listRequests(parse(listRequestsQuerySchema, request.query), requireAuth(request.auth)));
     }),
+    listRequestAssignees: asyncHandler(async (_request, response) => {
+      return sendSuccess(response, await service.listRequestAssignees());
+    }),
     createPublicRequest: asyncHandler(async (request, response) => {
       return sendSuccess(
         response,

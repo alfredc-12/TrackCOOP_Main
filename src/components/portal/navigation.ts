@@ -41,7 +41,7 @@ export type PortalNavGroup = {
 
 export const roleHomePaths: Record<Role, string> = {
   chairman: "/portal/chairman/dashboard",
-  bookkeeper: "/portal/bookkeeper/dashboard",
+  bookkeeper: "/portal/bookkeeper/financial-dashboard",
   member: "/portal/member/dashboard",
 };
 

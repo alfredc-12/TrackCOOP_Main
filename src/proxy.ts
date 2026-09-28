@@ -4,7 +4,7 @@ type Role = "chairman" | "bookkeeper" | "member";
 
 const roleHomePaths: Record<Role, string> = {
   chairman: "/portal/chairman/dashboard",
-  bookkeeper: "/portal/bookkeeper/dashboard",
+  bookkeeper: "/portal/bookkeeper/financial-dashboard",
   member: "/portal/member/dashboard",
 };
 
@@ -63,9 +63,9 @@ function roleForPath(pathname: string): Role | null {
 function canonicalPath(pathname: string, role: Role) {
   if (pathname.startsWith(`/portal/${role}`)) return pathname;
   if (pathname.startsWith(`/${role}/`)) return `/portal/${role}${pathname.slice(role.length + 1)}`;
-  if (pathname === `/${role}`) return `/portal/${role}/dashboard`;
+  if (pathname === `/${role}`) return roleHomePaths[role];
   if (pathname.startsWith("/chairman_dashboard")) return "/portal/chairman/dashboard";
-  if (pathname.startsWith("/bookkeeper_dashboard")) return "/portal/bookkeeper/dashboard";
+  if (pathname.startsWith("/bookkeeper_dashboard")) return "/portal/bookkeeper/financial-dashboard";
   if (pathname.startsWith("/member_dashboard")) return "/portal/member/dashboard";
   if (pathname.startsWith("/dashboard")) return "/portal/chairman/dashboard";
   if (pathname.startsWith("/members")) return `/portal/chairman${pathname}`;
@@ -80,7 +80,7 @@ function internalPath(pathname: string) {
 
   if (pathname.startsWith("/portal/bookkeeper")) {
     const suffix = pathname.slice("/portal/bookkeeper".length);
-    return `/bookkeeper${suffix || "/dashboard"}`;
+    return `/bookkeeper${suffix || "/financial-dashboard"}`;
   }
 
   if (pathname.startsWith("/portal/member")) {

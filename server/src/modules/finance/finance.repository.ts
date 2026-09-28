@@ -70,6 +70,7 @@ const sortColumns: Record<FinancialRecordListQuery["sortBy"], string> = {
   recordDate: "r.record_date",
   amount: "r.amount",
   recordNumber: "r.record_number",
+  createdAt: "r.created_at",
 };
 
 function categorySelect() {
@@ -239,7 +240,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
       const [rows] = await databasePool().execute<RecordRow[]>(
         `${recordSelect()}
          ${whereSql}
-         ORDER BY ${sortColumns[query.sortBy]} ${orderDirection}, r.financial_record_id DESC
+         ORDER BY ${query.sortBy === "createdAt" ? "r.financial_record_id" : sortColumns[query.sortBy]} ${orderDirection}, r.financial_record_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
         values,
       );
