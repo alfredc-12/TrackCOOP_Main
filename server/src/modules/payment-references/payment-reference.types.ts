@@ -81,6 +81,7 @@ export type PaymentReferenceListItem = PaymentReference & {
   rentalEndAt?: Date | null;
   rentalQuantity?: string | null;
   rentalUnit?: string | null;
+  posItemQuantity?: number | null;
 };
 
 export type PaymentReferenceListResult = {
@@ -201,6 +202,7 @@ export type PaymentReferenceDetail = PaymentReference & {
   rentalEndAt?: Date | null;
   rentalQuantity?: string | null;
   rentalUnit?: string | null;
+  posItemQuantity?: number | null;
   posting: PaymentPostingSummary;
 };
 

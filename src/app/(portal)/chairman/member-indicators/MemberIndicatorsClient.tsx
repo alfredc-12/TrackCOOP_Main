@@ -89,10 +89,10 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString() : "Not set";
 }
 
-function basisForMonths(months: number) {
-  const end = new Date();
+function basisForDate(value: string) {
+  const end = new Date(`${value}T00:00:00.000Z`);
   const start = new Date(end.getTime());
-  start.setMonth(start.getMonth() - months);
+  start.setUTCMonth(start.getUTCMonth() - 12);
   return {
     basisPeriodStart: start.toISOString().slice(0, 10),
     basisPeriodEnd: end.toISOString().slice(0, 10),
@@ -148,7 +148,7 @@ export function MemberIndicatorsClient() {
   const [statusLabel, setStatusLabel] = useState<MemberIndicatorStatus | "All">("All");
   const [sortBy, setSortBy] = useState<NonNullable<MemberIndicatorListQuery["sortBy"]>>("computedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [basisMonths, setBasisMonths] = useState(12);
+  const [basisEnd, setBasisEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -200,7 +200,7 @@ export function MemberIndicatorsClient() {
     try {
       const result = await recalculateMemberIndicators({
         memberId,
-        ...basisForMonths(basisMonths),
+        ...basisForDate(basisEnd),
       });
       toast.success(`Recalculated ${result.recalculated} member indicator(s).`);
       await loadIndicators();
@@ -288,7 +288,7 @@ export function MemberIndicatorsClient() {
       <PageHeader
         eyebrow="People"
         title="Member Indicators"
-        description="Decision-support signals from real member transactions and cooperative activity."
+        description="Descriptive engagement signals from qualifying cooperative participation and validated share capital."
         actions={
           <>
             <button
@@ -373,17 +373,15 @@ export function MemberIndicatorsClient() {
               type="search"
             />
           </label>
-          <Select
-            label="Basis"
-            value={String(basisMonths)}
-            onChange={(value) => setBasisMonths(Number(value))}
-            options={[
-              ["3", "Previous 3 months"],
-              ["6", "Previous 6 months"],
-              ["12", "Previous 12 months"],
-              ["24", "Previous 24 months"],
-            ]}
-          />
+          <label className="grid gap-1 text-xs font-black uppercase tracking-[0.14em] text-[#5D6D63]">
+            As of date
+            <input
+              type="date"
+              value={basisEnd}
+              onChange={(event) => setBasisEnd(event.target.value)}
+              className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-black normal-case tracking-normal text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
+            />
+          </label>
           <Select
             label="Label"
             value={statusLabel}
@@ -446,7 +444,7 @@ export function MemberIndicatorsClient() {
         <EmptyState
           icon={Gauge}
           title="No member indicators found"
-          description="Run recalculation after members are present to create the first set of transaction-based indicators."
+          description="Run recalculation after member participation and share-capital records are available."
         />
       ) : (
         <DataTable>
@@ -743,14 +741,11 @@ function IndicatorDetailDialog({
               {activePage === 2 && (
               <section className="rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.04)]">
                 <h3 className="text-base font-black text-[#123D2A]">
-                  Included Sources
+                  Included Raw Evidence
                 </h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <Metric label="Share Capital" value={String(basis?.rawMetrics.sourceCounts.shareCapitalPayments ?? 0)} />
-                  <Metric label="POS Sales" value={String(basis?.rawMetrics.sourceCounts.posSales ?? 0)} />
-                  <Metric label="Rental Bookings" value={String(basis?.rawMetrics.sourceCounts.rentalBookings ?? 0)} />
-                  <Metric label="Payment References" value={String(basis?.rawMetrics.sourceCounts.paymentReferences ?? 0)} />
-                  <Metric label="Financial Records" value={String(basis?.rawMetrics.sourceCounts.financialRecords ?? 0)} />
+                  <Metric label="Qualifying Participation" value={String(basis?.rawMetrics.sourceCounts.qualifyingParticipation ?? 0)} />
+                  <Metric label="Validated Share-Capital Payments" value={String(basis?.rawMetrics.sourceCounts.validatedShareCapitalPayments ?? 0)} />
                 </div>
               </section>
               )}

@@ -47,6 +47,7 @@ test("validation list supports member/application search, failed events, amount 
   assert.match(listSql, /processing_status = 'Failed'/);
   assert.match(listSql, /p\.amount >= \?/);
   assert.match(listSql, /p\.amount <= \?/);
+  assert.match(listSql, /SUM\(pos_item\.quantity\)/);
   assert.match(listSql, /ORDER BY p\.amount ASC/);
   assert.match(listSql, /LIMIT 10 OFFSET 20/);
   assert.equal(listQuery.values.filter((value) => value === "%NFFAC-2026-0042%").length, 11);

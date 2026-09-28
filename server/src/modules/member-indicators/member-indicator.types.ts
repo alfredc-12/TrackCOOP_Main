@@ -9,22 +9,23 @@ export type MemberIndicator = {
   officialMemberStatus: string;
   basisPeriodStart: Date | null;
   basisPeriodEnd: Date | null;
+  recencyDays: number | null;
+  frequencyCount: number;
+  validatedShareCapital: number;
   recencyScore: number;
   frequencyScore: number;
   contributionScore: number;
   totalScore: number;
   statusLabel: MemberIndicatorStatus;
+  scoringVersion: string;
   basisSummary: string | null;
   computedBy: string | null;
   computedAt: Date;
 };
 
 export type MemberIndicatorSourceCounts = {
-  shareCapitalPayments: number;
-  posSales: number;
-  rentalBookings: number;
-  paymentReferences: number;
-  financialRecords: number;
+  qualifyingParticipation: number;
+  validatedShareCapitalPayments: number;
 };
 
 export type MemberIndicatorRawMetrics = {
@@ -44,7 +45,7 @@ export type MemberIndicatorBasisSummary = {
     end: string;
   };
   scoring: {
-    method: "quintile-rank" | "fallback-thresholds";
+    method: "configured-thresholds";
     recencyScore: number;
     frequencyScore: number;
     contributionScore: number;

@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
+import { StorePaymentReturnPanel } from "./StorePaymentReturnPanel";
 
 type InventoryItem = {
     id: number;
@@ -76,6 +77,12 @@ function posPaymentLabel(order: PosOrder) {
 
 type MemberPosClientProps = {
     isPublicView?: boolean;
+    paymentReturn?: {
+        paymentReferenceId: string;
+        referenceNumber: string;
+        statusToken: string;
+        onDismiss: () => void;
+    };
 };
 
 type StoreCartPortalProps = {
@@ -118,7 +125,7 @@ function StoreCartPortal({ targetId, className, totalCartItems, onOpenCart }: St
     );
 }
 
-export default function MemberPosClient({ isPublicView = false }: MemberPosClientProps) {
+export default function MemberPosClient({ isPublicView = false, paymentReturn }: MemberPosClientProps) {
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -247,14 +254,18 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
         }
     }, [fetchHistoryQuietly, isHistoryOpen]);
 
+    const isPaymentReturnOpen = Boolean(paymentReturn);
+    const isCartPanelOpen = isCartOpen || isPaymentReturnOpen;
+    const activeCheckoutStep = isPaymentReturnOpen ? "payment-return" : checkoutStep;
+
     useEffect(() => {
-        if (isCartOpen || isHistoryOpen || checkoutSuccess || isConfirmCheckoutModalOpen || receiptOrder !== null) {
+        if (isCartPanelOpen || isHistoryOpen || checkoutSuccess || isConfirmCheckoutModalOpen || receiptOrder !== null) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isCartOpen, isHistoryOpen, checkoutSuccess, isConfirmCheckoutModalOpen, receiptOrder]);
+    }, [isCartPanelOpen, isHistoryOpen, checkoutSuccess, isConfirmCheckoutModalOpen, receiptOrder]);
 
     // Derived states
     const availableInventory = inventory.filter(item => item.status === "Available" && item.stock > 0);
@@ -664,30 +675,42 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
             )}
 
             {/* Shopping Cart Sidebar */}
-            {isCartOpen && (
+            {isCartPanelOpen && (
                 <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
                     <div className="w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
                         <div className="flex items-center justify-between border-b border-gray-100 bg-[#f8fafc] px-6 py-5">
                             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <ShoppingCart className="size-5 text-[#123D2A]" />
-                                {checkoutStep === "cart" ? "My Cart" : "Payment Method"}
+                                {activeCheckoutStep === "payment-return" ? "QRPH payment" : checkoutStep === "cart" ? "My Cart" : "Payment Method"}
                             </h2>
                             <button
                                 type="button"
-                                onClick={() => setIsCartOpen(false)}
+                                onClick={() => {
+                                    if (isPaymentReturnOpen) paymentReturn?.onDismiss();
+                                    setIsCartOpen(false);
+                                }}
                                 aria-label="Close cart"
                                 className="rounded-full p-2 text-gray-400 transition hover:bg-white hover:text-gray-600 hover:shadow-sm"
                             >
                                 <X className="size-5" />
                             </button>
                         </div>
-                        <div className="flex items-center gap-2 border-b border-[#DDE9E0] bg-white px-6 py-3 text-xs font-bold">
+                        {activeCheckoutStep !== "payment-return" && <div className="flex items-center gap-2 border-b border-[#DDE9E0] bg-white px-6 py-3 text-xs font-bold">
                             <span className={`rounded-full px-3 py-1 ${checkoutStep === "cart" ? "bg-[#123D2A] text-white" : "bg-[#EAF5EC] text-[#52705D]"}`}>1. Cart</span>
                             <span className="h-px flex-1 bg-[#DDE9E0]" />
                             <span className={`rounded-full px-3 py-1 ${checkoutStep === "payment" ? "bg-[#123D2A] text-white" : "bg-[#F1F5F2] text-[#789181]"}`}>2. Customer & Payment</span>
-                        </div>
+                        </div>}
 
                         <div className="flex-1 overflow-y-auto p-6 bg-white custom-scrollbar">
+                            {activeCheckoutStep === "payment-return" && paymentReturn ? (
+                                <StorePaymentReturnPanel
+                                    {...paymentReturn}
+                                    onContinueShopping={() => {
+                                        paymentReturn.onDismiss();
+                                        setIsCartOpen(false);
+                                    }}
+                                />
+                            ) : <>
                             {isMember && (
                                 <div className="mb-4 bg-green-50 border border-green-200 text-green-800 rounded-xl p-3 text-sm flex items-center justify-center gap-2 animate-in fade-in duration-300">
                                     <span className="font-bold">⭐ Member Perks:</span> You get an automatic 5% discount on all purchases!
@@ -844,9 +867,10 @@ export default function MemberPosClient({ isPublicView = false }: MemberPosClien
                                     <p className="text-gray-500 mt-2 text-sm">Add some agricultural supplies to get started.</p>
                                 </div>
                             )}
+                            </>}
                         </div>
 
-                        {cart.length > 0 && (
+                        {activeCheckoutStep !== "payment-return" && cart.length > 0 && (
                             <div className="p-6 bg-gray-50 border-t border-gray-200">
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="text-sm font-semibold text-gray-500">Subtotal</span>

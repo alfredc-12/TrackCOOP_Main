@@ -143,9 +143,12 @@ function rentedItemSubLabel(payment: Pick<PaymentReferenceListItem, "paymentPurp
   const period = start === end ? start : `${start} to ${end}`;
   return `${payment.rentalNumber ?? payment.referenceNumber} - ${period}`;
 }
-function paymentCountLabel(payment: Pick<PaymentReferenceListItem, "paymentPurpose" | "relatedEntityType" | "rentalQuantity" | "rentalUnit">) {
+function paymentCountLabel(payment: Pick<PaymentReferenceListItem, "paymentPurpose" | "relatedEntityType" | "rentalQuantity" | "rentalUnit" | "posItemQuantity">) {
   if (payment.paymentPurpose === "Rental") return payment.rentalQuantity ? [payment.rentalQuantity, payment.rentalUnit].filter(Boolean).join(" ") : "1 rental";
-  if (payment.paymentPurpose === "POS/Product") return "Not listed";
+  if (payment.paymentPurpose === "POS/Product") {
+    const quantity = payment.posItemQuantity ?? 0;
+    return `${quantity} ${quantity === 1 ? "item" : "items"} bought`;
+  }
   return "1 payment";
 }
 function paymentForLabel(payment: Pick<PaymentReferenceListItem, "memberCode" | "memberName" | "applicationCode" | "applicationName" | "payerContact">) {
@@ -492,7 +495,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <Info label="Payer" value={safe(selected.payerName)} sub={`${safe(selected.payerEmail)} / ${safe(selected.payerContact)}`} />
             <Info label="Bought / Rented" value={rentedItemLabel(selected)} sub={selected.paymentPurpose === "Rental" ? rentedItemSubLabel(selected) : paymentForLabel(selected)} />
-            <Info label="Qty / Count" value={paymentCountLabel(selected)} sub="Exact item quantity appears here only when saved in the payment record." />
+            <Info label="Qty / Count" value={paymentCountLabel(selected)} sub={selected.paymentPurpose === "POS/Product" ? "Total quantity across all purchased products." : "Exact item quantity appears here only when saved in the payment record."} />
             <Info label="Amount paid" value={money(selected.amount)} sub={selected.paymentPurpose} />
             <Info label="Paid through" value={paidThroughLabel(selected)} sub={selected.paymentChannel === "PayMongo" ? `${selected.gatewayEnvironment} mode` : "Manual payment"} />
             <Info label="Status" value={statusLabel(selected.validationStatus)} sub={selected.validatedByName ? `Last approved by ${selected.validatedByName}` : "Not yet approved"} />

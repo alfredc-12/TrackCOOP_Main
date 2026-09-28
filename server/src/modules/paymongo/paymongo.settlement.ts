@@ -7,6 +7,7 @@ import { publishRealtimeEvent } from "../realtime/realtime.events";
 import { postMembershipSettlement } from "./paymongo.settlement.membership";
 import { postMemberShareCapitalSettlement } from "./paymongo.settlement.member-share-capital";
 import { postPointOfSaleSettlement } from "./paymongo.settlement.pos";
+import { sendPosPaymentReceipt } from "../pos/pos-email";
 import { postRentalSettlement } from "./paymongo.settlement.rental";
 import { recordSettlementCommunication } from "./paymongo.settlement.communication";
 import { resolveSettlementContext } from "./paymongo.settlement.context";
@@ -291,6 +292,13 @@ export function createPaymentSettlementRepository(pool?: Pool, dependencies: Dep
       }, databasePool());
 
       const receipt = await receiptService.process(durable.paymentReferenceId);
+      if (
+        !durable.alreadySettled
+        && durable.paymentPurpose === "POS/Product"
+        && receipt?.processingStatus === "Generated"
+      ) {
+        await sendPosPaymentReceipt(durable.paymentReferenceId);
+      }
       if (!durable.alreadySettled) {
         publishRealtimeEvent({
           channel: "payment-references",

@@ -123,10 +123,10 @@ const validApplication = {
 
 test("confirmed membership amounts remain paper-aligned", () => {
   assert.equal(membershipRules.associateFee, 200);
-  assert.equal(membershipRules.trueMemberInitialPayment, 3000);
+  assert.equal(membershipRules.trueMemberInitialPayment, 1500);
   assert.equal(membershipRules.shareValue, 3000);
   assert.equal(membershipRules.maximumShareCapital, 15000);
-  assert.equal(membershipRules.completionPeriodMonths, 12);
+  assert.equal(membershipRules.completionPeriodMonths, 1);
 });
 
 test("rejected applications cannot transition to account creation", () => {

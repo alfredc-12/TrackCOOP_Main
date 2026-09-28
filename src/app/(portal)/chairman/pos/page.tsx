@@ -1,5 +1,5 @@
 import PosSalesClient from "@/features/pos/components/PosSalesClient";
 
 export default function ChairmanPosPage() {
-  return <PosSalesClient />;
+  return <PosSalesClient role="chairman" />;
 }

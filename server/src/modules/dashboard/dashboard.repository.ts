@@ -65,28 +65,36 @@ export class DashboardRepository {
     const period = filters.period ?? "all";
     const dateFilter = getDateFilter(period);
 
-    const memberWhere: string[] = ["approval_status = 'Approved'"];
+    const memberWhere: string[] = ["m.approval_status = 'Approved'"];
     const memberParams: Array<string | number> = [];
     if (filters.barangay) {
-      memberWhere.push("barangay = ?");
+      memberWhere.push("m.barangay = ?");
       memberParams.push(filters.barangay);
     }
     if (filters.memberStatus) {
-      memberWhere.push("official_member_status = ?");
+      memberWhere.push("COALESCE(indicator.status_label, 'Inactive') = ?");
       memberParams.push(filters.memberStatus);
     }
     if (filters.memberType) {
-      memberWhere.push("membership_type = ?");
+      memberWhere.push("m.membership_type = ?");
       memberParams.push(filters.memberType);
     }
 
     const [memberRows] = await pool.query<MemberStatsRow[]>(
       `SELECT
          COUNT(*) AS total,
-         SUM(CASE WHEN official_member_status = 'Active' THEN 1 ELSE 0 END) AS active,
-         SUM(CASE WHEN official_member_status = 'Needs Monitoring' THEN 1 ELSE 0 END) AS needsMonitoring,
-         SUM(CASE WHEN official_member_status = 'Inactive' THEN 1 ELSE 0 END) AS inactive
-       FROM member_profiles
+         SUM(CASE WHEN indicator.status_label = 'Active' THEN 1 ELSE 0 END) AS active,
+         SUM(CASE WHEN indicator.status_label = 'Needs Monitoring' THEN 1 ELSE 0 END) AS needsMonitoring,
+         SUM(CASE WHEN COALESCE(indicator.status_label, 'Inactive') = 'Inactive' THEN 1 ELSE 0 END) AS inactive
+       FROM member_profiles m
+       LEFT JOIN member_status_indicators indicator
+         ON indicator.indicator_id = (
+           SELECT latest.indicator_id
+             FROM member_status_indicators latest
+            WHERE latest.member_id = m.member_id
+            ORDER BY latest.computed_at DESC, latest.indicator_id DESC
+            LIMIT 1
+         )
        WHERE ${memberWhere.join(" AND ")}`,
       memberParams,
     );
@@ -229,17 +237,25 @@ export class DashboardRepository {
     ];
 
     const [demographicRows] = await pool.query<RowDataPacket[]>(
-      `SELECT barangay,
-              COALESCE(NULLIF(TRIM(sector), ''), 'Not recorded') AS sector,
+      `SELECT m.barangay AS barangay,
+              COALESCE(NULLIF(TRIM(m.sector), ''), 'Not recorded') AS sector,
               COUNT(*) AS totalMembers,
-              SUM(CASE WHEN official_member_status = 'Active' THEN 1 ELSE 0 END) AS activeMembers,
-              SUM(CASE WHEN official_member_status = 'Needs Monitoring' THEN 1 ELSE 0 END) AS needsMonitoring,
-              SUM(CASE WHEN official_member_status = 'Inactive' THEN 1 ELSE 0 END) AS inactiveMembers
-         FROM member_profiles
-        WHERE approval_status = 'Approved'
-          AND barangay IS NOT NULL
-          AND barangay <> ''
-        GROUP BY barangay, sector
+              SUM(CASE WHEN indicator.status_label = 'Active' THEN 1 ELSE 0 END) AS activeMembers,
+              SUM(CASE WHEN indicator.status_label = 'Needs Monitoring' THEN 1 ELSE 0 END) AS needsMonitoring,
+              SUM(CASE WHEN COALESCE(indicator.status_label, 'Inactive') = 'Inactive' THEN 1 ELSE 0 END) AS inactiveMembers
+         FROM member_profiles m
+         LEFT JOIN member_status_indicators indicator
+           ON indicator.indicator_id = (
+             SELECT latest.indicator_id
+               FROM member_status_indicators latest
+              WHERE latest.member_id = m.member_id
+              ORDER BY latest.computed_at DESC, latest.indicator_id DESC
+              LIMIT 1
+           )
+        WHERE m.approval_status = 'Approved'
+          AND m.barangay IS NOT NULL
+          AND m.barangay <> ''
+        GROUP BY m.barangay, m.sector
         ORDER BY totalMembers DESC`,
     );
 

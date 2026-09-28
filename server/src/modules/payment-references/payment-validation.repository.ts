@@ -19,6 +19,7 @@ type ListRow = RowDataPacket & PaymentReferenceListItem & {
   gatewayFeeAmount: string | number | null;
   gatewayNetAmount: string | number | null;
   failedGatewayEvents: string | number;
+  posItemQuantity?: string | number | null;
 };
 type CountRow = RowDataPacket & { total: string | number };
 type DetailRow = RowDataPacket & PaymentReference & {
@@ -31,6 +32,7 @@ type DetailRow = RowDataPacket & PaymentReference & {
   applicationName: string | null;
   submittedByName: string | null;
   validatedByName: string | null;
+  posItemQuantity?: string | number | null;
 };
 type AttemptRow = RowDataPacket & Omit<PaymentCheckoutAttemptSummary, "attemptNumber" | "amount" | "active"> & {
   attemptNumber: string | number;
@@ -131,12 +133,23 @@ function rentalColumns() {
             ELSE NULL END AS rentalUnit`;
 }
 
+function posColumns() {
+  return `CASE WHEN p.payment_purpose = 'POS/Product' THEN (
+            SELECT COALESCE(SUM(pos_item.quantity), 0)
+              FROM pos_sale_items pos_item
+             WHERE pos_item.pos_sale_id = p.related_entity_id
+          ) ELSE NULL END AS posItemQuantity`;
+}
+
 function mapPayment<T extends ListRow | DetailRow>(row: T) {
   return {
     ...row,
     amount: Number(row.amount),
     gatewayFeeAmount: money(row.gatewayFeeAmount),
     gatewayNetAmount: money(row.gatewayNetAmount),
+    posItemQuantity: row.posItemQuantity === null || row.posItemQuantity === undefined
+      ? null
+      : Number(row.posItemQuantity),
   };
 }
 
@@ -202,6 +215,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''),
                                a.last_name, NULLIF(a.suffix, ''))) AS applicationName,
                 ${rentalColumns()},
+                ${posColumns()},
                 (SELECT COUNT(*) FROM payment_gateway_events failed_event
                   WHERE failed_event.payment_reference_id = p.payment_reference_id
                     AND failed_event.processing_status = 'Failed') AS failedGatewayEvents
@@ -232,6 +246,7 @@ export function createPaymentValidationRepository(pool?: Pool): PaymentValidatio
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''),
                                a.last_name, NULLIF(a.suffix, ''))) AS applicationName,
                 ${rentalColumns()},
+                ${posColumns()},
                 submitted_user.display_name AS submittedByName,
                 validated_user.display_name AS validatedByName
            FROM payment_references p

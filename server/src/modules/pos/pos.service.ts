@@ -1,6 +1,7 @@
 import { createPaymongoService, type PaymongoService } from "../paymongo/paymongo.service";
 import type { AuthContext } from "../auth/auth.types";
 import { createPosRepository, type PosRepository } from "./pos.repository";
+import { sendCashPaymentInstructions, sendPosPaymentReceipt } from "./pos-email";
 import type { CheckoutPayload, CompleteOrderInput, ConfirmOrderInput, PosReasonInput } from "./pos.types";
 
 export interface PosService {
@@ -23,6 +24,7 @@ export function createPosService(
     async checkout(input, auth) {
       const sale = await repository.createCheckout(input, auth);
       if (input.paymentMethod === "Cash") {
+        await sendCashPaymentInstructions(String(sale.paymentReferenceId));
         return {
           success: true,
           saleId: sale.saleId,
@@ -47,7 +49,13 @@ export function createPosService(
         paymentMethod: "QRPH",
       };
     },
-    confirmOrder: (orderId, input, auth) => repository.confirmOrder(orderId, input, auth),
+    async confirmOrder(orderId, input, auth) {
+      const result = await repository.confirmOrder(orderId, input, auth);
+      if (result.paymentReferenceId) {
+        await sendPosPaymentReceipt(String(result.paymentReferenceId));
+      }
+      return result;
+    },
     completeOrder: (orderId, input, auth) => repository.completeOrder(orderId, input, auth),
     rejectOrder: (orderId, input, auth) => repository.rejectOrder(orderId, input, auth),
     revokeOrder: (orderId, input, auth) => repository.revokeOrder(orderId, input, auth),

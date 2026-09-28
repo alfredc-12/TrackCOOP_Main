@@ -49,7 +49,11 @@ function paymentLabel(order: PosOrder) {
   return order.provider ?? "Other";
 }
 
-export default function PosSalesClient() {
+type PosSalesClientProps = {
+  role: "bookkeeper" | "chairman";
+};
+
+export default function PosSalesClient({ role }: PosSalesClientProps) {
   const [orders, setOrders] = useState<PosOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -75,6 +79,8 @@ export default function PosSalesClient() {
   const [isCompletingOrderId, setIsCompletingOrderId] = useState<number | null>(null);
   const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
   const [detailsOrder, setDetailsOrder] = useState<PosOrder | null>(null);
+  const canValidatePayments = role === "bookkeeper";
+  const canReleaseOrders = role === "chairman";
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -321,7 +327,7 @@ export default function PosSalesClient() {
             <div>
               <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative operations</div>
               <h1 className="text-2xl font-black tracking-tight sm:text-3xl">POS Sales Command Center</h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">Review orders, verify payments, and keep cooperative sales moving.</p>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">{canValidatePayments ? "Verify cash payments and keep cooperative sales moving." : "Release verified cooperative store orders when they are ready for pickup."}</p>
             </div>
             <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#CDE8D4]/20 bg-[#D8F0DE]/10 px-4 py-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><CircleDollarSign className="size-5" /></div>
@@ -454,7 +460,7 @@ export default function PosSalesClient() {
                           Details
                         </button>
 
-                        {order.sale_status === "Pending Payment" ? (
+                        {order.sale_status === "Pending Payment" && canValidatePayments ? (
                           <>
                             <button
                               type="button"
@@ -480,7 +486,7 @@ export default function PosSalesClient() {
 
                         {order.sale_status === "Paid" ? (
                           <>
-                            <button
+                            {canReleaseOrders && <button
                               type="button"
                               onClick={() => void processCompleteOrder(order.id)}
                               disabled={isCompletingOrderId === order.id}
@@ -489,7 +495,7 @@ export default function PosSalesClient() {
                             >
                               {isCompletingOrderId === order.id ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle className="size-3.5" />}
                               Release
-                            </button>
+                            </button>}
                             <button
                               type="button"
                               onClick={() => setReceiptOrder(order)}
@@ -499,7 +505,7 @@ export default function PosSalesClient() {
                               <Printer className="size-3.5" />
                               Receipt
                             </button>
-                            <button
+                            {canValidatePayments && <button
                               type="button"
                               onClick={() => setOrderToRevokeId(order.id)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50"
@@ -508,7 +514,7 @@ export default function PosSalesClient() {
                             >
                               <RotateCcw className="size-3.5" />
                               <span className="hidden xl:inline">Revoke</span>
-                            </button>
+                            </button>}
                           </>
                         ) : null}
                       </div>

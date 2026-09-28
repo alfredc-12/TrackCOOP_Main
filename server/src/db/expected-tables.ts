@@ -43,6 +43,8 @@ export const expectedDatabaseTables = [
   "announcement_acknowledgments",
   "requests_inquiries",
   "request_status_history",
+  "cooperative_activities",
+  "member_activity_participation",
   "member_status_indicators",
   "notifications",
   "partners_certifications",

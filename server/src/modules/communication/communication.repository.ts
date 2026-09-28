@@ -1133,6 +1133,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const offset = (query.page - 1) * query.pageSize;
       const queryValues = [auth?.user.id ?? "0", ...values];
+      const orderColumn = announcementSortColumns[query.sortBy] ?? announcementSortColumns.createdAt;
       const baseSelect = announcementSelect();
       const fromIndex = baseSelect.indexOf("FROM");
       const selectPart = baseSelect.substring(0, fromIndex);
@@ -1144,7 +1145,7 @@ export function createCommunicationRepository(pool?: Pool): CommunicationReposit
           (SELECT COUNT(*) FROM announcement_acknowledgments ack WHERE ack.announcement_id = a.announcement_id) AS acknowledgmentCount
          ${fromPart}
          ${whereSql}
-         ORDER BY ${announcementSortColumns[query.sortBy]} ${orderDirection}, a.announcement_id DESC
+         ORDER BY ${orderColumn} ${orderDirection}, a.announcement_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
         queryValues,
       );

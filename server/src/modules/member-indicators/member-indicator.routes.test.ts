@@ -74,13 +74,17 @@ function createService(): MemberIndicatorService {
             officialMemberStatus: "Active",
             basisPeriodStart: new Date("2025-01-01T00:00:00.000Z"),
             basisPeriodEnd: new Date("2025-12-31T00:00:00.000Z"),
+            recencyDays: 12,
+            frequencyCount: 7,
+            validatedShareCapital: 3000,
             recencyScore: 5,
             frequencyScore: 4,
             contributionScore: 3,
             totalScore: 12,
             statusLabel: "Active",
+            scoringVersion: "TRACKCOOP_RFM_V1",
             basisSummary: JSON.stringify({
-              formulaVersion: "transaction-rfm-v1",
+              formulaVersion: "TRACKCOOP_RFM_V1",
               advisoryOnly: true,
               officialStatusUnchanged: true,
             }),
@@ -143,6 +147,6 @@ test("GET /api/member-indicators/:memberId/history returns calculation history",
     .set("Cookie", "trackcoop_session=opaque-cookie-value");
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.data[0].basisSummary.includes("transaction-rfm-v1"), true);
+  assert.equal(response.body.data[0].basisSummary.includes("TRACKCOOP_RFM_V1"), true);
   assert.equal(response.body.meta.total, 1);
 });

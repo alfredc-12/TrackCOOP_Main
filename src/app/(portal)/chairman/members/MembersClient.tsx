@@ -659,7 +659,7 @@ export function MembersClient() {
 
       {activeTab === "applications" ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <ApplicationMetricCard label="Submitted" value={summary.submitted} icon={FileText} />
             <ApplicationMetricCard label="Under Review" value={summary.underReview} icon={ClipboardCheck} />
             <ApplicationMetricCard label="Payment Due" value={summary.paymentRequired} icon={WalletCards} />

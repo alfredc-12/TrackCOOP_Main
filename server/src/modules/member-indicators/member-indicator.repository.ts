@@ -4,6 +4,7 @@ import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
+import { calculateMemberIndicator, type IndicatorLabelThresholds, type IndicatorThresholds } from "./member-indicator.scoring";
 import type {
   MemberIndicator,
   MemberIndicatorBasisSummary,
@@ -25,11 +26,15 @@ type IndicatorRow = RowDataPacket & {
   officialMemberStatus: string;
   basisPeriodStart: Date | null;
   basisPeriodEnd: Date | null;
+  recencyDays: number | string | null;
+  frequencyCount: number | string;
+  validatedShareCapital: number | string;
   recencyScore: number;
   frequencyScore: number;
   contributionScore: number;
   totalScore: number;
   statusLabel: MemberIndicatorStatus;
+  scoringVersion: string;
   basisSummary: string | null;
   computedBy: string | null;
   computedAt: Date;
@@ -50,14 +55,11 @@ type MemberForIndicatorRow = RowDataPacket & {
 
 type ActivityMetricRow = RowDataPacket & {
   memberId: string;
-  lastActivityAt: Date | string | null;
+  lastParticipationAt: Date | string | null;
   frequencyCount: number | string | null;
   contributionAmount: number | string | null;
-  shareCapitalPayments: number | string | null;
-  posSales: number | string | null;
-  rentalBookings: number | string | null;
-  paymentReferences: number | string | null;
-  financialRecords: number | string | null;
+  qualifyingParticipation: number | string | null;
+  validatedShareCapitalPayments: number | string | null;
 };
 
 type SettingRow = RowDataPacket & {
@@ -74,9 +76,8 @@ const sortColumns: Record<MemberIndicatorListQuery["sortBy"], string> = {
   computedAt: "i.computed_at",
 };
 
-const formulaVersion = "transaction-rfm-v1";
-const minimumQuintilePopulation = 5;
-const fallbackThresholds = {
+const formulaVersion = "TRACKCOOP_RFM_V1";
+const fallbackThresholds: IndicatorThresholds = {
   recencyDays: [
     { max: 30, score: 5 },
     { max: 90, score: 4 },
@@ -90,13 +91,13 @@ const fallbackThresholds = {
     { min: 1, score: 2 },
   ],
   contributionAmount: [
-    { min: 10000, score: 5 },
-    { min: 5000, score: 4 },
+    { min: 15000, score: 5 },
+    { min: 3000, score: 4 },
     { min: 1500, score: 3 },
-    { min: 1, score: 2 },
+    { min: 0.01, score: 2 },
   ],
 };
-const labelThresholds = {
+const labelThresholds: IndicatorLabelThresholds = {
   activeMin: 12,
   needsMonitoringMin: 7,
 };
@@ -118,11 +119,15 @@ function indicatorSelect({ latestOnly = true }: { latestOnly?: boolean } = {}) {
                  m.official_member_status AS officialMemberStatus,
                  i.basis_period_start AS basisPeriodStart,
                  i.basis_period_end AS basisPeriodEnd,
+                 i.recency_days AS recencyDays,
+                 i.frequency_count AS frequencyCount,
+                 i.validated_share_capital AS validatedShareCapital,
                  i.recency_score AS recencyScore,
                  i.frequency_score AS frequencyScore,
                  i.contribution_score AS contributionScore,
                  i.total_score AS totalScore,
                  i.status_label AS statusLabel,
+                 i.scoring_version AS scoringVersion,
                  i.basis_summary AS basisSummary,
                  CAST(i.computed_by AS CHAR) AS computedBy,
                  i.computed_at AS computedAt
@@ -138,6 +143,9 @@ function mapIndicator(row: IndicatorRow): MemberIndicator {
     frequencyScore: Number(row.frequencyScore),
     contributionScore: Number(row.contributionScore),
     totalScore: Number(row.totalScore),
+    recencyDays: row.recencyDays === null ? null : Number(row.recencyDays),
+    frequencyCount: Number(row.frequencyCount),
+    validatedShareCapital: Number(row.validatedShareCapital),
   };
 }
 
@@ -179,43 +187,6 @@ function daysSince(activityDate: Date | string | null, basisEnd: string) {
   return Math.max(0, Math.floor((endTime - activityTime) / 86_400_000));
 }
 
-function statusFromTotal(totalScore: number, thresholds = labelThresholds): MemberIndicatorStatus {
-  if (totalScore >= thresholds.activeMin) return "Active";
-  if (totalScore >= thresholds.needsMonitoringMin) return "Needs Monitoring";
-  return "Inactive";
-}
-
-function scoreRecencyFallback(value: number | null, thresholds = fallbackThresholds.recencyDays) {
-  if (value === null) return 1;
-  return thresholds.find((threshold) => value <= threshold.max)?.score ?? 1;
-}
-
-function scoreMinimumFallback(value: number, thresholds: Array<{ min: number; score: number }>) {
-  return thresholds.find((threshold) => value >= threshold.min)?.score ?? 1;
-}
-
-function quintileScores<T>(
-  values: T[],
-  metric: (value: T) => number | null,
-  lowerIsBetter: boolean,
-  tieBreaker: (value: T) => string,
-) {
-  const sorted = [...values].sort((left, right) => {
-    const leftValue = metric(left);
-    const rightValue = metric(right);
-    const normalizedLeft = leftValue ?? (lowerIsBetter ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
-    const normalizedRight = rightValue ?? (lowerIsBetter ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
-    const comparison = lowerIsBetter
-      ? normalizedRight - normalizedLeft
-      : normalizedLeft - normalizedRight;
-    return comparison || tieBreaker(left).localeCompare(tieBreaker(right));
-  });
-  const scores = new Map<T, number>();
-  sorted.forEach((value, index) => {
-    scores.set(value, Math.max(1, Math.ceil(((index + 1) * 5) / sorted.length)));
-  });
-  return scores;
-}
 
 export interface MemberIndicatorRepository {
   list(query: MemberIndicatorListQuery): Promise<MemberIndicatorListResult>;
@@ -239,17 +210,15 @@ export function createMemberIndicatorRepository(
               setting_value AS settingValue
          FROM system_settings
         WHERE setting_key IN (
-          'member_indicators.minimum_quintile_population',
           'member_indicators.fallback_thresholds',
-          'member_indicators.label_thresholds'
+          'member_indicators.label_thresholds',
+          'member_indicators.qualifying_participation_statuses'
         )`,
     );
     const settings = new Map(rows.map((row) => [row.settingKey, row.settingValue]));
-    const minimumPopulation = Number(
-      settings.get("member_indicators.minimum_quintile_population") ?? minimumQuintilePopulation,
-    );
     let thresholds = fallbackThresholds;
     let labels = labelThresholds;
+    let qualifyingParticipationStatuses = ["Participated"];
 
     try {
       thresholds = {
@@ -269,12 +238,25 @@ export function createMemberIndicatorRepository(
       labels = labelThresholds;
     }
 
+    try {
+      const parsed = JSON.parse(
+        settings.get("member_indicators.qualifying_participation_statuses") ?? "[]",
+      );
+      if (Array.isArray(parsed)) {
+        const statuses = parsed
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean);
+        if (statuses.length > 0) qualifyingParticipationStatuses = statuses;
+      }
+    } catch {
+      qualifyingParticipationStatuses = ["Participated"];
+    }
+
     return {
-      minimumPopulation: Number.isFinite(minimumPopulation)
-        ? Math.max(5, minimumPopulation)
-        : minimumQuintilePopulation,
       thresholds,
       labels,
+      qualifyingParticipationStatuses,
     };
   }
 
@@ -282,91 +264,42 @@ export function createMemberIndicatorRepository(
     connection: PoolConnection,
     basisStart: string,
     basisEnd: string,
+    qualifyingParticipationStatuses: string[],
   ) {
+    const statusPlaceholders = qualifyingParticipationStatuses.map(() => "?").join(", ");
     const [rows] = await connection.execute<ActivityMetricRow[]>(
-      `SELECT memberId,
-              MAX(activityDate) AS lastActivityAt,
-              COUNT(*) AS frequencyCount,
-              COALESCE(SUM(amount), 0) AS contributionAmount,
-              SUM(source = 'shareCapitalPayment') AS shareCapitalPayments,
-              SUM(source = 'posSale') AS posSales,
-              SUM(source = 'rentalBooking') AS rentalBookings,
-              SUM(source = 'paymentReference') AS paymentReferences,
-              SUM(source = 'financialRecord') AS financialRecords
-         FROM (
-           SELECT CAST(member_id AS CHAR) AS memberId,
-                  payment_date AS activityDate,
-                  amount,
-                  'shareCapitalPayment' AS source
+      `SELECT CAST(m.member_id AS CHAR) AS memberId,
+              MAX(participation.participation_date) AS lastParticipationAt,
+              COALESCE(SUM(
+                CASE WHEN participation.participation_date BETWEEN ? AND ? THEN 1 ELSE 0 END
+              ), 0) AS frequencyCount,
+              COALESCE(capital.validatedShareCapital, 0) AS contributionAmount,
+              COUNT(participation.participation_id) AS qualifyingParticipation,
+              COALESCE(capital.validatedShareCapitalPayments, 0) AS validatedShareCapitalPayments
+         FROM member_profiles m
+         LEFT JOIN (
+           SELECT map.participation_id, map.member_id, map.participation_date
+             FROM member_activity_participation map
+             JOIN cooperative_activities activity ON activity.activity_id = map.activity_id
+            WHERE activity.is_rfm_qualifying = 1
+              AND map.participation_status IN (${statusPlaceholders})
+         ) participation ON participation.member_id = m.member_id
+                         AND participation.participation_date <= ?
+         LEFT JOIN (
+           SELECT member_id,
+                  SUM(amount) AS validatedShareCapital,
+                  COUNT(*) AS validatedShareCapitalPayments
              FROM share_capital_payments
             WHERE payment_status = 'Validated'
-              AND payment_date BETWEEN ? AND ?
-           UNION ALL
-           SELECT CAST(member_id AS CHAR) AS memberId,
-                  DATE(sale_date) AS activityDate,
-                  total_amount AS amount,
-                  'posSale' AS source
-             FROM pos_sales
-            WHERE member_id IS NOT NULL
-              AND sale_status IN ('Paid', 'Completed')
-              AND payment_status = 'Paid'
-              AND DATE(sale_date) BETWEEN ? AND ?
-           UNION ALL
-           SELECT CAST(member_id AS CHAR) AS memberId,
-                  DATE(COALESCE(completed_at, end_datetime)) AS activityDate,
-                  total_amount AS amount,
-                  'rentalBooking' AS source
-             FROM rental_bookings
-            WHERE member_id IS NOT NULL
-              AND booking_status = 'Completed'
-              AND payment_status = 'Paid'
-              AND DATE(COALESCE(completed_at, end_datetime)) BETWEEN ? AND ?
-           UNION ALL
-           SELECT CAST(p.member_id AS CHAR) AS memberId,
-                  DATE(COALESCE(p.validated_at, p.submitted_at)) AS activityDate,
-                  p.amount,
-                  'paymentReference' AS source
-             FROM payment_references p
-            WHERE p.member_id IS NOT NULL
-              AND p.validation_status = 'Validated'
-              AND p.payment_purpose IN ('Associate Membership Fee', 'Document/Certificate', 'Other')
-              AND DATE(COALESCE(p.validated_at, p.submitted_at)) BETWEEN ? AND ?
-              AND NOT EXISTS (
-                SELECT 1 FROM share_capital_payments s
-                 WHERE s.payment_reference_id = p.payment_reference_id
-              )
-              AND NOT EXISTS (
-                SELECT 1 FROM pos_sales ps
-                 WHERE ps.payment_reference_id = p.payment_reference_id
-              )
-              AND NOT EXISTS (
-                SELECT 1 FROM rental_bookings rb
-                 WHERE rb.payment_reference_id = p.payment_reference_id
-              )
-           UNION ALL
-           SELECT CAST(member_id AS CHAR) AS memberId,
-                  record_date AS activityDate,
-                  amount,
-                  'financialRecord' AS source
-             FROM financial_records
-            WHERE member_id IS NOT NULL
-              AND record_type = 'Income'
-              AND record_status = 'Active'
-              AND source_module IN ('Manual', 'Document', 'Other')
-              AND payment_reference_id IS NULL
-              AND record_date BETWEEN ? AND ?
-         ) qualifiedActivity
-        GROUP BY memberId`,
+              AND payment_date <= ?
+            GROUP BY member_id
+         ) capital ON capital.member_id = m.member_id
+        GROUP BY m.member_id, capital.validatedShareCapital, capital.validatedShareCapitalPayments`,
       [
         basisStart,
         basisEnd,
-        basisStart,
+        ...qualifyingParticipationStatuses,
         basisEnd,
-        basisStart,
-        basisEnd,
-        basisStart,
-        basisEnd,
-        basisStart,
         basisEnd,
       ],
     );
@@ -513,47 +446,35 @@ export function createMemberIndicatorRepository(
           throw new AppError("Member was not found", 404, "MEMBER_NOT_FOUND");
         }
 
-        const metrics = await loadActivityMetrics(connection, basis.start, basis.end);
+        const metrics = await loadActivityMetrics(
+          connection,
+          basis.start,
+          basis.end,
+          settings.qualifyingParticipationStatuses,
+        );
         const scoredMembers = members.map((member) => {
           const metricRow = metrics.get(member.memberId);
           const sourceCounts: MemberIndicatorSourceCounts = {
-            shareCapitalPayments: Number(metricRow?.shareCapitalPayments ?? 0),
-            posSales: Number(metricRow?.posSales ?? 0),
-            rentalBookings: Number(metricRow?.rentalBookings ?? 0),
-            paymentReferences: Number(metricRow?.paymentReferences ?? 0),
-            financialRecords: Number(metricRow?.financialRecords ?? 0),
+            qualifyingParticipation: Number(metricRow?.qualifyingParticipation ?? 0),
+            validatedShareCapitalPayments: Number(metricRow?.validatedShareCapitalPayments ?? 0),
           };
           return {
             member,
-            recencyDays: daysSince(metricRow?.lastActivityAt ?? null, basis.end),
+            recencyDays: daysSince(metricRow?.lastParticipationAt ?? null, basis.end),
             frequencyCount: Number(metricRow?.frequencyCount ?? 0),
             contributionAmount: Number(metricRow?.contributionAmount ?? 0),
             sourceCounts,
           };
         });
-        const useQuintiles = scoredMembers.length >= settings.minimumPopulation;
-        const recencyRanks = useQuintiles
-          ? quintileScores(scoredMembers, (member) => member.recencyDays, true, (member) => member.member.memberId)
-          : new Map<typeof scoredMembers[number], number>();
-        const frequencyRanks = useQuintiles
-          ? quintileScores(scoredMembers, (member) => member.frequencyCount, false, (member) => member.member.memberId)
-          : new Map<typeof scoredMembers[number], number>();
-        const contributionRanks = useQuintiles
-          ? quintileScores(scoredMembers, (member) => member.contributionAmount, false, (member) => member.member.memberId)
-          : new Map<typeof scoredMembers[number], number>();
 
         for (const scored of scoredMembers) {
-          const recencyScore = useQuintiles
-            ? recencyRanks.get(scored) ?? 1
-            : scoreRecencyFallback(scored.recencyDays, settings.thresholds.recencyDays);
-          const frequencyScore = useQuintiles
-            ? frequencyRanks.get(scored) ?? 1
-            : scoreMinimumFallback(scored.frequencyCount, settings.thresholds.frequencyCount);
-          const contributionScore = useQuintiles
-            ? contributionRanks.get(scored) ?? 1
-            : scoreMinimumFallback(scored.contributionAmount, settings.thresholds.contributionAmount);
-          const totalScore = recencyScore + frequencyScore + contributionScore;
-          const statusLabel = statusFromTotal(totalScore, settings.labels);
+          const calculation = calculateMemberIndicator({
+            recencyDays: scored.recencyDays,
+            frequencyCount: scored.frequencyCount,
+            validatedShareCapital: scored.contributionAmount,
+            thresholds: settings.thresholds,
+            labels: settings.labels,
+          });
           const basisSummary: MemberIndicatorBasisSummary = {
             formulaVersion,
             advisoryOnly: true,
@@ -566,32 +487,37 @@ export function createMemberIndicatorRepository(
             },
             basisPeriod: basis,
             scoring: {
-              method: useQuintiles ? "quintile-rank" : "fallback-thresholds",
-              recencyScore,
-              frequencyScore,
-              contributionScore,
-              totalScore,
-              label: statusLabel,
-              explanation: useQuintiles
-                ? "Scores use deterministic population ranks. Lower recency days and higher frequency/contribution rank higher."
-                : "Scores use configured fallback thresholds because the current population is too small for stable quintiles.",
+              method: "configured-thresholds",
+              recencyScore: calculation.recencyScore,
+              frequencyScore: calculation.frequencyScore,
+              contributionScore: calculation.contributionScore,
+              totalScore: calculation.totalScore,
+              label: calculation.statusLabel,
+              explanation: calculation.inactiveForNoRecentParticipation
+                ? "No qualifying participation was recorded during the previous 12 months and none was recorded within 365 days, so the inactivity safeguard applies."
+                : "Scores use qualifying cooperative participation and validated share capital against the configured RFM-inspired thresholds.",
             },
           };
 
           await connection.execute<ResultSetHeader>(
             `INSERT INTO member_status_indicators
-               (member_id, basis_period_start, basis_period_end, recency_score, frequency_score,
-                contribution_score, total_score, status_label, basis_summary, computed_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (member_id, basis_period_start, basis_period_end, recency_days, frequency_count,
+                validated_share_capital, recency_score, frequency_score, contribution_score,
+                total_score, status_label, scoring_version, basis_summary, computed_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               scored.member.memberId,
               basis.start,
               basis.end,
-              recencyScore,
-              frequencyScore,
-              contributionScore,
-              totalScore,
-              statusLabel,
+              scored.recencyDays,
+              scored.frequencyCount,
+              scored.contributionAmount,
+              calculation.recencyScore,
+              calculation.frequencyScore,
+              calculation.contributionScore,
+              calculation.totalScore,
+              calculation.statusLabel,
+              formulaVersion,
               JSON.stringify(basisSummary),
               auth.user.id,
             ],

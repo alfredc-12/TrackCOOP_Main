@@ -56,6 +56,10 @@ DROP TABLE IF EXISTS `notifications`;
 
 DROP TABLE IF EXISTS `member_status_indicators`;
 
+DROP TABLE IF EXISTS `member_activity_participation`;
+
+DROP TABLE IF EXISTS `cooperative_activities`;
+
 DROP TABLE IF EXISTS `request_status_history`;
 
 DROP TABLE IF EXISTS `announcement_acknowledgments`;
@@ -1774,11 +1778,59 @@ CREATE INDEX `idx_request_status_history_request` ON `request_status_history` (r
 -- 10. MEMBER ANALYTICS AND DECISION SUPPORT
 -- ============================================================================
 
+CREATE TABLE cooperative_activities (
+    activity_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    activity_code VARCHAR(80) NULL,
+    activity_name VARCHAR(255) NOT NULL,
+    activity_type VARCHAR(120) NULL,
+    activity_date DATE NOT NULL,
+    end_date DATE NULL,
+    barangay VARCHAR(120) NULL,
+    sector VARCHAR(120) NULL,
+    description TEXT NULL,
+    is_rfm_qualifying TINYINT(1) NOT NULL DEFAULT 1,
+    created_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_cooperative_activity_code UNIQUE (activity_code),
+    CONSTRAINT fk_cooperative_activity_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_cooperative_activity_date` ON `cooperative_activities` (activity_date);
+
+CREATE INDEX `idx_cooperative_activity_type_date` ON `cooperative_activities` (activity_type, activity_date);
+
+CREATE TABLE member_activity_participation (
+    participation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    member_id BIGINT UNSIGNED NOT NULL,
+    activity_id BIGINT UNSIGNED NOT NULL,
+    participation_date DATE NOT NULL,
+    participation_status VARCHAR(80) NOT NULL,
+    participation_role VARCHAR(120) NULL,
+    remarks TEXT NULL,
+    source_reference VARCHAR(120) NULL,
+    recorded_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_member_activity_participation_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_member_activity_participation_activity FOREIGN KEY (activity_id) REFERENCES cooperative_activities (activity_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_member_activity_participation_recorder FOREIGN KEY (recorded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX `idx_member_participation_member_date` ON `member_activity_participation` (member_id, participation_date);
+
+CREATE INDEX `idx_member_participation_activity_status` ON `member_activity_participation` (activity_id, participation_status);
+
+CREATE INDEX `idx_member_participation_date` ON `member_activity_participation` (participation_date);
+
 CREATE TABLE member_status_indicators (
     indicator_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     member_id BIGINT UNSIGNED NOT NULL,
     basis_period_start DATE NULL,
     basis_period_end DATE NULL,
+    recency_days INT UNSIGNED NULL,
+    frequency_count INT UNSIGNED NOT NULL DEFAULT 0,
+    validated_share_capital DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     recency_score SMALLINT UNSIGNED NOT NULL,
     frequency_score SMALLINT UNSIGNED NOT NULL,
     contribution_score SMALLINT UNSIGNED NOT NULL,
@@ -1788,6 +1840,7 @@ CREATE TABLE member_status_indicators (
         'Needs Monitoring',
         'Inactive'
     ) NOT NULL,
+    scoring_version VARCHAR(40) NOT NULL DEFAULT 'TRACKCOOP_RFM_V1',
     basis_summary TEXT NULL,
     computed_by BIGINT UNSIGNED NULL,
     computed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2342,7 +2395,7 @@ VALUES (
     (
         'member_indicators',
         'member_indicators.fallback_thresholds',
-        '{"recencyDays":[{"max":30,"score":5},{"max":90,"score":4},{"max":180,"score":3},{"max":365,"score":2}],"frequencyCount":[{"min":12,"score":5},{"min":6,"score":4},{"min":3,"score":3},{"min":1,"score":2}],"contributionAmount":[{"min":10000,"score":5},{"min":5000,"score":4},{"min":1500,"score":3},{"min":1,"score":2}]}',
+        '{"recencyDays":[{"max":30,"score":5},{"max":90,"score":4},{"max":180,"score":3},{"max":365,"score":2}],"frequencyCount":[{"min":12,"score":5},{"min":6,"score":4},{"min":3,"score":3},{"min":1,"score":2}],"contributionAmount":[{"min":15000,"score":5},{"min":3000,"score":4},{"min":1500,"score":3},{"min":0.01,"score":2}]}',
         'JSON',
         'Fallback 1-5 indicator thresholds used when the member population is too small for stable quintile ranks.',
         0,
@@ -2354,6 +2407,15 @@ VALUES (
         '{"activeMin":12,"needsMonitoringMin":7}',
         'JSON',
         'Total-score thresholds for advisory member indicator labels.',
+        0,
+        CURRENT_DATE
+    ),
+    (
+        'member_indicators',
+        'member_indicators.qualifying_participation_statuses',
+        '["Participated"]',
+        'JSON',
+        'Participation statuses that count toward RFM-inspired recency and frequency.',
         0,
         CURRENT_DATE
     )

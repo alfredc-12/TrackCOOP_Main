@@ -38,6 +38,7 @@ type PosSaleStatusRow = RowDataPacket & {
   customer_name: string | null;
   customer_contact: string | null;
   sale_date: string;
+  payment_channel?: string | null;
 };
 type PosSaleItemRow = RowDataPacket & {
   pos_sale_item_id: number;
@@ -111,7 +112,10 @@ export interface PosRepository {
     discountAmount: number;
     paymentReferenceId: number;
   }>;
-  confirmOrder(orderId: string, input: ConfirmOrderInput, auth: AuthContext): Promise<{ receiptDocumentId: number | null }>;
+  confirmOrder(orderId: string, input: ConfirmOrderInput, auth: AuthContext): Promise<{
+    receiptDocumentId: number | null;
+    paymentReferenceId: number | null;
+  }>;
   completeOrder(orderId: string, input: CompleteOrderInput, auth: AuthContext): Promise<void>;
   rejectOrder(orderId: string, input: PosReasonInput, auth: AuthContext): Promise<void>;
   revokeOrder(orderId: string, input: PosReasonInput, auth: AuthContext): Promise<void>;
@@ -396,9 +400,12 @@ export function createPosRepository(pool?: Pool): PosRepository {
 
       return withTransaction(async (connection) => {
         const [sales] = await connection.query<PosSaleStatusRow[]>(
-          `SELECT sale_number, sale_status, payment_reference_id, member_id,
-                  subtotal_amount, total_amount, customer_name, customer_contact, sale_date
-             FROM pos_sales WHERE pos_sale_id = ?`,
+          `SELECT s.sale_number, s.sale_status, s.payment_reference_id, s.member_id,
+                  s.subtotal_amount, s.total_amount, s.customer_name, s.customer_contact, s.sale_date,
+                  pr.payment_channel
+             FROM pos_sales s
+             LEFT JOIN payment_references pr ON pr.payment_reference_id = s.payment_reference_id
+            WHERE s.pos_sale_id = ?`,
           [orderId],
         );
 
@@ -406,6 +413,13 @@ export function createPosRepository(pool?: Pool): PosRepository {
         const sale = sales[0];
         if (sale.sale_status !== "Pending Payment") {
           throw new AppError("Only pending orders can be confirmed.", 400, "POS_ORDER_NOT_PENDING");
+        }
+        if (sale.payment_reference_id && sale.payment_channel !== "Cash") {
+          throw new AppError(
+            "QRPH orders are confirmed only after the signed gateway payment update.",
+            409,
+            "POS_QRPH_MANUAL_CONFIRMATION_FORBIDDEN",
+          );
         }
         if (discountAmount > Number(sale.subtotal_amount)) {
           throw new AppError("Discount cannot exceed the order subtotal.", 400, "INVALID_DISCOUNT");
@@ -547,7 +561,10 @@ export function createPosRepository(pool?: Pool): PosRepository {
           );
         }
 
-        return { receiptDocumentId: generatedReceipt?.documentId ?? null };
+        return {
+          receiptDocumentId: generatedReceipt?.documentId ?? null,
+          paymentReferenceId: paymentRefId,
+        };
       }, databasePool());
     },
 

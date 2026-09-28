@@ -1,5 +1,5 @@
 import PosSalesClient from "@/features/pos/components/PosSalesClient";
 
 export default function BookkeeperPosSalesPage() {
-  return <PosSalesClient />;
+  return <PosSalesClient role="bookkeeper" />;
 }

@@ -214,6 +214,25 @@ test("createPaymentReferenceCheckout uses trusted database fields for metadata a
   assert.equal(attempts.length, 1);
 });
 
+test("createPointOfSaleCheckout returns QRPH buyers to the cooperative store", async () => {
+  const pointOfSalePayment: PaymongoPaymentReferenceRecord = {
+    ...paymentReference,
+    paymentPurpose: "POS/Product",
+    relatedEntityType: "pos_sales",
+    relatedEntityId: "45",
+    referenceNumber: "SALE-000045-PAY",
+  };
+  const { service, checkoutCalls } = makeService(pointOfSalePayment);
+
+  await service.createPointOfSaleCheckout(pointOfSalePayment.id);
+
+  const successUrl = new URL(checkoutCalls[0].input.successUrl);
+  assert.equal(successUrl.origin + successUrl.pathname, "http://localhost:3000/store");
+  assert.equal(successUrl.searchParams.get("paymentReferenceId"), pointOfSalePayment.id);
+  assert.equal(successUrl.searchParams.get("referenceNumber"), pointOfSalePayment.referenceNumber);
+  assert.match(successUrl.searchParams.get("statusToken") ?? "", /^[a-f0-9]{64}$/);
+});
+
 test("createPaymentReferenceCheckout uses QR Ph payment method in test mode", async () => {
   const { service, checkoutCalls } = makeService(paymentReference);
 

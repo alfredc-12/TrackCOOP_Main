@@ -31,7 +31,6 @@ import {
   Mail,
   Award,
   FileText,
-  CreditCard,
   Briefcase,
   ChevronDown,
   ArrowRight,
@@ -738,19 +737,6 @@ export default function MemberDashboardPage() {
                       <div>
                         <h4 className="font-bold text-[#173626]">Deposit Share</h4>
                         <p className="text-xs text-[#6B7280]">Add to your capital</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
-                  </button>
-
-                  <button className="group flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F8F6EF] text-[#123D2A] transition group-hover:bg-[#123D2A] group-hover:text-white">
-                        <CreditCard className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[#173626]">Apply for Loan</h4>
-                        <p className="text-xs text-[#6B7280]">Low interest rates</p>
                       </div>
                     </div>
                     <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />

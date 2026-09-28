@@ -297,7 +297,11 @@ function checkoutSuccessUrl(
   record: PaymongoPaymentReferenceRecord,
   config: PaymongoConfig,
 ) {
-  const url = new URL(configuredUrl);
+  // Store sales return to their cart so the buyer sees order-specific release guidance.
+  // Membership and rental checkouts retain the configured shared payment return page.
+  const url = record.paymentPurpose === "POS/Product"
+    ? new URL("/store", configuredUrl)
+    : new URL(configuredUrl);
   url.searchParams.set("paymentReferenceId", record.id);
   url.searchParams.set("referenceNumber", record.referenceNumber);
   if (!config.webhookSecret) {
