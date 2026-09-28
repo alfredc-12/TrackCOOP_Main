@@ -280,8 +280,8 @@ export function ChairmanRentalAssetEditor({
     setError("");
     setFieldErrors({});
     try {
-      const payload = validation.payload;
-      const { updatedAt: _updatedAt, ...payloadForSave } = payload;
+      const payloadForSave = { ...validation.payload };
+      Reflect.deleteProperty(payloadForSave, "updatedAt");
       if (serviceId) {
         await rentalApiRepository.updateRentalService(serviceId, payloadForSave);
       } else {
