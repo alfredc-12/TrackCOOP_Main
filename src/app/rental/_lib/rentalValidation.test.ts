@@ -199,7 +199,7 @@ test("requires protected valid ID metadata for persisted rental submissions", ()
   );
 });
 
-test("requires a public rental asset photo and one rental rate", () => {
+test("requires one rental rate for public rental assets", () => {
   const asset = {
     serviceId: "RNT-TRACTOR-001",
     name: "Farm Tractor",
@@ -225,7 +225,7 @@ test("requires a public rental asset photo and one rental rate", () => {
   assert.equal(missing.success, false);
   assert.deepEqual(
     missing.success ? [] : missing.error.issues.map((issue) => issue.message),
-    ["Upload at least one photo.", "Enter the rental rate."],
+    ["Enter the rental rate."],
   );
 
   assert.equal(

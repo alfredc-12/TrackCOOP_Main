@@ -7,6 +7,8 @@ type CountRow = RowDataPacket & { total: number };
 
 const documentColumns: Array<[string, string]> = [
   ["document_reference", "VARCHAR(60) NULL"],
+  ["member_id", "BIGINT UNSIGNED NULL"],
+  ["checksum_sha256", "CHAR(64) NULL"],
   ["category", "VARCHAR(80) NULL"],
   ["related_module", "VARCHAR(80) NULL"],
   ["related_record_id", "BIGINT UNSIGNED NULL"],
@@ -181,6 +183,21 @@ async function migrate() {
     "idx_documents_records_filters",
     "ALTER TABLE documents ADD INDEX idx_documents_records_filters (category, related_module, expiration_date)",
   );
+  await addIndex(
+    "documents",
+    "idx_documents_member",
+    "ALTER TABLE documents ADD INDEX idx_documents_member (member_id, uploaded_at)",
+  );
+  if (!(await constraintExists("documents", "fk_documents_member"))) {
+    await pool.query(
+      `ALTER TABLE documents
+         ADD CONSTRAINT fk_documents_member
+         FOREIGN KEY (member_id)
+         REFERENCES member_profiles(member_id)
+         ON UPDATE CASCADE ON DELETE SET NULL`,
+    );
+    console.log("Added fk_documents_member");
+  }
   await pool.query(`
     INSERT INTO document_versions (
       document_id, version_number, original_file_name, stored_file_name,
