@@ -265,6 +265,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           summary: "Review cooperative income, expenses, and corrections.",
         },
         {
+          label: "Operating Expenses",
+          href: "/portal/bookkeeper/operating-expenses",
+          icon: ReceiptText,
+          summary: "Record cooperative operating costs and download expense documents.",
+        },
+        {
           label: "Income & Expense Types",
           href: "/portal/bookkeeper/financial-categories",
           icon: Tags,
