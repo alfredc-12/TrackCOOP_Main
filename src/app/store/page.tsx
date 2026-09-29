@@ -1,12 +1,11 @@
 "use client";
 
 import { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { StorePublicHeader } from "./_components/StorePublicHeader";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 
 function StoreCheckoutClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const paymentReferenceId = searchParams.get("paymentReferenceId")?.trim() ?? "";
   const referenceNumber = searchParams.get("referenceNumber")?.trim() ?? "";
@@ -20,7 +19,9 @@ function StoreCheckoutClient() {
         paymentReferenceId,
         referenceNumber,
         statusToken,
-        onDismiss: () => router.replace("/store", { scroll: false }),
+        // Payment returns carry signed status parameters. A full replacement reliably
+        // clears them after an external QRPH checkout hands control back to the store.
+        onDismiss: () => window.location.replace("/store"),
       } : undefined}
     />
   );
