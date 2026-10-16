@@ -26,6 +26,14 @@ type RentalCountsRow = RowDataPacket & {
   upcoming: number | string | null;
 };
 type StockRow = RowDataPacket & InventoryAlert;
+type FinancialSummaryRow = RowDataPacket & {
+  totalIncome: number | string | null;
+  totalExpenses: number | string | null;
+};
+type FinancialSourceRow = RowDataPacket & {
+  sourceModule: string;
+  amount: number | string | null;
+};
 
 function getDateFilter(period: string | null | undefined, column = "created_at") {
   const now = new Date();
@@ -63,7 +71,6 @@ export class DashboardRepository {
   async getChairmanDashboardData(filters: DashboardFilters = {}): Promise<ChairmanDashboardData> {
     const pool = getPool();
     const period = filters.period ?? "all";
-    const dateFilter = getDateFilter(period);
 
     const memberWhere: string[] = ["m.approval_status = 'Approved'"];
     const memberParams: Array<string | number> = [];
@@ -147,6 +154,34 @@ export class DashboardRepository {
     );
     const shareCapitalThisPeriod = numberValue(shareCapitalPeriodRows[0]?.periodTotal);
 
+    const financialDateFilter = getDateFilter(period, "record_date");
+    const [financialSummaryRows] = await pool.query<FinancialSummaryRow[]>(
+      `SELECT COALESCE(SUM(CASE WHEN record_status = 'Active'
+                                  AND approved_by IS NOT NULL
+                                  AND record_type = 'Income'
+                                  AND source_module <> 'Share Capital'
+                                THEN amount ELSE 0 END), 0) AS totalIncome,
+              COALESCE(SUM(CASE WHEN record_status = 'Active'
+                                  AND approved_by IS NOT NULL
+                                  AND record_type = 'Expense'
+                                THEN amount ELSE 0 END), 0) AS totalExpenses
+         FROM financial_records
+        WHERE 1 = 1 ${financialDateFilter.clause}`,
+      financialDateFilter.params,
+    );
+    const [financialSourceRows] = await pool.query<FinancialSourceRow[]>(
+      `SELECT source_module AS sourceModule,
+              COALESCE(SUM(amount), 0) AS amount
+         FROM financial_records
+        WHERE record_status = 'Active'
+          AND approved_by IS NOT NULL
+          AND record_type = 'Income'
+          AND source_module <> 'Share Capital' ${financialDateFilter.clause}
+        GROUP BY source_module
+        ORDER BY amount DESC`,
+      financialDateFilter.params,
+    );
+
     const [shareCapitalProgressRows] = await pool.query<ShareCapitalProgressRow[]>(
       `SELECT
          COUNT(DISTINCT member_id) AS contributingMembers,
@@ -176,12 +211,17 @@ export class DashboardRepository {
     );
 
     const [trendRows] = await pool.query<RowDataPacket[]>(
-      `SELECT DATE_FORMAT(month_start, '%b %Y') AS month,
-              total_income AS income,
-              total_expense AS expenses
-         FROM v_financial_monthly_summary
-        WHERE month_start >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-        ORDER BY month_start DESC
+      `SELECT DATE_FORMAT(record_date, '%b %Y') AS month,
+              COALESCE(SUM(CASE WHEN record_type = 'Income'
+                                  AND source_module <> 'Share Capital'
+                                THEN amount ELSE 0 END), 0) AS income,
+              COALESCE(SUM(CASE WHEN record_type = 'Expense' THEN amount ELSE 0 END), 0) AS expenses
+         FROM financial_records
+        WHERE record_status = 'Active'
+          AND approved_by IS NOT NULL
+          AND record_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
+        GROUP BY YEAR(record_date), MONTH(record_date), DATE_FORMAT(record_date, '%b %Y')
+        ORDER BY YEAR(record_date) DESC, MONTH(record_date) DESC
         LIMIT 12`,
     ).catch(() => [[] as RowDataPacket[]]);
     const revenueTrend = [...trendRows].reverse().map((row) => ({
@@ -190,11 +230,12 @@ export class DashboardRepository {
       expenses: numberValue(row.expenses),
     }));
 
+    const posDateFilter = getDateFilter(period, "sale_date");
     const [posRows] = await pool.query<RowDataPacket[]>(
       `SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS txCount
          FROM pos_sales
-        WHERE sale_status IN ('Paid', 'Completed') ${dateFilter.clause}`,
-      dateFilter.params,
+        WHERE sale_status IN ('Paid', 'Completed') ${posDateFilter.clause}`,
+      posDateFilter.params,
     );
     const totalPosSales = numberValue(posRows[0]?.total);
     const posTransactions = numberValue(posRows[0]?.txCount);
@@ -209,11 +250,12 @@ export class DashboardRepository {
     ).catch(() => [[{ productsSold: 0 } as RowDataPacket]]);
     const productsSold = numberValue(productsSoldRows[0]?.productsSold);
 
+    const rentalDateFilter = getDateFilter(period, "end_datetime");
     const [rentalRows] = await pool.query<RowDataPacket[]>(
       `SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS txCount
          FROM rental_bookings
-        WHERE booking_status = 'Completed' ${dateFilter.clause}`,
-      dateFilter.params,
+        WHERE booking_status = 'Completed' ${rentalDateFilter.clause}`,
+      rentalDateFilter.params,
     ).catch(() => [[{ total: 0, txCount: 0 } as RowDataPacket]]);
     const totalRentalIncome = numberValue(rentalRows[0]?.total);
 
@@ -226,15 +268,31 @@ export class DashboardRepository {
     ).catch(() => [[{ completed: 0, pending: 0, upcoming: 0 } as RentalCountsRow]]);
     const rentalCounts = rentalCountRows[0] ?? {};
 
-    const totalIncome = totalPosSales + totalRentalIncome + totalShareCapital;
-    const totalExpenses = 0;
+    const financialTotals = financialSummaryRows[0] ?? {};
+    const totalIncome = numberValue(financialTotals.totalIncome);
+    const totalExpenses = numberValue(financialTotals.totalExpenses);
     const netSurplus = totalIncome - totalExpenses;
-    const incomeTotal = totalPosSales + totalRentalIncome + shareCapitalThisPeriod;
-    const incomeSources = [
-      { source: "Product / POS Sales", amount: totalPosSales, pct: pct(totalPosSales, incomeTotal) },
-      { source: "Equipment Rental", amount: totalRentalIncome, pct: pct(totalRentalIncome, incomeTotal) },
-      { source: "Share Capital", amount: shareCapitalThisPeriod, pct: pct(shareCapitalThisPeriod, incomeTotal) },
-    ];
+    const sourceLabels: Record<string, string> = {
+      POS: "Product / POS Sales",
+      Rental: "Equipment Rental",
+      Membership: "Membership Fees",
+      Document: "Document Fees",
+      Manual: "Other Income",
+      Other: "Other Income",
+      Payment: "Other Income",
+    };
+    const incomeSourceTotals = new Map<string, number>();
+    for (const row of financialSourceRows) {
+      const source = sourceLabels[row.sourceModule] ?? row.sourceModule;
+      incomeSourceTotals.set(source, (incomeSourceTotals.get(source) ?? 0) + numberValue(row.amount));
+    }
+    const incomeSources = [...incomeSourceTotals.entries()]
+      .sort(([, firstAmount], [, secondAmount]) => secondAmount - firstAmount)
+      .map(([source, amount]) => ({
+        source,
+        amount,
+        pct: pct(amount, totalIncome),
+      }));
 
     const [demographicRows] = await pool.query<RowDataPacket[]>(
       `SELECT m.barangay AS barangay,

@@ -87,7 +87,7 @@ export default function ActivityModal({
   return (
     <Modal
       title="All Recent Activity"
-      description="View all your purchases, deposits, rentals, and announcements."
+      description="View your purchases, Share Capital additions, dividend withdrawals, rentals, and announcements."
       open={open}
       onOpenChange={onOpenChange}
       trigger={<span className="hidden"></span>}
@@ -136,13 +136,12 @@ export default function ActivityModal({
                     </td>
                     <td className="py-3 px-4 font-semibold text-[#123D2A]">
                       {item.amount == null ? "—" : `₱${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                      ₱{Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid'
+                        item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Withdrawn'
                           ? 'bg-[#E8F5E9] text-[#2E7D32]'
-                          : item.status === 'Pending' || item.status === 'Draft'
+                          : item.status === 'Pending' || item.status === 'Draft' || item.status === 'Withdrawal Requested' || item.status === 'Capitalization Requested'
                           ? 'bg-amber-100 text-amber-800'
                           : 'bg-red-100 text-red-800'
                       }`}>

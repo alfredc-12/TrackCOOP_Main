@@ -9,6 +9,7 @@ import type {
   GatewaySettlementDetails,
   PaymentReferenceForSettlement,
 } from "./paymongo.settlement.types";
+import { postShareCapitalPaymentToLedger } from "../share-capital/share-capital-ledger.repository";
 
 type MemberRow = RowDataPacket & {
   id: string;
@@ -166,6 +167,27 @@ export async function postMemberShareCapitalSettlement(input: {
       input.payment.id,
     ],
   );
+
+  const [shareRows] = await input.connection.execute<IdRow[]>(
+    `SELECT CAST(share_payment_id AS CHAR) AS id
+       FROM share_capital_payments
+      WHERE payment_reference_id = ?
+      LIMIT 1`,
+    [input.payment.id],
+  );
+  if (!shareRows[0]) {
+    throw new AppError("Share Capital payment posting could not be loaded", 500, "SHARE_CAPITAL_POSTING_NOT_FOUND");
+  }
+  await postShareCapitalPaymentToLedger({
+    connection: input.connection,
+    memberId: member.id,
+    sharePaymentId: shareRows[0].id,
+    amount: Number(input.payment.amount),
+    transactionDate: settlementRecordDate(input.gatewayDetails?.paidAt),
+    referenceNumber: input.payment.referenceNumber,
+    createdBy: input.actorUserId,
+    remarks: `Member Share Capital settlement for ${member.memberCode}`,
+  });
 
   const categoryId = await selectShareCapitalCategory(input.connection);
   const [financeResult] = await input.connection.execute<ResultSetHeader>(

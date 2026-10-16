@@ -58,7 +58,7 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
         },
         {
           label: "Financial Dashboard",
-          href: "/portal/chairman/finance",
+          href: "/portal/chairman/financial-dashboard",
           icon: Landmark,
           summary: "Financial performance, ledger totals, and cooperative finance activity.",
         },
@@ -368,6 +368,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
     {
       title: "Benefits",
       items: [
+        {
+          label: "My Share Capital",
+          href: "/portal/member/share-capital",
+          icon: WalletCards,
+          summary: "View contributions, running balance, and capital growth.",
+        },
         {
           label: "My Patronage",
           href: "/portal/member/patronage",

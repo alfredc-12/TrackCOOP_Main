@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import * as Select from "@radix-ui/react-select";
 import SiteFooter from "@/components/layout/SiteFooter";
 import RentalLandingPage from "@/app/rental/page";
 import { RentalProvider } from "@/app/rental/_context/RentalProvider";
@@ -42,6 +43,7 @@ import {
   ArrowDownLeft,
   Clock,
   CheckCircle2,
+  Check,
   ShoppingBag,
   Store,
   Tractor,
@@ -68,6 +70,12 @@ import {
   getMemberPatronage,
   type MemberPatronageSummary,
 } from "@/features/patronage/patronage-api";
+import {
+  getMemberDividends,
+  requestDividendCapitalization,
+  requestDividendWithdrawal,
+} from "@/features/member-share-capital/api";
+import type { DividendWithdrawalMethod, MemberDividend } from "@/features/member-share-capital/types";
 
 function getPreview(content?: string | null) {
   if (!content) return "";
@@ -75,6 +83,41 @@ function getPreview(content?: string | null) {
   if (plainText.length <= 140) return plainText;
   return `${plainText.slice(0, 140).trim()}...`;
 }
+
+function formatPeso(value: number) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+function isAtLeastYearsAgo(value: unknown, years: number) {
+  if (!value) return false;
+  const startDate = new Date(String(value));
+  if (Number.isNaN(startDate.getTime())) return false;
+
+  const anniversary = new Date(startDate);
+  anniversary.setFullYear(anniversary.getFullYear() + years);
+  return new Date() >= anniversary;
+}
+
+const MAX_SHARE_CAPITAL = 15_000;
+const SHARE_CAPITAL_TIERS = [
+  { label: "Starter Tier", minimum: 0 },
+  { label: "Bronze Tier", minimum: 1_500 },
+  { label: "Silver Tier", minimum: 3_000 },
+  { label: "Gold Tier", minimum: 7_500 },
+  { label: "Platinum Tier", minimum: MAX_SHARE_CAPITAL },
+] as const;
+
+const SHARE_CAPITAL_TIER_BADGE_CLASSES = {
+  "Starter Tier": "bg-slate-100 text-slate-600",
+  "Bronze Tier": "bg-amber-100 text-amber-700",
+  "Silver Tier": "bg-slate-200 text-slate-700",
+  "Gold Tier": "bg-yellow-100 text-yellow-700",
+  "Platinum Tier": "bg-indigo-100 text-indigo-700",
+} as const;
 
 export default function MemberDashboardPage() {
   const router = useRouter();
@@ -104,11 +147,68 @@ export default function MemberDashboardPage() {
   const [patronageData, setPatronageData] = useState<MemberPatronageSummary | null>(null);
   const [isFetchingPatronage, setIsFetchingPatronage] = useState(true);
   const [patronageLoadError, setPatronageLoadError] = useState(false);
+  const [memberDividends, setMemberDividends] = useState<MemberDividend[]>([]);
+  const [isFetchingDividends, setIsFetchingDividends] = useState(true);
+  const [dividendLoadError, setDividendLoadError] = useState(false);
+  const [actionDividend, setActionDividend] = useState<MemberDividend | null>(null);
+  const [dividendAction, setDividendAction] = useState<"withdraw" | "capital" | null>(null);
+  const [dividendActionBusy, setDividendActionBusy] = useState(false);
+  const [dividendActionError, setDividendActionError] = useState("");
+  const [withdrawalMethod, setWithdrawalMethod] = useState<DividendWithdrawalMethod>("Cash");
+  const [withdrawalProvider, setWithdrawalProvider] = useState("");
+  const [withdrawalAccountName, setWithdrawalAccountName] = useState("");
+  const [withdrawalAccountNumber, setWithdrawalAccountNumber] = useState("");
+  const [withdrawalQrCode, setWithdrawalQrCode] = useState<string | null>(null);
+  const [withdrawalQrFileName, setWithdrawalQrFileName] = useState("");
 
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  const refreshDashboard = useCallback(async () => {
-    setIsFetchingDashboard(true);
+  const shareCapitalTotal = Math.max(0, Number(dashboardData?.shareCapital?.total) || 0);
+  const cappedShareCapital = Math.min(shareCapitalTotal, MAX_SHARE_CAPITAL);
+  const shareCapitalProgress = Math.round((cappedShareCapital / MAX_SHARE_CAPITAL) * 100);
+  const shareCapitalTierIndex = SHARE_CAPITAL_TIERS.reduce(
+    (currentIndex, tier, index) => (cappedShareCapital >= tier.minimum ? index : currentIndex),
+    0,
+  );
+  const currentShareCapitalTier = SHARE_CAPITAL_TIERS[shareCapitalTierIndex];
+  const nextShareCapitalTier = SHARE_CAPITAL_TIERS[shareCapitalTierIndex + 1];
+  const currentShareCapitalTierBadgeClass = SHARE_CAPITAL_TIER_BADGE_CLASSES[currentShareCapitalTier.label];
+  const amountToNextShareCapitalTier = nextShareCapitalTier
+    ? Math.max(0, nextShareCapitalTier.minimum - cappedShareCapital)
+    : 0;
+  const memberSince = dashboardData?.member?.memberSince;
+  const postedCapitalContributionCount = Number(dashboardData?.stats?.deposits) || 0;
+  const hasDividendReinvestment = memberDividends.some((dividend) => dividend.status === "Added to Share Capital");
+  const badgesReady = Boolean(dashboardData) && !isFetchingDashboard && !isFetchingDividends;
+  const memberBadges = [
+    {
+      label: "1 Year Member",
+      icon: Award,
+      iconClassName: "bg-amber-100 text-amber-600",
+      earned: isAtLeastYearsAgo(memberSince, 1),
+    },
+    {
+      label: "First Share Capital Deposit",
+      icon: Wallet,
+      iconClassName: "bg-blue-100 text-blue-600",
+      earned: postedCapitalContributionCount >= 1,
+    },
+    {
+      label: "Consistent Contributor",
+      icon: Star,
+      iconClassName: "bg-green-100 text-green-600",
+      earned: postedCapitalContributionCount >= 3,
+    },
+    {
+      label: "Dividend Reinvestor",
+      icon: TrendingUp,
+      iconClassName: "bg-purple-100 text-purple-600",
+      earned: hasDividendReinvestment,
+    },
+  ];
+
+  const refreshDashboard = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setIsFetchingDashboard(true);
     try {
       const response = await expressFetch("/api/members/me/dashboard");
       if (!response.ok) throw new Error("Failed to refresh dashboard");
@@ -120,6 +220,19 @@ export default function MemberDashboardPage() {
     }
   }, []);
 
+  const refreshMemberDividends = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setIsFetchingDividends(true);
+    try {
+      setMemberDividends(await getMemberDividends());
+      setDividendLoadError(false);
+    } catch (error) {
+      console.error(error);
+      setDividendLoadError(true);
+    } finally {
+      setIsFetchingDividends(false);
+    }
+  }, []);
+
   useEffect(() => {
     getAuthenticatedUser()
       .then(setUser)
@@ -127,6 +240,9 @@ export default function MemberDashboardPage() {
 
     const dashboardRefreshTimer = window.setTimeout(() => {
       void refreshDashboard();
+    }, 0);
+    const dividendRefreshTimer = window.setTimeout(() => {
+      void refreshMemberDividends();
     }, 0);
 
     getMemberPatronage()
@@ -140,7 +256,10 @@ export default function MemberDashboardPage() {
       })
       .finally(() => setIsFetchingPatronage(false));
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refreshDashboard();
+      if (document.visibilityState === "visible") {
+        void refreshDashboard({ silent: true });
+        void refreshMemberDividends({ silent: true });
+      }
     };
     const interval = window.setInterval(refreshWhenVisible, 15_000);
     window.addEventListener("focus", refreshWhenVisible);
@@ -148,10 +267,90 @@ export default function MemberDashboardPage() {
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(dashboardRefreshTimer);
+      window.clearTimeout(dividendRefreshTimer);
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshDashboard]);
+  }, [refreshDashboard, refreshMemberDividends]);
+
+  const publishedDividends = memberDividends
+    .filter((dividend) => dividend.declarationStatus === "Published")
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+  const latestPublishedDividend = publishedDividends[0] ?? null;
+
+  function resetDividendAction() {
+    setActionDividend(null);
+    setDividendAction(null);
+    setDividendActionError("");
+    setWithdrawalMethod("Cash");
+    setWithdrawalProvider("");
+    setWithdrawalAccountName("");
+    setWithdrawalAccountNumber("");
+    setWithdrawalQrCode(null);
+    setWithdrawalQrFileName("");
+  }
+
+  function openDividendAction(dividend: MemberDividend, action: "withdraw" | "capital") {
+    if (dividendActionBusy) return;
+    setActionDividend(dividend);
+    setDividendAction(action);
+    setDividendActionError("");
+    if (action === "withdraw") {
+      setWithdrawalMethod("Cash");
+      setWithdrawalProvider("");
+      setWithdrawalAccountName("");
+      setWithdrawalAccountNumber("");
+      setWithdrawalQrCode(null);
+      setWithdrawalQrFileName("");
+    }
+  }
+
+  async function executeDividendAction() {
+    if (!actionDividend || !dividendAction || dividendActionBusy) return;
+    setDividendActionBusy(true);
+    setDividendActionError("");
+    try {
+      if (dividendAction === "withdraw") {
+        await requestDividendWithdrawal(actionDividend.id, {
+          withdrawalMethod,
+          withdrawalProvider: withdrawalMethod === "Online Transfer" ? withdrawalProvider : null,
+          withdrawalAccountName: withdrawalMethod === "Online Transfer" ? withdrawalAccountName : null,
+          withdrawalAccountNumber: withdrawalMethod === "Online Transfer" ? withdrawalAccountNumber : null,
+          withdrawalQrCode: withdrawalMethod === "Online Transfer" ? withdrawalQrCode : null,
+        });
+        toast.success("Withdrawal request submitted.");
+      } else {
+        await requestDividendCapitalization(actionDividend.id);
+        toast.success("Share Capital addition request submitted for Bookkeeper approval.");
+      }
+      resetDividendAction();
+      await Promise.all([refreshMemberDividends({ silent: true }), refreshDashboard({ silent: true })]);
+    } catch (error) {
+      setDividendActionError(error instanceof Error ? error.message : "Unable to process this dividend action.");
+    } finally {
+      setDividendActionBusy(false);
+    }
+  }
+
+  function handleWithdrawalQrCode(file: File | undefined) {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setDividendActionError("QR code must be a PNG, JPG, or WebP image.");
+      return;
+    }
+    if (file.size > 400 * 1024) {
+      setDividendActionError("QR code image must be 400 KB or smaller.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setWithdrawalQrCode(typeof reader.result === "string" ? reader.result : null);
+      setWithdrawalQrFileName(file.name);
+      setDividendActionError("");
+    };
+    reader.readAsDataURL(file);
+  }
 
   const fetchAnnouncements = () => {
     setIsFetchingAnnouncements(true);
@@ -556,6 +755,108 @@ export default function MemberDashboardPage() {
         </div>
       </Modal>
 
+      <Modal
+        title={dividendAction === "withdraw" ? "Request dividend withdrawal?" : "Add dividend to Share Capital?"}
+        description={actionDividend ? `${formatPeso(actionDividend.amount)} from ${actionDividend.declarationName}` : undefined}
+        open={Boolean(actionDividend && dividendAction)}
+        onOpenChange={(open) => {
+          if (!open && !dividendActionBusy) {
+            setActionDividend(null);
+            setDividendAction(null);
+            setDividendActionError("");
+          }
+        }}
+        trigger={<span className="hidden"></span>}
+      >
+        {dividendAction === "withdraw" ? (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-[#365F4A]">
+              Choose how you want to receive the dividend. The Bookkeeper will review the request and record the payout.
+            </div>
+            <fieldset>
+              <legend className="text-sm font-bold text-[#294B39]">Payout method</legend>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {(["Cash", "Online Transfer"] as const).map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setWithdrawalMethod(method)}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-bold transition ${withdrawalMethod === method ? "border-[#123D2A] bg-[#123D2A] text-white" : "border-[#CAD8CB] text-[#123D2A] hover:bg-[#F3F7F1]"}`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            {withdrawalMethod === "Online Transfer" ? (
+              <div className="space-y-3 rounded-lg border border-[#DDE8D8] bg-[#F7FAF5] p-4">
+                <label className="block text-sm font-bold text-[#294B39]">
+                  Provider
+                  <Select.Root value={withdrawalProvider || undefined} onValueChange={setWithdrawalProvider}>
+                    <Select.Trigger aria-label="Provider" className="mt-1 flex h-11 w-full items-center justify-between rounded-md border border-[#CAD8CB] bg-white px-3 text-left font-normal text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
+                      <Select.Value placeholder="Select provider" />
+                      <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                        <Select.Viewport>
+                          {["GCash", "Maya", "Bank Transfer"].map((provider) => (
+                            <Select.Item key={provider} value={provider} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                              <Select.ItemText>{provider}</Select.ItemText>
+                              <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
+                </label>
+                <label className="block text-sm font-bold text-[#294B39]">
+                  Account name
+                  <input value={withdrawalAccountName} onChange={(event) => setWithdrawalAccountName(event.target.value)} placeholder="Name registered on the account" className="mt-1 h-11 w-full rounded-md border border-[#CAD8CB] px-3 font-normal" />
+                </label>
+                <label className="block text-sm font-bold text-[#294B39]">
+                  Account number / mobile number
+                  <input value={withdrawalAccountNumber} onChange={(event) => setWithdrawalAccountNumber(event.target.value)} placeholder="Optional if a QR code is uploaded" className="mt-1 h-11 w-full rounded-md border border-[#CAD8CB] px-3 font-normal" />
+                </label>
+                <label className="block text-sm font-bold text-[#294B39]">
+                  QR code <span className="font-normal text-[#6C7A70]">(optional)</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleWithdrawalQrCode(event.target.files?.[0])} className="mt-1 block w-full rounded-md border border-[#CAD8CB] bg-white p-2 text-sm font-normal" />
+                </label>
+                {withdrawalQrFileName ? <p className="text-xs font-semibold text-[#2F7D57]">QR attached: {withdrawalQrFileName}</p> : null}
+                <p className="text-xs text-[#6C7A70]">Provide either an account/mobile number or a QR code. These details are visible only to the Bookkeeper.</p>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-[#DDE8D8] bg-[#F7FAF5] p-3 text-sm text-[#42594B]">Cash withdrawals will be claimed through the cooperative office after Bookkeeper processing.</p>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-[#365F4A]">
+            This amount will be added to your Share Capital balance after Bookkeeper approval.
+          </div>
+        )}
+        {dividendActionError ? (
+          <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+            {dividendActionError}
+          </div>
+        ) : null}
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={dividendActionBusy}
+            onClick={() => {
+            resetDividendAction();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button type="button" variant="primary" loading={dividendActionBusy} disabled={dividendAction === "withdraw" && withdrawalMethod === "Online Transfer" && (!withdrawalProvider.trim() || !withdrawalAccountName.trim() || (!withdrawalAccountNumber.trim() && !withdrawalQrCode))} onClick={() => void executeDividendAction()}>
+            {dividendAction === "withdraw" ? "Confirm withdrawal" : "Add to capital"}
+          </Button>
+        </div>
+      </Modal>
+
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
@@ -678,8 +979,8 @@ export default function MemberDashboardPage() {
                             <tr key={idx} className="hover:bg-slate-50 transition-colors">
                               <td className="py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.type.includes('Deposit') ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                                    {item.type.includes('Deposit') ? <ArrowDownLeft className="h-5 w-5" /> : <Store className="h-5 w-5" />}
+                                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.type.includes('Withdrawal') ? 'bg-red-50 text-red-600' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                    {item.type.includes('Withdrawal') ? <ArrowUpRight className="h-5 w-5" /> : item.type.includes('Deposit') || item.type.includes('Share Capital') ? <ArrowDownLeft className="h-5 w-5" /> : <Store className="h-5 w-5" />}
                                   </div>
                                   <span className="font-medium text-[#173626]">{item.type}</span>
                                 </div>
@@ -687,16 +988,16 @@ export default function MemberDashboardPage() {
                               <td className="py-4 text-[#6B7280]">
                                 {new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}
                               </td>
-                              <td className={`relative py-4 font-bold ${item.amount == null ? 'text-transparent after:absolute after:left-4 after:top-1/2 after:-translate-y-1/2 after:text-[#9CA3AF] after:content-["—"]' : item.type.includes('Deposit') ? 'text-green-700' : 'text-[#173626]'}`}>
-                                {item.type.includes('Deposit') ? '+' : '-'} ₱{Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              <td className={`relative py-4 font-bold ${item.amount == null ? 'text-transparent after:absolute after:left-4 after:top-1/2 after:-translate-y-1/2 after:text-[#9CA3AF] after:content-["—"]' : item.type.includes('Withdrawal') ? 'text-red-700' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? 'text-green-700' : 'text-[#173626]'}`}>
+                                {item.amount == null ? '—' : `${item.type.includes('Withdrawal') ? '-' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? '+' : '-'} ₱${Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
                               </td>
                               <td className="py-4">
-                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' ? 'bg-green-50 text-green-700 border-green-200' :
-                                    item.status === 'Pending' || item.status === 'Not Acknowledged' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' || item.status === 'Withdrawn' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    item.status === 'Pending' || item.status === 'Not Acknowledged' || item.status === 'Withdrawal Requested' || item.status === 'Capitalization Requested' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                       'bg-red-50 text-red-700 border-red-200'
                                   }`}>
-                                  {item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' ? <CheckCircle2 className="h-3 w-3" /> :
-                                    item.status === 'Pending' ? <Clock className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                  {item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' || item.status === 'Withdrawn' ? <CheckCircle2 className="h-3 w-3" /> :
+                                    item.status === 'Pending' || item.status === 'Withdrawal Requested' || item.status === 'Capitalization Requested' ? <Clock className="h-3 w-3" /> : <X className="h-3 w-3" />}
                                   {item.status}
                                 </span>
                               </td>
@@ -835,7 +1136,72 @@ export default function MemberDashboardPage() {
 
                   {/* Dividends & Patronage */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
+                    <div className="rounded-2xl border border-[#B8D6BE] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-[#6B7280]">Dividends Earned</p>
+                        <PieChart className="h-5 w-5 text-amber-500" />
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <h3 className="text-2xl font-bold text-[#173626]">
+                          {isFetchingDividends ? "..." : formatPeso(latestPublishedDividend?.amount ?? 0)}
+                        </h3>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                          dividendLoadError
+                            ? "bg-red-50 text-red-600"
+                            : latestPublishedDividend?.status === "Available"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : latestPublishedDividend?.status === "Withdrawal Requested" || latestPublishedDividend?.status === "Capitalization Requested"
+                                ? "bg-amber-50 text-amber-700"
+                                : latestPublishedDividend?.status === "Withdrawn" || latestPublishedDividend?.status === "Added to Share Capital"
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {isFetchingDividends
+                            ? "Loading"
+                            : dividendLoadError
+                              ? "Unavailable"
+                              : latestPublishedDividend?.status ?? "No published dividend"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">
+                        {latestPublishedDividend?.declarationName ?? "Published dividend allocations will appear here."}
+                      </p>
+                      {latestPublishedDividend?.status === "Available" ? (
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => openDividendAction(latestPublishedDividend, "withdraw")}
+                            disabled={dividendActionBusy}
+                            className="flex-1 rounded-lg border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#123D2A] transition hover:bg-[#F3F7F1] disabled:opacity-50"
+                          >
+                            Withdraw
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDividendAction(latestPublishedDividend, "capital")}
+                            disabled={dividendActionBusy}
+                            className="flex-1 rounded-lg bg-[#123D2A] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-50"
+                          >
+                            Add to capital
+                          </button>
+                        </div>
+                      ) : latestPublishedDividend ? (
+                        <p className="mt-4 text-xs font-semibold text-[#6B7280]">
+                          {latestPublishedDividend.status === "Pending"
+                            ? "Waiting for the scheduled distribution date."
+                            : latestPublishedDividend.status === "Withdrawal Requested"
+                              ? "Withdrawal request sent to the Bookkeeper."
+                              : latestPublishedDividend.status === "Capitalization Requested"
+                                ? "Share Capital addition request sent to the Bookkeeper."
+                                : latestPublishedDividend.status === "Withdrawn"
+                                ? "Withdrawal completed."
+                                : latestPublishedDividend.status === "Added to Share Capital"
+                                  ? "Added to your Share Capital."
+                                  : "No action available for this dividend."}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="hidden rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-[#6B7280]">Dividends Earned</p>
                         <PieChart className="h-5 w-5 text-amber-500" />
@@ -896,45 +1262,51 @@ export default function MemberDashboardPage() {
                   <div className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm flex-1 flex flex-col">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-xl font-bold text-[#173626]">Badges & Tiers</h3>
-                      <span className="text-xs font-bold text-[#2F7D57] bg-[#DFF5E8] px-3 py-1 rounded-full">Gold Tier</span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${currentShareCapitalTierBadgeClass}`}>
+                        {currentShareCapitalTier.label}
+                      </span>
                     </div>
 
                     <div className="mb-6">
                       <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="font-semibold text-[#173626]">Next Milestone: Platinum</span>
-                        <span className="font-bold text-[#2F7D57]">50%</span>
+                        <span className="font-semibold text-[#173626]">
+                          {nextShareCapitalTier ? `Next Milestone: ${nextShareCapitalTier.label}` : "Maximum Share Capital reached"}
+                        </span>
+                        <span className="font-bold text-[#2F7D57]">{shareCapitalProgress}%</span>
                       </div>
                       <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#1F6B43] to-[#2F7D57] w-1/2"></div>
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[#1F6B43] to-[#2F7D57] transition-all duration-500"
+                          style={{ width: `${shareCapitalProgress}%` }}
+                        ></div>
                       </div>
-                      <p className="mt-2 text-xs text-[#6B7280]">₱25,000 more share capital needed.</p>
+                      <p className="mt-2 text-xs text-[#6B7280]">
+                        {nextShareCapitalTier
+                          ? `${formatPeso(amountToNextShareCapitalTier)} more share capital needed for ${nextShareCapitalTier.label}.`
+                          : `You have reached the ${formatPeso(MAX_SHARE_CAPITAL)} maximum share capital.`}
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mt-auto">
-                      <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center transition hover:bg-white hover:shadow-md hover:border-[#E5E7EB]">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-3">
-                          <Award className="h-6 w-6" />
-                        </div>
-                        <h4 className="text-sm font-bold text-[#173626]">1 Year Member</h4>
-                      </div>
-                      <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center transition hover:bg-white hover:shadow-md hover:border-[#E5E7EB]">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 mb-3">
-                          <CheckCircle2 className="h-6 w-6" />
-                        </div>
-                        <h4 className="text-sm font-bold text-[#173626]">First Loan Paid</h4>
-                      </div>
-                      <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center transition hover:bg-white hover:shadow-md hover:border-[#E5E7EB]">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 mb-3">
-                          <Star className="h-6 w-6" />
-                        </div>
-                        <h4 className="text-sm font-bold text-[#173626]">Active Saver</h4>
-                      </div>
-                      <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center opacity-50 grayscale">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-slate-400 mb-3">
-                          <ShieldCheck className="h-6 w-6" />
-                        </div>
-                        <h4 className="text-sm font-bold text-[#173626]">Loyalty (5 Yrs)</h4>
-                      </div>
+                      {memberBadges.map((badge) => {
+                        const BadgeIcon = badge.icon;
+                        const isEarned = badgesReady && badge.earned;
+
+                        return (
+                          <div
+                            key={badge.label}
+                            className={`flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center transition hover:bg-white hover:shadow-md hover:border-[#E5E7EB] ${isEarned ? "" : "opacity-50 grayscale"}`}
+                          >
+                            <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ${isEarned ? badge.iconClassName : "bg-slate-200 text-slate-400"}`}>
+                              <BadgeIcon className="h-6 w-6" />
+                            </div>
+                            <h4 className="text-sm font-bold text-[#173626]">{badge.label}</h4>
+                            <span className={`mt-2 text-[10px] font-bold uppercase tracking-wider ${isEarned ? "text-[#2F7D57]" : "text-slate-400"}`}>
+                              {!badgesReady ? "Checking..." : isEarned ? "Earned" : "Locked"}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -944,15 +1316,16 @@ export default function MemberDashboardPage() {
               <div className="mt-8 rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
                 <h3 className="text-xl font-bold text-[#173626] mb-6">Recent Capital Contributions</h3>
                 <div className="space-y-4">
-                  {dashboardData?.recentActivity?.filter((a: any) => a.type.includes('Deposit')).length > 0 ? (
-                    dashboardData.recentActivity.filter((a: any) => a.type.includes('Deposit')).map((item: any, idx: number) => (
+                  {dashboardData?.recentCapitalContributions?.length > 0 ? (
+                    dashboardData.recentCapitalContributions.map((item: any, idx: number) => (
                       <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:bg-white hover:shadow-sm transition">
                         <div className="flex items-center gap-4 mb-3 sm:mb-0">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700">
                             <ArrowDownRight className="h-5 w-5" />
                           </div>
                           <div>
-                            <h4 className="font-bold text-[#173626]">Capital Deposit</h4>
+                            <h4 className="font-bold text-[#173626]">{item.type === "Dividend Added to Share Capital" ? "Dividend Added to Share Capital" : "Capital Deposit"}</h4>
+                            <p className="text-xs text-[#6B7280]">{item.type === "Dividend Added to Share Capital" ? "From dividend allocation" : "Member Share Capital payment"}</p>
                             <p className="text-xs text-[#6B7280]">ID: {item.id}</p>
                           </div>
                         </div>

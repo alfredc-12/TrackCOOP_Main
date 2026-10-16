@@ -79,7 +79,7 @@ type RentalActivityRow = RowDataPacket & MemberRentalActivity;
 type LatestIndicatorRow = RowDataPacket & MemberLatestIndicator;
 type UnifiedHistoryRow = RowDataPacket & UnifiedStatusHistoryEntry;
 
-const FULL_SHARE_CAPITAL = 1500;
+const FULL_SHARE_CAPITAL = 3000;
 const MAX_SHARE_CAPITAL = 15000;
 
 const sortColumns: Record<MemberListQuery["sortBy"], string> = {

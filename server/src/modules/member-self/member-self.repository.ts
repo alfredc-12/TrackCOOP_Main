@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { Pool, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
@@ -13,6 +13,10 @@ import type {
 type MemberProfileRow = RowDataPacket & {
   member_id: number | string;
   member_code?: string | null;
+  application_date?: Date | string | null;
+  approved_at?: Date | string | null;
+  true_member_since?: Date | string | null;
+  created_at?: Date | string | null;
   share_capital_deadline?: Date | string | null;
   contact_number?: string | null;
   email?: string | null;
@@ -42,6 +46,31 @@ function pagination(query: MemberActivityQuery) {
   const page = parseInt(String(query.page || "1"), 10);
   const pageSize = parseInt(String(query.pageSize || "10"), 10);
   return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
+async function selectMemberDividendActivities(
+  connection: Pool | PoolConnection,
+  memberId: string | number,
+) {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT CAST(md.member_dividend_id AS CHAR) AS id,
+            COALESCE(md.processed_at, md.decided_at, md.updated_at, md.created_at) AS date,
+            md.dividend_amount AS amount,
+            md.dividend_status AS status,
+            CASE WHEN md.member_decision = 'Withdraw'
+                 THEN 'Dividend Withdrawal'
+                 ELSE 'Share Capital Addition'
+            END AS type
+       FROM member_dividends md
+      WHERE md.member_id = ?
+        AND md.member_decision IN ('Withdraw', 'Add to Share Capital')
+        AND md.dividend_status IN ('Withdrawal Requested', 'Capitalization Requested', 'Withdrawn')
+      ORDER BY COALESCE(md.processed_at, md.decided_at, md.updated_at, md.created_at) DESC,
+               md.member_dividend_id DESC
+      LIMIT 5`,
+    [memberId],
+  );
+  return rows;
 }
 
 export interface MemberSelfRepository {
@@ -74,7 +103,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
   return {
     async dashboard(auth) {
       const [members] = await databasePool().execute<MemberProfileRow[]>(
-        `SELECT member_id, member_code, share_capital_deadline, contact_number, email, barangay, municipality, province
+        `SELECT member_id, member_code, application_date, approved_at, true_member_since, created_at,
+                share_capital_deadline, contact_number, email, barangay, municipality, province
            FROM member_profiles
           WHERE user_id = ?`,
         [auth.user.id],
@@ -86,10 +116,17 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       }
 
       const [shareCapitalRows] = await databasePool().execute<RowDataPacket[]>(
-        `SELECT COALESCE(SUM(amount), 0) AS validatedTotal
-           FROM share_capital_payments
-          WHERE member_id = ? AND payment_status = 'Validated'`,
-        [member.member_id],
+        `SELECT COALESCE(
+                  (SELECT current_balance
+                     FROM share_capital_accounts
+                    WHERE member_id = ?
+                    LIMIT 1),
+                  (SELECT SUM(amount)
+                     FROM share_capital_payments
+                    WHERE member_id = ? AND payment_status = 'Validated'),
+                  0
+                ) AS validatedTotal`,
+        [member.member_id, member.member_id],
       );
       const validatedShareCapital = Number(shareCapitalRows[0]?.validatedTotal || 0);
 
@@ -107,14 +144,34 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       );
 
       const [deposits] = await databasePool().execute<RowDataPacket[]>(
-        `SELECT share_payment_id as id,
-                payment_date as date,
-                amount,
-                payment_status as status,
-                'Share Capital Deposit' as type
-           FROM share_capital_payments
-          WHERE member_id = ?
-          ORDER BY payment_date DESC
+        `SELECT CAST(ledger_tx.share_capital_transaction_id AS CHAR) AS id,
+                ledger_tx.transaction_date AS date,
+                ledger_tx.amount,
+                'Validated' AS status,
+                CASE WHEN ledger_tx.transaction_type = 'Dividend Added to Share Capital'
+                     THEN 'Dividend Added to Share Capital'
+                     ELSE 'Share Capital Deposit'
+                END AS type
+           FROM share_capital_transactions ledger_tx
+          WHERE ledger_tx.member_id = ?
+            AND ledger_tx.transaction_status = 'Posted'
+          ORDER BY ledger_tx.transaction_date DESC,
+                   ledger_tx.share_capital_transaction_id DESC
+          LIMIT 5`,
+        [member.member_id],
+      );
+      const [unledgeredDividendAdditions] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,
+               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,
+               dividend.dividend_amount AS amount,
+               dividend.dividend_status AS status,
+               'Dividend Added to Share Capital' AS type
+          FROM member_dividends dividend
+         WHERE dividend.member_id = ?
+           AND dividend.dividend_status = 'Added to Share Capital'
+           AND dividend.share_capital_transaction_id IS NULL
+          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,
+                   dividend.member_dividend_id DESC
           LIMIT 5`,
         [member.member_id],
       );
@@ -162,8 +219,12 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           LIMIT 5`,
         [auth.user.id],
       );
+      const dividendActivities = await selectMemberDividendActivities(databasePool(), member.member_id);
 
-      const recentActivity = [...sales, ...deposits, ...pendingDeposits, ...rentals, ...announcements]
+      const recentActivity = [...sales, ...deposits, ...pendingDeposits, ...dividendActivities, ...rentals, ...announcements]
+        .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
+        .slice(0, 5);
+      const recentCapitalContributions = [...deposits, ...unledgeredDividendAdditions]
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
         .slice(0, 5);
 
@@ -175,7 +236,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       );
       const [depositCount] = await databasePool().execute<CountRow[]>(
-        "SELECT COUNT(*) as count FROM share_capital_payments WHERE member_id = ?",
+        "SELECT COUNT(*) as count FROM share_capital_transactions WHERE member_id = ? AND transaction_status = 'Posted'",
         [member.member_id],
       );
       const [rentalCount] = await databasePool().execute<CountRow[]>(
@@ -190,6 +251,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           deadline: member.share_capital_deadline,
         },
         recentActivity,
+        recentCapitalContributions,
         stats: {
           announcements: allAnnouncements[0]?.count || 0,
           purchases: purchaseCount[0]?.count || 0,
@@ -198,6 +260,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         },
         member: {
           code: member.member_code,
+          memberSince: member.true_member_since ?? member.approved_at ?? member.application_date ?? member.created_at ?? null,
           contact_number: member.contact_number,
           email: member.email,
           barangay: member.barangay,
@@ -220,10 +283,17 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       );
       const [deposits] = await databasePool().execute<RowDataPacket[]>(
-        `SELECT share_payment_id as id, payment_date as date, amount,
-                payment_status as status, 'Share Capital Deposit' as type
-           FROM share_capital_payments
-          WHERE member_id = ?`,
+        `SELECT CAST(ledger_tx.share_capital_transaction_id AS CHAR) AS id,
+                ledger_tx.transaction_date AS date,
+                ledger_tx.amount,
+                'Validated' AS status,
+                CASE WHEN ledger_tx.transaction_type = 'Dividend Added to Share Capital'
+                     THEN 'Dividend Added to Share Capital'
+                     ELSE 'Share Capital Deposit'
+                END AS type
+           FROM share_capital_transactions ledger_tx
+          WHERE ledger_tx.member_id = ?
+            AND ledger_tx.transaction_status = 'Posted'`,
         [member.member_id],
       );
       const [pendingDeposits] = await databasePool().execute<RowDataPacket[]>(
@@ -248,8 +318,9 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
            FROM announcements
           WHERE announcement_status = 'Published'`,
       );
+      const dividendActivities = await selectMemberDividendActivities(databasePool(), member.member_id);
       const searchPattern = search.trim().toLowerCase();
-      const allRecords = [...sales, ...deposits, ...pendingDeposits, ...rentals, ...announcements]
+      const allRecords = [...sales, ...deposits, ...pendingDeposits, ...dividendActivities, ...rentals, ...announcements]
         .filter((record) => !searchPattern || `${record.type} ${record.status}`.toLowerCase().includes(searchPattern))
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime());
       const total = allRecords.length;

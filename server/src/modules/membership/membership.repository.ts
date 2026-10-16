@@ -13,6 +13,7 @@ import { createCentralDocument } from "../../records/central-document";
 import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
+import { postShareCapitalPaymentToLedger } from "../share-capital/share-capital-ledger.repository";
 import type {
   AccountCreationInput,
   ApplicationStatus,
@@ -1260,6 +1261,38 @@ export function createMembershipRepository(
               applicationId,
             ],
           );
+          const [shareRows] = await connection.execute<(RowDataPacket & {
+            id: string;
+            amount: string | number;
+            paymentDate: Date;
+            referenceNumber: string | null;
+            verifiedBy: string | null;
+          })[]>(
+            `SELECT CAST(s.share_payment_id AS CHAR) AS id,
+                    s.amount,
+                    s.payment_date AS paymentDate,
+                    p.reference_number AS referenceNumber,
+                    CAST(s.verified_by AS CHAR) AS verifiedBy
+               FROM share_capital_payments s
+               LEFT JOIN payment_references p ON p.payment_reference_id = s.payment_reference_id
+              WHERE s.member_id = ? AND s.payment_status = 'Validated'
+              ORDER BY s.share_payment_id DESC
+              LIMIT 1`,
+            [memberId],
+          );
+          const share = shareRows[0];
+          if (share) {
+            await postShareCapitalPaymentToLedger({
+              connection,
+              memberId: memberId!,
+              sharePaymentId: share.id,
+              amount: Number(share.amount),
+              transactionDate: new Date(share.paymentDate).toISOString().slice(0, 10),
+              referenceNumber: share.referenceNumber ?? `SC-PAY-${share.id}`,
+              createdBy: share.verifiedBy ?? auth.user.id,
+              remarks: `Initial Share Capital from ${current.reference}`,
+            });
+          }
         }
         await connection.execute(
           `INSERT INTO membership_account_activations

@@ -75,9 +75,11 @@ export function ChartCard({ title, children }: { title: string; children: ReactN
 export function StatusBadge({
   children,
   tone = "neutral",
+  className,
 }: {
   children: ReactNode;
   tone?: "neutral" | "success" | "warning" | "danger";
+  className?: string;
 }) {
   const tones = {
     neutral: "bg-[#EEF2EC] text-[#365F4A]",
@@ -87,7 +89,7 @@ export function StatusBadge({
   };
 
   return (
-    <span className={cn("inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-bold", tones[tone])}>
+    <span className={cn("inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-bold", tones[tone], className)}>
       {children}
     </span>
   );

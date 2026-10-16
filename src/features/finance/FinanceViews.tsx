@@ -1,8 +1,10 @@
 "use client";
 
+import * as Select from "@radix-ui/react-select";
 import {
   BadgeCheck,
   Banknote,
+  Check,
   ChevronDown,
   Landmark,
   ListChecks,
@@ -27,6 +29,8 @@ import {
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { toast } from "sonner";
 import { PaymentValidationView } from "./PaymentValidationView";
+import { DividendManagementPanel } from "./DividendManagementPanelWithPreview";
+import { ShareCapitalLedgerPanel } from "./ShareCapitalLedgerPanel";
 import {
   createPaymentReference,
   getFinancialSummary,
@@ -48,7 +52,7 @@ const emptyShareSummary: ShareCapitalSummary = {
   validatedPayments: 0,
   membersWithValidatedCapital: 0,
   initialRequirement: 1500,
-  fullRequirement: 1500,
+  fullRequirement: 3000,
   maximumAllowed: 15000,
 };
 
@@ -154,6 +158,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [payments, setPayments] = useState<ShareCapitalPayment[]>([]);
   const [summary, setSummary] = useState<ShareCapitalSummary>(emptyShareSummary);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ShareCapitalPayment["paymentStatus"] | "">("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
@@ -187,7 +192,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
       setError("");
     }
     try {
-      const [nextPayments, nextSummary] = await Promise.all([listShareCapital(search), getShareCapitalSummary()]);
+      const [nextPayments, nextSummary] = await Promise.all([listShareCapital(search, statusFilter || undefined), getShareCapitalSummary()]);
       setPayments(nextPayments);
       setSummary(nextSummary);
       setError("");
@@ -197,7 +202,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
       refreshInFlight.current = false;
       if (!silent) setIsLoading(false);
     }
-  }, [search]);
+  }, [search, statusFilter]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(), 0);
@@ -279,11 +284,13 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
         <div className="flex items-center gap-2">
           {role === "bookkeeper" ? <button
               onClick={() => { setFormError(""); setCreatedPaymentId(null); setIsAddOpen(true); }}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d2f20]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
             >
               <Plus className="size-4" />
               Record Payment
             </button> : null}
+          <ShareCapitalLedgerPanel role={role} />
+          <DividendManagementPanel role={role} />
         </div>
       } />
       <div className="grid gap-4 md:grid-cols-4">
@@ -292,7 +299,49 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
         <StatCard label="Validated Payments" value={String(summary.validatedPayments)} icon={BadgeCheck} />
         <StatCard label="Member Count" value={String(summary.membersWithValidatedCapital)} icon={Banknote} />
       </div>
-      <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="share capital" rightContent={<RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />} />
+      <Toolbar
+        search={search}
+        onSearch={(value) => { setSearch(value); setPage(1); }}
+        onRefresh={() => void load()}
+        refreshing={isLoading}
+        label="share capital"
+        rightContent={(
+          <div className="flex items-center gap-3">
+            <label className="sr-only" htmlFor="share-capital-status-filter">Filter Share Capital status</label>
+            <Select.Root
+              value={statusFilter || "all"}
+              onValueChange={(value) => {
+                setStatusFilter(value === "all" ? "" : value as ShareCapitalPayment["paymentStatus"]);
+                setPage(1);
+              }}
+            >
+              <Select.Trigger id="share-capital-status-filter" aria-label="Filter Share Capital status" className="flex h-10 w-40 items-center justify-between rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
+                <Select.Value />
+                <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                  <Select.Viewport>
+                    {[
+                      { value: "all", label: "All statuses" },
+                      { value: "Pending", label: "Pending" },
+                      { value: "Validated", label: "Validated" },
+                      { value: "Rejected", label: "Rejected" },
+                      { value: "Reversed", label: "Reversed" },
+                    ].map((option) => (
+                      <Select.Item key={option.value} value={option.value} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                        <Select.ItemText>{option.label}</Select.ItemText>
+                        <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                      </Select.Item>
+                    ))}
+                  </Select.Viewport>
+                </Select.Content>
+              </Select.Portal>
+            </Select.Root>
+            <RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
+          </div>
+        )}
+      />
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? (
         <EmptyState icon={WalletCards} title="No share capital payments found" description="Share capital payments will appear here once recorded." />
@@ -408,15 +457,28 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
               {/* Payment method */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Paid through <span className="text-red-500">*</span></label>
-                <select
-                  value={form.paymentChannel}
-                  onChange={e => setForm(f => ({ ...f, paymentChannel: e.target.value as typeof form.paymentChannel }))}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-[#123D2A] focus:ring-1 focus:ring-[#123D2A]"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Manual GCash">GCash checked manually</option>
-                  <option value="Bank Transfer">Bank transfer</option>
-                </select>
+                <Select.Root value={form.paymentChannel} onValueChange={(value) => setForm((current) => ({ ...current, paymentChannel: value as typeof current.paymentChannel }))}>
+                  <Select.Trigger aria-label="Paid through" className="mt-1 flex h-10 w-full items-center justify-between rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
+                    <Select.Value />
+                    <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                      <Select.Viewport>
+                        {[
+                          { value: "Cash", label: "Cash" },
+                          { value: "Manual GCash", label: "GCash checked manually" },
+                          { value: "Bank Transfer", label: "Bank transfer" },
+                        ].map((option) => (
+                          <Select.Item key={option.value} value={option.value} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                            <Select.ItemText>{option.label}</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                          </Select.Item>
+                        ))}
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
               </div>
 
               {/* Reference */}
@@ -471,7 +533,11 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   );
 }
 
-export function FinancialLedgerView() {
+export function FinancialLedgerView({
+  title = "Financial Ledger",
+}: {
+  title?: string;
+} = {}) {
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [summary, setSummary] = useState<FinancialSummary>(emptyFinancialSummary);
   const [search, setSearch] = useState("");
@@ -514,7 +580,7 @@ export function FinancialLedgerView() {
 
   return (
     <div className="grid gap-4">
-      <PageHeader eyebrow="Finance" title="Financial Ledger" description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
+      <PageHeader eyebrow="Finance" title={title} description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Income" value={money(summary.incomeTotal)} icon={Landmark} />
         <StatCard label="Expenses" value={money(summary.expenseTotal)} icon={ReceiptText} />

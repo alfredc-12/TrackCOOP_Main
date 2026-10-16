@@ -1,6 +1,6 @@
 "use client";
 
-import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { ApiClientError, apiPaginatedRequest, apiRequest } from "@/lib/api-client";
 import { env } from "@/config/env";
 
 export type ValidationStatus = "Pending" | "Validated" | "Rejected" | "Needs Clarification" | "Reversed";
@@ -19,6 +19,101 @@ export type PaymentReference = {
   validationSource: "Manual Bookkeeper" | "PayMongo Webhook" | "System" | null;
   validatedBy: string | null; validatedAt: string | null; rejectionReason: string | null;
   notes: string | null; submittedAt: string; updatedAt: string;
+};
+export type DividendDeclaration = {
+  id: string;
+  name: string;
+  coverageStart: string;
+  coverageEnd: string;
+  declaredAt: string | null;
+  availableAt: string | null;
+  totalDeclaredAmount: number;
+  calculationMethod: string;
+  netSurplus: number | null;
+  statutoryReserves: number | null;
+  interestAllocationRate: number | null;
+  totalAverageShareMonth: number | null;
+  interestRate: number | null;
+  status: "Draft" | "Approved" | "Published" | "Cancelled";
+  notes: string | null;
+  memberCount: number;
+  availableCount: number;
+  capitalizedCount: number;
+  withdrawalRequestedCount: number;
+  capitalizationRequestedCount: number;
+  withdrawnCount: number;
+  createdAt: string;
+};
+export type DividendActionRequest = {
+  id: string;
+  declarationId: string;
+  declarationName: string;
+  memberId: string;
+  memberCode: string;
+  memberName: string;
+  coverageStart: string;
+  coverageEnd: string;
+  declaredAt: string | null;
+  distributionDate: string | null;
+  amount: number;
+  status: "Withdrawal Requested" | "Capitalization Requested" | "Withdrawn" | "Added to Share Capital";
+  decision: "Withdraw" | "Add to Share Capital";
+  withdrawalMethod: "Cash" | "Online Transfer" | null;
+  withdrawalProvider: string | null;
+  withdrawalAccountName: string | null;
+  withdrawalAccountNumber: string | null;
+  withdrawalQrCode: string | null;
+  withdrawalReceipt: string | null;
+  withdrawalReceiptName: string | null;
+  decidedAt: string | null;
+  processedAt: string | null;
+  capitalTransactionId: null;
+  withdrawalReference: string | null;
+  createdAt: string;
+};
+export type DividendWithdrawalRequest = DividendActionRequest;
+export type DividendAllocationPreview = {
+  memberId: string;
+  memberCode: string;
+  memberName: string;
+  membershipType: "Associate" | "True Member";
+  totalShareMonths: number;
+  averageShareMonth: number;
+  dividendAmount: number;
+};
+export type DividendDeclarationPreview = {
+  calculationMethod: string;
+  netSurplus: number;
+  statutoryReserves: number;
+  distributableSurplus: number;
+  interestAllocationRate: number;
+  totalAverageShareMonth: number;
+  interestRate: number;
+  interestAllocationAmount: number;
+  qualifiedMemberCount: number;
+  dividendPool: number;
+  qualifiedMembers: DividendAllocationPreview[];
+};
+export type DividendFinancialBasis = {
+  coverageStart: string;
+  coverageEnd: string;
+  incomeTotal: number;
+  expenseTotal: number;
+  adjustmentTotal: number;
+  netSurplus: number;
+  postedRecordCount: number;
+  unpostedRecordCount: number;
+};
+export type DividendDeclarationMember = {
+  memberId: string;
+  memberCode: string;
+  memberName: string;
+  membershipType: "Associate" | "True Member";
+  totalShareMonths: number;
+  averageShareMonth: number;
+  dividendAmount: number;
+  status: "Pending" | "Available" | "Withdrawal Requested" | "Capitalization Requested" | "Withdrawn" | "Added to Share Capital" | "Cancelled" | "Reversed";
+  decision: "Withdraw" | "Add to Share Capital" | null;
 };
 export type PaymentReferenceListItem = PaymentReference & {
   memberCode: string | null; memberName: string | null;
@@ -99,6 +194,48 @@ export type GatewayRetryResult = {
 };
 export type ShareCapitalPayment = { id: string; memberCode: string; memberName: string; amount: number; paymentDate: string; paymentStatus: "Pending" | "Validated" | "Rejected" | "Reversed"; paymentChannel?: string | null; referenceNumber?: string | null };
 export type ShareCapitalSummary = { validatedTotal: number; pendingTotal: number; validatedPayments: number; membersWithValidatedCapital: number; initialRequirement: number; fullRequirement: number; maximumAllowed: number };
+export type ShareCapitalAccount = {
+  accountId: string;
+  memberId: string;
+  memberCode: string;
+  memberName: string;
+  membershipType: "Associate" | "True Member";
+  initialCapital: number;
+  additionalContributions: number;
+  dividendsAdded: number;
+  totalDeductions: number;
+  currentBalance: number;
+  transactionCount: number;
+  reconciled: boolean;
+  updatedAt: string;
+};
+export type ShareCapitalLedgerTransaction = {
+  id: string;
+  memberId: string;
+  memberCode: string;
+  memberName: string;
+  membershipType: "Associate" | "True Member";
+  transactionDate: string;
+  transactionType: "Initial Share Capital" | "Additional Capital Contribution" | "Dividend Added to Share Capital" | "Capital Adjustment Credit" | "Capital Adjustment Debit" | "Reversal";
+  direction: "Credit" | "Debit";
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  referenceNumber: string;
+  sourceType: string;
+  sourceId: string;
+  status: "Posted" | "Reversed";
+  remarks: string | null;
+  createdAt: string;
+};
+export type ShareCapitalLedgerFilters = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  memberId?: string;
+  direction?: "Credit" | "Debit";
+  status?: "Posted" | "Reversed";
+};
 export type CreatePaymentReferenceInput = {
   memberId?: string | null;
   payerName?: string | null;
@@ -176,8 +313,37 @@ export const getPaymongoPaymentStatus = (id: string) => apiRequest<PaymongoPayme
 export const retryGatewaySettlement = (eventId: string, note: string) => apiRequest<GatewayRetryResult>(`/api/payment-gateway-events/${eventId}/retry`, { method: "POST", body: JSON.stringify({ note }) });
 export const retryPaymentReceipt = (id: string) => apiRequest<PaymentReceipt>(`/api/payment-references/${id}/receipt/retry`, { method: "POST", body: JSON.stringify({}) });
 export const paymentReferenceProofUrl = (id: string) => `${env.apiUrl}/api/payment-references/${id}/proof`;
-export function listShareCapital(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<ShareCapitalPayment[]>(`/api/share-capital?${params}`); }
+export function listShareCapital(search?: string, paymentStatus?: ShareCapitalPayment["paymentStatus"]) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); if (paymentStatus) params.set("paymentStatus", paymentStatus); return apiRequest<ShareCapitalPayment[]>(`/api/share-capital?${params}`); }
 export const getShareCapitalSummary = () => apiRequest<ShareCapitalSummary>("/api/share-capital/summary");
+export function listShareCapitalAccounts(search?: string, page = 1, pageSize = 25) {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search?.trim()) params.set("search", search.trim());
+  return apiPaginatedRequest<ShareCapitalAccount[]>(`/api/share-capital/accounts?${params}`);
+}
+export function listShareCapitalLedgerTransactions(filters: ShareCapitalLedgerFilters = {}) {
+  const params = new URLSearchParams({ page: String(filters.page ?? 1), pageSize: String(filters.pageSize ?? 25) });
+  if (filters.search?.trim()) params.set("search", filters.search.trim());
+  if (filters.memberId) params.set("memberId", filters.memberId);
+  if (filters.direction) params.set("direction", filters.direction);
+  if (filters.status) params.set("status", filters.status);
+  return apiPaginatedRequest<ShareCapitalLedgerTransaction[]>(`/api/share-capital/transactions?${params}`);
+}
+export const listDividendDeclarations = () => apiRequest<DividendDeclaration[]>("/api/dividends/declarations");
+export const getDividendFinancialBasis = (coverageStart: string, coverageEnd: string) => {
+  const query = new URLSearchParams({ coverageStart, coverageEnd });
+  return apiRequest<DividendFinancialBasis>(`/api/dividends/financial-basis?${query}`);
+};
+export const previewDividendDeclaration = (input: { coverageStart: string; coverageEnd: string; netSurplus: number; statutoryReserves: number; interestAllocationRate: number }) => apiRequest<DividendDeclarationPreview>("/api/dividends/declarations/preview", { method: "POST", body: JSON.stringify(input) });
+export const listDividendDeclarationMembers = (declarationId: string) => apiRequest<DividendDeclarationMember[]>(`/api/dividends/declarations/${encodeURIComponent(declarationId)}/members`);
+export const createDividendDeclaration = (input: { name: string; coverageStart: string; coverageEnd: string; availableAt: string; netSurplus: number; statutoryReserves: number; interestAllocationRate: number; notes?: string | null }) => apiRequest<DividendDeclaration>("/api/dividends/declarations", { method: "POST", body: JSON.stringify(input) });
+export const approveDividendDeclaration = (id: string) => apiRequest<DividendDeclaration>(`/api/dividends/declarations/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({}) });
+export const rejectDividendDeclaration = (id: string) => apiRequest<DividendDeclaration>(`/api/dividends/declarations/${encodeURIComponent(id)}/reject`, { method: "POST", body: JSON.stringify({}) });
+export const publishDividendDeclaration = (id: string) => apiRequest<DividendDeclaration>(`/api/dividends/declarations/${encodeURIComponent(id)}/publish`, { method: "POST", body: JSON.stringify({}) });
+export const listDividendActionRequests = () => apiRequest<DividendActionRequest[]>("/api/dividends/withdrawals");
+export const listDividendActionHistory = () => apiRequest<DividendActionRequest[]>("/api/dividends/withdrawals/history");
+export const completeDividendAction = (id: string, input: { referenceNumber?: string; notes?: string | null; withdrawalReceipt?: string | null; withdrawalReceiptName?: string | null }) => apiRequest(`/api/dividends/withdrawals/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify(input) });
+export const listDividendWithdrawalRequests = listDividendActionRequests;
+export const completeDividendWithdrawal = completeDividendAction;
 export const listFinancialCategories = () => apiRequest<FinancialCategory[]>("/api/financial-categories");
 export function listFinancialRecords(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<FinancialRecord[]>(`/api/financial-records?${params}`); }
 export const getFinancialSummary = () => apiRequest<FinancialSummary>("/api/financial-records/summary");

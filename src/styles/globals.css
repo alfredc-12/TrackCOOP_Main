@@ -84,6 +84,169 @@ select:disabled {
   background: transparent !important;
 }
 
+/* Give the New dividend declaration workflow enough width for a landscape layout. */
+div[role="dialog"].max-w-3xl {
+  max-width: 72rem;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+/* Keep the publish confirmation compact; the wide layout is only for creation. */
+div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-4 > p.text-sm.leading-6) {
+  max-width: 36rem;
+  padding: 1rem;
+}
+
+div[role="dialog"].max-w-3xl::-webkit-scrollbar {
+  display: none;
+}
+
+div[role="dialog"].max-w-3xl {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+div[role="dialog"].max-w-3xl > .mt-5.space-y-5 {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+div[role="dialog"].max-w-3xl > .mt-5.space-y-5::-webkit-scrollbar {
+  display: none;
+}
+
+div[role="dialog"].max-w-3xl > .mt-7.flex {
+  flex: 0 0 auto;
+  min-height: 4.5rem;
+  align-items: center;
+  margin-top: 1rem;
+  padding-bottom: 0.25rem;
+  background: #ffffff;
+}
+
+div[role="dialog"].max-w-3xl > .mt-7.flex > button {
+  display: inline-flex;
+  min-width: 7rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+div[role="dialog"].max-w-3xl > .mt-7.flex > button:last-child {
+  min-width: 9.5rem;
+}
+
+@media (min-width: 64rem) {
+  /* Keep the creation workflow in a true two-column landscape layout. */
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(24rem, 0.95fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > * {
+    margin: 0;
+  }
+
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > .grid:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    gap: 0.875rem;
+  }
+
+  /* Keep Notes beside the lower calculation inputs instead of creating a full-width row. */
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > .grid:first-child > label:last-child {
+    grid-column: 2;
+    grid-row: 4 / span 2;
+    display: flex;
+    flex-direction: column;
+  }
+
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > .grid:first-child > label:last-child textarea {
+    flex: 1;
+    min-height: 8rem;
+  }
+
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > .mb-4.rounded-xl {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > [aria-live="polite"] {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  div[role="dialog"].max-w-3xl > .mt-5.space-y-5 > [aria-live="polite"] > p.mt-4 {
+    margin-top: auto;
+  }
+
+}
+
+/* Keep the inline Dividend member allocation table balanced inside the wide modal. */
+.dividend-members-panel table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.dividend-members-panel th,
+.dividend-members-panel td {
+  vertical-align: middle;
+}
+
+.dividend-members-panel th:nth-child(1),
+.dividend-members-panel td:nth-child(1) {
+  width: 30%;
+}
+
+.dividend-members-panel th:nth-child(2),
+.dividend-members-panel td:nth-child(2) {
+  width: 16%;
+}
+
+.dividend-members-panel th:nth-child(3),
+.dividend-members-panel td:nth-child(3) {
+  width: 20%;
+}
+
+.dividend-members-panel th:nth-child(4),
+.dividend-members-panel td:nth-child(4) {
+  width: 13%;
+}
+
+.dividend-members-panel th:nth-child(5),
+.dividend-members-panel td:nth-child(5) {
+  width: 12%;
+}
+
+.dividend-members-panel th:nth-child(6),
+.dividend-members-panel td:nth-child(6) {
+  width: 9%;
+}
+
+.dividend-members-panel .overscroll-contain {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
+}
+
+.dividend-members-panel tbody tr {
+  transition: background-color 150ms ease;
+}
+
+.dividend-members-panel tbody tr:hover {
+  background: #f7faf5;
+}
+
 ::selection {
   background: #dfe8c2;
   color: #17211c;
@@ -144,4 +307,92 @@ select:disabled {
 
 [data-sonner-toaster] {
   z-index: 99999 !important;
+}
+
+@media (min-width: 768px) {
+  .dividend-action-modal > .flex.items-start.justify-between.gap-4 {
+    gap: 8px;
+  }
+
+  .dividend-action-modal > .flex.items-start.justify-between.gap-4 h3 {
+    font-size: 18px;
+    line-height: 24px;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.9fr);
+    grid-template-areas:
+      "summary summary summary"
+      "details reference receipt"
+      "details notes notes";
+    gap: 12px;
+    align-items: start;
+    margin-top: 12px;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-block-start: 0;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > :first-child {
+    grid-area: summary;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > :first-child > p:first-child {
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > :first-child > p:nth-child(2) {
+    margin-top: 0;
+    font-size: 22px;
+    line-height: 28px;
+    white-space: nowrap;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > :nth-child(2) {
+    grid-area: details;
+    padding: 12px;
+    height: 100%;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > label:first-of-type {
+    grid-area: reference;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > label:nth-of-type(2) {
+    grid-area: receipt;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > label:last-of-type {
+    grid-area: notes;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 > label {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 input {
+    height: 40px;
+  }
+
+  .dividend-action-modal > .mt-5.space-y-4 textarea {
+    min-height: 64px;
+  }
+
+  .dividend-action-modal > .mt-7.flex {
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  .dividend-action-modal > .mt-7.flex button {
+    padding: 8px 12px;
+  }
 }

@@ -674,7 +674,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
 
     async summary() {
       const [rows] = await databasePool().execute<SummaryRow[]>(
-        `SELECT COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Income' THEN amount ELSE 0 END), 0) AS incomeTotal,
+        `SELECT COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Income' AND source_module <> 'Share Capital' THEN amount ELSE 0 END), 0) AS incomeTotal,
                 COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Expense' THEN amount ELSE 0 END), 0) AS expenseTotal,
                 COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Adjustment' THEN amount ELSE 0 END), 0) AS adjustmentTotal,
                 SUM(record_status = 'Active') AS activeRecords,
@@ -689,7 +689,9 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         incomeTotal,
         expenseTotal,
         adjustmentTotal,
-        netTotal: incomeTotal - expenseTotal + adjustmentTotal,
+        // Adjustments are tracked separately for audit visibility. Net total
+        // is the operating surplus: posted income less posted expenses.
+        netTotal: incomeTotal - expenseTotal,
         activeRecords: Number(row?.activeRecords ?? 0),
         voidedRecords: Number(row?.voidedRecords ?? 0),
       };
@@ -698,7 +700,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     async trends() {
       const [rows] = await databasePool().execute<TrendRow[]>(
         `SELECT DATE_FORMAT(record_date, '%Y-%m') AS month,
-                COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Income' THEN amount ELSE 0 END), 0) AS incomeTotal,
+                COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Income' AND source_module <> 'Share Capital' THEN amount ELSE 0 END), 0) AS incomeTotal,
                 COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Expense' THEN amount ELSE 0 END), 0) AS expenseTotal
            FROM financial_records
           WHERE record_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)

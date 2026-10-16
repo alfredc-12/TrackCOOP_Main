@@ -109,6 +109,13 @@ class PostingConnection {
     }
     if (sql.includes("FROM system_settings")) return [[{ value: "15000" }] as T, null];
     if (sql.includes("FROM share_capital_payments") && sql.includes("SUM")) return [[{ total: 0 }] as T, null];
+    if (sql.includes("FROM share_capital_payments") && sql.includes("share_payment_id")) return [[{ id: "1" }] as T, null];
+    if (sql.includes("FROM share_capital_transactions") && sql.includes("source_type")) return [[] as T, null];
+    if (sql.includes("FROM share_capital_accounts")) return [[{
+      accountId: "1", initialCapital: 0, currentBalance: 0,
+      additionalContributions: 0, dividendsAdded: 0, totalDeductions: 0,
+      updatedAt: new Date("2026-07-18T00:00:00.000Z"),
+    }] as T, null];
     if (sql.includes("FROM financial_categories")) return [[{ id: "4" }] as T, null];
     return [{ affectedRows: 1, insertId: 1 } as T, null];
   }

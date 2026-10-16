@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { DashboardClient } from "../dashboard/DashboardClient";
 
 export default function ChairmanFinancialDashboardPage() {
-  redirect("/portal/chairman/finance");
+  return <DashboardClient mode="financial" />;
 }

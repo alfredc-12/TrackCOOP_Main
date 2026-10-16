@@ -1,4 +1,4 @@
-import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
@@ -14,10 +14,21 @@ import type {
   ShareCapitalSummary,
   UpdateShareCapitalInput,
 } from "./share-capital.types";
-
-export const INITIAL_SHARE_CAPITAL = 3_000;
-export const FULL_SHARE_CAPITAL = 3_000;
-export const MAX_SHARE_CAPITAL = 15_000;
+import {
+  FULL_SHARE_CAPITAL,
+  INITIAL_SHARE_CAPITAL,
+  MAX_SHARE_CAPITAL,
+} from "./share-capital.constants";
+export {
+  FULL_SHARE_CAPITAL,
+  INITIAL_SHARE_CAPITAL,
+  MAX_SHARE_CAPITAL,
+} from "./share-capital.constants";
+import {
+  postShareCapitalPaymentToLedger,
+  reverseShareCapitalPaymentInLedger,
+} from "./share-capital-ledger.repository";
+import { assertShareCapitalPaymentUpdateAllowed } from "./share-capital.rules";
 
 type ShareRow = RowDataPacket & {
   id: string;
@@ -84,6 +95,18 @@ function shareSelect() {
 
 function mapShare(row: ShareRow): ShareCapitalPayment {
   return { ...row, amount: Number(row.amount) };
+}
+
+async function findSharePayment(
+  executor: Pool | PoolConnection,
+  paymentId: string,
+  forUpdate = false,
+) {
+  const [rows] = await executor.execute<ShareRow[]>(
+    `${shareSelect()} WHERE s.share_payment_id = ? LIMIT 1${forUpdate ? " FOR UPDATE" : ""}`,
+    [paymentId],
+  );
+  return rows[0] ? mapShare(rows[0]) : null;
 }
 
 function dateOrNull(value: string | null | undefined) {
@@ -172,11 +195,7 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
     },
 
     async findById(paymentId) {
-      const [rows] = await databasePool().execute<ShareRow[]>(
-        `${shareSelect()} WHERE s.share_payment_id = ? LIMIT 1`,
-        [paymentId],
-      );
-      return rows[0] ? mapShare(rows[0]) : null;
+      return findSharePayment(databasePool(), paymentId);
     },
 
     async create(input, auth) {
@@ -198,30 +217,61 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
           ],
         );
         const sharePaymentId = String(result.insertId);
+        if ((input.paymentStatus ?? "Pending") === "Validated") {
+          await postShareCapitalPaymentToLedger({
+            connection,
+            memberId: input.memberId,
+            sharePaymentId,
+            amount: input.amount,
+            transactionDate: input.paymentDate,
+            referenceNumber: `SC-PAY-${sharePaymentId}`,
+            createdBy: auth.user.id,
+            remarks: input.remarks,
+          });
+        }
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'share_capital.created', 'share_capital_payments', ?, 'A share capital payment was created.', ?)`,
           [auth.user.id, sharePaymentId, JSON.stringify(input)],
         );
-
-        const [rows] = await connection.execute<ShareRow[]>(
-          `${shareSelect()} WHERE s.share_payment_id = ? LIMIT 1`,
-          [sharePaymentId],
-        );
-        return mapShare(rows[0]);
+        const created = await findSharePayment(connection, sharePaymentId);
+        if (!created) throw new AppError("Share capital payment was not found", 500, "SHARE_CAPITAL_CREATE_NOT_FOUND");
+        return created;
       }, databasePool());
     },
 
     async update(paymentId, input, auth) {
       return withTransaction(async (connection) => {
-        const existing = await this.findById(paymentId);
+        const existing = await findSharePayment(connection, paymentId, true);
         if (!existing) throw new AppError("Share capital payment was not found", 404, "SHARE_CAPITAL_NOT_FOUND");
         if (existing.paymentStatus === "Reversed") {
           throw new AppError("Reversed share capital payments cannot be edited", 409, "SHARE_CAPITAL_LOCKED");
         }
+        assertShareCapitalPaymentUpdateAllowed(existing.paymentStatus, input);
 
         const nextStatus = input.paymentStatus ?? existing.paymentStatus;
+        const nextMemberId = input.memberId ?? existing.memberId;
+        const nextAmount = input.amount ?? existing.amount;
+        const nextPaymentDate = input.paymentDate ?? new Date(existing.paymentDate).toISOString().slice(0, 10);
+
+        if (existing.paymentStatus !== "Validated" && nextStatus === "Validated") {
+          await connection.execute(
+            `SELECT member_id
+               FROM member_profiles
+              WHERE member_id = ?
+              LIMIT 1 FOR UPDATE`,
+            [nextMemberId],
+          );
+          const currentTotal = await getValidatedTotal(connection, nextMemberId, paymentId);
+          if (currentTotal + nextAmount > MAX_SHARE_CAPITAL) {
+            throw new AppError(
+              "Validated share capital cannot exceed PHP 15,000",
+              409,
+              "SHARE_CAPITAL_LIMIT_EXCEEDED",
+            );
+          }
+        }
         await connection.execute(
           `UPDATE share_capital_payments
               SET member_id = COALESCE(?, member_id),
@@ -256,8 +306,30 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
            VALUES (?, 'share_capital.updated', 'share_capital_payments', ?, 'A share capital payment was updated.', ?)`,
           [auth.user.id, paymentId, JSON.stringify(input)],
         );
+        if (existing.paymentStatus !== "Validated" && nextStatus === "Validated") {
+          await postShareCapitalPaymentToLedger({
+            connection,
+            memberId: nextMemberId,
+            sharePaymentId: paymentId,
+            amount: nextAmount,
+            transactionDate: nextPaymentDate,
+            referenceNumber: existing.referenceNumber ?? `SC-PAY-${paymentId}`,
+            createdBy: auth.user.id,
+            remarks: input.remarks ?? existing.remarks,
+          });
+        }
+        if (existing.paymentStatus === "Validated" && nextStatus === "Reversed") {
+          await reverseShareCapitalPaymentInLedger({
+            connection,
+            memberId: existing.memberId,
+            sharePaymentId: paymentId,
+            transactionDate: new Date().toISOString().slice(0, 10),
+            createdBy: auth.user.id,
+            reason: input.remarks ?? existing.remarks,
+          });
+        }
 
-        const updated = await this.findById(paymentId);
+        const updated = await findSharePayment(connection, paymentId);
         if (!updated) throw new AppError("Share capital payment was not found", 404, "SHARE_CAPITAL_NOT_FOUND");
         return updated;
       }, databasePool());
