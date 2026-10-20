@@ -124,12 +124,12 @@ export function createShareCapitalController(service: ShareCapitalService) {
     memberDividends: asyncHandler(async (request, response) => {
       return sendSuccess(response, await service.memberDividends(requireAuth(request.auth).user.id));
     }),
-    requestDividendCapitalization: asyncHandler(async (request, response) => {
-      const result = await service.requestDividendCapitalization(
+    addDividendToShareCapital: asyncHandler(async (request, response) => {
+      const result = await service.addDividendToShareCapital(
         requireAuth(request.auth).user.id,
         requireParam(request.params.id, "id"),
       );
-      return sendSuccess(response, result, { message: "Share Capital addition requested" });
+      return sendSuccess(response, result, { message: "Dividend added to Share Capital" });
     }),
     requestDividendWithdrawal: asyncHandler(async (request, response) => {
       const input = parseBody(requestDividendWithdrawalSchema, request.body);

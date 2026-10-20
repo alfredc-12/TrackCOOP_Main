@@ -33,7 +33,7 @@ export interface ShareCapitalService {
   memberTransactions(userId: string, query: MemberShareCapitalTransactionsQuery): ReturnType<ShareCapitalLedgerRepository["memberTransactions"]>;
   memberGrowth(userId: string): ReturnType<ShareCapitalLedgerRepository["memberGrowth"]>;
   memberDividends(userId: string): ReturnType<ShareCapitalLedgerRepository["memberDividends"]>;
-  requestDividendCapitalization(userId: string, dividendId: string): ReturnType<ShareCapitalLedgerRepository["requestDividendCapitalization"]>;
+  addDividendToShareCapital(userId: string, dividendId: string): ReturnType<ShareCapitalLedgerRepository["addDividendToShareCapital"]>;
   requestDividendWithdrawal(userId: string, dividendId: string, input?: DividendWithdrawalInput): ReturnType<ShareCapitalLedgerRepository["requestDividendWithdrawal"]>;
   dividendFinancialBasis(coverageStart: string, coverageEnd: string): ReturnType<ShareCapitalLedgerRepository["dividendFinancialBasis"]>;
   previewDividendDeclaration(input: Parameters<ShareCapitalLedgerRepository["previewDividendDeclaration"]>[0]): ReturnType<ShareCapitalLedgerRepository["previewDividendDeclaration"]>;
@@ -115,8 +115,8 @@ export function createShareCapitalService(
     memberDividends(userId) {
       return ledgerRepository.memberDividends(userId);
     },
-    requestDividendCapitalization(userId, dividendId) {
-      return ledgerRepository.requestDividendCapitalization(userId, dividendId);
+    addDividendToShareCapital(userId, dividendId) {
+      return ledgerRepository.addDividendToShareCapital(userId, dividendId);
     },
     requestDividendWithdrawal(userId, dividendId, input) {
       return ledgerRepository.requestDividendWithdrawal(userId, dividendId, input);

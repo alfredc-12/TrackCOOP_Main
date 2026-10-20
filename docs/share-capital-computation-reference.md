@@ -1,144 +1,155 @@
-# TrackCOOP Share Capital Computation Reference
+# TrackCOOP Annual Interest on Share Capital Computation Reference
 
-Prepared for internal reference: October 16, 2026
+Prepared for internal reference: October 20, 2026
 
-This reference describes the computation currently implemented in TrackCOOP for
-Interest on Share Capital. It is CDA-aligned, but the cooperative's by-laws,
-approved accounting policy, and required Board/General Assembly approvals must
-control the final production rules.
+This document describes the computation and account behavior currently
+implemented in TrackCOOP for the annual Interest on Share Capital workflow.
+The member-facing and staff-facing UI uses **Annual Interest on Share Capital**
+instead of Dividend. Some internal API, database, and legacy type names still
+use `Dividend*` identifiers for compatibility.
 
-## 1. Governing formula
+The cooperative's by-laws, approved accounting policy, and required Board or
+General Assembly approvals control the final production rules. This document
+is a system reference and does not replace CDA confirmation or professional
+accounting advice.
 
-The CDA-style formula is:
+## 1. Scope and governance
+
+TrackCOOP treats an Annual Interest on Share Capital declaration as a complete
+12-month fiscal-year calculation.
+
+- The default coverage period is January 1 through December 31.
+- A different 12-month fiscal year may be used when it is supported by the
+  cooperative's approved by-laws or policy, such as July 1 through June 30.
+- The server rejects partial periods and periods that are not exactly one full
+  fiscal year.
+- The distribution date is recorded separately from the coverage dates.
+- The final reserve rate, allocation rate, and distribution decision must be
+  supported by the cooperative's approved governance process.
+
+## 2. Declaration inputs
+
+The new-declaration form follows these rules:
+
+| Input | Current behavior |
+| --- | --- |
+| Declaration name | Required. Use a clear annual Interest on Share Capital title. |
+| Coverage start and end | Required. Must cover one complete 12-month fiscal year. |
+| Distribution date | Required before the declaration can be created. |
+| Net surplus | Automatically calculated from posted financial records for the selected dates. |
+| Statutory reserves (%) | Editable from 0% to 100%. The UI suggests 10% as a starting point. |
+| Interest on Share Capital allocation (%) | Editable from 0% to 70%. The UI suggests 70% as a starting point. |
+| Notes | Optional policy or approval notes. |
+
+The 10% and 70% values are editable suggestions, not automatic legal defaults.
+The reserve rate must follow the cooperative's applicable rules and approved
+policy. The 70% value is the current TrackCOOP product limit; it should not be
+treated as a universal CDA-prescribed allocation rate.
+
+## 3. Governing computation
+
+Let `R` be the approved statutory-reserve rate and `X` be the approved share
+capital allocation rate.
 
 ```text
-Rate of Interest
-= X × (Net Surplus - Statutory Reserves)
-  ÷ Total Average Share Month
-```
+Net Surplus
+= Posted Income - Posted Expenses
 
-Where `X` is the approved percentage of the distributable surplus allocated to
-Interest on Share Capital.
+Statutory Reserves
+= Net Surplus x (R / 100)
 
-Official references:
-
-- [CDA Revised Implementing Rules and Regulations](https://cda.gov.ph/wp-content/uploads/2021/01/Revised_IRR_updated.pdf)
-- [CDA Allocation and Distribution of Net Surplus](https://cda.gov.ph/wp-content/uploads/2021/01/Allocation_-_-Distribution_-of_-Net_-Surplus.pdf)
-- [CDA MC 2019-09 Patronage Refund Guidelines](https://cda.gov.ph/wp-content/uploads/2021/01/MC-2019-09-Patronage-Refund.pdf)
-
-TrackCOOP implements the same calculation in pool form:
-
-```text
 Distributable Surplus
 = Net Surplus - Statutory Reserves
 
 Interest on Share Capital Pool
-= Distributable Surplus × Interest Allocation Rate
+= Distributable Surplus x (X / 100)
 
 Rate per Peso of Average Share Month
-= Interest on Share Capital Pool
-  ÷ Total Average Share Month
+= Interest on Share Capital Pool / Total Average Share Month
 
 Member Interest
-= Member Average Share Month × Rate per Peso
+= Member Average Share Month x Rate per Peso
 ```
 
-The current validator limits the Interest on Share Capital allocation rate to
-70%, leaving at least 30% of the distributable surplus available for patronage
-refund and other approved allocations. The separate CDA rule on the relationship
-between the patronage-refund rate and the Interest on Share Capital rate must
-also be checked before final approval.
+The current validator limits `X` to 70%. This leaves at least 30% of the
+distributable surplus for patronage refund and other approved allocations. The
+remaining amount is not automatically a final patronage-refund amount; it
+still depends on the cooperative's approved allocation and distribution policy.
 
-## 2. Computation sequence
+Only members with a positive Average Share Month are qualified for an
+allocation. If the total Average Share Month is zero, the system cannot
+allocate an Interest on Share Capital pool.
 
-### Step 1 — Determine the coverage period
+All monetary results are rounded to centavos. A final centavo adjustment makes
+the sum of member allocations exactly equal to the approved Interest on Share
+Capital pool.
 
-Example:
+## 4. Financial basis for net surplus
 
-```text
-Coverage start: January 1, 2026
-Coverage end:   December 31, 2026
-Number of months: 12
-```
+TrackCOOP calculates the net surplus from financial records that are:
 
-### Step 2 — Compute net surplus
+- posted and approved;
+- active;
+- dated within the declaration coverage period; and
+- included in the applicable financial record type.
 
-TrackCOOP uses active, approved financial records within the coverage period.
-Share Capital is excluded from operating income.
+The current basis is:
 
-```text
-Posted operating income                 PHP 1,200,000.00
-Less: posted operating expenses         PHP   700,000.00
-                                             ----------------
-Net Surplus                              PHP   500,000.00
-```
-
-Formula:
+- `Income` records are included, except records whose source module is
+  `Share Capital`;
+- `Expense` records are included as posted expenses;
+- unposted records are excluded; and
+- adjustments may be shown as audit context but are not added to the net
+  surplus calculation unless the approved accounting policy treats them as
+  income or expense records.
 
 ```text
 Net Surplus = Posted Income - Posted Expenses
 ```
 
-### Step 3 — Compute statutory reserves
-
-For this example, assume the approved statutory-reserve rate is 20%:
+Example:
 
 ```text
-Statutory Reserves
-= PHP 500,000.00 × 20%
-= PHP 100,000.00
+Posted operating income       PHP 1,200,000.00
+Less: posted expenses         PHP   700,000.00
+                              ----------------
+Net Surplus                   PHP   500,000.00
 ```
 
-### Step 4 — Compute distributable surplus
+## 5. Annual coverage and Average Share Month
+
+The calculation produces twelve monthly balances for each member. Ledger
+transactions are applied in date order using the current TrackCOOP convention:
+
+- credit transactions increase the share capital balance;
+- debit transactions decrease the share capital balance;
+- transactions dated on or before the 7th count in the current month;
+- transactions dated after the 7th count beginning in the next month;
+- transactions before the coverage period contribute to the opening balance
+  when they are part of the member's ledger history; and
+- monthly balances cannot go below zero.
+
+The day-7 cutoff is a system convention and must match the cooperative's
+approved by-laws or policy before production use.
 
 ```text
-Distributable Surplus
-= PHP 500,000.00 - PHP 100,000.00
-= PHP 400,000.00
+Average Share Month
+= Sum of the twelve monthly balances / 12
 ```
-
-### Step 5 — Compute the Interest on Share Capital pool
-
-Assume the approved Interest on Share Capital allocation rate is 50%:
-
-```text
-Interest Pool
-= PHP 400,000.00 × 50%
-= PHP 200,000.00
-```
-
-The remaining 50% of the distributable surplus is PHP 200,000.00. This is not
-automatically a final patronage-refund amount; it remains subject to the
-cooperative's approved allocation and distribution policy.
-
-## 3. Average Share-Month computation
-
-The current TrackCOOP implementation applies this project convention when
-turning ledger transactions into monthly balances:
-
-- Credit transactions increase the balance.
-- Debit transactions decrease the balance.
-- Transactions dated on or before the 7th count in the current month.
-- Transactions dated after the 7th count beginning in the next month.
-
-The day-7 cutoff is an implementation convention and must be confirmed against
-the cooperative's by-laws or approved policy before production use.
 
 ### Member A
 
 ```text
-January 5:  credit PHP 10,000.00  -> effective January
-June 10:    credit PHP  5,000.00  -> effective July
+January 5: credit PHP 10,000.00  -> effective January
+June 10:   credit PHP  5,000.00  -> effective July
 ```
 
-Monthly balances:
-
 ```text
-January–June:   PHP 10,000.00 × 6 months = PHP  60,000.00
-July–December:  PHP 15,000.00 × 6 months = PHP  90,000.00
-                                                -----------
+January-June:   PHP 10,000.00 x 6 months = PHP  60,000.00
+July-December:  PHP 15,000.00 x 6 months = PHP  90,000.00
+                                             -----------
 Total Share-Months:                         PHP 150,000.00
-Average Share-Month: PHP 150,000.00 ÷ 12 = PHP 12,500.00
+Average Share Month: PHP 150,000.00 / 12 = PHP 12,500.00
 ```
 
 ### Member B
@@ -148,30 +159,28 @@ March 7: credit PHP 8,000.00 -> effective March
 ```
 
 ```text
-January–February: PHP 0.00     × 2 months = PHP      0.00
-March–December:   PHP 8,000.00  × 10 months = PHP 80,000.00
-                                                 -----------
-Total Share-Months:                         PHP 80,000.00
-Average Share-Month: PHP 80,000.00 ÷ 12 = PHP 6,666.67
+January-February: PHP 0.00      x 2 months = PHP      0.00
+March-December:   PHP 8,000.00  x 10 months = PHP 80,000.00
+                                                  -----------
+Total Share-Months:                          PHP 80,000.00
+Average Share Month: PHP 80,000.00 / 12 = PHP 6,666.67
 ```
 
 ### Member C
 
 ```text
 February 8: credit PHP 12,000.00 -> effective March
-November 7: debit PHP 2,000.00   -> effective November
+November 7: debit  PHP  2,000.00 -> effective November
 ```
 
 ```text
-January–February: PHP 0.00      × 2 months = PHP      0.00
-March–October:    PHP 12,000.00 × 8 months = PHP 96,000.00
-November–December: PHP 10,000.00 × 2 months = PHP 20,000.00
-                                                  -----------
-Total Share-Months:                          PHP 116,000.00
-Average Share-Month: PHP 116,000.00 ÷ 12 = PHP 9,666.67
+January-February:    PHP 0.00      x 2 months = PHP      0.00
+March-October:       PHP 12,000.00 x 8 months = PHP 96,000.00
+November-December:   PHP 10,000.00 x 2 months = PHP 20,000.00
+                                                    -----------
+Total Share-Months:                            PHP 116,000.00
+Average Share Month: PHP 116,000.00 / 12 = PHP 9,666.67
 ```
-
-### Total Average Share-Month
 
 ```text
 Member A: PHP 12,500.00
@@ -181,30 +190,39 @@ Member C: PHP  9,666.67
 Total:    PHP 28,833.34
 ```
 
-## 4. Allocate the pool to members
+## 6. Worked annual example
 
-### Rate per peso
+Using the financial example above:
+
+```text
+Net Surplus                         PHP 500,000.00
+Suggested reserve rate                       10%
+Statutory Reserves                 PHP  50,000.00
+Distributable Surplus              PHP 450,000.00
+Suggested Interest allocation rate          70%
+Interest on Share Capital Pool     PHP 315,000.00
+Remaining distributable surplus     PHP 135,000.00
+```
+
+Using the three Average Share Month examples above:
 
 ```text
 Rate per Peso
-= PHP 200,000.00 ÷ PHP 28,833.34
-= PHP 6.9364146
+= PHP 315,000.00 / PHP 28,833.34
+= PHP 10.9248530
 ```
 
-### Member allocation
-
-| Member | Average Share-Month | Computation | Interest |
+| Member | Average Share Month | Computation | Interest |
 | --- | ---: | --- | ---: |
-| A | PHP 12,500.00 | 12,500.00 × 6.9364146 | PHP 86,705.18 |
-| B | PHP 6,666.67 | 6,666.67 × 6.9364146 | PHP 46,242.79 |
-| C | PHP 9,666.67 | 9,666.67 × 6.9364146 | PHP 67,052.03 |
-| **Total** | **PHP 28,833.34** |  | **PHP 200,000.00** |
+| A | PHP 12,500.00 | 12,500.00 x 10.9248530 | PHP 136,560.66 |
+| B | PHP 6,666.67 | 6,666.67 x 10.9248530 | PHP 72,832.39 |
+| C | PHP 9,666.67 | 9,666.67 x 10.9248530 | PHP 105,606.95 |
+| **Total** | **PHP 28,833.34** |  | **PHP 315,000.00** |
 
-All member amounts are rounded to centavos. Any remaining rounding difference
-is distributed by centavo adjustment so that the member total exactly equals the
-approved Interest on Share Capital pool.
+The actual member list and amounts come from the declaration's calculation at
+publish time. This table is only a reproducible example of the calculation.
 
-## 5. Effect on the member's Share Capital balance
+## 7. Effect on a member's Share Capital balance
 
 The member account summary uses:
 
@@ -216,41 +234,58 @@ Current Balance
   - Deductions
 ```
 
-Example for Member A if the full interest is added to Share Capital:
+When a member chooses **Add to Share Capital**, the member confirms the action
+and the approved Interest on Share Capital amount is posted immediately as a
+Share Capital credit. No additional Bookkeeper approval is required for this
+member action.
 
-```text
-Initial Capital:              PHP 10,000.00
-Additional Contributions:     PHP  5,000.00
-Interest Added to Capital:    PHP 86,705.18
-Less: Deductions:             PHP      0.00
-                                                   -----------
-New Current Balance:          PHP 101,705.18
-```
+When a member chooses **Withdraw**:
 
-If the member requests withdrawal instead, the withdrawal request does not add
-credit to Share Capital. The Bookkeeper's completed payout is recorded as a
-financial transaction under the Share Capital source module and the member's
-Share Capital balance remains unchanged. That classification keeps a payout
-from being counted as a future operating expense when the next ISC basis is
-computed.
+- the member selects cash or online transfer;
+- online transfer records the provider and account or mobile number;
+- cash uses a cash payout reference or OR number;
+- the payout receipt is optional; and
+- the Bookkeeper records the completed payout.
+
+A completed withdrawal does not add a Share Capital credit. It is recorded as
+a payout transaction under the Share Capital source module, so it does not
+silently become a future operating expense in the next Interest on Share
+Capital basis. The member's Share Capital balance is therefore not increased
+by the withdrawal.
+
+After either action, the member card shows the current available amount. A
+completed withdrawal or capital addition is shown in history with the
+declaration name and the corresponding negative or positive amount.
+
+## 8. Controls before publishing
+
+Before publishing an annual declaration, verify:
+
+1. Financial records are complete, posted, approved, active, and inside the
+   correct coverage dates.
+2. The coverage period is the cooperative's complete 12-month fiscal year.
+3. The reserve rate and Interest on Share Capital allocation rate are formally
+   approved.
+4. The day-7 effective-month convention matches the cooperative policy.
+5. The applicable reserve and patronage-refund requirements are satisfied.
+6. The total member allocation equals the approved Interest on Share Capital
+   pool.
+7. The member ledger and account summary reconcile.
+8. The declaration has the required Board or General Assembly approval before
+   release.
 
 Validated source payments are locked after posting. A correction must use the
 reversal workflow, which preserves the original transaction and adds a posted
-debit reversal with its own reference. This prevents a staff edit from
-silently changing the member's Average Share Month history.
+debit reversal with its own reference. This prevents an edit from silently
+changing a member's Average Share Month history.
 
-## 6. Important controls before using the result
+## 9. Official references
 
-Before publishing a declaration, verify:
+- [Republic Act No. 9520 - Philippine Cooperative Code of 2008, CDA](https://cda.gov.ph/issuances/republic-act-9520/)
+- [CDA Allocation and Distribution of Net Surplus](https://cda.gov.ph/wp-content/uploads/2021/01/Allocation_-_-Distribution_-of_-Net_-Surplus.pdf)
+- [CDA MC 2022-25 - Guidelines on the Allocation and Distribution of Net Surplus](https://cda.gov.ph/wp-content/uploads/2022/09/MC-2022-25-NPO..pdf)
+- [IRR of Republic Act No. 9520, Lawphil](https://lawphil.net/statutes/repacts/ra2010/irr_ra9520_2010.html)
 
-1. The financial records are complete, approved, active, and inside the correct dates.
-2. The reserve rate and Interest on Share Capital allocation rate were formally approved.
-3. The day-7 effective-month convention matches the cooperative policy.
-4. The minimum patronage-refund allocation is satisfied.
-5. The patronage-refund rate does not exceed twice the Interest on Share Capital rate.
-6. The total member allocation equals the approved pool.
-7. The ledger and account summary reconcile for every member.
-8. The declaration is approved through the cooperative's required governance process before release.
-
-This document is a system/computation reference, not a substitute for the
-cooperative's by-laws, CDA confirmation, or professional accounting advice.
+The official references should be checked together with the cooperative's
+current by-laws, approved financial policy, and any later CDA issuance before
+the declaration is finalized.

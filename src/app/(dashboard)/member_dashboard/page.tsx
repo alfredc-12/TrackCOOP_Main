@@ -71,8 +71,8 @@ import {
   type MemberPatronageSummary,
 } from "@/features/patronage/patronage-api";
 import {
+  addDividendToShareCapital,
   getMemberDividends,
-  requestDividendCapitalization,
   requestDividendWithdrawal,
 } from "@/features/member-share-capital/api";
 import type { DividendWithdrawalMethod, MemberDividend } from "@/features/member-share-capital/types";
@@ -277,6 +277,9 @@ export default function MemberDashboardPage() {
     .filter((dividend) => dividend.declarationStatus === "Published")
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
   const latestPublishedDividend = publishedDividends[0] ?? null;
+  const latestPublishedDividendAmount = Number(latestPublishedDividend?.amount ?? 0);
+  const latestPublishedDividendCompleted = latestPublishedDividend?.status === "Withdrawn" || latestPublishedDividend?.status === "Added to Share Capital";
+  const latestPublishedDividendBalance = latestPublishedDividendCompleted ? 0 : latestPublishedDividendAmount;
 
   function resetDividendAction() {
     setActionDividend(null);
@@ -320,13 +323,13 @@ export default function MemberDashboardPage() {
         });
         toast.success("Withdrawal request submitted.");
       } else {
-        await requestDividendCapitalization(actionDividend.id);
-        toast.success("Share Capital addition request submitted for Bookkeeper approval.");
+        await addDividendToShareCapital(actionDividend.id);
+        toast.success("Dividend added to Share Capital.");
       }
       resetDividendAction();
       await Promise.all([refreshMemberDividends({ silent: true }), refreshDashboard({ silent: true })]);
     } catch (error) {
-      setDividendActionError(error instanceof Error ? error.message : "Unable to process this dividend action.");
+      setDividendActionError(error instanceof Error ? error.message : "Unable to process this Annual Interest action.");
     } finally {
       setDividendActionBusy(false);
     }
@@ -756,7 +759,7 @@ export default function MemberDashboardPage() {
       </Modal>
 
       <Modal
-        title={dividendAction === "withdraw" ? "Request dividend withdrawal?" : "Add dividend to Share Capital?"}
+        title={dividendAction === "withdraw" ? "Request Annual Interest withdrawal?" : "Add Annual Interest to Share Capital?"}
         description={actionDividend ? `${formatPeso(actionDividend.amount)} from ${actionDividend.declarationName}` : undefined}
         open={Boolean(actionDividend && dividendAction)}
         onOpenChange={(open) => {
@@ -771,7 +774,7 @@ export default function MemberDashboardPage() {
         {dividendAction === "withdraw" ? (
           <div className="mt-4 space-y-4">
             <div className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-[#365F4A]">
-              Choose how you want to receive the dividend. The Bookkeeper will review the request and record the payout.
+              Choose how you want to receive the Annual Interest. The Bookkeeper will review the request and record the payout.
             </div>
             <fieldset>
               <legend className="text-sm font-bold text-[#294B39]">Payout method</legend>
@@ -832,7 +835,7 @@ export default function MemberDashboardPage() {
           </div>
         ) : (
           <div className="mt-4 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-[#365F4A]">
-            This amount will be added to your Share Capital balance after Bookkeeper approval.
+            This amount will be added immediately to your Share Capital balance. No Bookkeeper approval is required.
           </div>
         )}
         {dividendActionError ? (
@@ -849,10 +852,10 @@ export default function MemberDashboardPage() {
             resetDividendAction();
             }}
           >
-            Cancel
+            {dividendAction === "capital" ? "No, cancel" : "Cancel"}
           </Button>
           <Button type="button" variant="primary" loading={dividendActionBusy} disabled={dividendAction === "withdraw" && withdrawalMethod === "Online Transfer" && (!withdrawalProvider.trim() || !withdrawalAccountName.trim() || (!withdrawalAccountNumber.trim() && !withdrawalQrCode))} onClick={() => void executeDividendAction()}>
-            {dividendAction === "withdraw" ? "Confirm withdrawal" : "Add to capital"}
+            {dividendAction === "withdraw" ? "Confirm withdrawal" : "Yes, add to Share Capital"}
           </Button>
         </div>
       </Modal>
@@ -1141,65 +1144,84 @@ export default function MemberDashboardPage() {
                         <p className="text-sm font-medium text-[#6B7280]">Dividends Earned</p>
                         <PieChart className="h-5 w-5 text-amber-500" />
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <h3 className="text-2xl font-bold text-[#173626]">
-                          {isFetchingDividends ? "..." : formatPeso(latestPublishedDividend?.amount ?? 0)}
-                        </h3>
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                          dividendLoadError
-                            ? "bg-red-50 text-red-600"
-                            : latestPublishedDividend?.status === "Available"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : latestPublishedDividend?.status === "Withdrawal Requested" || latestPublishedDividend?.status === "Capitalization Requested"
-                                ? "bg-amber-50 text-amber-700"
-                                : latestPublishedDividend?.status === "Withdrawn" || latestPublishedDividend?.status === "Added to Share Capital"
-                                  ? "bg-blue-50 text-blue-700"
-                                  : "bg-slate-100 text-slate-500"
-                        }`}>
-                          {isFetchingDividends
-                            ? "Loading"
-                            : dividendLoadError
-                              ? "Unavailable"
-                              : latestPublishedDividend?.status ?? "No published dividend"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">
-                        {latestPublishedDividend?.declarationName ?? "Published dividend allocations will appear here."}
-                      </p>
-                      {latestPublishedDividend?.status === "Available" ? (
-                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                          <button
-                            type="button"
-                            onClick={() => openDividendAction(latestPublishedDividend, "withdraw")}
-                            disabled={dividendActionBusy}
-                            className="flex-1 rounded-lg border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#123D2A] transition hover:bg-[#F3F7F1] disabled:opacity-50"
-                          >
-                            Withdraw
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openDividendAction(latestPublishedDividend, "capital")}
-                            disabled={dividendActionBusy}
-                            className="flex-1 rounded-lg bg-[#123D2A] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-50"
-                          >
-                            Add to capital
-                          </button>
+                      {latestPublishedDividendCompleted ? (
+                        <div className="mt-3 flex min-h-[112px] flex-col justify-between gap-4">
+                          <h3 className="text-2xl font-bold text-[#173626]">
+                            {isFetchingDividends ? "..." : formatPeso(0)}
+                          </h3>
+                          <div className="flex items-end justify-between gap-3">
+                            <p className="max-w-[210px] text-[10px] font-semibold leading-3 text-[#6B7280]">
+                              {latestPublishedDividend?.declarationName}
+                            </p>
+                            <div className={`shrink-0 text-right ${latestPublishedDividend?.status === "Withdrawn" ? "text-red-600" : "text-emerald-700"}`}>
+                              <p className="text-[10px] font-bold uppercase tracking-wider">
+                                {latestPublishedDividend?.status === "Withdrawn"
+                                  ? latestPublishedDividend.withdrawalMethod ?? "Cash"
+                                  : "Share Capital"}
+                              </p>
+                              <p className="text-sm font-bold">
+                                {latestPublishedDividend?.status === "Withdrawn" ? "−" : "+"} {formatPeso(latestPublishedDividendAmount)}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                      ) : latestPublishedDividend ? (
-                        <p className="mt-4 text-xs font-semibold text-[#6B7280]">
-                          {latestPublishedDividend.status === "Pending"
-                            ? "Waiting for the scheduled distribution date."
-                            : latestPublishedDividend.status === "Withdrawal Requested"
-                              ? "Withdrawal request sent to the Bookkeeper."
-                              : latestPublishedDividend.status === "Capitalization Requested"
-                                ? "Share Capital addition request sent to the Bookkeeper."
-                                : latestPublishedDividend.status === "Withdrawn"
-                                ? "Withdrawal completed."
-                                : latestPublishedDividend.status === "Added to Share Capital"
-                                  ? "Added to your Share Capital."
-                                  : "No action available for this dividend."}
-                        </p>
-                      ) : null}
+                      ) : (
+                        <>
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            <h3 className="text-2xl font-bold text-[#173626]">
+                              {isFetchingDividends ? "..." : formatPeso(latestPublishedDividendBalance)}
+                            </h3>
+                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                              dividendLoadError
+                                ? "bg-red-50 text-red-600"
+                                : latestPublishedDividend?.status === "Available"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : latestPublishedDividend?.status === "Withdrawal Requested" || latestPublishedDividend?.status === "Capitalization Requested"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : "bg-slate-100 text-slate-500"
+                            }`}>
+                              {isFetchingDividends
+                                ? "Loading"
+                                : dividendLoadError
+                                  ? "Unavailable"
+                                  : latestPublishedDividend?.status ?? "No published dividend"}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs font-semibold text-slate-500">
+                            {latestPublishedDividend?.declarationName ?? "Published dividend allocations will appear here."}
+                          </p>
+                          {latestPublishedDividend?.status === "Available" ? (
+                            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                              <button
+                                type="button"
+                                onClick={() => openDividendAction(latestPublishedDividend, "withdraw")}
+                                disabled={dividendActionBusy}
+                                className="flex-1 rounded-lg border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#123D2A] transition hover:bg-[#F3F7F1] disabled:opacity-50"
+                              >
+                                Withdraw
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDividendAction(latestPublishedDividend, "capital")}
+                                disabled={dividendActionBusy}
+                                className="flex-1 rounded-lg bg-[#123D2A] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-50"
+                              >
+                                Add to capital
+                              </button>
+                            </div>
+                          ) : latestPublishedDividend ? (
+                            <p className="mt-4 text-xs font-semibold text-[#6B7280]">
+                              {latestPublishedDividend.status === "Pending"
+                                ? "Waiting for the scheduled distribution date."
+                                : latestPublishedDividend.status === "Withdrawal Requested"
+                                  ? "Withdrawal request sent to the Bookkeeper."
+                                  : latestPublishedDividend.status === "Capitalization Requested"
+                                    ? "Share Capital addition request sent to the Bookkeeper."
+                                    : "No action available for this dividend."}
+                            </p>
+                          ) : null}
+                        </>
+                      )}
                     </div>
                     <div className="hidden rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
                       <div className="flex items-center justify-between">

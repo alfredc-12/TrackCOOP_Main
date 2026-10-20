@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
+  isCompleteFiscalYearPeriod,
+} from "./dividend-period";
 
 export const shareCapitalStatuses = ["Pending", "Validated", "Rejected", "Reversed"] as const;
 
@@ -65,6 +69,9 @@ export const createDividendDeclarationSchema = z.object({
 }).refine((value) => value.coverageEnd >= value.coverageStart, {
   message: "Coverage end must be on or after coverage start",
   path: ["coverageEnd"],
+}).refine((value) => isCompleteFiscalYearPeriod(value.coverageStart, value.coverageEnd), {
+  message: COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
+  path: ["coverageEnd"],
 }).refine((value) => value.statutoryReserves <= value.netSurplus, {
   message: "Statutory reserves cannot exceed net surplus",
   path: ["statutoryReserves"],
@@ -79,6 +86,9 @@ export const dividendDeclarationPreviewSchema = z.object({
 }).refine((value) => value.coverageEnd >= value.coverageStart, {
   message: "Coverage end must be on or after coverage start",
   path: ["coverageEnd"],
+}).refine((value) => isCompleteFiscalYearPeriod(value.coverageStart, value.coverageEnd), {
+  message: COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
+  path: ["coverageEnd"],
 }).refine((value) => value.statutoryReserves <= value.netSurplus, {
   message: "Statutory reserves cannot exceed net surplus",
   path: ["statutoryReserves"],
@@ -89,6 +99,9 @@ export const dividendFinancialBasisQuerySchema = z.object({
   coverageEnd: z.iso.date(),
 }).refine((value) => value.coverageEnd >= value.coverageStart, {
   message: "Coverage end must be on or after coverage start",
+  path: ["coverageEnd"],
+}).refine((value) => isCompleteFiscalYearPeriod(value.coverageStart, value.coverageEnd), {
+  message: COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
   path: ["coverageEnd"],
 });
 

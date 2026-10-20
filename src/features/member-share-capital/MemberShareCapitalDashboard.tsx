@@ -41,7 +41,7 @@ import {
   getMemberCapitalOverview,
   getMemberCapitalTransactions,
   getMemberDividends,
-  requestDividendCapitalization,
+  addDividendToShareCapital,
   requestDividendWithdrawal,
   type MemberCapitalTransactionFilters,
 } from "./api";
@@ -200,7 +200,7 @@ export function MemberShareCapitalDashboard() {
     setActionBusy(true);
     setActionError("");
     try {
-      if (dividendAction === "capital") await requestDividendCapitalization(actionDividend.id);
+      if (dividendAction === "capital") await addDividendToShareCapital(actionDividend.id);
       else await requestDividendWithdrawal(actionDividend.id, {
         withdrawalMethod,
         withdrawalProvider: withdrawalMethod === "Online Transfer" ? withdrawalProvider : null,
@@ -475,7 +475,7 @@ export function MemberShareCapitalDashboard() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1F6B43]">Confirm important action</p>
-                <h2 id="dividend-confirm-title" className="mt-2 text-xl font-black text-[#123D2A]">{dividendAction === "capital" ? "Add dividend to Share Capital?" : "Withdraw this dividend?"}</h2>
+                <h2 id="dividend-confirm-title" className="mt-2 text-xl font-black text-[#123D2A]">{dividendAction === "capital" ? "Add Annual Interest to Share Capital?" : "Withdraw this Annual Interest?"}</h2>
               </div>
               <button type="button" disabled={actionBusy} onClick={resetDividendAction} className="rounded-md border border-[#CAD8CB] p-2 text-[#365F4A] hover:bg-[#F3F7F1] disabled:opacity-50" aria-label="Close confirmation"><X className="size-4" /></button>
             </div>
@@ -483,7 +483,7 @@ export function MemberShareCapitalDashboard() {
               <p className="text-sm text-[#5D6D63]">{actionDividend.declarationName}</p>
               <p className="mt-1 text-3xl font-black text-[#123D2A]">{currency(actionDividend.amount)}</p>
             </div>
-            <p className="mt-4 text-sm leading-6 text-[#42594B]">{dividendAction === "capital" ? "This will send a Share Capital addition request to the Bookkeeper. It will be posted to your running balance only after approval." : "Choose whether you want to receive this dividend through Cash or Online Transfer. The Bookkeeper will verify the request before recording the payout."}</p>
+            <p className="mt-4 text-sm leading-6 text-[#42594B]">{dividendAction === "capital" ? "This will be added immediately to your Share Capital balance. No Bookkeeper approval is required." : "Choose whether you want to receive this Annual Interest through Cash or Online Transfer. The Bookkeeper will verify the request before recording the payout."}</p>
             {dividendAction === "withdraw" ? (
               <div className="mt-4 space-y-3">
                 <fieldset>
@@ -546,8 +546,8 @@ export function MemberShareCapitalDashboard() {
             ) : null}
             {actionError ? <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{actionError}</div> : null}
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" disabled={actionBusy} onClick={resetDividendAction} className="rounded-md border border-[#CAD8CB] px-4 py-2.5 font-bold text-[#123D2A] disabled:opacity-50">Cancel</button>
-              <button type="button" disabled={actionBusy || (dividendAction === "withdraw" && withdrawalMethod === "Online Transfer" && (!withdrawalProvider.trim() || !withdrawalAccountName.trim() || (!withdrawalAccountNumber.trim() && !withdrawalQrCode)))} onClick={() => void confirmDividendAction()} className="rounded-md bg-[#123D2A] px-4 py-2.5 font-bold text-white hover:bg-[#1F6B43] disabled:opacity-50">{actionBusy ? "Processing…" : dividendAction === "capital" ? "Yes, request approval" : "Yes, request withdrawal"}</button>
+              <button type="button" disabled={actionBusy} onClick={resetDividendAction} className="rounded-md border border-[#CAD8CB] px-4 py-2.5 font-bold text-[#123D2A] disabled:opacity-50">{dividendAction === "capital" ? "No, cancel" : "Cancel"}</button>
+              <button type="button" disabled={actionBusy || (dividendAction === "withdraw" && withdrawalMethod === "Online Transfer" && (!withdrawalProvider.trim() || !withdrawalAccountName.trim() || (!withdrawalAccountNumber.trim() && !withdrawalQrCode)))} onClick={() => void confirmDividendAction()} className="rounded-md bg-[#123D2A] px-4 py-2.5 font-bold text-white hover:bg-[#1F4D37] disabled:opacity-50">{actionBusy ? "Processing…" : dividendAction === "capital" ? "Yes, add to Share Capital" : "Yes, request withdrawal"}</button>
             </div>
           </div>
         </div>

@@ -8,6 +8,10 @@ import {
   calculateMonthlyShareCapitalBalances,
   type ShareCapitalLedgerEntry,
 } from "./dividend-calculator";
+import {
+  COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
+  isCompleteFiscalYearPeriod,
+} from "./dividend-period";
 import { MAX_SHARE_CAPITAL } from "./share-capital.constants";
 import type {
   CreateDividendDeclarationInput,
@@ -269,6 +273,14 @@ async function selectDividendFinancialBasis(
   coverageStart: string,
   coverageEnd: string,
 ): Promise<DividendFinancialBasis> {
+  if (!isCompleteFiscalYearPeriod(coverageStart, coverageEnd)) {
+    throw new AppError(
+      COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
+      422,
+      "DIVIDEND_FISCAL_YEAR_REQUIRED",
+    );
+  }
+
   const [rows] = await connection.execute<DividendFinancialBasisRow[]>(
     `SELECT COALESCE(SUM(CASE WHEN approved_by IS NOT NULL AND record_status = 'Active' AND record_type = 'Income' AND source_module <> 'Share Capital' THEN amount ELSE 0 END), 0) AS incomeTotal,
             COALESCE(SUM(CASE WHEN approved_by IS NOT NULL AND record_status = 'Active' AND record_type = 'Expense' THEN amount ELSE 0 END), 0) AS expenseTotal,
@@ -303,6 +315,14 @@ async function selectDividendPreview(
   connection: Pool | PoolConnection,
   input: DividendPreviewInput,
 ): Promise<DividendDeclarationPreview> {
+  if (!isCompleteFiscalYearPeriod(input.coverageStart, input.coverageEnd)) {
+    throw new AppError(
+      COMPLETE_FISCAL_YEAR_PERIOD_MESSAGE,
+      422,
+      "DIVIDEND_FISCAL_YEAR_REQUIRED",
+    );
+  }
+
   const financialBasis = await selectDividendFinancialBasis(connection, input.coverageStart, input.coverageEnd);
   const [rows] = await connection.execute<ShareCapitalLedgerRow[]>(
     `SELECT CAST(member.member_id AS CHAR) AS memberId,
@@ -703,7 +723,7 @@ export interface ShareCapitalLedgerRepository {
   memberGrowth(userId: string): Promise<ShareCapitalGrowthPoint[]>;
   reconcileMember(memberId: string): Promise<MemberShareCapitalOverview["reconciliation"]>;
   memberDividends(userId: string): Promise<MemberDividend[]>;
-  requestDividendCapitalization(userId: string, dividendId: string): Promise<MemberDividend>;
+  addDividendToShareCapital(userId: string, dividendId: string): Promise<MemberDividend>;
   requestDividendWithdrawal(userId: string, dividendId: string, input?: DividendWithdrawalInput): Promise<MemberDividend>;
   dividendFinancialBasis(coverageStart: string, coverageEnd: string): Promise<DividendFinancialBasis>;
   previewDividendDeclaration(input: DividendPreviewInput): Promise<DividendDeclarationPreview>;
@@ -984,7 +1004,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
       return rows.map(mapDividend);
     },
 
-    async requestDividendCapitalization(userId, dividendId) {
+    async addDividendToShareCapital(userId, dividendId) {
       return withTransaction(async (connection) => {
         const member = await selectMemberByUserId(connection, userId);
         const [rows] = await connection.execute<DividendRow[]>(
@@ -1000,22 +1020,67 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
         }
 
         const amount = money(dividend.amount);
-        const [capitalizationResult] = await connection.execute<ResultSetHeader>(
-          `UPDATE member_dividends
-              SET dividend_status = 'Capitalization Requested',
-                  member_decision = 'Add to Share Capital',
-                  decided_at = UTC_TIMESTAMP()
-            WHERE member_dividend_id = ? AND dividend_status = 'Available'`,
-          [dividendId],
+        if (amount <= 0) {
+          throw new AppError("The dividend amount must be greater than zero", 409, "DIVIDEND_AMOUNT_INVALID");
+        }
+        await connection.execute(
+          `INSERT INTO share_capital_accounts (member_id) VALUES (?)
+           ON DUPLICATE KEY UPDATE member_id = member_id`,
+          [dividend.memberId],
         );
-        if (capitalizationResult.affectedRows !== 1) {
+        const account = await selectAccount(connection, dividend.memberId, true);
+        if (!account) throw new AppError("Share Capital account could not be created", 500, "SHARE_CAPITAL_ACCOUNT_CREATE_FAILED");
+        const balanceBefore = money(account.currentBalance);
+        const balanceAfter = money(balanceBefore + amount);
+        if (balanceAfter > MAX_SHARE_CAPITAL) {
+          throw new AppError("Adding this dividend would exceed the PHP 15,000 Share Capital limit", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
+        }
+        const [transactionResult] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO share_capital_transactions
+             (share_capital_account_id, member_id, transaction_date, transaction_type,
+              direction, amount, balance_before, balance_after, reference_number,
+              source_type, source_id, transaction_status, remarks, created_by)
+           VALUES (?, ?, UTC_DATE(), 'Dividend Added to Share Capital', 'Credit',
+                   ?, ?, ?, ?, 'member_dividend', ?, 'Posted', ?, ?)`,
+          [
+            account.accountId,
+            dividend.memberId,
+            amount,
+            balanceBefore,
+            balanceAfter,
+            `DIV-CAP-${dividendId}`,
+            dividendId,
+            `Dividend from ${dividend.declarationName} added to Share Capital by member`,
+            userId,
+          ],
+        );
+        const transactionId = String(transactionResult.insertId);
+        await connection.execute(
+          `UPDATE share_capital_accounts
+              SET total_dividends_added = total_dividends_added + ?, current_balance = ?
+            WHERE share_capital_account_id = ?`,
+          [amount, balanceAfter, account.accountId],
+        );
+        const [completionResult] = await connection.execute<ResultSetHeader>(
+          `UPDATE member_dividends
+              SET dividend_status = 'Added to Share Capital',
+                  member_decision = 'Add to Share Capital',
+                  decided_at = UTC_TIMESTAMP(),
+                  processed_at = UTC_TIMESTAMP(),
+                  processed_by = ?,
+                  share_capital_transaction_id = ?,
+                  processing_notes = NULL
+            WHERE member_dividend_id = ? AND dividend_status = 'Available'`,
+          [userId, transactionId, dividendId],
+        );
+        if (completionResult.affectedRows !== 1) {
           throw new AppError("The dividend was already processed", 409, "DIVIDEND_ALREADY_PROCESSED");
         }
         await connection.execute(
           `INSERT INTO dividend_action_history
              (member_dividend_id, previous_status, new_status, action_name, remarks, performed_by)
-           VALUES (?, 'Available', 'Capitalization Requested', 'Share Capital addition requested', ?, ?)`,
-          [dividendId, `Member requested ${amount.toFixed(2)} to be added to Share Capital`, userId],
+           VALUES (?, 'Available', 'Added to Share Capital', 'Share Capital addition completed', ?, ?)`,
+          [dividendId, `Member added ${amount.toFixed(2)} to Share Capital immediately`, userId],
         );
         const [updatedRows] = await connection.execute<DividendRow[]>(
           `${dividendSelect()} WHERE md.member_dividend_id = ? LIMIT 1`,
@@ -1347,8 +1412,9 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
         const notes = input.notes?.trim() || null;
 
         if (dividend.status === "Withdrawal Requested") {
-          const normalizedReference = (input.referenceNumber ?? "").trim();
-          if (normalizedReference.length < 2) {
+          const isCashPayout = !dividend.withdrawalMethod || dividend.withdrawalMethod === "Cash";
+          const normalizedReference = (input.referenceNumber ?? "").trim() || (isCashPayout ? `CASH-DIV-${dividendId}` : "");
+          if (!isCashPayout && normalizedReference.length < 2) {
             throw new AppError("An official payout reference is required to complete a withdrawal", 400, "DIVIDEND_WITHDRAWAL_REFERENCE_REQUIRED");
           }
           const normalizedReceipt = input.withdrawalReceipt?.trim() || null;

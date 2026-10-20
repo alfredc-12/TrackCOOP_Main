@@ -23,7 +23,7 @@ export function createShareCapitalRouter(
   router.get("/members/me/share-capital/transactions", ...memberOnly, controller.memberTransactions);
   router.get("/members/me/share-capital/growth", ...memberOnly, controller.memberGrowth);
   router.get("/members/me/dividends", ...memberOnly, controller.memberDividends);
-  router.post("/members/me/dividends/:id/add-to-capital", ...memberOnly, controller.requestDividendCapitalization);
+  router.post("/members/me/dividends/:id/add-to-capital", ...memberOnly, controller.addDividendToShareCapital);
   router.post("/members/me/dividends/:id/request-withdrawal", ...memberOnly, controller.requestDividendWithdrawal);
   router.get("/dividends/declarations", ...staff, controller.listDividendDeclarations);
   router.get("/dividends/financial-basis", ...chairmanOnly, controller.dividendFinancialBasis);

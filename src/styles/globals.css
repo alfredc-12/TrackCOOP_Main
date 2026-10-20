@@ -191,6 +191,48 @@ div[role="dialog"].max-w-3xl > .mt-7.flex > button:last-child {
 
 }
 
+/* Keep the create-declaration form readable: one scrollable body with a stable two-column field grid. */
+div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) {
+  max-width: 72rem;
+  max-height: calc(100vh - 3rem);
+  overflow: hidden;
+}
+
+div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5 {
+  display: block;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5 {
+    display: block;
+  }
+
+  div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5 > .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+
+  div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5 > .grid > label:last-child {
+    display: block;
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5 > .mb-4.rounded-xl,
+  div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5 > [aria-live="polite"] {
+    margin-top: 1rem;
+  }
+}
+
 /* Keep the inline Dividend member allocation table balanced inside the wide modal. */
 .dividend-members-panel table {
   width: 100%;
