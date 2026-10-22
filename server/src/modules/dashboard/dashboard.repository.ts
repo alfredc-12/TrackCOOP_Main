@@ -5,6 +5,7 @@ import type {
   ChairmanDashboardData,
   DashboardFilters,
   InventoryAlert,
+  ProductShopAnalytics,
 } from "./dashboard.types";
 import { getFinancialTransparency } from "../finance/financial-transparency";
 
@@ -220,6 +221,64 @@ export class DashboardRepository {
       productsSoldDateFilter.params,
     ).catch(() => [[{ productsSold: 0 } as RowDataPacket]]);
     const productsSold = numberValue(productsSoldRows[0]?.productsSold);
+
+    const [productSalesRows] = await pool.query<RowDataPacket[]>(
+      `SELECT CAST(psi.product_id AS CHAR) AS productId,
+              COALESCE(NULLIF(MAX(p.product_name), ''), MAX(psi.product_name_snapshot), 'Unknown product') AS productName,
+              COALESCE(NULLIF(MAX(p.category), ''), 'Uncategorized') AS category,
+              COALESCE(SUM(psi.quantity), 0) AS unitsSold,
+              COALESCE(SUM(psi.line_total), 0) AS revenue,
+              COUNT(DISTINCT ps.pos_sale_id) AS transactions,
+              COALESCE(MAX(v.quantity_on_hand), 0) AS stock
+         FROM pos_sales ps
+         JOIN pos_sale_items psi ON psi.pos_sale_id = ps.pos_sale_id
+         LEFT JOIN products p ON p.product_id = psi.product_id
+         LEFT JOIN v_product_inventory_balance v ON v.product_id = psi.product_id
+        WHERE ps.sale_status IN ('Paid', 'Completed') ${productsSoldDateFilter.clause}
+        GROUP BY psi.product_id, COALESCE(NULLIF(p.category, ''), 'Uncategorized')
+        ORDER BY unitsSold DESC, revenue DESC
+        LIMIT 100`,
+      productsSoldDateFilter.params,
+    ).catch(() => [[] as RowDataPacket[]]);
+    const demandHighLimit = Math.max(1, Math.ceil(productSalesRows.length * 0.3));
+    const demandMediumLimit = Math.max(demandHighLimit, Math.ceil(productSalesRows.length * 0.7));
+    const productShopAnalytics: ProductShopAnalytics = {
+      totalSales: totalPosSales,
+      transactions: posTransactions,
+      unitsSold: productsSold,
+      averageOrderValue: posTransactions > 0 ? totalPosSales / posTransactions : 0,
+      topProducts: productSalesRows.slice(0, 10).map((row, index) => ({
+        productId: String(row.productId || ""),
+        productName: String(row.productName || "Unknown product"),
+        category: String(row.category || "Uncategorized"),
+        unitsSold: numberValue(row.unitsSold),
+        revenue: numberValue(row.revenue),
+        transactions: numberValue(row.transactions),
+        stock: numberValue(row.stock),
+        demand: index < demandHighLimit ? "High" : index < demandMediumLimit ? "Medium" : "Low",
+      })),
+      categorySales: [] as Array<{ category: string; unitsSold: number; revenue: number; transactions: number }>,
+    };
+    const [categorySalesRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COALESCE(NULLIF(p.category, ''), 'Uncategorized') AS category,
+              COALESCE(SUM(psi.quantity), 0) AS unitsSold,
+              COALESCE(SUM(psi.line_total), 0) AS revenue,
+              COUNT(DISTINCT ps.pos_sale_id) AS transactions
+         FROM pos_sales ps
+         JOIN pos_sale_items psi ON psi.pos_sale_id = ps.pos_sale_id
+         LEFT JOIN products p ON p.product_id = psi.product_id
+        WHERE ps.sale_status IN ('Paid', 'Completed') ${productsSoldDateFilter.clause}
+        GROUP BY COALESCE(NULLIF(p.category, ''), 'Uncategorized')
+        ORDER BY revenue DESC
+        LIMIT 8`,
+      productsSoldDateFilter.params,
+    ).catch(() => [[] as RowDataPacket[]]);
+    productShopAnalytics.categorySales = categorySalesRows.map((row) => ({
+      category: String(row.category || "Uncategorized"),
+      unitsSold: numberValue(row.unitsSold),
+      revenue: numberValue(row.revenue),
+      transactions: numberValue(row.transactions),
+    }));
 
     const rentalDateFilter = getDateFilter(period, "end_datetime");
     const [rentalRows] = await pool.query<RowDataPacket[]>(
@@ -486,6 +545,7 @@ export class DashboardRepository {
         },
         inventory: { lowStock: inventoryAlerts.length, outOfStock: outOfStockCount, alerts: inventoryAlerts },
       },
+      productShopAnalytics,
       inventoryAlerts,
       recentTransactions: recentShareCapitalRows.map((row) => ({
         id: String(row.id),

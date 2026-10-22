@@ -24,6 +24,10 @@ function requireProductId(value: string | string[] | undefined) {
   return id;
 }
 
+function parseDemandPeriod(value: unknown): "all" | "7d" | "30d" | "year" {
+  return value === "7d" || value === "30d" || value === "year" ? value : "all";
+}
+
 function sendError(response: Response, error: unknown, fallback: string) {
   if (error instanceof AppError) {
     return response.status(error.statusCode).json({ error: error.message });
@@ -35,9 +39,9 @@ function sendError(response: Response, error: unknown, fallback: string) {
 
 export function createInventoryController(service: InventoryService) {
   return {
-    listProducts: asyncHandler(async (_request, response) => {
+    listProducts: asyncHandler(async (request, response) => {
       try {
-        return response.json(await service.listProducts({ includeHistory: true }));
+        return response.json(await service.listProducts({ includeHistory: true, demandPeriod: parseDemandPeriod(request.query.demandPeriod) }));
       } catch (error) {
         return sendError(response, error, "Failed to fetch inventory");
       }

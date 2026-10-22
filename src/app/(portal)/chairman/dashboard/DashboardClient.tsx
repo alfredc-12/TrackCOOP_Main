@@ -34,6 +34,12 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("en-PH").format(value);
 }
 
+function demandBadgeClass(demand: string) {
+  if (demand === "High") return "bg-red-50 text-red-700";
+  if (demand === "Medium") return "bg-amber-50 text-amber-700";
+  return "bg-[#EEF2EC] text-[#52705D]";
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -223,6 +229,22 @@ function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashbo
           { productId: "PRD-018", productName: "Corn Seeds 50kg", stock: 5 },
         ],
       },
+    },
+    productShopAnalytics: {
+      totalSales: 428750,
+      transactions: 386,
+      unitsSold: 712,
+      averageOrderValue: 1110.75,
+      topProducts: [
+        { productId: "PRD-001", productName: "Rice 25kg", category: "Agricultural Supplies", unitsSold: 184, revenue: 110400, transactions: 96, stock: 8, demand: "High" },
+        { productId: "PRD-018", productName: "Corn Seeds 50kg", category: "Seeds", unitsSold: 126, revenue: 88200, transactions: 71, stock: 5, demand: "High" },
+        { productId: "PRD-004", productName: "Organic Fertilizer", category: "Farm Inputs", unitsSold: 98, revenue: 63700, transactions: 54, stock: 22, demand: "Medium" },
+      ],
+      categorySales: [
+        { category: "Agricultural Supplies", unitsSold: 248, revenue: 154600, transactions: 128 },
+        { category: "Seeds", unitsSold: 196, revenue: 132400, transactions: 104 },
+        { category: "Farm Inputs", unitsSold: 142, revenue: 89450, transactions: 82 },
+      ],
     },
     inventoryAlerts: [
       { productId: "PRD-001", productName: "Rice 25kg", stock: 8 },
@@ -414,6 +436,15 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
   const shareCapitalProgress = { reachedMinimum: sp.reachedMinimum ?? 0, belowMinimum: sp.belowMinimum ?? 0, contributingMembers: sp.contributingMembers ?? 0, reachedMaximum: sp.reachedMaximum ?? 0, totalMembers: sp.totalMembers ?? 0 };
   const os = d.operationsSnapshot || {} as any;
   const operationsSnapshot = { pos: { totalSales: os.pos?.totalSales ?? 0, transactions: os.pos?.transactions ?? 0, productsSold: os.pos?.productsSold ?? 0 }, rental: { totalIncome: os.rental?.totalIncome ?? 0, completed: os.rental?.completed ?? 0, upcoming: os.rental?.upcoming ?? 0 }, inventory: { lowStock: os.inventory?.lowStock ?? 0, outOfStock: os.inventory?.outOfStock ?? 0 } };
+  const productShopData = d.productShopAnalytics || {} as any;
+  const productShopAnalytics = {
+    totalSales: Number(productShopData.totalSales ?? operationsSnapshot.pos.totalSales),
+    transactions: Number(productShopData.transactions ?? operationsSnapshot.pos.transactions),
+    unitsSold: Number(productShopData.unitsSold ?? operationsSnapshot.pos.productsSold),
+    averageOrderValue: Number(productShopData.averageOrderValue ?? (operationsSnapshot.pos.transactions > 0 ? operationsSnapshot.pos.totalSales / operationsSnapshot.pos.transactions : 0)),
+    topProducts: productShopData.topProducts || [],
+    categorySales: productShopData.categorySales || [],
+  };
   const recentActivity = d.recentActivity || [];
   const incomeSources = d.incomeSources || [];
   const highestIncomeSource = incomeSources.length > 0 ? incomeSources.reduce((prev: any, curr: any) => (prev.amount > curr.amount) ? prev : curr).source : "N/A";
@@ -637,6 +668,81 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
       </div> : null}
 
       {/* ── ROW 2: Membership & Share Capital ────────────────────────────────── */}
+      {mode === "financial" ? (
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="min-w-0 rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm">
+            <SectionHeader title="Product & Shop Analytics" subtitle="Sales performance and demand overview" icon={ShoppingCart} />
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[
+                { label: "Shop sales", value: formatCurrency(productShopAnalytics.totalSales), color: "text-[#1F6B43]" },
+                { label: "Units sold", value: formatNumber(productShopAnalytics.unitsSold), color: "text-[#123D2A]" },
+                { label: "Transactions", value: formatNumber(productShopAnalytics.transactions), color: "text-[#123D2A]" },
+                { label: "Average order", value: formatCurrency(productShopAnalytics.averageOrderValue), color: "text-[#1F6B43]" },
+              ].map((metric) => (
+                <div key={metric.label} className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF8] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#6C7A70]">{metric.label}</p>
+                  <p className={`mt-1 text-lg font-black ${metric.color}`}>{metric.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 border-t border-[#EEF2EC] pt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-bold text-[#123D2A]">Sales by category</p>
+                <Link href="/portal/chairman/reports" className="text-[11px] font-bold text-[#1F6B43] hover:underline">View reports</Link>
+              </div>
+              <div className="space-y-3">
+                {productShopAnalytics.categorySales.length > 0 ? productShopAnalytics.categorySales.slice(0, 5).map((category: any) => {
+                  const maxRevenue = Math.max(...productShopAnalytics.categorySales.map((item: any) => Number(item.revenue) || 0), 1);
+                  const width = Math.min(100, (Number(category.revenue || 0) / maxRevenue) * 100);
+                  return (
+                    <div key={category.category}>
+                      <div className="flex items-center justify-between gap-3 text-[11px]">
+                        <span className="min-w-0 truncate font-semibold text-[#365F4A]" title={category.category}>{category.category}</span>
+                        <span className="shrink-0 font-bold text-[#123D2A]">{formatCurrency(Number(category.revenue || 0))}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#EEF2EC]"><div className="h-full rounded-full bg-[#1F6B43]" style={{ width: `${width}%` }} /></div>
+                    </div>
+                  );
+                }) : <p className="py-3 text-center text-xs italic text-[#78857D]">No product sales for this period.</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[14px] font-black text-[#123D2A]">Most Purchased Products</h2>
+                <p className="mt-1 text-[11px] text-[#6C7A70]">Ranked by units sold for the selected period.</p>
+              </div>
+              <Link href="/portal/chairman/pos" className="shrink-0 text-[11px] font-bold text-[#1F6B43] hover:underline">Open POS</Link>
+            </div>
+            <div className="space-y-2">
+              {productShopAnalytics.topProducts.length > 0 ? productShopAnalytics.topProducts.slice(0, 8).map((product: any, index: number) => (
+                <div key={product.productId || product.productName} className="rounded-xl border border-[#EEF2EC] bg-[#FBFCFA] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#EAF3E8] text-[10px] font-black text-[#1F6B43]">{index + 1}</span>
+                        <p className="truncate text-xs font-bold text-[#123D2A]" title={product.productName}>{product.productName}</p>
+                      </div>
+                      <p className="mt-1 pl-7 text-[10px] text-[#6C7A70]">{product.category} · {formatNumber(Number(product.transactions || 0))} transactions</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-black text-[#123D2A]">{formatCurrency(Number(product.revenue || 0))}</p>
+                      <p className="mt-1 text-[10px] font-semibold text-[#6C7A70]">{formatNumber(Number(product.unitsSold || 0))} units</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 pl-7">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${demandBadgeClass(String(product.demand || "Low"))}`}>{product.demand || "Low"} demand</span>
+                    <span className={`text-[10px] font-semibold ${Number(product.stock || 0) <= 0 ? "text-red-600" : Number(product.stock || 0) <= 10 ? "text-amber-700" : "text-[#52705D]"}`}>{formatNumber(Number(product.stock || 0))} in stock</span>
+                  </div>
+                </div>
+              )) : <div className="rounded-xl border border-dashed border-[#CAD8CB] px-4 py-8 text-center text-xs italic text-[#78857D]">No purchased products found for this period.</div>}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className={`grid grid-cols-1 gap-5 ${mode === "financial" ? "lg:grid-cols-2" : "lg:grid-cols-2"}`}>
         {/* Membership Growth */}
         <div className={`${mode === "financial" ? "hidden" : ""} rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col relative`}>

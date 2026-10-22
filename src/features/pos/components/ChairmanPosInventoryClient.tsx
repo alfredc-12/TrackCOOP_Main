@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
@@ -34,6 +34,57 @@ const STOCK_UNIT_OPTIONS = [
 
 function formatQuantityUnit(quantity: number | string, unit?: string) {
     return `${Number(quantity).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${unit || "piece"}`;
+}
+
+type DemandLevel = "High" | "Medium" | "Low";
+type DemandFilter = "All" | DemandLevel;
+type DemandPeriod = "all" | "7d" | "30d" | "year";
+type StockStatus = "Healthy" | "Low Stock" | "Out of Stock";
+const DEFAULT_LOW_STOCK_THRESHOLD = 10;
+
+const DEMAND_PERIOD_OPTIONS: Array<{ value: DemandPeriod; label: string }> = [
+    { value: "all", label: "All-time demand" },
+    { value: "7d", label: "Last 7 days" },
+    { value: "30d", label: "Last 30 days" },
+    { value: "year", label: "This year" },
+];
+
+function demandPeriodLabel(period: DemandPeriod) {
+    return DEMAND_PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? "All-time demand";
+}
+
+function demandPeriodDescription(period: DemandPeriod) {
+    if (period === "7d") return "last 7 days";
+    if (period === "30d") return "last 30 days";
+    if (period === "year") return "this year";
+    return "all-time";
+}
+
+function demandBadgeClass(level: DemandLevel) {
+    if (level === "High") return "bg-[#E8F7EE] text-[#168047] ring-[#B8E4C7]";
+    if (level === "Medium") return "bg-[#FFF6DD] text-[#A76500] ring-[#F2D28B]";
+    return "bg-[#F1F4F2] text-[#5D6D63] ring-[#D7E0D9]";
+}
+
+function getAvailableStock(item: Pick<InventoryItem, "stock" | "pending_qty">) {
+    return Number(item.stock || 0) - Number(item.pending_qty || 0);
+}
+
+function getLowStockThreshold(item: Pick<InventoryItem, "reorder_level">) {
+    return Math.max(DEFAULT_LOW_STOCK_THRESHOLD, Number(item.reorder_level || 0));
+}
+
+function getStockStatus(item: Pick<InventoryItem, "stock" | "pending_qty" | "reorder_level">): StockStatus {
+    const availableStock = getAvailableStock(item);
+    if (availableStock <= 0) return "Out of Stock";
+    if (availableStock <= getLowStockThreshold(item)) return "Low Stock";
+    return "Healthy";
+}
+
+function stockStatusClass(status: StockStatus) {
+    if (status === "Out of Stock") return "bg-[#FFF0F0] text-[#C33A36] ring-[#F2B8B5]";
+    if (status === "Low Stock") return "bg-[#FFF6DD] text-[#A76500] ring-[#F2D28B]";
+    return "bg-[#E8F7EE] text-[#168047] ring-[#B8E4C7]";
 }
 
 export type InventoryItem = {
@@ -229,15 +280,19 @@ function ThemedSelect({
     );
 }
 
-export default function ChairmanPosInventoryClient() {
+export default function ChairmanPosInventoryClient({ showOrdersPayments = true }: { showOrdersPayments?: boolean }) {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [demandPeriod, setDemandPeriod] = useState<DemandPeriod>("all");
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [inventoryError, setInventoryError] = useState<string | null>(null);
     const [isInventoryLoading, setIsInventoryLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isStockAlertModalOpen, setIsStockAlertModalOpen] = useState(false);
+    const hasShownStockAlert = useRef(false);
+    const [detailsItem, setDetailsItem] = useState<InventoryItem | null>(null);
     const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
     const [orders, setOrders] = useState<PosOrder[]>([]);
     const [orderSearchQuery, setOrderSearchQuery] = useState("");
@@ -247,7 +302,8 @@ export default function ChairmanPosInventoryClient() {
 
     const fetchInventory = useCallback(async () => {
         try {
-            const res = await expressFetch("/api/inventory");
+            const query = demandPeriod === "all" ? "" : `?demandPeriod=${demandPeriod}`;
+            const res = await expressFetch(`/api/inventory${query}`);
             if (res.ok) {
                 const data = await res.json();
                 setInventory((data as InventoryItem[]).map(normalizeProductImage));
@@ -262,7 +318,7 @@ export default function ChairmanPosInventoryClient() {
         } finally {
             setIsInventoryLoading(false);
         }
-    }, []);
+    }, [demandPeriod]);
 
     const fetchOrdersQuietly = useCallback(async () => {
         try {
@@ -278,7 +334,7 @@ export default function ChairmanPosInventoryClient() {
 
     const refreshInventory = async () => {
         setIsRefreshing(true);
-        await Promise.all([fetchInventory(), fetchOrdersQuietly()]);
+        await Promise.all([fetchInventory(), showOrdersPayments ? fetchOrdersQuietly() : Promise.resolve()]);
         setIsRefreshing(false);
         toast.success("Inventory is up to date.");
     };
@@ -287,19 +343,19 @@ export default function ChairmanPosInventoryClient() {
         const timeoutId = window.setTimeout(() => {
             setIsMounted(true);
             void fetchInventory();
-            void fetchOrdersQuietly();
+            if (showOrdersPayments) void fetchOrdersQuietly();
         }, 0);
 
         const intervalId = window.setInterval(() => {
             void fetchInventory();
-            void fetchOrdersQuietly();
+            if (showOrdersPayments) void fetchOrdersQuietly();
         }, 5000); // 5 seconds auto-refresh
 
         return () => {
             window.clearTimeout(timeoutId);
             window.clearInterval(intervalId);
         };
-    }, [fetchInventory, fetchOrdersQuietly]);
+    }, [fetchInventory, fetchOrdersQuietly, showOrdersPayments]);
     const [editingItem, setEditingItem] = useState<EditableInventoryItem | null>(null);
     const [addingStockItem, setAddingStockItem] = useState<InventoryItem | null>(null);
     const [stockActionType, setStockActionType] = useState<"add" | "deduct">("add");
@@ -473,6 +529,8 @@ export default function ChairmanPosInventoryClient() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [sortBy, setSortBy] = useState("name-asc");
+    const [demandFilter, setDemandFilter] = useState<DemandFilter>("All");
+    const [demandSort, setDemandSort] = useState(false);
 
     // Form State
     const [newItemName, setNewItemName] = useState("");
@@ -502,13 +560,13 @@ export default function ChairmanPosInventoryClient() {
 
 
     useEffect(() => {
-        if (isAddModalOpen || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
+        if (isAddModalOpen || isStockAlertModalOpen || detailsItem || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isAddModalOpen, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
+    }, [isAddModalOpen, isStockAlertModalOpen, detailsItem, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -667,6 +725,9 @@ export default function ChairmanPosInventoryClient() {
 
     const processStockUpdate = async () => {
         if (!addingStockItem || !stockToAdd) return;
+        const productName = addingStockItem.name;
+        const quantityLabel = formatQuantityUnit(stockToAdd, addingStockItem.unit);
+        const isAddingStock = stockActionType === "add";
         setIsActionProcessing(true);
         try {
             const res = await expressFetch(`/api/inventory/${addingStockItem.id}/stock`, {
@@ -679,7 +740,9 @@ export default function ChairmanPosInventoryClient() {
                 setAddingStockItem(null);
                 setStockToAdd("");
                 setPendingAction(null);
-                toast.success(`Stock ${stockActionType === "add" ? "added" : "deducted"} successfully!`);
+                toast.success(isAddingStock
+                    ? `Stock replenished: +${quantityLabel} added to ${productName}.`
+                    : `Stock deducted: ${quantityLabel} removed from ${productName}.`);
             } else {
                 const err = await res.json();
                 toast.error(err.error || `Failed to ${stockActionType} stock.`);
@@ -773,31 +836,65 @@ export default function ChairmanPosInventoryClient() {
         [existingCategories],
     );
 
+    const demandByProductId = useMemo(() => {
+        const levels = new Map<number, DemandLevel>();
+        inventory.forEach((item) => levels.set(item.id, "Low"));
+
+        const rankedProducts = inventory
+            .filter((item) => Number(item.sold || 0) > 0)
+            .sort((a, b) => Number(b.sold || 0) - Number(a.sold || 0));
+        const highLimit = Math.max(1, Math.ceil(rankedProducts.length * 0.3));
+        const mediumLimit = Math.max(highLimit, Math.ceil(rankedProducts.length * 0.7));
+
+        rankedProducts.forEach((item, index) => {
+            levels.set(item.id, index < highLimit ? "High" : index < mediumLimit ? "Medium" : "Low");
+        });
+
+        return levels;
+    }, [inventory]);
+
     const filteredAndSortedInventory = inventory
         .filter((item) => {
             const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
-            return matchesSearch && matchesCategory;
+            const demand = demandByProductId.get(item.id) ?? "Low";
+            const matchesDemand = demandFilter === "All" || demand === demandFilter;
+            return matchesSearch && matchesCategory && matchesDemand;
         })
         .sort((a, b) => {
+            const demandRank = (item: InventoryItem) => ({ High: 3, Medium: 2, Low: 1 }[demandByProductId.get(item.id) ?? "Low"]);
+            if (demandSort) return demandRank(b) - demandRank(a) || Number(b.sold || 0) - Number(a.sold || 0) || a.name.localeCompare(b.name);
             switch (sortBy) {
                 case "price-asc": return a.price - b.price;
                 case "price-desc": return b.price - a.price;
-                case "stock-asc": return a.stock - b.stock;
-                case "stock-desc": return b.stock - a.stock;
+                case "stock-asc": return getAvailableStock(a) - getAvailableStock(b);
+                case "stock-desc": return getAvailableStock(b) - getAvailableStock(a);
+                case "demand-desc": return demandRank(b) - demandRank(a) || Number(b.sold || 0) - Number(a.sold || 0);
                 case "name-asc": default: return a.name.localeCompare(b.name);
             }
         });
 
-    const lowStockCount = inventory.filter(item => {
-        const availableStock = item.stock - (item.pending_qty || 0);
-        return item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
-    }).length;
+    const lowStockCount = inventory.filter((item) => getStockStatus(item) === "Low Stock").length;
+    const outOfStockCount = inventory.filter((item) => getStockStatus(item) === "Out of Stock").length;
+    const stockAlertCount = lowStockCount + outOfStockCount;
+    const stockAlertItems = inventory
+        .filter((item) => getStockStatus(item) !== "Healthy")
+        .sort((a, b) => getAvailableStock(a) - getAvailableStock(b) || a.name.localeCompare(b.name));
+    const highDemandCount = inventory.filter((item) => demandByProductId.get(item.id) === "High").length;
+    const totalSoldUnits = inventory.reduce((sum, item) => sum + Number(item.sold || 0), 0);
 
-    const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== "All";
+    useEffect(() => {
+        if (hasShownStockAlert.current || isInventoryLoading || inventoryError || inventory.length === 0) return;
+        hasShownStockAlert.current = true;
+        if (stockAlertItems.length > 0) setIsStockAlertModalOpen(true);
+    }, [inventory, inventoryError, isInventoryLoading, stockAlertItems.length]);
+
+    const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== "All" || demandFilter !== "All" || demandSort;
     const clearFilters = () => {
         setSearchQuery("");
         setSelectedCategory("All");
+        setDemandFilter("All");
+        setDemandSort(false);
         setInventoryPage(1);
     };
 
@@ -839,66 +936,66 @@ export default function ChairmanPosInventoryClient() {
                         </div>
                         <div>
                             <p className="text-xs font-semibold text-white/60">Catalog health</p>
-                            <p className="font-bold">{lowStockCount > 0 ? `${lowStockCount} product${lowStockCount > 1 ? "s" : ""} need attention` : "All stock levels healthy"}</p>
+                            <p className="font-bold">{stockAlertCount > 0 ? `${stockAlertCount} product${stockAlertCount > 1 ? "s" : ""} need attention` : "All stock levels healthy"}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Summary Cards */}
-            <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+            <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
                     <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43] shadow-sm">
                         <Wheat className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold text-gray-500">Total Products</p>
-                        <p className="text-[10px] leading-4 text-gray-400">Active catalog products</p>
+                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">Total Products</p>
+                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Active catalog products</p>
                         <p className="break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 text-[#123D2A]">{inventory.length}</p>
                     </div>
                 </div>
 
-                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-                    <div className={`mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]`}>
-                        <AlertCircle className="w-6 h-6" />
+                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#E8F7EE] p-2.5 text-[#168047]">
+                        <Activity className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold text-gray-500">Low Stock Alerts</p>
-                        <p className="text-[10px] leading-4 text-gray-400">At or below reorder level</p>
-                        <p className={`break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 ${lowStockCount > 0 ? 'text-red-600' : 'text-[#123D2A]'}`}>{lowStockCount}</p>
+                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">High Demand</p>
+                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">{totalSoldUnits.toLocaleString()} units sold · {demandPeriodDescription(demandPeriod)}</p>
+                        <p className="break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 text-[#168047]">{highDemandCount}</p>
                     </div>
                 </div>
 
-                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
                     <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
                         <Sprout className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold text-gray-500">Total Stock Value</p>
-                        <p className="text-[10px] leading-4 text-gray-400">Based on selling price</p>
-                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">Total Stock Value</p>
+                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Based on selling price</p>
+                        <p className="whitespace-nowrap text-[clamp(0.95rem,1.2vw,1.25rem)] font-black leading-7 tracking-tight text-[#123D2A]" title={`₱ ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}>₱ {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
 
-                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
                     <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
                         <Banknote className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold text-gray-500">Cash Sales</p>
-                        <p className="text-[10px] leading-4 text-gray-400">Paid POS orders</p>
-                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">Cash Sales</p>
+                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Paid POS orders</p>
+                        <p className="whitespace-nowrap text-[clamp(0.95rem,1.2vw,1.25rem)] font-black leading-7 tracking-tight text-[#123D2A]" title={`₱ ${totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}>₱ {totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
 
-                <div className="relative flex min-h-[122px] items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
+                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
                     <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
                         <Smartphone className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold text-gray-500">QRPH Sales</p>
-                        <p className="text-[10px] leading-4 text-gray-400">Paid QRPH orders</p>
-                        <p className="whitespace-nowrap text-lg font-black leading-7 tracking-tight text-[#123D2A] sm:text-xl">₱ {totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">QRPH Sales</p>
+                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Paid QRPH orders</p>
+                        <p className="whitespace-nowrap text-[clamp(0.95rem,1.2vw,1.25rem)] font-black leading-7 tracking-tight text-[#123D2A]" title={`₱ ${totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}>₱ {totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
             </div>
@@ -912,21 +1009,32 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                     <h2 className="text-3xl font-bold text-[#123D2A]">All Products</h2>
                     <p className="text-sm text-[#64748b] mt-1">Manage products, stock levels, and reorder alerts.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#6B8A76]" aria-label="Demand levels">
+                        <span>Demand ({demandPeriodDescription(demandPeriod)}):</span>
+                        {(["High", "Medium", "Low"] as DemandLevel[]).map((level) => (
+                            <span key={level} className={`rounded-full px-2.5 py-1 ring-1 ring-inset ${demandBadgeClass(level)}`}>{level}</span>
+                        ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-[#789181]" title="High is the top 30%, Medium is the next 40%, and Low is the remaining products based on completed units sold.">
+                        Ranked by completed units sold for the selected period.
+                    </p>
                     <p className="mt-2 text-xs font-medium text-[#789181]">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading inventory…"}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={fetchOrders}
-                        disabled={isOrdersLoading}
-                        className="relative flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] active:translate-y-0 active:scale-95 transition-all duration-300 group"
-                    >
-                        {isOrdersLoading ? <Loader2 className="size-4 animate-spin" /> : <ShoppingBag className="size-4 text-gray-500 group-hover:text-[#123D2A] transition-colors" />} {isOrdersLoading ? "Loading..." : "Orders & Payments"}
-                        {orders.filter(o => o.sale_status === 'Pending Payment').length > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
-                                {orders.filter(o => o.sale_status === 'Pending Payment').length}
-                            </span>
-                        )}
-                    </button>
+                <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+                    {showOrdersPayments ? (
+                        <button
+                            onClick={fetchOrders}
+                            disabled={isOrdersLoading}
+                            className="relative flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] active:translate-y-0 active:scale-95 transition-all duration-300 group"
+                        >
+                            {isOrdersLoading ? <Loader2 className="size-4 animate-spin" /> : <ShoppingBag className="size-4 text-gray-500 group-hover:text-[#123D2A] transition-colors" />} {isOrdersLoading ? "Loading..." : "Orders & Payments"}
+                            {orders.filter(o => o.sale_status === 'Pending Payment').length > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
+                                    {orders.filter(o => o.sale_status === 'Pending Payment').length}
+                                </span>
+                            )}
+                        </button>
+                    ) : null}
                     <button
                         onClick={fetchGlobalHistory}
                         disabled={isHistoryLoading}
@@ -962,7 +1070,7 @@ export default function ChairmanPosInventoryClient() {
             {/* Toolbar */}
             <div className="mb-6 mt-4 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
                 <div className="flex flex-col gap-3">
-                    <div className="flex w-full items-center justify-between gap-4">
+                    <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="relative min-w-0 flex-1 max-w-[720px]">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                         <input
@@ -984,16 +1092,41 @@ export default function ChairmanPosInventoryClient() {
                             </button>
                         )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                        <ThemedSelect
+                            value={demandPeriod}
+                            onChange={(value) => { setDemandPeriod(value as DemandPeriod); setInventoryPage(1); }}
+                            options={DEMAND_PERIOD_OPTIONS}
+                            ariaLabel="Select demand period"
+                        />
+                        <ThemedSelect
+                            value={demandFilter}
+                            onChange={(value) => { setDemandFilter(value as DemandFilter); setInventoryPage(1); }}
+                            options={[
+                                { value: "All", label: "All demand" },
+                                { value: "High", label: "High demand" },
+                                { value: "Medium", label: "Medium demand" },
+                                { value: "Low", label: "Low demand" },
+                            ]}
+                            ariaLabel="Filter by demand level"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => { const nextDemandSort = !demandSort; setDemandSort(nextDemandSort); setSortBy(nextDemandSort ? "demand-desc" : "name-asc"); setInventoryPage(1); }}
+                            aria-pressed={demandSort}
+                            className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${demandSort ? "border-[#1F6B43] bg-[#EAF5EC] text-[#123D2A]" : "border-[#BBD7C1] bg-white text-[#52705D] hover:border-[#1F6B43]"}`}
+                        >
+                            {demandSort ? "Demand: high first" : "Sort by demand"}
+                        </button>
                         <div className="relative">
-                            <button type="button" onClick={() => setIsSortMenuOpen((value) => !value)} aria-haspopup="listbox" aria-expanded={isSortMenuOpen} className="flex min-w-[210px] items-center justify-between rounded-xl border border-[#BBD7C1] bg-white px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#0F9D58]/10">
-                                <span>{({ "name-asc": "Name (A–Z)", "price-asc": "Price (low to high)", "price-desc": "Price (high to low)", "stock-asc": "Stock (low to high)", "stock-desc": "Stock (high to low)" } as Record<string, string>)[sortBy]}</span>
+                            <button type="button" onClick={() => setIsSortMenuOpen((value) => !value)} aria-haspopup="listbox" aria-expanded={isSortMenuOpen} className="flex w-full min-w-[210px] items-center justify-between rounded-xl border border-[#BBD7C1] bg-white px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#0F9D58]/10 sm:w-auto">
+                                <span>{({ "name-asc": "Name (A–Z)", "price-asc": "Price (low to high)", "price-desc": "Price (high to low)", "stock-asc": "Stock (low to high)", "stock-desc": "Stock (high to low)", "demand-desc": "Demand (high to low)" } as Record<string, string>)[sortBy]}</span>
                                 <ChevronDown className={`size-4 text-[#52705D] transition ${isSortMenuOpen ? "rotate-180" : ""}`} />
                             </button>
                             {isSortMenuOpen && (
                                 <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-[210px] overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]" role="listbox" aria-label="Sort inventory products">
                                     {[["name-asc", "Name (A–Z)"], ["price-asc", "Price (low to high)"], ["price-desc", "Price (high to low)"], ["stock-asc", "Stock (low to high)"], ["stock-desc", "Stock (high to low)"]].map(([value, label]) => (
-                                        <button key={value} type="button" role="option" aria-selected={sortBy === value} onClick={() => { setSortBy(value); setIsSortMenuOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${sortBy === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>
+                                        <button key={value} type="button" role="option" aria-selected={sortBy === value} onClick={() => { setSortBy(value); setDemandSort(false); setIsSortMenuOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${sortBy === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>
                                             {label}{sortBy === value && <span className="text-[#1F6B43]">✓</span>}
                                         </button>
                                     ))}
@@ -1049,8 +1182,10 @@ export default function ChairmanPosInventoryClient() {
                     ))
                 ) : paginatedInventory.length > 0 ? (
                     paginatedInventory.map(item => {
-                        const availableStock = item.stock - (item.pending_qty || 0);
-                        const isLowStock = item.reorder_level && item.reorder_level > 0 && availableStock <= item.reorder_level;
+                        const availableStock = getAvailableStock(item);
+                        const stockStatus = getStockStatus(item);
+                        const isLowStock = stockStatus !== "Healthy";
+                        const demand = demandByProductId.get(item.id) ?? "Low";
                         return (
                             <div key={item.id} style={{ animationDelay: `${Math.min(filteredAndSortedInventory.indexOf(item) * 55, 440)}ms` }} className={`group flex h-full min-h-[320px] animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_16px_rgba(18,61,42,0.07)] border transition duration-300 hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(18,61,42,0.14)] ${isLowStock ? 'border-red-400 ring-1 ring-red-400' : 'border-[#DCE9DE]'}`}>
                                 <div className={`relative h-48 p-4 flex items-center justify-center rounded-t-2xl overflow-hidden ${item.category?.toLowerCase().includes('seed') ? 'bg-gradient-to-br from-[#FFF8E8] via-[#F8F1E5] to-[#E7F2E8]' : item.category?.toLowerCase().includes('fertil') ? 'bg-gradient-to-br from-[#EEF7FF] via-[#EAF5F0] to-[#DCEFE2]' : 'bg-gradient-to-br from-[#E8F8F0] via-[#F4FAF5] to-[#E5F0FF]'}`}>
@@ -1060,8 +1195,8 @@ export default function ChairmanPosInventoryClient() {
                                             {item.status}
                                         </span>
                                         {isLowStock && (
-                                            <span className="flex items-center gap-1 rounded-md bg-red-100 text-red-700 px-2.5 py-1 text-xs font-bold border border-red-200 shadow-sm animate-pulse">
-                                                <AlertCircle className="w-3 h-3" /> Low Stock
+                                            <span className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold shadow-sm ${stockStatus === "Out of Stock" ? "border border-red-200 bg-red-100 text-red-700" : "border border-amber-200 bg-amber-100 text-amber-700"}`}>
+                                                <AlertCircle className="w-3 h-3" /> {stockStatus}
                                             </span>
                                         )}
                                     </div>
@@ -1084,11 +1219,11 @@ export default function ChairmanPosInventoryClient() {
                                                 }}
                                                 className="absolute inset-0 z-[1] w-full h-full object-cover transition duration-300 hover:scale-105"
                                             />
-                                            <div className="hidden flex-col items-center gap-2 text-center text-[#6B8A76]" aria-label="Product image unavailable">
+                                            <div className="hidden flex flex-col items-center gap-2 text-center text-[#6B8A76]" aria-label="Product image unavailable">
                                                 <div className="flex size-16 items-center justify-center rounded-2xl bg-white/75 text-2xl font-black text-[#1F6B43] shadow-sm">
                                                     {item.name.slice(0, 1).toUpperCase()}
                                                 </div>
-                                                <span className="text-xs font-semibold">Image unavailable</span>
+                                                <span className="text-xs font-semibold">No image uploaded</span>
                                             </div>
                                         </>
                                     ) : (
@@ -1096,7 +1231,7 @@ export default function ChairmanPosInventoryClient() {
                                             <div className="flex size-16 items-center justify-center rounded-2xl bg-white/75 text-2xl font-black text-[#1F6B43] shadow-sm">
                                                 {item.name.slice(0, 1).toUpperCase()}
                                             </div>
-                                            <span className="text-xs font-semibold">No product image</span>
+                                            <span className="text-xs font-semibold">No image uploaded</span>
                                         </div>
                                     )}
                                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#123D2A]/35 via-transparent to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100"></div>
@@ -1105,21 +1240,42 @@ export default function ChairmanPosInventoryClient() {
                                 <div className="flex flex-col p-4">
                                     <div className="mb-3 min-h-[50px] min-w-0">
                                         <h3 className="font-bold text-[#1e293b] truncate leading-tight text-base" title={item.name}>{item.name}</h3>
-                                        <span className="mt-2 inline-flex w-fit items-center rounded-full bg-[#EAF5EC] px-2.5 py-1 text-[11px] font-bold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{item.category || "Uncategorized"}</span>
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex w-fit items-center rounded-full bg-[#EAF5EC] px-2.5 py-1 text-[11px] font-bold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{item.category || "Uncategorized"}</span>
+                                            <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${demandBadgeClass(demand)}`} title={`Demand level based on ${Number(item.sold || 0).toLocaleString()} completed units sold for ${demandPeriodDescription(demandPeriod)}`}>
+                                                {demand} demand
+                                            </span>
+                                        </div>
                                     </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setDetailsItem(item)}
+                                        className="mb-3 inline-flex w-fit items-center text-xs font-bold text-[#1F6B43] transition hover:text-[#123D2A] hover:underline"
+                                    >
+                                        View product details
+                                    </button>
 
                                     <div className="mb-1 flex min-h-[42px] items-center justify-between text-sm">
                                         <span className="text-[#64748b]">Available stock</span>
                                         <div className="flex flex-col items-end">
-                                            <span className="font-bold text-[#1e293b]">{formatQuantityUnit(item.stock - (item.pending_qty || 0), item.unit)}</span>
+                                            <span className={`font-bold ${stockStatus === "Out of Stock" ? "text-red-600" : stockStatus === "Low Stock" ? "text-amber-700" : "text-[#1e293b]"}`}>{formatQuantityUnit(availableStock, item.unit)}</span>
                                             {item.pending_qty ? (
                                                 <span className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">({formatQuantityUnit(item.pending_qty, item.unit)} pending)</span>
                                             ) : null}
                                         </div>
                                     </div>
+                                    <div className="mb-2 flex min-h-[24px] items-center justify-between text-xs">
+                                        <span className="text-[#94a3b8]">Stock status</span>
+                                        <span className={`rounded-full px-2 py-1 font-bold ring-1 ring-inset ${stockStatusClass(stockStatus)}`}>{stockStatus}</span>
+                                    </div>
                                     <div className="mb-2 flex min-h-[18px] items-center justify-between text-xs">
                                         <span className="text-[#94a3b8]">Reorder level</span>
                                         <span className="font-semibold text-[#52705D]">{item.reorder_level ? formatQuantityUnit(item.reorder_level, item.unit) : "Not set"}</span>
+                                    </div>
+                                    <div className="mb-2 flex min-h-[18px] items-center justify-between text-xs">
+                                        <span className="text-[#94a3b8]">Units sold ({demandPeriodDescription(demandPeriod)})</span>
+                                        <span className="font-semibold text-[#52705D]">{Number(item.sold || 0).toLocaleString()}</span>
                                     </div>
                                     <div className="mb-3 flex min-h-[24px] items-center justify-between text-sm">
                                         <span className="text-[#64748b]">Selling price</span>
@@ -1163,6 +1319,47 @@ export default function ChairmanPosInventoryClient() {
                     <button type="button" onClick={() => setInventoryPage((page) => Math.max(1, page - 1))} disabled={inventoryPage === 1} className="rounded-xl border border-[#D8E5DB] px-4 py-2 text-sm font-bold text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
                     <span className="text-sm font-bold text-[#123D2A]">Page {inventoryPage} of {inventoryPageCount}</span>
                     <button type="button" onClick={() => setInventoryPage((page) => Math.min(inventoryPageCount, page + 1))} disabled={inventoryPage === inventoryPageCount} className="rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                </div>
+            )}
+
+            {/* Stock Alert Modal */}
+            {isStockAlertModalOpen && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B2E20]/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="stock-alert-title">
+                    <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
+                        <div className="flex items-start justify-between border-b border-[#E7EFE8] px-5 py-5 sm:px-7">
+                            <div className="flex items-start gap-3">
+                                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFF6DD] text-[#A76500]">
+                                    <AlertCircle className="size-6" />
+                                </div>
+                                <div>
+                                    <h2 id="stock-alert-title" className="text-xl font-black text-[#123D2A]">Stock alerts</h2>
+                                    <p className="mt-1 text-sm leading-5 text-[#64748b]">Review products that need replenishment before continuing.</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setIsStockAlertModalOpen(false)} className="rounded-full p-2 text-[#64748b] transition hover:bg-[#F1F6F1] hover:text-[#123D2A]" aria-label="Close stock alerts">
+                                <X className="size-5" />
+                            </button>
+                        </div>
+
+                        <div className="max-h-[min(48vh,360px)] space-y-2 overflow-y-auto px-5 py-5 sm:px-7">
+                            {stockAlertItems.map((item) => {
+                                const status = getStockStatus(item);
+                                return (
+                                    <button key={item.id} type="button" onClick={() => { setIsStockAlertModalOpen(false); setStockActionType("add"); setStockToAdd(""); setStockInputError(""); setAddingStockItem(item); }} className="flex w-full items-center justify-between gap-4 rounded-2xl border border-[#E3EDE4] bg-[#F8FBF8] px-4 py-3 text-left transition hover:border-[#9DC6A8] hover:bg-[#F1F8F2]">
+                                        <span className="min-w-0">
+                                            <span className="block truncate text-sm font-bold text-[#123D2A]">{item.name}</span>
+                                            <span className="mt-1 block text-xs text-[#789181]">Available: {formatQuantityUnit(getAvailableStock(item), item.unit)} · Alert at {formatQuantityUnit(getLowStockThreshold(item), item.unit)}</span>
+                                        </span>
+                                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${stockStatusClass(status)}`}>{status}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex justify-end border-t border-[#E7EFE8] px-5 py-4 sm:px-7">
+                            <button type="button" onClick={() => setIsStockAlertModalOpen(false)} className="rounded-xl bg-[#123D2A] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]">Continue to inventory</button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -1713,6 +1910,77 @@ export default function ChairmanPosInventoryClient() {
                     </div>
                 </div>
             )}
+
+            {/* Product Details Modal */}
+            {detailsItem && (() => {
+                const detailDemand = demandByProductId.get(detailsItem.id) ?? "Low";
+                const detailStockStatus = getStockStatus(detailsItem);
+                const detailAvailableStock = getAvailableStock(detailsItem);
+
+                return (
+                    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
+                        <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-xl animate-in zoom-in-95 duration-200">
+                            <div className="flex items-start justify-between border-b border-[#E7EFE8] p-5 sm:p-6">
+                                <div className="min-w-0 pr-4">
+                                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B8A76]">Product details</p>
+                                    <h2 className="mt-1 truncate text-xl font-black text-[#123D2A]">{detailsItem.name}</h2>
+                                    <p className="mt-1 text-sm text-[#64748b]">{detailsItem.category || "Uncategorized"}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setDetailsItem(null)}
+                                    className="rounded-full p-2 text-[#64748b] transition hover:bg-[#F1F6F1] hover:text-[#123D2A]"
+                                    aria-label="Close product details"
+                                >
+                                    <X className="size-5" />
+                                </button>
+                            </div>
+                            <div className="grid gap-4 p-5 sm:p-6">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${demandBadgeClass(detailDemand)}`}>{detailDemand} demand</span>
+                                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${stockStatusClass(detailStockStatus)}`}>{detailStockStatus}</span>
+                                    <span className="rounded-full bg-[#F1F6F1] px-2.5 py-1 text-xs font-bold text-[#52705D]">{demandPeriodLabel(demandPeriod)}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                    {[
+                                        ["Available stock", formatQuantityUnit(detailAvailableStock, detailsItem.unit)],
+                                        ["Units sold", Number(detailsItem.sold || 0).toLocaleString()],
+                                        ["Reorder level", detailsItem.reorder_level ? formatQuantityUnit(detailsItem.reorder_level, detailsItem.unit) : "Not set"],
+                                        ["Selling price", `₱ ${detailsItem.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+                                        ["Pending", formatQuantityUnit(detailsItem.pending_qty || 0, detailsItem.unit)],
+                                        ["Stock history", `${detailsItem.history?.length ?? 0} records`],
+                                    ].map(([label, value]) => (
+                                        <div key={label} className="rounded-xl border border-[#E3EDE4] bg-[#F8FBF8] p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#789181]">{label}</p>
+                                            <p className="mt-1 break-words text-sm font-black text-[#123D2A]">{value}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="rounded-xl border border-[#E3EDE4] bg-white p-4">
+                                    <p className="text-xs font-bold uppercase tracking-wide text-[#789181]">Description</p>
+                                    <p className="mt-2 text-sm leading-6 text-[#52705D]">{detailsItem.description || "No description provided."}</p>
+                                </div>
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setHistoryItem(detailsItem); setDetailsItem(null); }}
+                                        className="rounded-xl border border-[#D8E5DB] bg-white px-4 py-2.5 text-sm font-bold text-[#52705D] transition hover:bg-[#F1F6F1]"
+                                    >
+                                        View stock history
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { const margin = detailsItem.cost_price && detailsItem.price ? (((detailsItem.price - detailsItem.cost_price) / detailsItem.cost_price) * 100).toFixed(1) : ""; setEditingItem({ ...detailsItem, margin }); setDetailsItem(null); }}
+                                        className="rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
+                                    >
+                                        Edit product
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
             {/* Archive Confirmation Modal */}
             {itemToDelete && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">

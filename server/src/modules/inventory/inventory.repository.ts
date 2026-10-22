@@ -42,7 +42,15 @@ type InventoryHistoryRow = RowDataPacket & {
 export type ListInventoryProductsOptions = {
   includeHistory?: boolean;
   publicOnly?: boolean;
+  demandPeriod?: "all" | "7d" | "30d" | "year";
 };
+
+function demandPeriodClause(period: ListInventoryProductsOptions["demandPeriod"] = "all") {
+  if (period === "7d") return "AND ps.sale_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)";
+  if (period === "30d") return "AND ps.sale_date >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)";
+  if (period === "year") return "AND ps.sale_date >= MAKEDATE(YEAR(UTC_TIMESTAMP()), 1)";
+  return "";
+}
 
 function mapProductStatus(status: string) {
   if (status === "Active") return "Available";
@@ -109,7 +117,7 @@ export function createInventoryRepository(pool?: Pool): InventoryRepository {
   const databasePool = () => pool ?? getPool();
 
   return {
-    async listProducts({ includeHistory = false, publicOnly = false }: ListInventoryProductsOptions = {}) {
+    async listProducts({ includeHistory = false, publicOnly = false, demandPeriod = "all" }: ListInventoryProductsOptions = {}) {
       const [rows] = await databasePool().execute<InventoryProductRow[]>(`
         SELECT
           p.product_id as id,
@@ -131,6 +139,7 @@ export function createInventoryRepository(pool?: Pool): InventoryRepository {
               FROM pos_sale_items psi
               JOIN pos_sales ps ON ps.pos_sale_id = psi.pos_sale_id
               WHERE ps.sale_status IN ('Paid', 'Completed') AND psi.product_id = p.product_id
+                ${demandPeriodClause(demandPeriod)}
           ) as sold,
           p.product_status as status,
           p.image_path as img,

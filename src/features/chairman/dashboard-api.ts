@@ -88,6 +88,33 @@ export type OperationsSnapshot = {
   inventory: { lowStock: number; outOfStock: number; alerts: InventoryAlert[] };
 };
 
+export type ProductSalesItem = {
+  productId: string;
+  productName: string;
+  category: string;
+  unitsSold: number;
+  revenue: number;
+  transactions: number;
+  stock: number;
+  demand: "High" | "Medium" | "Low";
+};
+
+export type ProductCategorySales = {
+  category: string;
+  unitsSold: number;
+  revenue: number;
+  transactions: number;
+};
+
+export type ProductShopAnalytics = {
+  totalSales: number;
+  transactions: number;
+  unitsSold: number;
+  averageOrderValue: number;
+  topProducts: ProductSalesItem[];
+  categorySales: ProductCategorySales[];
+};
+
 export type ActivityItem = {
   type: string;
   title: string;
@@ -108,6 +135,7 @@ export interface ChairmanDashboardData {
   incomeSources: IncomeSource[];
   demographics: DemographicData[];
   operationsSnapshot: OperationsSnapshot;
+  productShopAnalytics: ProductShopAnalytics;
   inventoryAlerts: InventoryAlert[];
   recentTransactions: TransactionItem[];
   actionItems: ActionItem[];
