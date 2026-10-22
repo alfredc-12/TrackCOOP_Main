@@ -21,7 +21,7 @@ export function createMemberSelfController(service: MemberSelfService) {
   return {
     dashboard: asyncHandler(async (request, response) => {
       try {
-        return response.json(await service.dashboard(requireAuth(request.auth)));
+        return response.json(await service.dashboard(requireAuth(request.auth), request.query));
       } catch (error) {
         return sendError(response, error, "Failed to fetch dashboard data");
       }

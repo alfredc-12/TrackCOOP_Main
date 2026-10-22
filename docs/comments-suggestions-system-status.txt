@@ -1,0 +1,101 @@
+TrackCOOP - Comments, Suggestions, and Additional
+System Status Review - Sorted by Status
+
+Date reviewed: October 22, 2026
+
+Status legend:
+- 🔵 NASA SYSTEM NA = Implemented and available in the current system.
+- 🟡 PARTIAL = Some related features exist, but additional work is still needed.
+- 🔴 WALA PA = Not currently implemented or requires external/manual action.
+
+
+============================================================
+🔵 NASA SYSTEM NA
+============================================================
+
+1. Clearly present the growth and transaction history of each member's Share Capital.
+Details: The system has a Share Capital growth chart, current balance, initial capital, contributions, interest added, deductions, and posted transaction history.
+
+2. Clarify the Annual Interest on Share Capital declaration, distribution schedule, and member options to withdraw or add interest to Share Capital.
+Details: The system includes an annual declaration, coverage dates, distribution date, member withdrawal or Share Capital capitalization options, and Bookkeeper payout processing.
+
+13. Ensure financial transparency by allowing members to view appropriate income and expense breakdowns.
+Details: The member dashboard now shows posted cooperative income, expenses, net operating result, and category-level breakdowns. Share Capital contributions are identified separately. The Financial Transparency modal now includes This Year, This Month, Last 30 Days, All Time, and Custom Range filters; comparison against the previous period; category details with amount, percentage, and posted-record count; definitions for the financial terms; a Chairman-dashboard reconciliation indicator; loading, empty, and error states; category pagination fixed at the bottom of the modal; and a Save as PDF option. The Member and Chairman dashboards use the same shared financial aggregation rules, and automated coverage was added for the totals and category counts.
+
+11. Provide a separate Expense Management module with a detailed breakdown of expenses.
+Details: The system has Operating Expenses, expense categories, amount, payee, payment method, receipt, description, remarks, and financial ledger recording.
+
+16. Generate complete and detailed reports for relevant cooperative transactions and analytics.
+Details: The system has financial, membership, Share Capital, rental, sales, inventory, document, audit, and notification reports.
+
+18. Populate the system with sufficient realistic data to properly demonstrate analytics and reports.
+Details: Testing data includes members, Share Capital, expenses, POS sales, products, inventory, rentals, reports, announcements, and notifications.
+
+
+============================================================
+🟡 PARTIAL
+============================================================
+
+4. Include promotional features to support cooperative membership recruitment and activities.
+Details: The system has announcements, public gallery content, landing-page content, and targeted announcements. A dedicated recruitment campaign and promotional analytics feature are not yet available.
+
+7. Clearly define High-Value Crops and specify the criteria and crops included in the system.
+Details: High-Value Crops is available as a sector option, but the detailed criteria and complete crop list have not yet been defined in the system.
+
+8. Clarify Barangay Recruitment Analytics, including membership and referral data per barangay.
+Details: The system has member counts, barangay mapping, sector breakdowns, and top barangays. Referral data per barangay is not yet available.
+
+9. Confirm whether a person may belong to multiple sectors or whether a one-to-one relationship should be followed.
+Details: The current system stores one sector per member. The cooperative still needs to officially confirm and document whether this one-to-one rule is correct.
+
+10. Make members' earnings, income, and expenses visible and understandable in the system.
+Details: Members can view statements, deposits, purchases, patronage, and Share Capital information. A complete personal income-and-expense breakdown is not yet available.
+
+14. Use more detailed, realistic, and related data for dashboards and analytics during the Final Defense.
+Details: The system has dashboards and seeded realistic data, but additional records and scenarios are still needed for a stronger Final Defense demonstration.
+
+15. Include product/shop analytics to identify most purchased products, sales performance, and demand.
+Details: The system has POS, inventory, sales-by-product, sales-by-category, and low-stock reports. A dedicated most-purchased-products or demand dashboard is not yet available.
+
+17. Implement pop-up, email, and SMS/text notifications for important system updates.
+Details: In-app notifications, notification bells, announcements, and email support are available. Actual SMS/text provider integration is not yet implemented.
+
+
+============================================================
+🔴 WALA PA / EXTERNAL OR PROCESS ACTION
+============================================================
+
+3. Implement a member referral system and record successful referrals for recruitment monitoring.
+Details: There is no referral code, referral tracking, successful referral count, or referral report yet.
+
+5. Coordinate the attendance of Don Johnson during the Final Defense.
+Details: This requires manual coordination and is not a software feature.
+
+6. Define and clarify the purpose of seasonal analytics and how seasons affect production, sales, income, and expenses.
+Details: There is no actual season configuration or analytics that connects seasons to production, sales, income, and expenses.
+
+12. Implement budget controls or a safety net to prevent expenses from exceeding approved limits.
+Details: There is no approved budget limit, spending cap, warning, or approval block for expenses that exceed a budget.
+
+19. Conduct user testing with cooperative members and use their feedback for system improvements.
+Details: This requires actual user testing sessions, feedback collection, and documentation outside the software implementation.
+
+
+============================================================
+SUMMARY
+============================================================
+
+🔵 Nasa system na: 6 items
+🟡 Partial: 8 items
+🔴 Wala pa or external/manual action: 5 items
+
+Main remaining development priorities:
+1. Member referral system
+2. Seasonal analytics
+3. Budget controls
+4. SMS notification integration
+5. More detailed product demand analytics
+6. More realistic Final Defense data
+7. User testing and feedback documentation
+
+

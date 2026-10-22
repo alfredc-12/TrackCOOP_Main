@@ -5,13 +5,14 @@ import {
 } from "./member-self.repository";
 import type {
   MemberActivityQuery,
+  MemberDashboardQuery,
   MemberPasswordInput,
   MemberProfileInput,
   MemberSupportInput,
 } from "./member-self.types";
 
 export interface MemberSelfService {
-  dashboard(auth: AuthContext): ReturnType<MemberSelfRepository["dashboard"]>;
+  dashboard(auth: AuthContext, query?: MemberDashboardQuery): ReturnType<MemberSelfRepository["dashboard"]>;
   activity(auth: AuthContext, query: MemberActivityQuery): ReturnType<MemberSelfRepository["activity"]>;
   profile(auth: AuthContext): ReturnType<MemberSelfRepository["profile"]>;
   updateProfile(auth: AuthContext, input: MemberProfileInput): ReturnType<MemberSelfRepository["updateProfile"]>;
@@ -24,7 +25,7 @@ export function createMemberSelfService(
   repository: MemberSelfRepository = createMemberSelfRepository(),
 ): MemberSelfService {
   return {
-    dashboard: (auth) => repository.dashboard(auth),
+    dashboard: (auth, query) => repository.dashboard(auth, query),
     activity: (auth, query) => repository.activity(auth, query),
     profile: (auth) => repository.profile(auth),
     updateProfile: (auth, input) => repository.updateProfile(auth, input),

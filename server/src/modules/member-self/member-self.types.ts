@@ -4,6 +4,12 @@ export type MemberActivityQuery = {
   search?: string;
 };
 
+export type MemberDashboardQuery = {
+  period?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
 export type MemberProfileInput = {
   contact_number?: string | null;
   email?: string | null;

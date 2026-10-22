@@ -49,6 +49,8 @@ import {
   Tractor,
   TrendingUp,
   Download,
+  Printer,
+  RefreshCw,
   PieChart,
   Star,
   ShieldCheck,
@@ -92,6 +94,16 @@ function formatPeso(value: number) {
   }).format(Number(value) || 0);
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
 function isAtLeastYearsAgo(value: unknown, years: number) {
   if (!value) return false;
   const startDate = new Date(String(value));
@@ -119,6 +131,27 @@ const SHARE_CAPITAL_TIER_BADGE_CLASSES = {
   "Platinum Tier": "bg-indigo-100 text-indigo-700",
 } as const;
 
+type FinancialPeriod = "year" | "month" | "30d" | "all" | "custom";
+
+type FinancialCategoryItem = {
+  category: string;
+  amount: number;
+  recordCount?: number;
+};
+
+type FinancialCategorySelection = FinancialCategoryItem & {
+  kind: "Income" | "Expense";
+  total: number;
+};
+
+const FINANCIAL_PERIOD_LABELS: Record<FinancialPeriod, string> = {
+  year: "This Year",
+  month: "This Month",
+  "30d": "Last 30 Days",
+  all: "All Time",
+  custom: "Custom Range",
+};
+
 export default function MemberDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("Dashboard");
@@ -144,6 +177,14 @@ export default function MemberDashboardPage() {
 
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isFetchingDashboard, setIsFetchingDashboard] = useState(true);
+  const [dashboardLoadError, setDashboardLoadError] = useState(false);
+  const [financialTransparencyModalOpen, setFinancialTransparencyModalOpen] = useState(false);
+  const [financialPeriod, setFinancialPeriod] = useState<FinancialPeriod>("year");
+  const [financialStartDate, setFinancialStartDate] = useState("");
+  const [financialEndDate, setFinancialEndDate] = useState("");
+  const [financialDefinitionsOpen, setFinancialDefinitionsOpen] = useState(false);
+  const [selectedFinancialCategory, setSelectedFinancialCategory] = useState<FinancialCategorySelection | null>(null);
+  const [financialCategoryPage, setFinancialCategoryPage] = useState(1);
   const [patronageData, setPatronageData] = useState<MemberPatronageSummary | null>(null);
   const [isFetchingPatronage, setIsFetchingPatronage] = useState(true);
   const [patronageLoadError, setPatronageLoadError] = useState(false);
@@ -207,18 +248,78 @@ export default function MemberDashboardPage() {
     },
   ];
 
+  const financialTransparency = dashboardData?.financialTransparency;
+  const financialIncomeTotal = Number(financialTransparency?.incomeTotal || 0);
+  const financialExpenseTotal = Number(financialTransparency?.expenseTotal || 0);
+  const financialIncomeItems = (financialTransparency?.incomeByCategory || []) as FinancialCategoryItem[];
+  const financialExpenseItems = (financialTransparency?.expenseByCategory || []) as FinancialCategoryItem[];
+  const financialComparison = financialTransparency?.comparison as { label: string; incomeTotal: number; expenseTotal: number; netTotal: number } | null | undefined;
+  const financialGeneratedAt = financialTransparency?.generatedAt ? new Date(financialTransparency.generatedAt) : null;
+  const financialCategoryPageSize = 6;
+  const financialCategoryPageCount = Math.max(
+    1,
+    Math.ceil(Math.max(
+      financialIncomeItems.filter((item) => Number(item.amount) > 0).length,
+      financialExpenseItems.filter((item) => Number(item.amount) > 0).length,
+    ) / financialCategoryPageSize),
+  );
+  const safeFinancialCategoryPage = Math.min(financialCategoryPage, financialCategoryPageCount);
+
+  useEffect(() => {
+    setFinancialCategoryPage(1);
+  }, [financialEndDate, financialPeriod, financialStartDate]);
+
+  function financialComparisonMeta(current: number, previous: number, kind: "income" | "expense" | "net") {
+    if (!financialComparison) return { label: "No previous-period comparison", className: "text-[#6C7A70]" };
+    const delta = current - previous;
+    if (previous === 0) {
+      return delta === 0
+        ? { label: "No change from previous period", className: "text-[#6C7A70]" }
+        : { label: "New activity this period", className: kind === "expense" ? "text-[#A15C16]" : "text-[#1F6B43]" };
+    }
+    const percentage = Math.abs((delta / previous) * 100);
+    const favorable = kind === "expense" ? delta <= 0 : delta >= 0;
+    return {
+      label: `${delta >= 0 ? "↑" : "↓"} ${percentage.toFixed(1)}% vs ${financialComparison.label.toLowerCase()}`,
+      className: favorable ? "text-[#1F6B43]" : "text-[#B42318]",
+    };
+  }
+
+  const printFinancialReport = () => {
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=960,height=720");
+    if (!printWindow) {
+      toast.error("Please allow pop-ups to print the financial report.");
+      return;
+    }
+    const categoryRows = [
+      ...financialIncomeItems.filter((item) => Number(item.amount) > 0).map((item) => `<tr><td>Income</td><td>${escapeHtml(item.category)}</td><td class="income">${escapeHtml(formatPeso(Number(item.amount)))}</td></tr>`),
+      ...financialExpenseItems.filter((item) => Number(item.amount) > 0).map((item) => `<tr><td>Expense</td><td>${escapeHtml(item.category)}</td><td class="expense">${escapeHtml(formatPeso(Number(item.amount)))}</td></tr>`),
+    ].join("");
+    printWindow.document.write(`<!doctype html><html><head><title>TrackCOOP Financial Transparency</title><style>body{font-family:Arial,sans-serif;color:#173626;padding:32px}h1{margin:0 0 6px}p{color:#657169}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.card{border:1px solid #dce6dd;border-radius:12px;padding:14px;background:#f8fbf8}.label{font-size:11px;text-transform:uppercase;color:#6c7a70;font-weight:bold}.value{font-size:20px;font-weight:800;margin-top:8px}.income{color:#1f6b43}.expense{color:#a15c16}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e5ebe6}th{background:#eef4ef;font-size:12px;text-transform:uppercase;color:#52705e}td:last-child,th:last-child{text-align:right}@media print{body{padding:0}}</style></head><body><h1>Financial transparency</h1><p>Cooperative-wide posted income and expenses · ${escapeHtml(FINANCIAL_PERIOD_LABELS[financialPeriod])}</p><p>Generated: ${escapeHtml(financialGeneratedAt?.toLocaleString("en-PH") || new Date().toLocaleString("en-PH"))}</p><div class="summary"><div class="card"><div class="label">Posted income</div><div class="value income">${escapeHtml(formatPeso(financialIncomeTotal))}</div></div><div class="card"><div class="label">Posted expenses</div><div class="value expense">${escapeHtml(formatPeso(financialExpenseTotal))}</div></div><div class="card"><div class="label">Net operating result</div><div class="value">${escapeHtml(formatPeso(financialIncomeTotal - financialExpenseTotal))}</div></div></div><table><thead><tr><th>Type</th><th>Category</th><th>Amount</th></tr></thead><tbody>${categoryRows || '<tr><td colspan="3">No posted financial records.</td></tr>'}</tbody></table><p>This report includes active and approved cooperative records. Share Capital contributions are excluded from operating income.</p></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   const refreshDashboard = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) setIsFetchingDashboard(true);
     try {
-      const response = await expressFetch("/api/members/me/dashboard");
+      const params = new URLSearchParams({ period: financialPeriod });
+      if (financialPeriod === "custom" && financialStartDate && financialEndDate) {
+        params.set("startDate", financialStartDate);
+        params.set("endDate", financialEndDate);
+      }
+      const response = await expressFetch(`/api/members/me/dashboard?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to refresh dashboard");
       setDashboardData(await response.json());
+      setDashboardLoadError(false);
     } catch (error) {
       console.error(error);
+      setDashboardLoadError(true);
     } finally {
       setIsFetchingDashboard(false);
     }
-  }, []);
+  }, [financialEndDate, financialPeriod, financialStartDate]);
 
   const refreshMemberDividends = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) setIsFetchingDividends(true);
@@ -860,6 +961,223 @@ export default function MemberDashboardPage() {
         </div>
       </Modal>
 
+      <Modal
+        title="Financial transparency"
+        description={`Cooperative-wide posted income and expenses grouped by category for ${FINANCIAL_PERIOD_LABELS[financialPeriod].toLowerCase()}.`}
+        maxWidth="max-w-5xl"
+        open={financialTransparencyModalOpen}
+        onOpenChange={setFinancialTransparencyModalOpen}
+        trigger={<span className="hidden"></span>}
+      >
+        <div className="mt-4 max-h-[75vh] space-y-5 overflow-x-hidden overflow-y-auto pr-1">
+          {dashboardLoadError ? (
+            <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <AlertCircle className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="font-bold">Unable to refresh the financial summary.</p>
+                <p className="mt-1">The latest available values are shown when available. Try Refresh again.</p>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2 rounded-xl border border-[#DDE8D8] bg-[#F8FBF8] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-[#173626]">Reporting period</p>
+              <p className="mt-1 text-xs text-[#6C7A70]">Use the same period as the Chairman financial dashboard for comparable totals.</p>
+            </div>
+            <Select.Root value={financialPeriod} onValueChange={(value) => setFinancialPeriod(value as FinancialPeriod)}>
+              <Select.Trigger aria-label="Reporting period" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-36">
+                <Select.Value />
+                <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                  <Select.Viewport>
+                    <Select.Item value="year" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                      <Select.ItemText>This Year</Select.ItemText>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                    </Select.Item>
+                    <Select.Item value="month" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                      <Select.ItemText>This Month</Select.ItemText>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                    </Select.Item>
+                    <Select.Item value="30d" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                      <Select.ItemText>Last 30 Days</Select.ItemText>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                    </Select.Item>
+                    <Select.Item value="all" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                      <Select.ItemText>All Time</Select.ItemText>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                    </Select.Item>
+                    <Select.Item value="custom" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                      <Select.ItemText>Custom Range</Select.ItemText>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                    </Select.Item>
+                  </Select.Viewport>
+                </Select.Content>
+              </Select.Portal>
+            </Select.Root>
+          </div>
+
+          {financialPeriod === "custom" ? (
+            <div className="grid gap-3 rounded-xl border border-[#DDE8D8] bg-white p-4 sm:grid-cols-2">
+              <label className="text-sm font-bold text-[#294B39]">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+              <label className="text-sm font-bold text-[#294B39]">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+              {financialStartDate && financialEndDate && financialStartDate > financialEndDate ? <p className="sm:col-span-2 text-xs font-semibold text-red-700">End date must be on or after the start date.</p> : null}
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-3 rounded-xl border border-[#DDE8D8] bg-[#F8FBF8] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-[#173626]">Cooperative-wide totals</p>
+              <p className="mt-1 text-xs text-[#6C7A70]">This is not personal member income. Share Capital contributions are tracked separately.</p>
+              <p className="mt-1 text-xs font-semibold text-[#6C7A70]">Last updated: {financialGeneratedAt && !Number.isNaN(financialGeneratedAt.getTime()) ? financialGeneratedAt.toLocaleString("en-PH") : "Not available"}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF3E8] px-2.5 py-1 text-[11px] font-bold text-[#1F6B43]"><CheckCircle2 className="size-3.5" aria-hidden="true" /> Aligned with Chairman dashboard</span>
+                <button type="button" onClick={() => setFinancialDefinitionsOpen((open) => !open)} className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2F7D57] underline-offset-2 hover:underline"><Info className="size-3.5" aria-hidden="true" /> How this is counted</button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void refreshDashboard()} className="inline-flex items-center gap-2 rounded-lg border border-[#CAD8CB] bg-white px-3 py-2 text-xs font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60" disabled={isFetchingDashboard}><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} /> Refresh</button>
+              <button type="button" onClick={printFinancialReport} className="inline-flex items-center gap-2 rounded-lg bg-[#123D2A] px-3 py-2 text-xs font-bold text-white hover:bg-[#1F6B43]"><Printer className="size-4" /> Save as PDF</button>
+            </div>
+          </div>
+
+          {financialDefinitionsOpen ? (
+            <div className="rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-xs leading-relaxed text-[#5D6D63]">
+              <p className="font-bold text-[#294B39]">Definitions</p>
+              <ul className="mt-2 space-y-1.5">
+                <li><span className="font-bold text-[#173626]">Posted income:</span> approved active income records, excluding Share Capital contributions.</li>
+                <li><span className="font-bold text-[#173626]">Posted expenses:</span> approved active expense records for the selected reporting period.</li>
+                <li><span className="font-bold text-[#173626]">Net operating result:</span> posted income minus posted expenses.</li>
+              </ul>
+            </div>
+          ) : null}
+
+          {isFetchingDashboard && !dashboardData ? (
+            <div className="grid gap-4" role="status" aria-label="Loading financial transparency">
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+                {["income", "expenses", "net"].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl border border-[#E5E7EB] bg-[#F3F7F3]" />)}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {["income", "expenses"].map((item) => <div key={item} className="h-64 animate-pulse rounded-xl border border-[#E5E7EB] bg-[#F8FBF8]" />)}
+              </div>
+            </div>
+          ) : (
+            <>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { label: "Posted income", value: financialIncomeTotal, previous: financialComparison?.incomeTotal, kind: "income" as const, className: "text-[#1F6B43]" },
+              { label: "Posted expenses", value: financialExpenseTotal, previous: financialComparison?.expenseTotal, kind: "expense" as const, className: "text-[#A15C16]" },
+              { label: "Net operating result", value: financialTransparency?.netTotal, previous: financialComparison?.netTotal, kind: "net" as const, className: "text-[#123D2A]" },
+            ].map((summary) => (
+              <div key={summary.label} className="min-w-0 rounded-xl border border-[#E5E7EB] bg-[#F8FBF8] p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-[#6C7A70]">{summary.label}</p>
+                <p className={`mt-2 whitespace-nowrap text-xl font-black ${summary.className}`}>{isFetchingDashboard && !dashboardData ? "..." : formatPeso(Number(summary.value || 0))}</p>
+                <p className={`mt-1 text-[11px] font-bold ${financialComparisonMeta(Number(summary.value || 0), Number(summary.previous || 0), summary.kind).className}`}>
+                  {financialComparisonMeta(Number(summary.value || 0), Number(summary.previous || 0), summary.kind).label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {!dashboardLoadError && financialIncomeTotal === 0 && financialExpenseTotal === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#CAD8CB] bg-[#FBFCFA] px-5 py-8 text-center">
+              <FileText className="size-8 text-[#7A9A84]" aria-hidden="true" />
+              <p className="mt-3 text-sm font-bold text-[#294B39]">No posted financial records yet</p>
+              <p className="mt-1 max-w-md text-xs leading-relaxed text-[#6C7A70]">Try another reporting period or refresh after approved income and expense records have been posted.</p>
+            </div>
+          ) : null}
+
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
+            {[
+              { title: "Income by category", kind: "Income" as const, items: financialIncomeItems, total: financialIncomeTotal, empty: "No posted income records for this period.", color: "bg-[#1F6B43]", amountClass: "text-[#1F6B43]" },
+              { title: "Expenses by category", kind: "Expense" as const, items: financialExpenseItems, total: financialExpenseTotal, empty: "No posted expense records for this period.", color: "bg-[#A15C16]", amountClass: "text-[#A15C16]" },
+            ].map((group) => {
+              const visibleItems = group.items.filter((item) => Number(item.amount) > 0);
+              const pagedItems = visibleItems.slice((safeFinancialCategoryPage - 1) * financialCategoryPageSize, safeFinancialCategoryPage * financialCategoryPageSize);
+              return (
+                <div key={group.title} className="min-w-0 rounded-xl border border-[#E5E7EB] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-[#173626]">{group.title}</h4>
+                    <span className="text-[11px] font-semibold text-[#6C7A70]">Click a row for details</span>
+                  </div>
+                  <div className="mt-3 divide-y divide-[#EEF2EC]">
+                    {visibleItems.length ? pagedItems.map((item) => {
+                      const percentage = group.total > 0 ? (Number(item.amount) / group.total) * 100 : 0;
+                      return (
+                        <button
+                          key={item.category}
+                          type="button"
+                          onClick={() => setSelectedFinancialCategory({ ...item, kind: group.kind, total: group.total })}
+                          className="group w-full py-3 text-left text-sm outline-none transition hover:bg-[#F8FBF8] focus-visible:ring-2 focus-visible:ring-[#1F6B43]"
+                          aria-label={`View details for ${group.kind.toLowerCase()} category ${item.category}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="min-w-0 break-words font-medium text-[#42594B]">{item.category}</span>
+                            <div className="shrink-0 text-right">
+                              <span className={`whitespace-nowrap font-bold ${group.amountClass}`}>{formatPeso(Number(item.amount))}</span>
+                              <span className="ml-2 text-xs font-bold text-[#6C7A70]">{percentage.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#EEF2EC]" aria-hidden="true"><div className={`h-full rounded-full ${group.color}`} style={{ width: `${Math.min(100, percentage)}%` }} /></div>
+                          <span className="mt-1 block text-[11px] font-semibold text-[#6C7A70] opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">View category details</span>
+                        </button>
+                      );
+                    }) : <p className="py-3 text-sm text-[#6B7280]">{group.empty}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+            </>
+          )}
+
+          <p className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-3 text-xs font-medium leading-relaxed text-[#5D6D63]">
+            This summary includes active, approved cooperative records only. Share Capital contributions are tracked separately and are not counted as operating income.
+          </p>
+
+          {financialCategoryPageCount > 1 ? (
+            <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 border-t border-[#DDE8D8] bg-white/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+              <span className="text-xs font-bold text-[#6C7A70]">Page {safeFinancialCategoryPage} of {financialCategoryPageCount}</span>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.max(1, page - 1))} disabled={safeFinancialCategoryPage === 1} className="rounded-lg border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#365F4A] disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.min(financialCategoryPageCount, page + 1))} disabled={safeFinancialCategoryPage === financialCategoryPageCount} className="rounded-lg border border-[#8FB49A] bg-[#F5FAF5] px-3 py-2 text-xs font-bold text-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        title="Category details"
+        description={selectedFinancialCategory ? `${selectedFinancialCategory.kind} · ${FINANCIAL_PERIOD_LABELS[financialPeriod]}` : undefined}
+        maxWidth="max-w-md"
+        open={Boolean(selectedFinancialCategory)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedFinancialCategory(null);
+        }}
+        trigger={<span className="hidden"></span>}
+      >
+        {selectedFinancialCategory ? (
+          <div className="mt-2 space-y-4">
+            <div className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF8] p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#6C7A70]">Category</p>
+              <h3 className="mt-1 break-words text-xl font-black text-[#173626]">{selectedFinancialCategory.category}</h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Amount</p><p className="mt-1 text-lg font-black text-[#1F6B43]">{formatPeso(Number(selectedFinancialCategory.amount))}</p></div>
+              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Share of total</p><p className="mt-1 text-lg font-black text-[#123D2A]">{selectedFinancialCategory.total > 0 ? `${((Number(selectedFinancialCategory.amount) / selectedFinancialCategory.total) * 100).toFixed(1)}%` : "0.0%"}</p></div>
+              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Posted records</p><p className="mt-1 text-lg font-black text-[#123D2A]">{Number(selectedFinancialCategory.recordCount || 0).toLocaleString("en-PH")}</p></div>
+            </div>
+            <p className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-3 text-sm leading-relaxed text-[#5D6D63]">
+              This category includes active and approved posted records for the selected period. Individual transaction details remain protected in this member-facing view.
+            </p>
+          </div>
+        ) : null}
+      </Modal>
+
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
@@ -957,7 +1275,54 @@ export default function MemberDashboardPage() {
                 ))}
               </section>
 
-              {/* 3. QUICK ACTIONS GRID & 4. RECENT TRANSACTIONS */}
+              {/* 3. FINANCIAL TRANSPARENCY */}
+              <section className="mt-8 rounded-3xl border border-[#DDE8D8] bg-white p-6 shadow-sm sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-[#2F7D57]">
+                      <PieChart className="h-5 w-5" />
+                      <p className="text-xs font-bold uppercase tracking-[0.18em]">Financial transparency</p>
+                    </div>
+                    <h3 className="mt-2 text-xl font-bold text-[#173626]">Cooperative income &amp; expenses</h3>
+                    <p className="mt-1 max-w-2xl text-sm text-[#6B7280]">
+                      Posted cooperative records grouped by category. Share Capital contributions are tracked separately in your passbook.
+                    </p>
+                  </div>
+                  <a href="/statement" target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center justify-center rounded-xl border border-[#B8D6BE] px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:bg-[#F3F7F1]">
+                    View statement
+                  </a>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    { label: "Posted income", value: dashboardData?.financialTransparency?.incomeTotal, className: "text-[#1F6B43]", icon: ArrowDownLeft },
+                    { label: "Posted expenses", value: dashboardData?.financialTransparency?.expenseTotal, className: "text-[#A15C16]", icon: ArrowUpRight },
+                    { label: "Net operating result", value: dashboardData?.financialTransparency?.netTotal, className: "text-[#123D2A]", icon: Wallet },
+                  ].map((summary) => (
+                    <div key={summary.label} className="rounded-2xl border border-[#E5E7EB] bg-[#F8FBF8] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-[#6C7A70]">{summary.label}</p>
+                        <summary.icon className={`h-4 w-4 ${summary.className}`} />
+                      </div>
+                      <p className={`mt-2 text-2xl font-black ${summary.className}`}>
+                        {isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#E5E7EB] bg-[#F8FBF8] p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-[#173626]">Category breakdown</h4>
+                    <p className="mt-1 text-sm text-[#6B7280]">Open the full income and expense allocation in a detailed popup.</p>
+                  </div>
+                  <button type="button" onClick={() => setFinancialTransparencyModalOpen(true)} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1B4D37]">
+                    View full breakdown
+                  </button>
+                </div>
+              </section>
+
+              {/* 4. QUICK ACTIONS GRID & 5. RECENT TRANSACTIONS */}
               <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
 
                 {/* RECENT TRANSACTIONS TABLE */}

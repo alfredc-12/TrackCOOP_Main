@@ -3,8 +3,10 @@ import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
+import { getFinancialTransparency } from "../finance/financial-transparency";
 import type {
   MemberActivityQuery,
+  MemberDashboardQuery,
   MemberPasswordInput,
   MemberProfileInput,
   MemberSupportInput,
@@ -74,7 +76,7 @@ async function selectMemberDividendActivities(
 }
 
 export interface MemberSelfRepository {
-  dashboard(auth: AuthContext): Promise<Record<string, unknown>>;
+  dashboard(auth: AuthContext, query?: MemberDashboardQuery): Promise<Record<string, unknown>>;
   activity(auth: AuthContext, query: MemberActivityQuery): Promise<Record<string, unknown>>;
   profile(auth: AuthContext): Promise<Record<string, unknown>>;
   updateProfile(auth: AuthContext, input: MemberProfileInput): Promise<{ success: true; message: string }>;
@@ -101,7 +103,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
   }
 
   return {
-    async dashboard(auth) {
+    async dashboard(auth, query = {}) {
       const [members] = await databasePool().execute<MemberProfileRow[]>(
         `SELECT member_id, member_code, application_date, approved_at, true_member_since, created_at,
                 share_capital_deadline, contact_number, email, barangay, municipality, province
@@ -219,6 +221,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           LIMIT 5`,
         [auth.user.id],
       );
+      const financialTransparency = await getFinancialTransparency(databasePool(), query);
       const dividendActivities = await selectMemberDividendActivities(databasePool(), member.member_id);
 
       const recentActivity = [...sales, ...deposits, ...pendingDeposits, ...dividendActivities, ...rentals, ...announcements]
@@ -252,6 +255,10 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         },
         recentActivity,
         recentCapitalContributions,
+        financialTransparency: {
+          ...financialTransparency,
+          scope: "Posted cooperative records. Share Capital contributions are shown separately.",
+        },
         stats: {
           announcements: allAnnouncements[0]?.count || 0,
           purchases: purchaseCount[0]?.count || 0,
