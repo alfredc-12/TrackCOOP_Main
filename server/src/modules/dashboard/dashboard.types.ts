@@ -107,6 +107,28 @@ export type ProductShopAnalytics = {
   categorySales: ProductCategorySales[];
 };
 
+export type ReferralAnalytics = {
+  total: number;
+  pending: number;
+  successful: number;
+  conversionRate: number;
+  rewardCredits: number;
+  rewardLabel: string;
+  rewardPolicyEnabled: boolean;
+  rewardPerSuccessfulReferral: number;
+  topReferrers: {
+    memberName: string;
+    memberCode: string;
+    total: number;
+    successful: number;
+  }[];
+  byBarangay: {
+    barangay: string;
+    total: number;
+    successful: number;
+  }[];
+};
+
 export type ActionItem = {
   id: string;
   type: "Approval" | "Notification";
@@ -139,6 +161,7 @@ export type ChairmanDashboardData = {
   demographics: DemographicData[];
   operationsSnapshot: OperationsSnapshot;
   productShopAnalytics: ProductShopAnalytics;
+  referralAnalytics: ReferralAnalytics;
   inventoryAlerts: InventoryAlert[];
   recentTransactions: TransactionItem[];
   actionItems: ActionItem[];

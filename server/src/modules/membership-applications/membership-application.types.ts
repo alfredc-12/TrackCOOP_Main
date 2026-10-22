@@ -74,6 +74,7 @@ export type PublicMembershipApplicationInput = {
   middleName?: string | null;
   lastName: string;
   suffix?: string | null;
+  referralCode?: string | null;
   email?: string | null;
   contactNumber: string;
   civilStatus?: CivilStatus | null;
@@ -98,6 +99,11 @@ export type PublicMembershipApplicationInput = {
   signedPlace: string;
   termsVersion?: string | null;
   beneficiaries: MembershipApplicationBeneficiaryInput[];
+};
+
+export type ReferralValidationResult = {
+  valid: boolean;
+  referralCode: string;
 };
 
 export type PublicSubmissionContext = {

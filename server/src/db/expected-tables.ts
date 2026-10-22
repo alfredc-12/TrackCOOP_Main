@@ -7,6 +7,7 @@ export const expectedDatabaseTables = [
   "member_profiles",
   "member_status_history",
   "membership_applications",
+  "member_referrals",
   "membership_application_beneficiaries",
   "membership_application_documents",
   "membership_application_status_history",

@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   FileUp,
   Home,
+  Link2,
   Loader2,
   Mail,
   MapPin,
@@ -30,6 +31,7 @@ import {
   Check as SelectCheck,
 } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -54,6 +56,7 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { ApiClientError } from "@/lib/api-client";
 import {
   submitMembershipApplication,
+  validateMembershipReferralCode,
   uploadMembershipApplicationDocument,
 } from "../membership-application-api";
 import {
@@ -168,6 +171,7 @@ const applicationSchema = z
     middleName: optionalText,
     lastName: requiredText("Last name"),
     suffix: optionalText,
+    referralCode: optionalText,
     email: z.string().trim().min(1, "Email is required.").email("Enter a valid email."),
     contactNumber: requiredText("Contact number").regex(/^9\d{9}$/, "Enter 10 digits starting with 9 after +63."),
     civilStatus: z.enum(civilStatuses),
@@ -236,6 +240,7 @@ const defaultValues: MembershipApplicationFormValues = {
   middleName: "",
   lastName: "",
   suffix: "",
+  referralCode: "",
   email: "",
   contactNumber: "",
   civilStatus: "Single",
@@ -270,6 +275,7 @@ const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
     "middleName",
     "lastName",
     "suffix",
+    "referralCode",
     "email",
     "contactNumber",
     "civilStatus",
@@ -310,6 +316,8 @@ export function MembershipApplicationForm() {
   const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [isRetryingUploads, setIsRetryingUploads] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [referralValidation, setReferralValidation] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
+  const referralValidationRequestRef = useRef(0);
   const [submissionResult, setSubmissionResult] = useState<PublicSubmissionResult | null>(null);
   const [submissionDateOfBirth, setSubmissionDateOfBirth] = useState("");
   const [uploads, setUploads] = useState<DocumentUploadDraft[]>([]);
@@ -342,6 +350,29 @@ export function MembershipApplicationForm() {
   });
   const draftValues = useWatch({ control });
 
+  const checkReferralCode = useCallback(async (rawCode: string) => {
+    const referralCode = rawCode.trim().toUpperCase();
+    const requestId = referralValidationRequestRef.current + 1;
+    referralValidationRequestRef.current = requestId;
+
+    if (!referralCode) {
+      setReferralValidation("idle");
+      return;
+    }
+
+    setReferralValidation("checking");
+    try {
+      const result = await validateMembershipReferralCode(referralCode);
+      if (referralValidationRequestRef.current === requestId) {
+        setReferralValidation(result.valid ? "valid" : "invalid");
+      }
+    } catch {
+      if (referralValidationRequestRef.current === requestId) {
+        setReferralValidation("invalid");
+      }
+    }
+  }, []);
+
   useEffect(() => {
     try {
       const rawDraft = window.localStorage.getItem(draftKey);
@@ -358,6 +389,13 @@ export function MembershipApplicationForm() {
       hasLoadedDraftRef.current = true;
     }
   }, [reset]);
+
+  useEffect(() => {
+    const referralCode = new URLSearchParams(window.location.search).get("ref")?.trim().toUpperCase();
+    if (referralCode) {
+      setValue("referralCode", referralCode, { shouldDirty: false });
+    }
+  }, [setValue]);
 
   useEffect(() => {
     if (!hasLoadedDraftRef.current) return;
@@ -504,7 +542,17 @@ export function MembershipApplicationForm() {
     : { duration: 0.16, ease: "easeIn" as const };
   const stepContent = (() => {
     if (currentStep === 0) {
-      return <PersonalInfoStep register={register} watch={watch} errors={errors} setValue={setValue} />;
+      return (
+        <PersonalInfoStep
+          register={register}
+          watch={watch}
+          errors={errors}
+          setValue={setValue}
+          checkReferralCode={checkReferralCode}
+          referralValidation={referralValidation}
+          onReferralChange={() => setReferralValidation("idle")}
+        />
+      );
     }
 
     if (currentStep === 1) {
@@ -860,11 +908,17 @@ function PersonalInfoStep({
   watch,
   errors,
   setValue,
+  checkReferralCode,
+  referralValidation,
+  onReferralChange,
 }: {
   register: UseFormRegister<MembershipApplicationFormValues>;
   watch: UseFormWatch<MembershipApplicationFormValues>;
   errors: FieldErrors<MembershipApplicationFormValues>;
   setValue: UseFormSetValue<MembershipApplicationFormValues>;
+  checkReferralCode: (rawCode: string) => Promise<void>;
+  referralValidation: "idle" | "checking" | "valid" | "invalid";
+  onReferralChange: () => void;
 }) {
   const civilStatus = watch("civilStatus");
   const occupation = watch("occupation");
@@ -945,6 +999,29 @@ function PersonalInfoStep({
           maxLength={10}
           placeholder="9171234567"
         />
+      </ApplicationFieldGroup>
+
+      <ApplicationFieldGroup icon={Link2} title="Referral">
+        <div className="md:col-span-2">
+          <TextField
+            label="Referral code (optional)"
+            error={errors.referralCode?.message}
+            inputProps={register("referralCode", {
+              setValueAs: (value) => String(value ?? "").trim().toUpperCase(),
+              onChange: onReferralChange,
+              onBlur: (event) => void checkReferralCode(event.target.value),
+            })}
+            placeholder="e.g. REF-NFFAC-2026-000001"
+          />
+          {referralValidation !== "idle" ? (
+            <p className={`mt-2 text-xs font-semibold ${referralValidation === "valid" ? "text-[#1F6B43]" : referralValidation === "invalid" ? "text-[#B42318]" : "text-[#6C7A70]"}`}>
+              {referralValidation === "checking" ? "Checking referral code..." : referralValidation === "valid" ? "Referral code is active." : "Referral code is invalid or inactive."}
+            </p>
+          ) : null}
+          <p className="mt-2 text-xs leading-5 text-[#6C7A70]">
+            Enter the code shared by the member who invited you. Leave this blank if you were not referred.
+          </p>
+        </div>
       </ApplicationFieldGroup>
 
       <ApplicationFieldGroup icon={CalendarDays} title="Personal details">
@@ -1997,6 +2074,7 @@ function toPayload(values: MembershipApplicationFormValues): PublicMembershipApp
     middleName: values.middleName?.trim() || undefined,
     lastName: values.lastName.trim(),
     suffix: values.suffix?.trim() || undefined,
+    referralCode: values.referralCode?.trim().toUpperCase() || undefined,
     email: values.email?.trim() || undefined,
     contactNumber: values.contactNumber.trim(),
     civilStatus: values.civilStatus,
@@ -2041,7 +2119,9 @@ function formatApiClientError(error: ApiClientError) {
       issue.field
         ? `${humanizeFieldName(issue.field)}: ${issue.message}`
         : issue.message,
-    );
+    )
+    .filter((message, index, messages) => messages.indexOf(message) === index)
+    .filter((message) => message !== error.message);
 
   if (!fieldErrors.length) return error.message;
   return `${error.message}: ${fieldErrors.join(" ")}`;

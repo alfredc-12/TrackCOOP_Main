@@ -62,7 +62,8 @@ import {
   ChevronsLeft,
   ChevronLeft,
   ChevronRight,
-  ChevronsRight
+  ChevronsRight,
+  Share2
 } from "lucide-react";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
@@ -92,6 +93,13 @@ function formatPeso(value: number) {
     currency: "PHP",
     minimumFractionDigits: 2,
   }).format(Number(value) || 0);
+}
+
+function referralStage(item: { status?: string; applicationStatus?: string }) {
+  if (item.status === "Successful") return 3;
+  if (["Rejected", "Cancelled"].includes(String(item.status))) return 2;
+  if (["Approved", "Payment Confirmed"].includes(String(item.applicationStatus))) return 2;
+  return 1;
 }
 
 function escapeHtml(value: unknown) {
@@ -173,6 +181,9 @@ export default function MemberDashboardPage() {
   const [readMoreModalOpen, setReadMoreModalOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isReferralCodeCopied, setIsReferralCodeCopied] = useState(false);
+  const [isReferralLinkCopied, setIsReferralLinkCopied] = useState(false);
+  const [referralModalOpen, setReferralModalOpen] = useState(false);
   const [restoreModalStack, setRestoreModalStack] = useState<{readMore: boolean, viewAll: boolean}>({readMore: false, viewAll: false});
 
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -205,6 +216,10 @@ export default function MemberDashboardPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   const shareCapitalTotal = Math.max(0, Number(dashboardData?.shareCapital?.total) || 0);
+  const referralCode = String(dashboardData?.referrals?.code || "");
+  const referralLink = referralCode
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/membership/apply?ref=${encodeURIComponent(referralCode)}`
+    : "";
   const cappedShareCapital = Math.min(shareCapitalTotal, MAX_SHARE_CAPITAL);
   const shareCapitalProgress = Math.round((cappedShareCapital / MAX_SHARE_CAPITAL) * 100);
   const shareCapitalTierIndex = SHARE_CAPITAL_TIERS.reduce(
@@ -1178,6 +1193,155 @@ export default function MemberDashboardPage() {
         ) : null}
       </Modal>
 
+      <Modal
+        title="Member referral program"
+        description="Share your referral code and track invited applicants."
+        maxWidth="max-w-4xl"
+        open={referralModalOpen}
+        onOpenChange={setReferralModalOpen}
+        trigger={<span className="hidden"></span>}
+      >
+        <div className="mt-2 space-y-5">
+          <div className="flex flex-col gap-4 rounded-2xl border border-[#CFE4D4] bg-gradient-to-br from-[#F2FAF3] to-[#FFF9EC] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#1F6B43]">Your referral code</p>
+              <p className="mt-2 break-all text-2xl font-black tracking-wider text-[#123D2A]">
+                {referralCode || "Loading..."}
+              </p>
+              <p className="mt-2 text-xs text-[#5D6D63]">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Referral rewards are currently disabled." : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} ${dashboardData?.referrals?.rewardLabel || "referral credits"} per successful referral. Tracking only unless the cooperative approves a separate redemption policy.`}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={!referralCode}
+                onClick={async () => {
+                  if (!referralCode) return;
+                  try {
+                    await navigator.clipboard.writeText(referralCode);
+                    setIsReferralCodeCopied(true);
+                    toast.success("Referral code copied.");
+                    window.setTimeout(() => setIsReferralCodeCopied(false), 1800);
+                  } catch {
+                    toast.error("Unable to copy the referral code.");
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#A9C9B1] bg-white px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:bg-[#F4FAF4] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isReferralCodeCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                {isReferralCodeCopied ? "Copied" : "Copy code"}
+              </button>
+              <button
+                type="button"
+                disabled={!referralLink}
+                onClick={async () => {
+                  if (!referralLink) return;
+                  try {
+                    await navigator.clipboard.writeText(referralLink);
+                    setIsReferralLinkCopied(true);
+                    toast.success("Referral link copied.");
+                    window.setTimeout(() => setIsReferralLinkCopied(false), 1800);
+                  } catch {
+                    toast.error("Unable to copy the referral link.");
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isReferralLinkCopied ? <Check className="size-4" /> : <Link2 className="size-4" />}
+                {isReferralLinkCopied ? "Copied" : "Copy link"}
+              </button>
+              <button
+                type="button"
+                disabled={!referralLink}
+                onClick={async () => {
+                  if (!referralLink) return;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: "Join our cooperative", text: "Use my referral link to apply for membership.", url: referralLink });
+                    } else {
+                      await navigator.clipboard.writeText(referralLink);
+                      toast.success("Referral link copied. You can now share it.");
+                    }
+                  } catch (error) {
+                    if (error instanceof Error && error.name !== "AbortError") toast.error("Unable to share the referral link.");
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#A9C9B1] bg-white px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:bg-[#F4FAF4] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Share2 className="size-4" />
+                Share
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Invitation link</p>
+            <p className="mt-2 break-all rounded-xl bg-[#F7FAF7] px-3 py-2 text-xs font-semibold text-[#365F4A]">
+              {referralLink || "Preparing your referral link..."}
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Total referrals</p>
+              <p className="mt-2 text-2xl font-black text-[#173626]">{Number(dashboardData?.referrals?.total || 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Pending</p>
+              <p className="mt-2 text-2xl font-black text-amber-700">{Number(dashboardData?.referrals?.pending || 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Successful</p>
+              <p className="mt-2 text-2xl font-black text-[#1F6B43]">{Number(dashboardData?.referrals?.successful || 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">{dashboardData?.referrals?.rewardLabel || "Referral credits"}</p>
+              <p className="mt-2 text-2xl font-black text-[#123D2A]">{Number(dashboardData?.referrals?.rewardCredits || 0)}</p>
+              <p className="mt-1 text-[11px] text-[#6C7A70]">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Policy disabled" : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} per successful referral`}</p>
+            </div>
+          </div>
+
+          {dashboardData?.referrals?.items?.length ? (
+            <div className="overflow-x-auto rounded-2xl border border-[#DDE8D8] bg-white">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="bg-[#F7FAF7] text-xs uppercase tracking-wider text-[#6C7A70]">
+                  <tr>
+                    <th className="px-4 py-3 font-bold">Applicant</th>
+                    <th className="px-4 py-3 font-bold">Application</th>
+                    <th className="px-4 py-3 font-bold">Status</th>
+                    <th className="px-4 py-3 font-bold">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EEF2EC]">
+                  {dashboardData.referrals.items.map((item: any) => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-3 font-semibold text-[#173626]">{item.applicantName || "Applicant"}</td>
+                      <td className="px-4 py-3 text-[#6C7A70]">{item.applicationCode}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.status === "Successful" ? "bg-green-50 text-green-700" : item.status === "Pending" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                          {item.status}
+                        </span>
+                        <p className="mt-1 text-[11px] text-[#6C7A70]">Application: {item.applicationStatus || "Submitted"}</p>
+                        <div className="mt-2 flex max-w-[150px] items-center gap-1" aria-label={`Referral progress: ${item.status}`}>
+                          {[1, 2, 3].map((step) => (
+                            <span key={step} className={`h-1.5 flex-1 rounded-full ${step <= referralStage(item) ? (item.status === "Rejected" || item.status === "Cancelled" ? "bg-[#B42318]" : "bg-[#1F6B43]") : "bg-[#E6EEE7]"}`} />
+                          ))}
+                        </div>
+                        <p className="mt-1 text-[10px] text-[#7A887E]">Submitted · Review · Successful</p>
+                      </td>
+                      <td className="px-4 py-3 text-[#6C7A70]">{new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-[#BFD9C5] bg-white/70 p-5 text-center text-sm font-semibold text-[#6C7A70]">
+              No referrals yet. Share your code to start tracking invitations.
+            </p>
+          )}
+        </div>
+      </Modal>
+
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
@@ -1396,6 +1560,25 @@ export default function MemberDashboardPage() {
                       </div>
                     </div>
                     <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReferralModalOpen(true)}
+                    className="group flex w-full items-center justify-between rounded-2xl border border-[#CFE4D4] bg-gradient-to-r from-[#F2FAF3] to-[#FFF9EC] p-4 text-left shadow-sm transition hover:border-[#1F6B43] hover:shadow-md"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#E4F3E7] text-[#1F6B43] transition group-hover:bg-[#123D2A] group-hover:text-white">
+                        <Link2 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-[#173626]">Member Referrals</h4>
+                        <p className="text-xs text-[#6B7280]">
+                          {Number(dashboardData?.referrals?.successful || 0)} successful · {Number(dashboardData?.referrals?.pending || 0)} pending
+                        </p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:translate-x-1 group-hover:text-[#123D2A]" />
                   </button>
 
                   <button onClick={() => setActiveTab("Member & Share")} className="group flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">

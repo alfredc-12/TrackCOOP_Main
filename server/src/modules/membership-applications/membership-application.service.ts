@@ -30,6 +30,7 @@ import type {
   PublicMembershipApplicationInput,
   PublicSubmissionContext,
   PublicSubmissionResult,
+  ReferralValidationResult,
   RequirementInput,
   RequirementType,
   RequirementUpdateInput,
@@ -103,6 +104,24 @@ function normalizeContact(value: string) {
   return `${leadingPlus}${trimmed.replace(/[^\d]/g, "")}`;
 }
 
+function normalizeReferralCode(value: string | null | undefined) {
+  return value?.trim().toUpperCase() || null;
+}
+
+function comparableContact(value: string | null | undefined) {
+  const digits = value?.replace(/\D/g, "") || "";
+  if (digits.startsWith("63") && digits.length === 12) return `0${digits.slice(2)}`;
+  if (digits.startsWith("9") && digits.length === 10) return `0${digits}`;
+  return digits;
+}
+
+function comparableName(input: Pick<PublicMembershipApplicationInput, "firstName" | "middleName" | "lastName" | "suffix">) {
+  return [input.firstName, input.middleName, input.lastName, input.suffix]
+    .map((part) => part?.trim().toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+}
+
 function hashToken(rawToken: string) {
   return crypto.createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
@@ -173,6 +192,7 @@ function normalizeChairmanApplication(input: ChairmanMembershipApplicationInput)
     ...input,
     email: normalizeEmail(input.email),
     contactNumber: normalizeContact(input.contactNumber),
+    referralCode: normalizeReferralCode(input.referralCode),
     termsVersion: input.termsVersion ?? null,
   };
 }
@@ -292,6 +312,7 @@ export interface MembershipApplicationService {
     input: PublicMembershipApplicationInput,
     context: PublicSubmissionContext,
   ): Promise<PublicSubmissionResult>;
+  validateReferralCode(referralCode: string): Promise<ReferralValidationResult>;
   getPublicStatus(applicationCode: string, rawDateOfBirth: string | undefined): Promise<PublicApplicationStatus>;
   issuePublicActivationLink(applicationCode: string, rawDateOfBirth: string | undefined): Promise<PublicActivationResult>;
   uploadPublicDocument(
@@ -362,6 +383,35 @@ export interface MembershipApplicationService {
 export function createMembershipApplicationService(
   repository: MembershipApplicationRepository = createMembershipApplicationRepository(),
 ): MembershipApplicationService {
+  async function resolveReferral(input: PublicMembershipApplicationInput) {
+    const referralCode = normalizeReferralCode(input.referralCode);
+    if (!referralCode) return null;
+
+    const referrer = await repository.findReferrerByCode(referralCode);
+    if (!referrer) {
+      throw new AppError(
+        "Referral code was not found or is no longer active.",
+        400,
+        "REFERRAL_CODE_INVALID",
+      );
+    }
+
+    const sameEmail = Boolean(input.email && referrer.email)
+      && normalizeEmail(input.email) === normalizeEmail(referrer.email);
+    const sameContact = Boolean(input.contactNumber && referrer.contactNumber)
+      && comparableContact(input.contactNumber) === comparableContact(referrer.contactNumber);
+    const sameName = comparableName(input) === referrer.fullName.trim().toLowerCase();
+    if (sameEmail || sameContact || sameName) {
+      throw new AppError(
+        "You cannot use your own referral code.",
+        400,
+        "REFERRAL_SELF_NOT_ALLOWED",
+      );
+    }
+
+    return { referralCode, referrerMemberId: referrer.memberId };
+  }
+
   async function findVerifiedApplication(applicationCode: string, rawDateOfBirth: string | undefined) {
     const application = await repository.findPublicApplicationByCode(applicationCode);
     if (!application) {
@@ -401,15 +451,34 @@ export function createMembershipApplicationService(
   }
 
   return {
+    async validateReferralCode(rawReferralCode) {
+      const referralCode = normalizeReferralCode(rawReferralCode);
+      if (!referralCode) {
+        throw new AppError("Referral code is required", 400, "REFERRAL_CODE_REQUIRED");
+      }
+
+      const referrer = await repository.findReferrerByCode(referralCode);
+      return { valid: Boolean(referrer), referralCode };
+    },
+
     async submitPublicApplication(input, context) {
       const normalizedInput = {
         ...input,
         email: normalizeEmail(input.email),
         contactNumber: normalizeContact(input.contactNumber),
+        referralCode: normalizeReferralCode(input.referralCode),
         termsVersion: input.termsVersion ?? null,
       };
+      const referral = await resolveReferral(normalizedInput);
       const settings = await repository.getMembershipSettings();
       const duplicateWarning = await repository.hasRecentDuplicate(normalizedInput);
+      if (duplicateWarning && referral) {
+        throw new AppError(
+          "A recent application already exists for this applicant. Only one referral can be tracked for the same applicant.",
+          409,
+          "REFERRAL_DUPLICATE_APPLICATION",
+        );
+      }
       const warnings = duplicateWarning ? [duplicateWarningMessage] : [];
       const trackingToken = generateApplicationTrackingToken();
 
@@ -420,6 +489,7 @@ export function createMembershipApplicationService(
         settings,
         duplicateWarning,
         warnings,
+        referrerMemberId: referral?.referrerMemberId,
       });
 
       void triggerMembershipEmail(buildSubmittedEmail({
@@ -532,11 +602,22 @@ export function createMembershipApplicationService(
 
     async createChairmanApplication(input, auth) {
       const settings = await repository.getMembershipSettings();
+      const normalizedInput = normalizeChairmanApplication(input);
+      const referral = await resolveReferral(normalizedInput);
+      const duplicateWarning = await repository.hasRecentDuplicate(normalizedInput);
+      if (duplicateWarning && referral) {
+        throw new AppError(
+          "A recent application already exists for this applicant. Only one referral can be tracked for the same applicant.",
+          409,
+          "REFERRAL_DUPLICATE_APPLICATION",
+        );
+      }
       return repository.createChairmanApplication({
-        application: normalizeChairmanApplication(input),
+        application: normalizedInput,
         publicTrackingTokenHash: hashApplicationTrackingToken(generateApplicationTrackingToken()),
         settings,
         auth,
+        referrerMemberId: referral?.referrerMemberId,
       });
     },
 

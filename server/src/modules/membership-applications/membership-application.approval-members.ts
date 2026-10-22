@@ -136,8 +136,10 @@ export async function insertApprovedMemberProfile(input: {
   const memberId = String(result.insertId);
   const memberCode = generatedMemberCode(result.insertId);
   await input.connection.execute(
-    `UPDATE member_profiles SET member_code = ? WHERE member_id = ?`,
-    [memberCode, memberId],
+    `UPDATE member_profiles
+        SET member_code = ?, referral_code = ?
+      WHERE member_id = ?`,
+    [memberCode, `REF-${memberCode}`, memberId],
   );
   return { memberId, memberCode };
 }

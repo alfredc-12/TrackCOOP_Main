@@ -4,6 +4,7 @@ import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import { getFinancialTransparency } from "../finance/financial-transparency";
+import { calculateReferralRewardCredits, loadReferralRewardPolicy } from "../referrals/referral-policy";
 import type {
   MemberActivityQuery,
   MemberDashboardQuery,
@@ -15,6 +16,7 @@ import type {
 type MemberProfileRow = RowDataPacket & {
   member_id: number | string;
   member_code?: string | null;
+  referral_code?: string | null;
   application_date?: Date | string | null;
   approved_at?: Date | string | null;
   true_member_since?: Date | string | null;
@@ -48,6 +50,11 @@ function pagination(query: MemberActivityQuery) {
   const page = parseInt(String(query.page || "1"), 10);
   const pageSize = parseInt(String(query.pageSize || "10"), 10);
   return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
+function generatedReferralCode(memberCode: string | null | undefined, memberId: string | number) {
+  const base = memberCode?.trim() || `MEMBER-${memberId}`;
+  return `REF-${base}`.slice(0, 40).toUpperCase();
 }
 
 async function selectMemberDividendActivities(
@@ -104,17 +111,40 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
 
   return {
     async dashboard(auth, query = {}) {
-      const [members] = await databasePool().execute<MemberProfileRow[]>(
-        `SELECT member_id, member_code, application_date, approved_at, true_member_since, created_at,
-                share_capital_deadline, contact_number, email, barangay, municipality, province
-           FROM member_profiles
-          WHERE user_id = ?`,
-        [auth.user.id],
-      );
+      let members: MemberProfileRow[];
+      try {
+        [members] = await databasePool().execute<MemberProfileRow[]>(
+          `SELECT member_id, member_code, referral_code, application_date, approved_at, true_member_since, created_at,
+                  share_capital_deadline, contact_number, email, barangay, municipality, province
+             FROM member_profiles
+            WHERE user_id = ?`,
+          [auth.user.id],
+        );
+      } catch {
+        // Keep the dashboard available while the referral migration is still pending.
+        [members] = await databasePool().execute<MemberProfileRow[]>(
+          `SELECT member_id, member_code, application_date, approved_at, true_member_since, created_at,
+                  share_capital_deadline, contact_number, email, barangay, municipality, province
+             FROM member_profiles
+            WHERE user_id = ?`,
+          [auth.user.id],
+        );
+      }
 
       const member = members[0];
       if (!member) {
         return { isLinked: false };
+      }
+
+      const referralCode = member.referral_code || generatedReferralCode(member.member_code, member.member_id);
+      if (!member.referral_code) {
+        await databasePool().execute(
+          `UPDATE member_profiles
+              SET referral_code = ?
+            WHERE member_id = ?
+              AND referral_code IS NULL`,
+          [referralCode, member.member_id],
+        ).catch(() => undefined);
       }
 
       const [shareCapitalRows] = await databasePool().execute<RowDataPacket[]>(
@@ -246,6 +276,33 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         "SELECT COUNT(*) as count FROM rental_bookings WHERE member_id = ?",
         [member.member_id],
       );
+      const referralRewardPolicy = await loadReferralRewardPolicy(databasePool());
+      const [referralCounts] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN referral_status = 'Pending' THEN 1 ELSE 0 END) AS pending,
+                SUM(CASE WHEN referral_status = 'Successful' THEN 1 ELSE 0 END) AS successful
+           FROM member_referrals
+          WHERE referrer_member_id = ?`,
+        [member.member_id],
+      ).catch(() => [[] as RowDataPacket[]]);
+      const [referralItems] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT CAST(r.member_referral_id AS CHAR) AS id,
+                r.referral_status AS status,
+                r.created_at AS createdAt,
+                r.qualified_at AS qualifiedAt,
+                a.application_code AS applicationCode,
+                a.application_status AS applicationStatus,
+                a.updated_at AS applicationUpdatedAt,
+                CONCAT(LEFT(a.first_name, 1), '. ', a.last_name) AS applicantName,
+                a.barangay
+           FROM member_referrals r
+           JOIN membership_applications a
+             ON a.membership_application_id = r.membership_application_id
+          WHERE r.referrer_member_id = ?
+          ORDER BY r.created_at DESC, r.member_referral_id DESC
+          LIMIT 10`,
+        [member.member_id],
+      ).catch(() => [[] as RowDataPacket[]]);
 
       return {
         isLinked: true,
@@ -264,6 +321,17 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           purchases: purchaseCount[0]?.count || 0,
           deposits: depositCount[0]?.count || 0,
           rentals: rentalCount[0]?.count || 0,
+        },
+        referrals: {
+          code: referralCode,
+          total: Number(referralCounts[0]?.total || 0),
+          pending: Number(referralCounts[0]?.pending || 0),
+          successful: Number(referralCounts[0]?.successful || 0),
+          rewardCredits: calculateReferralRewardCredits(Number(referralCounts[0]?.successful || 0), referralRewardPolicy),
+          rewardLabel: referralRewardPolicy.label,
+          rewardPolicyEnabled: referralRewardPolicy.enabled,
+          rewardPerSuccessfulReferral: referralRewardPolicy.creditsPerSuccessfulReferral,
+          items: referralItems,
         },
         member: {
           code: member.member_code,

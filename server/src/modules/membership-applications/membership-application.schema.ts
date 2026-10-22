@@ -101,6 +101,7 @@ export const publicMembershipApplicationSchema = z
     middleName: optionalText(100),
     lastName: requiredText(100),
     suffix: optionalText(30),
+    referralCode: optionalText(40),
     email: z.email().max(190),
     contactNumber: z.string().trim().regex(/^9\d{9}$/, "Contact number must contain 10 digits starting with 9 after +63."),
     civilStatus: z.enum(civilStatuses).optional().nullable(),
@@ -166,6 +167,10 @@ export const publicMembershipApplicationSchema = z
 
 export const publicStatusParamsSchema = z.object({
   applicationCode: requiredText(60),
+});
+
+export const publicReferralParamsSchema = z.object({
+  referralCode: requiredText(40),
 });
 
 export const publicDocumentViewParamsSchema = z.object({

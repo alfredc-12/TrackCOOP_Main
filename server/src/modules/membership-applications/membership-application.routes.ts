@@ -156,7 +156,8 @@ export function createMembershipApplicationRouter(
     : null;
   const publicSubmissionLimiter = createPublicLimiter({
     windowMs: 60 * 60 * 1000,
-    limit: 5,
+    // Keep production protected from spam while allowing repeated local form testing.
+    limit: env.NODE_ENV === "development" ? 50 : 5,
     message: "Too many membership application submissions. Please try again later.",
   });
   const publicStatusLimiter = createPublicLimiter({
@@ -176,6 +177,11 @@ export function createMembershipApplicationRouter(
     "/membership-applications/public",
     publicSubmissionLimiter,
     controller.submitPublic,
+  );
+  router.get(
+    "/membership-applications/public/referrals/:referralCode/validate",
+    publicStatusLimiter,
+    controller.validateReferral,
   );
   router.get(
     "/membership-applications/public/:applicationCode/status",

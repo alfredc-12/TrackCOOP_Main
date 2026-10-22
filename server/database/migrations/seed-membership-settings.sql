@@ -93,6 +93,14 @@ INSERT INTO system_settings (
         'JSON',
         'Total-score thresholds for advisory member indicator labels.',
         0
+    ),
+    (
+        'Referrals',
+        'referrals.reward_policy',
+        '{"enabled":true,"creditsPerSuccessfulReferral":1,"label":"Referral credits"}',
+        'JSON',
+        'Controls the tracking credits shown for successful member referrals. This does not create a cash payout or redemption obligation.',
+        0
     )
 ON DUPLICATE KEY UPDATE
     setting_group = VALUES(setting_group),

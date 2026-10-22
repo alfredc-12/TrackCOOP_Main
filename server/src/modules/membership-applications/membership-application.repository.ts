@@ -86,6 +86,13 @@ type PublicPaymentRequirementRow = RowDataPacket & {
 };
 
 type CountRow = RowDataPacket & { total: number };
+type ReferralMemberRow = RowDataPacket & {
+  memberId: string;
+  referralCode: string;
+  fullName: string;
+  email: string | null;
+  contactNumber: string | null;
+};
 
 type ChairmanApplicationRow = RowDataPacket & {
   id: string;
@@ -267,6 +274,44 @@ function applicantFullName(input: Pick<PublicMembershipApplicationInput, "firstN
 
 function nullable(value: string | number | boolean | null | undefined) {
   return value ?? null;
+}
+
+async function notifyReferralMember(
+  connection: PoolConnection,
+  referrerMemberId: string,
+  title: string,
+  message: string,
+  applicationId: string,
+) {
+  await connection.execute(
+    `INSERT INTO notifications
+       (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+     SELECT mp.user_id, 'System', ?, ?, 'member_referral', ?
+       FROM member_profiles mp
+      WHERE mp.member_id = ?
+        AND mp.user_id IS NOT NULL`,
+    [title, message, applicationId, referrerMemberId],
+  );
+}
+
+async function auditReferralStatus(
+  connection: PoolConnection,
+  referralId: string | number,
+  status: string,
+  description: string,
+  actorUserId?: string | number | null,
+) {
+  await connection.execute(
+    `INSERT INTO audit_logs
+       (user_id, action, entity_table, record_id, description, new_values)
+     VALUES (?, 'member_referral.status_changed', 'member_referrals', ?, ?, ?)`,
+    [
+      actorUserId ?? null,
+      referralId,
+      description,
+      JSON.stringify({ referralStatus: status }),
+    ],
+  );
 }
 
 function normalizeSetting(rows: SettingRow[]): MembershipSettings {
@@ -663,6 +708,13 @@ function requiredReason(
 export interface MembershipApplicationRepository {
   getMembershipSettings(): Promise<MembershipSettings>;
   hasRecentDuplicate(input: PublicMembershipApplicationInput): Promise<boolean>;
+  findReferrerByCode(referralCode: string): Promise<{
+    memberId: string;
+    referralCode: string;
+    fullName: string;
+    email: string | null;
+    contactNumber: string | null;
+  } | null>;
   createPublicApplication(input: {
     application: PublicMembershipApplicationInput;
     context: PublicSubmissionContext;
@@ -670,6 +722,7 @@ export interface MembershipApplicationRepository {
     settings: MembershipSettings;
     duplicateWarning: boolean;
     warnings: string[];
+    referrerMemberId?: string | null;
   }): Promise<PublicSubmissionResult>;
   findPublicApplicationByCode(applicationCode: string): Promise<PublicApplicationRecord | null>;
   issuePublicActivationLink(input: {
@@ -691,6 +744,7 @@ export interface MembershipApplicationRepository {
     publicTrackingTokenHash: string;
     settings: MembershipSettings;
     auth: AuthContext;
+    referrerMemberId?: string | null;
   }): Promise<ChairmanApplicationDetail>;
   findChairmanApplicationById(applicationId: string): Promise<ChairmanApplicationDetail | null>;
   updateApplication(
@@ -789,6 +843,23 @@ export function createMembershipApplicationRepository(
       return Number(rows[0]?.duplicateCount ?? 0) > 0;
     },
 
+    async findReferrerByCode(referralCode) {
+      const [rows] = await databasePool().execute<ReferralMemberRow[]>(
+        `SELECT CAST(member_id AS CHAR) AS memberId,
+                referral_code AS referralCode,
+                full_name AS fullName,
+                email,
+                contact_number AS contactNumber
+           FROM member_profiles
+          WHERE UPPER(referral_code) = ?
+            AND approval_status = 'Approved'
+            AND official_member_status = 'Active'
+          LIMIT 1`,
+        [referralCode.toUpperCase()],
+      );
+      return rows[0] ?? null;
+    },
+
     async createPublicApplication(input) {
       return withTransaction(async (connection) => {
         const placeholderCode = `MEM-APP-PENDING-${crypto.randomUUID()}`;
@@ -857,6 +928,28 @@ export function createMembershipApplicationRepository(
             WHERE membership_application_id = ?`,
           [code, membershipApplicationId],
         );
+
+        if (input.referrerMemberId && application.referralCode) {
+          const [referralResult] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO member_referrals
+               (referrer_member_id, membership_application_id, referral_code)
+             VALUES (?, ?, ?)`,
+            [input.referrerMemberId, membershipApplicationId, application.referralCode],
+          );
+          await notifyReferralMember(
+            connection,
+            input.referrerMemberId,
+            "Your referral was used",
+            `An applicant used your referral code. Application ${code} is now pending review.`,
+            membershipApplicationId,
+          );
+          await auditReferralStatus(
+            connection,
+            referralResult.insertId,
+            "Pending",
+            "A member referral was created from a public membership application.",
+          );
+        }
 
         for (const [index, beneficiary] of application.beneficiaries.entries()) {
           await connection.execute(
@@ -1202,6 +1295,29 @@ export function createMembershipApplicationRepository(
           `UPDATE membership_applications SET application_code = ? WHERE membership_application_id = ?`,
           [code, applicationId],
         );
+
+        if (input.referrerMemberId && application.referralCode) {
+          const [referralResult] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO member_referrals
+               (referrer_member_id, membership_application_id, referral_code)
+             VALUES (?, ?, ?)`,
+            [input.referrerMemberId, applicationId, application.referralCode],
+          );
+          await notifyReferralMember(
+            connection,
+            input.referrerMemberId,
+            "Your referral was used",
+            `An applicant was added using your referral code. Application ${code} is now pending review.`,
+            applicationId,
+          );
+          await auditReferralStatus(
+            connection,
+            referralResult.insertId,
+            "Pending",
+            "A member referral was created from a Chairman-entered application.",
+            input.auth.user.id,
+          );
+        }
 
         for (const [index, beneficiary] of application.beneficiaries.entries()) {
           await connection.execute(
@@ -1870,6 +1986,16 @@ export function createMembershipApplicationRepository(
           assertPrePaymentRequirementsComplete(requirements);
         }
 
+        const [referralRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT member_referral_id AS referralId, referrer_member_id AS referrerMemberId
+             FROM member_referrals
+            WHERE membership_application_id = ?
+              AND referral_status = 'Pending'
+            LIMIT 1
+            FOR UPDATE`,
+          [applicationId],
+        );
+
         await connection.execute(
           `UPDATE membership_applications
               SET application_status = ?,
@@ -1878,6 +2004,33 @@ export function createMembershipApplicationRepository(
             WHERE membership_application_id = ?`,
           [nextStatus, auth.user.id, applicationId],
         );
+        if (nextStatus === "Rejected" || nextStatus === "Withdrawn") {
+          await connection.execute(
+            `UPDATE member_referrals
+                SET referral_status = ?
+              WHERE membership_application_id = ?
+                AND referral_status = 'Pending'`,
+            [nextStatus === "Rejected" ? "Rejected" : "Cancelled", applicationId],
+          );
+          const referral = referralRows[0];
+          if (referral) {
+            const referralStatus = nextStatus === "Rejected" ? "Rejected" : "Cancelled";
+            await notifyReferralMember(
+              connection,
+              String(referral.referrerMemberId),
+              `Referral ${referralStatus.toLowerCase()}`,
+              `The application linked to your referral was ${referralStatus.toLowerCase()}.`,
+              applicationId,
+            );
+            await auditReferralStatus(
+              connection,
+              referral.referralId,
+              referralStatus,
+              `Referral status changed to ${referralStatus}.`,
+              auth.user.id,
+            );
+          }
+        }
         await connection.execute(
           `INSERT INTO membership_application_status_history
              (membership_application_id, old_status, new_status, internal_note, applicant_message, changed_by)
@@ -2174,8 +2327,10 @@ export function createMembershipApplicationRepository(
         const memberId = String(memberResult.insertId);
         const code = memberCode(memberResult.insertId);
         await connection.execute(
-          `UPDATE member_profiles SET member_code = ? WHERE member_id = ?`,
-          [code, memberId],
+          `UPDATE member_profiles
+              SET member_code = ?, referral_code = ?
+            WHERE member_id = ?`,
+          [code, `REF-${code}`, memberId],
         );
         await connection.execute(
           `INSERT INTO member_status_history
@@ -2202,6 +2357,14 @@ export function createMembershipApplicationRepository(
             memberId,
             input.applicationId,
           ],
+        );
+        await connection.execute(
+          `UPDATE member_referrals
+              SET referred_member_id = ?, referral_status = 'Successful',
+                  qualified_at = UTC_TIMESTAMP(), qualified_by = ?
+            WHERE membership_application_id = ?
+              AND referral_status = 'Pending'`,
+          [memberId, input.auth.user.id, input.applicationId],
         );
         await connection.execute(
           `INSERT INTO membership_application_status_history

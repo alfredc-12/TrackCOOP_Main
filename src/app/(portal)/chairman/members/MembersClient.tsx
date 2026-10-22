@@ -55,6 +55,7 @@ import type { AuthUser } from "@/features/auth/types";
 import { ApiClientError } from "@/lib/api-client";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { useRealtimeEvents } from "@/lib/realtime";
+import { listSystemSettings, saveSystemSetting } from "@/features/landing-admin/landing-admin-api";
 import {
   addApplicationRequirement,
   addApplicationBeneficiary,
@@ -169,6 +170,29 @@ const officialMemberStatuses: OfficialMemberStatus[] = [
   "Terminated",
 ];
 const membershipTypes: MembershipType[] = ["Associate", "True Member"];
+
+type ReferralRewardPolicyDraft = {
+  enabled: boolean;
+  creditsPerSuccessfulReferral: number;
+  label: string;
+};
+
+const defaultReferralRewardPolicy: ReferralRewardPolicyDraft = {
+  enabled: true,
+  creditsPerSuccessfulReferral: 1,
+  label: "Referral credits",
+};
+
+function parseReferralRewardPolicy(value: unknown): ReferralRewardPolicyDraft {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { ...defaultReferralRewardPolicy };
+  const input = value as Record<string, unknown>;
+  const parsedCredits = Number(input.creditsPerSuccessfulReferral);
+  return {
+    enabled: input.enabled !== false,
+    creditsPerSuccessfulReferral: Number.isFinite(parsedCredits) ? Math.min(100, Math.max(0, Math.round(parsedCredits))) : 1,
+    label: typeof input.label === "string" && input.label.trim() ? input.label.trim().slice(0, 80) : defaultReferralRewardPolicy.label,
+  };
+}
 
 const blankMemberForm: MemberFormState = {
   memberCode: "",
@@ -339,9 +363,66 @@ export function MembersClient() {
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyError, setHistoryError] = useState("");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [rewardPolicyOpen, setRewardPolicyOpen] = useState(false);
+  const [rewardPolicy, setRewardPolicy] = useState<ReferralRewardPolicyDraft>({ ...defaultReferralRewardPolicy });
+  const [rewardPolicyLoading, setRewardPolicyLoading] = useState(false);
+  const [rewardPolicySaving, setRewardPolicySaving] = useState(false);
+  const [rewardPolicyError, setRewardPolicyError] = useState("");
   const realtimeRefreshTimer = useRef<number | null>(null);
 
   const selectedDetail = selectedId ? detailsById[selectedId] ?? null : null;
+
+  useEffect(() => {
+    if (!rewardPolicyOpen) return;
+    let active = true;
+    setRewardPolicyLoading(true);
+    setRewardPolicyError("");
+    listSystemSettings("referrals.reward_policy")
+      .then((settings) => {
+        if (!active) return;
+        const setting = settings.find((item) => item.settingKey === "referrals.reward_policy");
+        if (!setting?.settingValue) {
+          setRewardPolicy({ ...defaultReferralRewardPolicy });
+          return;
+        }
+        try {
+          setRewardPolicy(parseReferralRewardPolicy(JSON.parse(String(setting.settingValue))));
+        } catch {
+          setRewardPolicy({ ...defaultReferralRewardPolicy });
+        }
+      })
+      .catch((caught) => {
+        if (active) setRewardPolicyError(caught instanceof Error ? caught.message : "Referral reward policy could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setRewardPolicyLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [rewardPolicyOpen]);
+
+  async function saveReferralRewardPolicy() {
+    setRewardPolicySaving(true);
+    setRewardPolicyError("");
+    try {
+      await saveSystemSetting({
+        settingGroup: "Referrals",
+        settingKey: "referrals.reward_policy",
+        settingValue: JSON.stringify(rewardPolicy),
+        valueType: "JSON",
+        description: "Controls the tracking credits shown for successful member referrals.",
+        isPublic: false,
+        effectiveDate: new Date().toISOString().slice(0, 10),
+      });
+      toast.success("Referral reward policy saved.");
+      setRewardPolicyOpen(false);
+    } catch (caught) {
+      setRewardPolicyError(caught instanceof Error ? caught.message : "Referral reward policy could not be saved.");
+    } finally {
+      setRewardPolicySaving(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -611,6 +692,14 @@ export function MembersClient() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            onClick={() => setRewardPolicyOpen(true)}
+            className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC]"
+          >
+            <ShieldCheck className="size-4" aria-hidden="true" />
+            Referral Policy
+          </Button>
           {activeTab !== "history" ? (
             <Button
               type="button"
@@ -726,6 +815,44 @@ export function MembersClient() {
           setQuery={setHistoryQuery}
         />
       )}
+
+      <FormDialog
+        open={rewardPolicyOpen}
+        onOpenChange={setRewardPolicyOpen}
+        title="Referral reward policy"
+        description="Configure the tracking credits assigned when a referred applicant becomes a successful member."
+        contentClassName="w-[min(34rem,calc(100vw-2rem))]"
+      >
+        {rewardPolicyLoading ? (
+          <div className="rounded-md border border-[#DDE8DD] bg-[#F7FAF5] p-4 text-sm font-semibold text-[#5D6D63]">Loading current policy...</div>
+        ) : (
+          <div className="grid gap-4">
+            <div className="rounded-md border border-[#E7DDBD] bg-[#FFF9E8] p-4 text-sm leading-6 text-[#6E5B1C]">
+              Credits are for referral tracking only. This setting does not create an automatic cash payout or redemption obligation.
+            </div>
+            <label className="flex min-h-11 items-center gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm font-bold text-[#294B39]">
+              <input type="checkbox" checked={rewardPolicy.enabled} onChange={(event) => setRewardPolicy((current) => ({ ...current, enabled: event.target.checked }))} className="size-4 accent-[#1F6B43]" />
+              Policy enabled
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+              Credits per successful referral
+              <input type="number" min="0" max="100" step="1" value={rewardPolicy.creditsPerSuccessfulReferral} onChange={(event) => setRewardPolicy((current) => ({ ...current, creditsPerSuccessfulReferral: Math.min(100, Math.max(0, Number(event.target.value) || 0)) }))} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+              Reward label
+              <input value={rewardPolicy.label} maxLength={80} onChange={(event) => setRewardPolicy((current) => ({ ...current, label: event.target.value }))} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" placeholder="Referral credits" />
+            </label>
+            <p className="rounded-md border border-[#DDE8DD] bg-[#F7FAF5] p-3 text-sm text-[#42594B]">
+              Current rule: <strong>{rewardPolicy.enabled ? `${rewardPolicy.creditsPerSuccessfulReferral} ${rewardPolicy.label || "credits"} per successful referral` : "No referral credits are being assigned"}</strong>.
+            </p>
+            {rewardPolicyError ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{rewardPolicyError}</p> : null}
+            <div className="flex justify-end gap-3 border-t border-[#EEF2EC] pt-4">
+              <button type="button" onClick={() => setRewardPolicyOpen(false)} className="min-h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#294B39] hover:bg-[#EEF2EC]">Cancel</button>
+              <button type="button" onClick={() => void saveReferralRewardPolicy()} disabled={rewardPolicySaving} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-60"><ShieldCheck className="size-4" />{rewardPolicySaving ? "Saving..." : "Save policy"}</button>
+            </div>
+          </div>
+        )}
+      </FormDialog>
 
       <ApplicationDetailDialog
         detail={selectedDetail}

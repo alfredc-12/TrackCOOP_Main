@@ -254,6 +254,7 @@ CREATE TABLE member_profiles (
     member_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NULL,
     member_code VARCHAR(60) NOT NULL,
+    referral_code VARCHAR(40) NULL,
     full_name VARCHAR(190) NOT NULL,
     contact_number VARCHAR(40) NULL,
     email VARCHAR(190) NULL,
@@ -291,6 +292,7 @@ CREATE TABLE member_profiles (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_member_profiles_user UNIQUE (user_id),
     CONSTRAINT uq_member_profiles_code UNIQUE (member_code),
+    CONSTRAINT uq_member_profiles_referral_code UNIQUE (referral_code),
     CONSTRAINT fk_member_profiles_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_member_profiles_approved_by FOREIGN KEY (approved_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE = InnoDB;
@@ -412,6 +414,32 @@ CREATE TABLE membership_applications (
     CONSTRAINT fk_membership_application_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_membership_application_converted_member FOREIGN KEY (converted_member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE = InnoDB;
+
+CREATE TABLE member_referrals (
+    member_referral_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    referrer_member_id BIGINT UNSIGNED NOT NULL,
+    membership_application_id BIGINT UNSIGNED NOT NULL,
+    referred_member_id BIGINT UNSIGNED NULL,
+    referral_code VARCHAR(40) NOT NULL,
+    referral_status ENUM('Pending', 'Successful', 'Rejected', 'Cancelled') NOT NULL DEFAULT 'Pending',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    qualified_at DATETIME NULL,
+    qualified_by BIGINT UNSIGNED NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_member_referrals_application UNIQUE (membership_application_id),
+    CONSTRAINT fk_member_referrals_referrer FOREIGN KEY (referrer_member_id)
+        REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_member_referrals_application FOREIGN KEY (membership_application_id)
+        REFERENCES membership_applications (membership_application_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_member_referrals_referred_member FOREIGN KEY (referred_member_id)
+        REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_member_referrals_qualifier FOREIGN KEY (qualified_by)
+        REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_member_referrals_referrer_status ON member_referrals (referrer_member_id, referral_status, created_at);
+CREATE INDEX idx_member_referrals_status ON member_referrals (referral_status, created_at);
+CREATE INDEX idx_member_referrals_referred_member ON member_referrals (referred_member_id);
 
 CREATE TABLE membership_application_beneficiaries (
     membership_application_beneficiary_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -2280,6 +2308,15 @@ VALUES (
         'String',
         'System currency symbol.',
         1,
+        CURRENT_DATE
+    ),
+    (
+        'Referrals',
+        'referrals.reward_policy',
+        '{"enabled":true,"creditsPerSuccessfulReferral":1,"label":"Referral credits"}',
+        'JSON',
+        'Controls the tracking credits shown for successful member referrals. This does not create a cash payout or redemption obligation.',
+        0,
         CURRENT_DATE
     ),
     (

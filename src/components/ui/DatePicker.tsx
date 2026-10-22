@@ -4,7 +4,8 @@ import {
   CalendarDays,
   ChevronDown,
 } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 type DatePickerProps = {
@@ -98,6 +99,8 @@ export function DatePicker({
 }: DatePickerProps) {
   const labelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const selectedDate = useMemo(() => parseDateKey(value), [value]);
   const maxDate = useMemo(() => parseDateKey(max) ?? new Date(), [max]);
   const minDate = useMemo(() => parseDateKey(min) ?? new Date(1900, 0, 1), [min]);
@@ -109,19 +112,45 @@ export function DatePicker({
     selectedDate?.getFullYear() ?? maxDate.getFullYear(),
   );
   const [pendingDateKey, setPendingDateKey] = useState(value);
-  const [openDirection, setOpenDirection] = useState<"down" | "up">("down");
   const [openSelector, setOpenSelector] = useState<"month" | "year" | null>(null);
+  const [pickerPosition, setPickerPosition] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+
+  const positionPicker = useCallback(() => {
+    const triggerRect = triggerRef.current?.getBoundingClientRect();
+    if (!triggerRect) return;
+
+    const pickerWidth = Math.min(320, Math.max(0, window.innerWidth - 32));
+    const left = Math.max(
+      16,
+      Math.min(
+        window.innerWidth - pickerWidth - 16,
+        triggerRect.left + (triggerRect.width - pickerWidth) / 2,
+      ),
+    );
+    const estimatedPickerHeight = 360;
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+    const direction = spaceBelow < estimatedPickerHeight && spaceAbove > estimatedPickerHeight ? "up" : "down";
+
+    setPickerPosition(
+      direction === "up"
+        ? { left, bottom: Math.max(16, window.innerHeight - triggerRect.top + 8) }
+        : { left, top: triggerRect.bottom + 8 },
+    );
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
       if (
-        rootRef.current &&
-        !rootRef.current.contains(event.target as Node)
+        rootRef.current?.contains(event.target as Node) ||
+        pickerRef.current?.contains(event.target as Node)
       ) {
-        setIsOpen(false);
+        return;
       }
+
+      setIsOpen(false);
     }
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -136,6 +165,20 @@ export function DatePicker({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    positionPicker();
+    const handleViewportChange = () => positionPicker();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [isOpen, positionPicker]);
 
   const years = useMemo(() => {
     const startYear = minDate.getFullYear();
@@ -177,21 +220,10 @@ export function DatePicker({
   function togglePicker() {
     if (!isOpen) {
       const anchorDate = selectedDate ?? maxDate;
-      const fieldRect = rootRef.current?.getBoundingClientRect();
       setViewMonth(anchorDate.getMonth());
       setViewYear(anchorDate.getFullYear());
       setPendingDateKey(value);
-
-      if (fieldRect) {
-        const estimatedPickerHeight = 252;
-        const spaceBelow = window.innerHeight - fieldRect.bottom;
-        const spaceAbove = fieldRect.top;
-        setOpenDirection(
-          spaceBelow < estimatedPickerHeight && spaceAbove > 180
-            ? "up"
-            : "down",
-        );
-      }
+      setPickerPosition(null);
     }
 
     setOpenSelector(null);
@@ -219,6 +251,7 @@ export function DatePicker({
 
       <button
         type="button"
+        ref={triggerRef}
         aria-labelledby={labelId}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
@@ -248,15 +281,17 @@ export function DatePicker({
         </span>
       </button>
 
-      {isOpen ? (
+      {isOpen && pickerPosition ? createPortal(
         <div
+          ref={pickerRef}
           role="dialog"
           aria-modal="false"
           aria-labelledby={labelId}
-          className={cn(
-            "absolute left-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-[#CAD8CB] bg-white p-4 shadow-[0_20px_50px_rgba(18,61,42,0.18)] ring-1 ring-[#F8F1E5]",
-            openDirection === "up" ? "bottom-full mb-2" : "top-full mt-2",
-          )}
+          style={{
+            left: pickerPosition.left,
+            ...(pickerPosition.top !== undefined ? { top: pickerPosition.top } : { bottom: pickerPosition.bottom }),
+          }}
+          className="fixed z-[100] w-[20rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-[#CAD8CB] bg-white p-4 shadow-[0_20px_50px_rgba(18,61,42,0.18)] ring-1 ring-[#F8F1E5]"
         >
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
@@ -394,7 +429,8 @@ export function DatePicker({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
 
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}

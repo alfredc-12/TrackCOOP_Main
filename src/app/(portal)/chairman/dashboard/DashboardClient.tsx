@@ -246,6 +246,18 @@ function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashbo
         { category: "Farm Inputs", unitsSold: 142, revenue: 89450, transactions: 82 },
       ],
     },
+    referralAnalytics: {
+      total: 0,
+      pending: 0,
+      successful: 0,
+      conversionRate: 0,
+      rewardCredits: 0,
+      rewardLabel: "Referral credits",
+      rewardPolicyEnabled: true,
+      rewardPerSuccessfulReferral: 1,
+      topReferrers: [],
+      byBarangay: [],
+    },
     inventoryAlerts: [
       { productId: "PRD-001", productName: "Rice 25kg", stock: 8 },
       { productId: "PRD-018", productName: "Corn Seeds 50kg", stock: 5 },
@@ -444,6 +456,19 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
     averageOrderValue: Number(productShopData.averageOrderValue ?? (operationsSnapshot.pos.transactions > 0 ? operationsSnapshot.pos.totalSales / operationsSnapshot.pos.transactions : 0)),
     topProducts: productShopData.topProducts || [],
     categorySales: productShopData.categorySales || [],
+  };
+  const referralData = d.referralAnalytics || {} as any;
+  const referralAnalytics = {
+    total: Number(referralData.total ?? 0),
+    pending: Number(referralData.pending ?? 0),
+    successful: Number(referralData.successful ?? 0),
+    conversionRate: Number(referralData.conversionRate ?? 0),
+    rewardCredits: Number(referralData.rewardCredits ?? referralData.successful ?? 0),
+    rewardLabel: String(referralData.rewardLabel ?? "Referral credits"),
+    rewardPolicyEnabled: referralData.rewardPolicyEnabled !== false,
+    rewardPerSuccessfulReferral: Number(referralData.rewardPerSuccessfulReferral ?? 1),
+    topReferrers: referralData.topReferrers || [],
+    byBarangay: referralData.byBarangay || [],
   };
   const recentActivity = d.recentActivity || [];
   const incomeSources = d.incomeSources || [];
@@ -946,8 +971,50 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                     </div>
                   ) : null}
                   <p className="text-sm font-bold text-[#123D2A] mb-2 pt-2 border-t border-[#EEF2EC]">Recruitment Insights</p>
-                  <div className="space-y-1">
-                    <p className="text-xs leading-5 text-[#5D6D63]">Growth insights are based on the live member and barangay records shown above.</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    <div className="rounded-lg bg-[#F7F8F3] p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#6C7A70]">Referrals</p>
+                      <p className="mt-1 text-lg font-black text-[#123D2A]">{formatNumber(referralAnalytics.total)}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#FFF8E8] p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#A15C16]">Pending</p>
+                      <p className="mt-1 text-lg font-black text-[#A15C16]">{formatNumber(referralAnalytics.pending)}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#EAF5EC] p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#1F6B43]">Successful</p>
+                      <p className="mt-1 text-lg font-black text-[#1F6B43]">{formatNumber(referralAnalytics.successful)}</p>
+                    </div>
+                    <div className="rounded-lg bg-[#EEF4FF] p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#3B5B9A]">Conversion</p>
+                      <p className="mt-1 text-lg font-black text-[#3B5B9A]">{referralAnalytics.conversionRate}%</p>
+                    </div>
+                    <div className="rounded-lg bg-[#FFF7E8] p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#A15C16]">{referralAnalytics.rewardLabel}</p>
+                      <p className="mt-1 text-lg font-black text-[#A15C16]">{formatNumber(referralAnalytics.rewardCredits)}</p>
+                      <p className="mt-1 text-[10px] text-[#6C7A70]">{referralAnalytics.rewardPolicyEnabled ? `${formatNumber(referralAnalytics.rewardPerSuccessfulReferral)} per success` : "Policy disabled"}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    {referralAnalytics.topReferrers[0] ? (
+                      <p className="text-xs leading-5 text-[#5D6D63]">
+                        Top referrer: <span className="font-bold text-[#123D2A]">{referralAnalytics.topReferrers[0].memberName}</span> ({referralAnalytics.topReferrers[0].successful} successful)
+                      </p>
+                    ) : (
+                      <p className="text-xs leading-5 text-[#5D6D63]">No referral activity recorded yet. Member referrals will appear here after applicants use a referral code.</p>
+                    )}
+                    {referralAnalytics.byBarangay[0] ? (
+                      <p className="text-xs leading-5 text-[#5D6D63]">
+                        Top referral barangay: <span className="font-bold text-[#123D2A]">{referralAnalytics.byBarangay[0].barangay}</span> ({referralAnalytics.byBarangay[0].total} referrals)
+                      </p>
+                    ) : null}
+                    {referralAnalytics.topReferrers.length > 1 ? (
+                      <div className="mt-3 overflow-x-auto rounded-lg border border-[#DDE8D8]">
+                        <table className="w-full min-w-[360px] text-[11px]">
+                          <thead className="bg-[#F7FAF7] text-left text-[#6C7A70]"><tr><th className="px-2 py-2">Top referrers</th><th className="px-2 py-2 text-right">Total</th><th className="px-2 py-2 text-right">Successful</th></tr></thead>
+                          <tbody>{referralAnalytics.topReferrers.slice(0, 5).map((referrer: any) => <tr key={referrer.memberCode} className="border-t border-[#EEF2EC]"><td className="px-2 py-2 font-semibold text-[#365F4A]">{referrer.memberName}</td><td className="px-2 py-2 text-right">{referrer.total}</td><td className="px-2 py-2 text-right font-bold text-[#1F6B43]">{referrer.successful}</td></tr>)}</tbody>
+                        </table>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <button className="mt-4 w-full flex items-center justify-center gap-1.5 rounded bg-[#EEF2EC] py-1.5 text-xs font-bold text-[#123D2A] hover:bg-[#CAD8CB]">

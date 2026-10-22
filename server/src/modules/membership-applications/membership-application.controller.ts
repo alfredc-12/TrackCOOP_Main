@@ -14,6 +14,7 @@ import {
   idParamsSchema,
   publicDocumentViewParamsSchema,
   publicDocumentUploadSchema,
+  publicReferralParamsSchema,
   publicMembershipApplicationSchema,
   publicStatusParamsSchema,
   requirementCreateSchema,
@@ -117,6 +118,11 @@ export function createMembershipApplicationController(
   service: MembershipApplicationService,
 ) {
   return {
+    validateReferral: asyncHandler(async (request, response) => {
+      const params = parse(publicReferralParamsSchema, request.params);
+      return sendSuccess(response, await service.validateReferralCode(params.referralCode));
+    }),
+
     submitPublic: asyncHandler(async (request, response) => {
       const input = parse(publicMembershipApplicationSchema, request.body);
       const result = await service.submitPublicApplication(input, publicContext(request));

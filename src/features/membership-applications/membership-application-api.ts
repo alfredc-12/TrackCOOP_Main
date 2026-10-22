@@ -18,6 +18,7 @@ import type {
   PublicPaymongoCheckoutInput,
   PublicPaymongoCheckoutResult,
   PublicSubmissionResult,
+  ReferralValidationResult,
   RequirementInput,
   RequirementUpdateInput,
   StatusTransitionInput,
@@ -78,6 +79,12 @@ export function submitMembershipApplication(input: PublicMembershipApplicationIn
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function validateMembershipReferralCode(referralCode: string) {
+  return apiRequest<ReferralValidationResult>(
+    `/api/membership-applications/public/referrals/${encodeURIComponent(referralCode)}/validate`,
+  );
 }
 
 export function uploadMembershipApplicationDocument(input: {

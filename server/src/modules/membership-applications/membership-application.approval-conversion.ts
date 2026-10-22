@@ -1,4 +1,4 @@
-import type { Pool } from "mysql2/promise";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
@@ -39,6 +39,39 @@ import {
   buildStatusEmail,
   triggerMembershipEmail,
 } from "./membership-application-email";
+
+async function notifyReferralMember(
+  connection: PoolConnection,
+  referrerMemberId: string,
+  title: string,
+  message: string,
+  applicationId: string,
+) {
+  await connection.execute(
+    `INSERT INTO notifications
+       (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+     SELECT mp.user_id, 'System', ?, ?, 'member_referral', ?
+       FROM member_profiles mp
+      WHERE mp.member_id = ?
+        AND mp.user_id IS NOT NULL`,
+    [title, message, applicationId, referrerMemberId],
+  );
+}
+
+async function auditReferralStatus(
+  connection: PoolConnection,
+  referralId: string | number,
+  status: string,
+  description: string,
+  actorUserId?: string | number | null,
+) {
+  await connection.execute(
+    `INSERT INTO audit_logs
+       (user_id, action, entity_table, record_id, description, new_values)
+     VALUES (?, 'member_referral.status_changed', 'member_referrals', ?, ?, ?)`,
+    [actorUserId ?? null, referralId, description, JSON.stringify({ referralStatus: status })],
+  );
+}
 
 export interface MembershipApprovalConversionService {
   approve(
@@ -190,6 +223,40 @@ export function createMembershipApprovalConversionService(
             applicationId,
           ],
         );
+        const [referralRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT member_referral_id AS referralId, referrer_member_id AS referrerMemberId
+             FROM member_referrals
+            WHERE membership_application_id = ?
+              AND referral_status = 'Pending'
+            LIMIT 1
+            FOR UPDATE`,
+          [applicationId],
+        );
+        await connection.execute(
+          `UPDATE member_referrals
+              SET referred_member_id = ?, referral_status = 'Successful',
+                  qualified_at = UTC_TIMESTAMP(), qualified_by = ?
+            WHERE membership_application_id = ?
+              AND referral_status = 'Pending'`,
+          [member.memberId, auth.user.id, applicationId],
+        );
+        const referral = referralRows[0];
+        if (referral) {
+          await notifyReferralMember(
+            connection,
+            String(referral.referrerMemberId),
+            "Referral successful",
+            `The referred applicant ${application.applicationCode} has been approved as a member.`,
+            applicationId,
+          );
+          await auditReferralStatus(
+            connection,
+            referral.referralId,
+            "Successful",
+            "Referral was marked successful after membership approval.",
+            auth.user.id,
+          );
+        }
         await connection.execute(
           `INSERT INTO membership_application_status_history
              (membership_application_id, old_status, new_status,

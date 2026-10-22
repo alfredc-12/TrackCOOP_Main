@@ -8,6 +8,7 @@ import type {
   ProductShopAnalytics,
 } from "./dashboard.types";
 import { getFinancialTransparency } from "../finance/financial-transparency";
+import { calculateReferralRewardCredits, loadReferralRewardPolicy } from "../referrals/referral-policy";
 
 type CountRow = RowDataPacket & { count: number | string };
 type MemberStatsRow = RowDataPacket & {
@@ -373,6 +374,79 @@ export class DashboardRepository {
       demographicMap.set(barangay, current);
     }
 
+    const referralDateFilter = getDateFilter(period, "r.created_at");
+    const referralWhere = ["1 = 1"];
+    if (referralDateFilter.clause) {
+      referralWhere.push(referralDateFilter.clause.replace(/^AND\s+/, ""));
+    }
+    const referralParams: Array<string | number> = [...referralDateFilter.params];
+    if (filters.barangay) {
+      referralWhere.push("a.barangay = ?");
+      referralParams.push(filters.barangay);
+    }
+    const [referralSummaryRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN r.referral_status = 'Pending' THEN 1 ELSE 0 END) AS pending,
+              SUM(CASE WHEN r.referral_status = 'Successful' THEN 1 ELSE 0 END) AS successful
+         FROM member_referrals r
+         JOIN membership_applications a
+           ON a.membership_application_id = r.membership_application_id
+        WHERE ${referralWhere.join(" AND ")}`,
+      referralParams,
+    ).catch(() => [[] as RowDataPacket[]]);
+    const referralRewardPolicy = await loadReferralRewardPolicy(pool);
+    const [topReferrerRows] = await pool.query<RowDataPacket[]>(
+      `SELECT mp.full_name AS memberName,
+              mp.member_code AS memberCode,
+              COUNT(*) AS total,
+              SUM(CASE WHEN r.referral_status = 'Successful' THEN 1 ELSE 0 END) AS successful
+         FROM member_referrals r
+         JOIN member_profiles mp ON mp.member_id = r.referrer_member_id
+         JOIN membership_applications a
+           ON a.membership_application_id = r.membership_application_id
+        WHERE ${referralWhere.join(" AND ")}
+        GROUP BY mp.member_id, mp.full_name, mp.member_code
+        ORDER BY successful DESC, total DESC, mp.full_name ASC
+        LIMIT 5`,
+      referralParams,
+    ).catch(() => [[] as RowDataPacket[]]);
+    const [referralBarangayRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COALESCE(NULLIF(a.barangay, ''), 'Not recorded') AS barangay,
+              COUNT(*) AS total,
+              SUM(CASE WHEN r.referral_status = 'Successful' THEN 1 ELSE 0 END) AS successful
+         FROM member_referrals r
+         JOIN membership_applications a
+           ON a.membership_application_id = r.membership_application_id
+        WHERE ${referralWhere.join(" AND ")}
+        GROUP BY COALESCE(NULLIF(a.barangay, ''), 'Not recorded')
+        ORDER BY total DESC, barangay ASC
+        LIMIT 10`,
+      referralParams,
+    ).catch(() => [[] as RowDataPacket[]]);
+    const referralAnalytics = {
+      total: numberValue(referralSummaryRows[0]?.total),
+      pending: numberValue(referralSummaryRows[0]?.pending),
+      successful: numberValue(referralSummaryRows[0]?.successful),
+      conversionRate: numberValue(referralSummaryRows[0]?.total) > 0
+        ? Math.round((numberValue(referralSummaryRows[0]?.successful) / numberValue(referralSummaryRows[0]?.total)) * 100)
+        : 0,
+      rewardCredits: calculateReferralRewardCredits(numberValue(referralSummaryRows[0]?.successful), referralRewardPolicy),
+      rewardLabel: referralRewardPolicy.label,
+      rewardPolicyEnabled: referralRewardPolicy.enabled,
+      rewardPerSuccessfulReferral: referralRewardPolicy.creditsPerSuccessfulReferral,
+      topReferrers: topReferrerRows.map((row) => ({
+        memberName: String(row.memberName ?? ""),
+        memberCode: String(row.memberCode ?? ""),
+        total: numberValue(row.total),
+        successful: numberValue(row.successful),
+      })),
+      byBarangay: referralBarangayRows.map((row) => ({
+        barangay: String(row.barangay ?? "Not recorded"),
+        total: numberValue(row.total),
+        successful: numberValue(row.successful),
+      })),
+    };
+
     const [inventoryRows] = await pool.query<StockRow[]>(
       `SELECT CAST(p.product_id AS CHAR) AS productId,
               p.product_name AS productName,
@@ -546,6 +620,7 @@ export class DashboardRepository {
         inventory: { lowStock: inventoryAlerts.length, outOfStock: outOfStockCount, alerts: inventoryAlerts },
       },
       productShopAnalytics,
+      referralAnalytics,
       inventoryAlerts,
       recentTransactions: recentShareCapitalRows.map((row) => ({
         id: String(row.id),

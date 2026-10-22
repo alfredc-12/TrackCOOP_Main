@@ -77,6 +77,32 @@ function asBoolean(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+type ReferralRewardPolicyDraft = {
+  enabled: boolean;
+  creditsPerSuccessfulReferral: number;
+  label: string;
+};
+
+const DEFAULT_REFERRAL_REWARD_POLICY: ReferralRewardPolicyDraft = {
+  enabled: true,
+  creditsPerSuccessfulReferral: 1,
+  label: "Referral credits",
+};
+
+function parseReferralRewardPolicy(setting?: LandingRecord): ReferralRewardPolicyDraft {
+  if (!setting?.settingValue) return { ...DEFAULT_REFERRAL_REWARD_POLICY };
+  try {
+    const value = JSON.parse(String(setting.settingValue)) as Record<string, unknown>;
+    return {
+      enabled: asBoolean(value.enabled, true),
+      creditsPerSuccessfulReferral: Math.min(100, Math.max(0, Math.round(asNumber(value.creditsPerSuccessfulReferral, 1)))),
+      label: asString(value.label, DEFAULT_REFERRAL_REWARD_POLICY.label).trim().slice(0, 80) || DEFAULT_REFERRAL_REWARD_POLICY.label,
+    };
+  } catch {
+    return { ...DEFAULT_REFERRAL_REWARD_POLICY };
+  }
+}
+
 function fileNameWithoutExtension(name: string) {
   return name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ").trim();
 }
@@ -1681,6 +1707,9 @@ export function LandingSettingsView() {
   const [settings, setSettings] = useState<LandingRecord[]>([]);
   const [logs, setLogs] = useState<LandingRecord[]>([]);
   const [search, setSearch] = useState("");
+  const [rewardPolicy, setRewardPolicy] = useState<ReferralRewardPolicyDraft>({ ...DEFAULT_REFERRAL_REWARD_POLICY });
+  const [rewardPolicySaving, setRewardPolicySaving] = useState(false);
+  const [rewardPolicySaved, setRewardPolicySaved] = useState(false);
   const [editorValue, setEditorValue] = useState(prettyJson({
     settingGroup: "Landing",
     settingKey: "landing.review_note",
@@ -1701,6 +1730,8 @@ export function LandingSettingsView() {
       ]);
       setSettings(nextSettings);
       setLogs(nextLogs);
+      const rewardSetting = nextSettings.find((setting) => setting.settingKey === "referrals.reward_policy");
+      if (rewardSetting) setRewardPolicy(parseReferralRewardPolicy(rewardSetting));
     } catch (caught) {
       setError(caught instanceof ApiClientError ? caught.message : "Settings and audit logs could not be loaded.");
     }
@@ -1720,6 +1751,29 @@ export function LandingSettingsView() {
     }
   }
 
+  async function saveReferralRewardPolicy() {
+    setRewardPolicySaving(true);
+    setRewardPolicySaved(false);
+    setError("");
+    try {
+      await saveSystemSetting({
+        settingGroup: "Referrals",
+        settingKey: "referrals.reward_policy",
+        settingValue: JSON.stringify(rewardPolicy),
+        valueType: "JSON",
+        description: "Controls the tracking credits shown for successful member referrals.",
+        isPublic: false,
+        effectiveDate: new Date().toISOString().slice(0, 10),
+      });
+      setRewardPolicySaved(true);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Referral reward policy could not be saved.");
+    } finally {
+      setRewardPolicySaving(false);
+    }
+  }
+
   const latestLogs = useMemo(() => logs.slice(0, 12), [logs]);
 
   return (
@@ -1727,14 +1781,43 @@ export function LandingSettingsView() {
       <PageHeader
         eyebrow="System"
         title="Settings and Audit"
-        description="Chairman-only settings and audit records for landing administration."
+        description="Chairman-only cooperative settings and audit records."
         actions={<StatusBadge tone="success">Chairman only</StatusBadge>}
       />
       <Toolbar search={search} setSearch={setSearch} onRefresh={() => void load()} />
       {error ? <ErrorState message={error} /> : null}
+      <section className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1F6B43]">Referrals</p>
+            <h2 className="mt-1 text-lg font-black text-[#123D2A]">Reward policy</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#5D6D63]">Configure the tracking credits assigned when a referred applicant becomes a successful member. This does not create a cash payout or redemption obligation.</p>
+          </div>
+          <StatusBadge tone={rewardPolicy.enabled ? "success" : "warning"}>{rewardPolicy.enabled ? "Enabled" : "Disabled"}</StatusBadge>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] md:items-end">
+          <label className="flex min-h-11 items-center gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-sm font-bold text-[#294B39]">
+            <input type="checkbox" checked={rewardPolicy.enabled} onChange={(event) => { setRewardPolicySaved(false); setRewardPolicy((current) => ({ ...current, enabled: event.target.checked })); }} className="size-4 accent-[#1F6B43]" />
+            Policy enabled
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+            Credits per successful referral
+            <input type="number" min="0" max="100" step="1" value={rewardPolicy.creditsPerSuccessfulReferral} onChange={(event) => { setRewardPolicySaved(false); setRewardPolicy((current) => ({ ...current, creditsPerSuccessfulReferral: Math.min(100, Math.max(0, Number(event.target.value) || 0)) })); }} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+            Reward label
+            <input value={rewardPolicy.label} maxLength={80} onChange={(event) => { setRewardPolicySaved(false); setRewardPolicy((current) => ({ ...current, label: event.target.value })); }} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" placeholder="Referral credits" />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 rounded-md border border-[#DDE8DD] bg-[#F7FAF5] p-4 text-sm text-[#42594B] sm:flex-row sm:items-center sm:justify-between">
+          <p>Current rule: <strong>{rewardPolicy.enabled ? `${rewardPolicy.creditsPerSuccessfulReferral} ${rewardPolicy.label || "credits"} per successful referral` : "No referral credits are being assigned"}</strong>.</p>
+          <button type="button" onClick={() => void saveReferralRewardPolicy()} disabled={rewardPolicySaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-60"><Save className="size-4" />{rewardPolicySaving ? "Saving..." : "Save reward policy"}</button>
+        </div>
+        {rewardPolicySaved ? <p role="status" className="mt-3 text-sm font-bold text-[#1F6B43]">Referral reward policy saved.</p> : null}
+      </section>
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="rounded-lg border border-[#CAD8CB] bg-white p-4">
-          <h2 className="text-lg font-black text-[#123D2A]">Save Setting</h2>
+          <h2 className="text-lg font-black text-[#123D2A]">Advanced setting editor</h2>
           <textarea value={editorValue} onChange={(event) => setEditorValue(event.target.value)} className="mt-3 min-h-[260px] w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] p-4 font-mono text-xs leading-6" />
           <button onClick={() => void save()} className="mt-4 inline-flex h-11 items-center gap-2 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white"><Save className="size-4" />Save setting</button>
         </section>

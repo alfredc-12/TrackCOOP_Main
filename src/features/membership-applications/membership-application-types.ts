@@ -74,6 +74,7 @@ export type PublicMembershipApplicationInput = {
   middleName?: string | null;
   lastName: string;
   suffix?: string | null;
+  referralCode?: string | null;
   email?: string | null;
   contactNumber: string;
   civilStatus?: CivilStatus | null;
@@ -106,6 +107,11 @@ export type PublicSubmissionResult = {
   warnings: string[];
   submittedAt: string;
   nextStep: "Chairman review";
+};
+
+export type ReferralValidationResult = {
+  valid: boolean;
+  referralCode: string;
 };
 
 export type PublicStatusRequirement = {
