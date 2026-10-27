@@ -54,6 +54,7 @@ export const financialRecordSchema = z.object({
   recordType: z.enum(financialRecordTypes),
   sourceModule: z.enum(financialSourceModules).default("Manual"),
   sourceRecordId: z.string().trim().min(1).max(30).nullable().optional(),
+  seasonId: z.string().trim().min(1).max(30).nullable().optional(),
   amount: z.coerce.number().positive().max(99_999_999.99),
   recordDate: z.iso.date(),
   remarks: z.string().trim().max(2000).nullable().optional(),
@@ -69,6 +70,7 @@ export const operatingExpenseSchema = z.object({
   otherDescription: z.string().trim().max(120).nullable().optional(),
   amount: z.coerce.number().positive().max(99_999_999.99),
   expenseDate: z.iso.date(),
+  seasonId: z.string().trim().min(1).max(30).nullable().optional(),
   remarks: z.string().trim().max(2000).nullable().optional(),
 }).refine(
   (value) => value.expenseType !== "Other" || Boolean(value.otherDescription?.trim()),

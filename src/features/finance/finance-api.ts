@@ -258,7 +258,8 @@ export const operatingExpenseTypes: OperatingExpenseType[] = ["Salaries", "Fuel"
 export type OperatingExpenseRecord = {
   id: string; recordNumber: string; expenseType: OperatingExpenseType; categoryCode: string;
   categoryName: string; amount: number; expenseDate: string; remarks: string | null;
-  recordedBy: string; approvedBy: string | null; createdAt: string;
+  recordedBy: string; approvedBy: string | null; seasonId?: string | null; createdAt: string;
+  budgetCheck?: { warning: boolean; blocked: boolean; message: string; utilizationPercentage: number | null; remainingAmount: number | null };
 };
 export type OperatingExpenseSummary = {
   items: OperatingExpenseRecord[];
@@ -271,6 +272,7 @@ export type CreateOperatingExpenseInput = {
   otherDescription?: string | null;
   amount: number;
   expenseDate: string;
+  seasonId?: string | null;
   remarks?: string | null;
 };
 export type PaymentReferenceFilters = {

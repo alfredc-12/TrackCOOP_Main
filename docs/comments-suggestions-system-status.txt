@@ -1,16 +1,16 @@
 TrackCOOP - Comments, Suggestions, and Additional
 System Status Review - Sorted by Status
 
-Date reviewed: October 23, 2026
+Date reviewed: October 27, 2026
 
 Status legend:
-- 🔵 NASA SYSTEM NA = Implemented and available in the current system.
-- 🟡 PARTIAL = Some related features exist, but additional work is still needed.
-- 🔴 WALA PA = Not currently implemented or requires external/manual action.
+- [BLUE] NASA SYSTEM NA = Implemented and available in the current system.
+- [YELLOW] PARTIAL = Some related features exist, but additional work is still needed.
+- [RED] WALA PA = Not currently implemented or requires external/manual action.
 
 
 ============================================================
-🔵 NASA SYSTEM NA
+[BLUE] NASA SYSTEM NA
 ============================================================
 
 1. Clearly present the growth and transaction history of each member's Share Capital.
@@ -20,16 +20,22 @@ Details: The system has a Share Capital growth chart, current balance, initial c
 Details: The system includes an annual declaration, coverage dates, distribution date, member withdrawal or Share Capital capitalization options, and Bookkeeper payout processing.
 
 3. Implement a member referral system and record successful referrals for recruitment monitoring.
-Details: The system now provides active referral codes and shareable links, Copy/Share actions, live code validation, optional referral capture, duplicate-referral protection, pending-to-successful status tracking, referral progress display, in-app notifications, audit logging, member referral history, Chairman recruitment analytics with conversion rate, top referrers, barangay breakdowns, and an admin-configurable reward policy popup on Chairman > Members. The popup allows the Chairman to enable or disable the policy, set credits per successful referral from 0 to 100, and customize the reward label. Credits are tracking-only and do not create an automatic cash payout.
+Details: The system provides active referral codes and shareable links, Copy/Share actions, live code validation, optional referral capture, duplicate-referral protection, pending-to-successful status tracking, referral progress display, in-app notifications, audit logging, member referral history, Chairman recruitment analytics with conversion rate, top referrers, barangay breakdowns, and an admin-configurable reward policy popup on Chairman > Members. Credits are tracking-only and do not create an automatic cash payout.
 
-13. Ensure financial transparency by allowing members to view appropriate income and expense breakdowns.
-Details: The member dashboard now shows posted cooperative income, expenses, net operating result, and category-level breakdowns. Share Capital contributions are identified separately. The Financial Transparency modal now includes This Year, This Month, Last 30 Days, All Time, and Custom Range filters; comparison against the previous period; category details with amount, percentage, and posted-record count; definitions for the financial terms; a Chairman-dashboard reconciliation indicator; loading, empty, and error states; category pagination fixed at the bottom of the modal; and a Save as PDF option. The Member and Chairman dashboards use the same shared financial aggregation rules, and automated coverage was added for the totals and category counts.
-
-15. Include product/shop analytics to identify most purchased products, sales performance, and demand.
-Details: The Chairman Financial Dashboard now includes live Product & Shop Analytics from POS and inventory data. It shows shop sales, units sold, transactions, average order value, sales by category, top purchased products, demand level, current stock, period filters, empty states, and links to POS and reports. The Products & Inventory page now shows visible High, Medium, and Low demand tags, demand filtering and sorting, All-time, Last 7 days, Last 30 days, and This year demand periods based on paid/completed POS sales, stock status labels, product details, and responsive controls. Low Stock is triggered at 10 units or below by default, while a higher product-specific reorder level is still respected. A stock-alert modal opens when inventory is first loaded and lists products that need replenishment; selecting a product opens the Add Stock workflow, and successful replenishment shows a product-and-quantity toast. Orders & Payments remains available to the Bookkeeper and is hidden from the Chairman inventory view.
+6. Define and clarify the purpose of seasonal analytics and how seasons affect production, sales, income, and expenses.
+Details: Chairman Seasonal Analytics supports season configuration, Draft/Active/Closed status, date ranges, production-record entry, crop-level production totals, monthly sales/income/expense trends, financial-category breakdowns, net result, and margin. Existing POS and financial records without an explicit season tag are included when their dates fall inside the selected season range.
 
 11. Provide a separate Expense Management module with a detailed breakdown of expenses.
 Details: The system has Operating Expenses, expense categories, amount, payee, payment method, receipt, description, remarks, and financial ledger recording.
+
+12. Implement budget controls or a safety net to prevent expenses from exceeding approved limits.
+Details: Chairman Budget Controls supports a draft-to-approval workflow, category and season budget lines, warning percentages, approved limits, utilization tracking, unbudgeted-expense visibility, and an optional hard limit that blocks new expenses after the approved amount is exceeded. Operating Expenses can be assigned to an active season and receives a warning when a budget line approaches its limit.
+
+13. Ensure financial transparency by allowing members to view appropriate income and expense breakdowns.
+Details: The member dashboard shows posted cooperative income, expenses, net operating result, and category-level breakdowns. Share Capital contributions are identified separately. The Financial Transparency modal includes period filters, previous-period comparison, category details, definitions, reconciliation state, loading/empty/error states, fixed-bottom pagination, and Save as PDF.
+
+15. Include product/shop analytics to identify most purchased products, sales performance, and demand.
+Details: The Chairman Financial Dashboard includes live Product & Shop Analytics from POS and inventory data, including shop sales, units sold, transactions, average order value, sales by category, top purchased products, demand level, current stock, period filters, empty states, and links to POS and reports. Products & Inventory shows High, Medium, and Low demand tags, demand filtering/sorting, period-based demand calculations, and low-stock alerts.
 
 16. Generate complete and detailed reports for relevant cooperative transactions and analytics.
 Details: The system has financial, membership, Share Capital, rental, sales, inventory, document, audit, and notification reports.
@@ -39,7 +45,7 @@ Details: Testing data includes members, Share Capital, expenses, POS sales, prod
 
 
 ============================================================
-🟡 PARTIAL
+[YELLOW] PARTIAL
 ============================================================
 
 4. Include promotional features to support cooperative membership recruitment and activities.
@@ -65,17 +71,11 @@ Details: In-app notifications, notification bells, announcements, and email supp
 
 
 ============================================================
-🔴 WALA PA / EXTERNAL OR PROCESS ACTION
+[RED] WALA PA / EXTERNAL OR PROCESS ACTION
 ============================================================
 
 5. Coordinate the attendance of Don Johnson during the Final Defense.
 Details: This requires manual coordination and is not a software feature.
-
-6. Define and clarify the purpose of seasonal analytics and how seasons affect production, sales, income, and expenses.
-Details: There is no actual season configuration or analytics that connects seasons to production, sales, income, and expenses.
-
-12. Implement budget controls or a safety net to prevent expenses from exceeding approved limits.
-Details: There is no approved budget limit, spending cap, warning, or approval block for expenses that exceed a budget.
 
 19. Conduct user testing with cooperative members and use their feedback for system improvements.
 Details: This requires actual user testing sessions, feedback collection, and documentation outside the software implementation.
@@ -91,23 +91,22 @@ RECENT IMPLEMENTATION UPDATES
 - Replaced the Stock Alerts summary card with an inventory-opening stock-alert modal.
 - Added direct Add Stock access from low-stock products and a detailed success toast after replenishment.
 - Kept Orders & Payments available for Bookkeeper users while hiding it from the Chairman inventory view.
-- Added member referral codes and shareable links, live referral validation, duplicate protection, pending-to-successful qualification, referral progress history, in-app notifications, audit logging, member history, Chairman referral conversion analytics, and a Chairman-configurable referral reward policy.
-- Added a Referral Policy popup directly to the Chairman Members page beside the paper-application action, with enable/disable, credits-per-successful-referral, reward-label, save, and cancel controls.
+- Added member referral codes, shareable links, live validation, duplicate protection, referral history, recruitment analytics, and a Chairman-configurable reward policy.
+- Added Seasonal Analytics with season configuration, season lifecycle status, production records, crop summaries, monthly performance, and financial category breakdowns.
+- Added date-range fallback for existing POS and financial records so historical data appears in a selected season even before every record is explicitly tagged.
+- Added Budget Controls with budget lines, approval workflow, warning thresholds, utilization, unbudgeted expense monitoring, and optional hard-limit blocking.
+- Added an optional Season selector to Operating Expenses and budget warning feedback after a successful expense posting.
 
 
 ============================================================
 SUMMARY
 ============================================================
 
-🔵 Nasa system na: 8 items
-🟡 Partial: 7 items
-🔴 Wala pa or external/manual action: 4 items
+[BLUE] NASA SYSTEM NA: 10 items
+[YELLOW] PARTIAL: 7 items
+[RED] WALA PA or external/manual action: 2 items
 
 Main remaining development priorities:
-1. Seasonal analytics
-2. Budget controls
-3. SMS notification integration
-4. More realistic Final Defense data
-5. User testing and feedback documentation
-
-
+1. SMS notification integration
+2. More realistic Final Defense data
+3. User testing and feedback documentation

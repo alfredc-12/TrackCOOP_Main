@@ -13,6 +13,7 @@ import {
   type OperatingExpenseSummary,
   type OperatingExpenseType,
 } from "./finance-api";
+import { listSeasons, type Season } from "@/features/planning/planning-api";
 
 const inputClass = "h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";
 
@@ -81,6 +82,7 @@ function ExpenseTypeSelect({ value, onChange }: { value: OperatingExpenseType; o
 
 export function OperatingExpensesView() {
   const [summary, setSummary] = useState<OperatingExpenseSummary | null>(null);
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [filters, setFilters] = useState(yearRange);
   const [form, setForm] = useState({
     expenseType: "Salaries" as OperatingExpenseType,
@@ -88,6 +90,7 @@ export function OperatingExpensesView() {
     amount: "",
     expenseDate: localDate(),
     remarks: "",
+    seasonId: "",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,6 +123,10 @@ export function OperatingExpensesView() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
+  useEffect(() => {
+    void listSeasons("Active").then(setSeasons).catch(() => setSeasons([]));
+  }, []);
+
   const topExpense = useMemo(() => {
     const totals = summary?.byType ?? [];
     return totals.reduce((top, item) => item.total > top.total ? item : top, { expenseType: "Other" as OperatingExpenseType, total: 0, count: 0 });
@@ -138,14 +145,16 @@ export function OperatingExpensesView() {
     }
     setIsSubmitting(true);
     try {
-      await createOperatingExpense({
+      const created = await createOperatingExpense({
         expenseType: form.expenseType,
         otherDescription: form.expenseType === "Other" ? form.otherDescription.trim() : null,
         amount,
         expenseDate: form.expenseDate,
+        seasonId: form.seasonId || null,
         remarks: form.remarks.trim() || null,
       });
       toast.success("Operating expense recorded and posted.");
+      if (created.budgetCheck?.warning) toast.warning(created.budgetCheck.message);
       setForm((current) => ({ ...current, otherDescription: "", amount: "", remarks: "" }));
       await load();
     } catch (caught) {
@@ -238,6 +247,13 @@ export function OperatingExpensesView() {
           <label className="grid gap-2 text-sm font-bold text-[#294B39]">
             Date
             <input className={inputClass} required type="date" value={form.expenseDate} onChange={(event) => setForm((current) => ({ ...current, expenseDate: event.target.value }))} />
+          </label>
+          <label className="grid gap-2 text-sm font-bold text-[#294B39]">
+            Season
+            <select className={inputClass} value={form.seasonId} onChange={(event) => setForm((current) => ({ ...current, seasonId: event.target.value }))}>
+              <option value="">Unassigned</option>
+              {seasons.map((season) => <option key={season.id} value={season.id}>{season.seasonName}</option>)}
+            </select>
           </label>
           <label className="grid gap-2 text-sm font-bold text-[#294B39]">
             Amount

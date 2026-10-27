@@ -114,6 +114,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           icon: HandCoins,
           summary: "Calculate patronage and administer member refund allocations.",
         },
+        {
+          label: "Budget Controls",
+          href: "/portal/chairman/budget-controls",
+          icon: ShieldCheck,
+          summary: "Set approved spending limits and monitor budget warnings.",
+        },
       ],
     },
     {
@@ -148,6 +154,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           href: "/portal/chairman/rentals/bookings",
           icon: CalendarCheck2,
           summary: "Review rental schedules, bookings, and statuses.",
+        },
+        {
+          label: "Seasonal Analytics",
+          href: "/portal/chairman/seasons",
+          icon: BarChart3,
+          summary: "Connect production, sales, income, and expenses by season.",
         },
       ],
     },

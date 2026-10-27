@@ -5,6 +5,7 @@ import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
+import { assertExpenseBudget, checkExpenseAgainstBudget } from "../budgets/budget-control";
 import type {
   FinancialCategory,
   FinancialCategoryInput,
@@ -48,6 +49,7 @@ type RecordRow = RowDataPacket & {
   recordType: FinancialRecord["recordType"];
   sourceModule: FinancialRecord["sourceModule"];
   sourceRecordId: string | null;
+  seasonId: string | null;
   amount: string | number;
   recordDate: Date;
   recordStatus: FinancialRecord["recordStatus"];
@@ -79,6 +81,7 @@ type OperatingExpenseRow = RowDataPacket & {
   categoryName: string;
   amount: string | number;
   expenseDate: string;
+  seasonId: string | null;
   remarks: string | null;
   recordedBy: string;
   approvedBy: string | null;
@@ -171,6 +174,7 @@ function recordSelect() {
                  r.record_type AS recordType,
                  r.source_module AS sourceModule,
                  CAST(r.source_record_id AS CHAR) AS sourceRecordId,
+                 CAST(r.season_id AS CHAR) AS seasonId,
                  r.amount,
                  r.record_date AS recordDate,
                  r.record_status AS recordStatus,
@@ -216,6 +220,7 @@ function mapOperatingExpense(row: OperatingExpenseRow): OperatingExpenseRecord {
     categoryName: row.categoryName,
     amount: Number(row.amount),
     expenseDate: row.expenseDate,
+    seasonId: row.seasonId ? String(row.seasonId) : null,
     remarks: row.remarks,
     recordedBy: row.recordedBy,
     approvedBy: row.approvedBy,
@@ -306,6 +311,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
               c.category_name AS categoryName,
               r.amount,
               DATE_FORMAT(r.record_date, '%Y-%m-%d') AS expenseDate,
+              CAST(r.season_id AS CHAR) AS seasonId,
               r.remarks,
               CAST(r.recorded_by AS CHAR) AS recordedBy,
               CAST(r.approved_by AS CHAR) AS approvedBy,
@@ -449,11 +455,20 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
 
     async createRecord(input, auth) {
       return withTransaction(async (connection) => {
+        if (input.recordType === "Expense") {
+          const budgetCheck = await checkExpenseAgainstBudget(connection, {
+            financialCategoryId: input.financialCategoryId,
+            amount: input.amount,
+            expenseDate: input.recordDate,
+            seasonId: input.seasonId ?? null,
+          });
+          assertExpenseBudget(budgetCheck);
+        }
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO financial_records
              (record_number, payment_reference_id, member_id, financial_category_id, recorded_by,
-              record_type, source_module, source_record_id, amount, record_date, remarks)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              record_type, source_module, source_record_id, season_id, amount, record_date, remarks)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.recordNumber,
             input.paymentReferenceId ?? null,
@@ -463,6 +478,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
             input.recordType,
             input.sourceModule ?? "Manual",
             input.sourceRecordId ?? null,
+            input.seasonId ?? null,
             input.amount,
             input.recordDate,
             input.remarks ?? null,
@@ -500,6 +516,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
                   record_type = COALESCE(?, record_type),
                   source_module = COALESCE(?, source_module),
                   source_record_id = ?,
+                  season_id = ?,
                   amount = COALESCE(?, amount),
                   record_date = COALESCE(?, record_date),
                   remarks = ?
@@ -512,6 +529,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
             input.recordType ?? null,
             input.sourceModule ?? null,
             Object.prototype.hasOwnProperty.call(input, "sourceRecordId") ? input.sourceRecordId ?? null : existing.sourceRecordId,
+            Object.prototype.hasOwnProperty.call(input, "seasonId") ? input.seasonId ?? null : existing.seasonId ?? null,
             input.amount ?? null,
             input.recordDate ?? null,
             Object.prototype.hasOwnProperty.call(input, "remarks") ? input.remarks ?? null : existing.remarks,
@@ -579,6 +597,13 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     async createOperatingExpense(input, auth) {
       return withTransaction(async (connection) => {
         const categoryId = await ensureOperatingExpenseCategory(connection, input.expenseType, auth);
+        const budgetCheck = await checkExpenseAgainstBudget(connection, {
+          financialCategoryId: categoryId,
+          amount: input.amount,
+          expenseDate: input.expenseDate,
+          seasonId: input.seasonId ?? null,
+        });
+        assertExpenseBudget(budgetCheck);
         const recordNumber = recordNumberForOperatingExpense(input.expenseDate);
         const remarks = [
           `Operating expense: ${input.expenseType}.`,
@@ -591,13 +616,14 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO financial_records
              (record_number, payment_reference_id, member_id, financial_category_id, recorded_by,
-              approved_by, record_type, source_module, source_record_id, amount, record_date, record_status, remarks)
-           VALUES (?, NULL, NULL, ?, ?, ?, 'Expense', 'Manual', NULL, ?, ?, 'Active', ?)`,
+              approved_by, record_type, source_module, source_record_id, season_id, amount, record_date, record_status, remarks)
+           VALUES (?, NULL, NULL, ?, ?, ?, 'Expense', 'Manual', NULL, ?, ?, ?, 'Active', ?)`,
           [
             recordNumber,
             categoryId,
             auth.user.id,
             auth.user.id,
+            input.seasonId ?? null,
             input.amount,
             input.expenseDate,
             remarks,
@@ -612,7 +638,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         );
         const created = await findOperatingExpenseById(connection, id);
         if (!created) throw new AppError("Operating expense was not found after recording", 500, "OPERATING_EXPENSE_NOT_FOUND");
-        return created;
+        return { ...created, budgetCheck };
       }, databasePool());
     },
 
@@ -625,6 +651,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
                 c.category_name AS categoryName,
                 r.amount,
                 DATE_FORMAT(r.record_date, '%Y-%m-%d') AS expenseDate,
+                CAST(r.season_id AS CHAR) AS seasonId,
                 r.remarks,
                 CAST(r.recorded_by AS CHAR) AS recordedBy,
                 CAST(r.approved_by AS CHAR) AS approvedBy,

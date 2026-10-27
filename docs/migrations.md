@@ -23,3 +23,5 @@ The command also applies `20261012_dividend_action_approval_workflow.sql`, which
 Migrations are manual operator actions and never run during API startup.
 
 The referral feature uses `20261022_member_referrals.sql` for referral codes and tracking, followed by `20261023_referral_reward_policy.sql` for the Chairman-configurable tracking-credit policy. Apply both in chronological order on an existing database.
+
+Seasonal Analytics and Budget Controls use `20261027_seasons_and_budget_controls.sql`. Apply it after the referral migrations. It creates season, production-record, budget, and budget-line tables and adds nullable season links to financial and POS records. Existing records remain valid; selected-season analytics includes untagged historical records when their dates fall within the season range.

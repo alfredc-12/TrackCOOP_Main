@@ -25,12 +25,14 @@ export function StatCard({
   icon: Icon,
   variant = "default",
   className,
+  valueClassName,
 }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   variant?: "default" | "compact";
   className?: string;
+  valueClassName?: string;
 }) {
   if (variant === "compact") {
     return (
@@ -53,7 +55,7 @@ export function StatCard({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7A70] line-clamp-2">{label}</p>
-          <p className="mt-1 text-2xl font-black text-[#123D2A] truncate">{value}</p>
+          <p className={cn("mt-1 text-2xl font-black text-[#123D2A]", valueClassName ?? "truncate")}>{value}</p>
         </div>
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43] relative">
           <Icon className="size-5" aria-hidden="true" />

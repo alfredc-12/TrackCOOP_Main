@@ -44,6 +44,7 @@ export type FinancialRecord = {
   recordType: FinancialRecordType;
   sourceModule: FinancialSourceModule;
   sourceRecordId: string | null;
+  seasonId?: string | null;
   amount: number;
   recordDate: Date;
   recordStatus: FinancialRecordStatus;
@@ -72,6 +73,7 @@ export type FinancialRecordInput = {
   recordType: FinancialRecordType;
   sourceModule?: FinancialSourceModule;
   sourceRecordId?: string | null;
+  seasonId?: string | null;
   amount: number;
   recordDate: string;
   remarks?: string | null;
@@ -84,6 +86,7 @@ export type OperatingExpenseInput = {
   otherDescription?: string | null;
   amount: number;
   expenseDate: string;
+  seasonId?: string | null;
   remarks?: string | null;
 };
 
@@ -100,10 +103,18 @@ export type OperatingExpenseRecord = {
   categoryName: string;
   amount: number;
   expenseDate: string;
+  seasonId?: string | null;
   remarks: string | null;
   recordedBy: string;
   approvedBy: string | null;
   createdAt: Date;
+  budgetCheck?: {
+    budgetName: string | null;
+    remainingAmount: number | null;
+    utilizationPercentage: number | null;
+    warning: boolean;
+    message: string;
+  };
 };
 
 export type OperatingExpenseTypeTotal = {
