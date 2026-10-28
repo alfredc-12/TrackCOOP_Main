@@ -245,6 +245,7 @@ async function buildPrintablePdf(detail: ChairmanApplicationDetail) {
     addPdfLine(document, "Application Code", detail.applicationCode);
     addPdfLine(document, "Application Date", detail.submittedAt.toISOString().slice(0, 10));
     addPdfLine(document, "Requested Membership Type", detail.requestedMembershipType);
+  addPdfLine(document, "Primary Sector", detail.sector);
     addPdfLine(document, "Current Status", detail.applicationStatus);
     document.moveDown();
 

@@ -16,6 +16,13 @@ export const membershipApplicationSources = [
 ] as const;
 
 export const requestedMembershipTypes = ["Associate", "True Member"] as const;
+export const primarySectorOptions = [
+  "Rice",
+  "Corn",
+  "Fishery",
+  "Livestock",
+  "High-value crops (gulayan)",
+] as const;
 
 export const civilStatuses = [
   "Single",
@@ -56,6 +63,7 @@ export const documentTypes = [
 export type MembershipApplicationStatus = (typeof membershipApplicationStatuses)[number];
 export type MembershipApplicationSource = (typeof membershipApplicationSources)[number];
 export type RequestedMembershipType = (typeof requestedMembershipTypes)[number];
+export type PrimarySector = (typeof primarySectorOptions)[number];
 export type CivilStatus = (typeof civilStatuses)[number];
 export type RequirementType = (typeof requirementTypes)[number];
 export type RequirementStatus = (typeof requirementStatuses)[number];
@@ -84,6 +92,7 @@ export type PublicMembershipApplicationInput = {
   barangay?: string | null;
   municipality: string;
   province: string;
+  sector?: string | null;
   fatherName?: string | null;
   motherName?: string | null;
   spouseName?: string | null;

@@ -428,6 +428,7 @@ CREATE TABLE `membership_applications` (
   `barangay` varchar(120) DEFAULT NULL,
   `municipality` varchar(120) NOT NULL DEFAULT 'Nasugbu',
   `province` varchar(120) NOT NULL DEFAULT 'Batangas',
+  `sector` varchar(100) DEFAULT NULL,
   `father_name` varchar(190) DEFAULT NULL,
   `mother_name` varchar(190) DEFAULT NULL,
   `spouse_name` varchar(190) DEFAULT NULL,

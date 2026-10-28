@@ -8,6 +8,7 @@ import { calculateReferralRewardCredits, loadReferralRewardPolicy } from "../ref
 import type {
   MemberActivityQuery,
   MemberDashboardQuery,
+  MemberFinancialSummary,
   MemberPasswordInput,
   MemberProfileInput,
   MemberSupportInput,
@@ -27,10 +28,20 @@ type MemberProfileRow = RowDataPacket & {
   barangay?: string | null;
   municipality?: string | null;
   province?: string | null;
+  sector?: string | null;
 };
 
 type CountRow = RowDataPacket & { count?: number | string; total?: number | string };
 type PasswordRow = RowDataPacket & { password_hash: string };
+type MemberFinancialRow = RowDataPacket & {
+  id?: string | number;
+  recordType?: "Income" | "Expense";
+  category?: string | null;
+  amount?: string | number | null;
+  date?: string | Date | null;
+  description?: string | null;
+  source?: string | null;
+};
 
 function mysqlErrorCode(error: unknown) {
   return typeof error === "object" && error && "code" in error
@@ -82,6 +93,194 @@ async function selectMemberDividendActivities(
   return rows;
 }
 
+function memberDateFilter(column: string, query: MemberDashboardQuery) {
+  if (query.period === "year") {
+    return { clause: `AND YEAR(${column}) = YEAR(CURRENT_DATE())`, params: [] as string[] };
+  }
+  if (query.period === "month") {
+    return {
+      clause: `AND YEAR(${column}) = YEAR(CURRENT_DATE()) AND MONTH(${column}) = MONTH(CURRENT_DATE())`,
+      params: [] as string[],
+    };
+  }
+  if (query.period === "30d") {
+    return { clause: `AND ${column} >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)`, params: [] as string[] };
+  }
+  if (
+    query.period === "custom" &&
+    query.startDate &&
+    query.endDate &&
+    /^\d{4}-\d{2}-\d{2}$/.test(query.startDate) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(query.endDate) &&
+    query.startDate <= query.endDate
+  ) {
+    return { clause: `AND DATE(${column}) BETWEEN ? AND ?`, params: [query.startDate, query.endDate] };
+  }
+  return { clause: "", params: [] as string[] };
+}
+
+function aggregateMemberFinancialCategories(rows: MemberFinancialRow[]) {
+  const totals = new Map<string, { amount: number; recordCount: number }>();
+  for (const row of rows) {
+    const category = String(row.category || "Other");
+    const current = totals.get(category) ?? { amount: 0, recordCount: 0 };
+    current.amount += Number(row.amount || 0);
+    current.recordCount += 1;
+    totals.set(category, current);
+  }
+  return Array.from(totals.entries())
+    .map(([category, value]) => ({ category, amount: value.amount, recordCount: value.recordCount }))
+    .sort((left, right) => right.amount - left.amount);
+}
+
+async function selectMemberFinancialSummary(
+  connection: Pool | PoolConnection,
+  memberId: string | number,
+  query: MemberDashboardQuery,
+): Promise<MemberFinancialSummary> {
+  const [financialRows] = await connection.execute<MemberFinancialRow[]>(
+    `SELECT CAST(fr.financial_record_id AS CHAR) AS id,
+            fr.record_type AS recordType,
+            COALESCE(NULLIF(fc.category_name, ''), 'Other') AS category,
+            fr.amount,
+            fr.record_date AS date,
+            COALESCE(NULLIF(fr.remarks, ''), fr.record_number) AS description,
+            fr.source_module AS source
+       FROM financial_records fr
+       LEFT JOIN financial_categories fc
+         ON fc.financial_category_id = fr.financial_category_id
+      WHERE fr.member_id = ?
+        AND fr.record_status = 'Active'
+        AND fr.approved_by IS NOT NULL
+        AND fr.record_type IN ('Income', 'Expense')
+        AND fr.source_module NOT IN ('POS', 'Rental', 'Share Capital', 'Membership')
+        ${memberDateFilter("fr.record_date", query).clause}
+      ORDER BY fr.record_date DESC, fr.financial_record_id DESC`,
+    [memberId, ...memberDateFilter("fr.record_date", query).params],
+  );
+  const [purchaseRows] = await connection.execute<MemberFinancialRow[]>(
+    `SELECT CAST(pos_sale_id AS CHAR) AS id,
+            'Expense' AS recordType,
+            'Store purchases' AS category,
+            total_amount AS amount,
+            sale_date AS date,
+            sale_number AS description,
+            'POS' AS source
+       FROM pos_sales
+      WHERE member_id = ?
+        AND sale_status IN ('Paid', 'Completed')
+        AND payment_status = 'Paid'
+        ${memberDateFilter("sale_date", query).clause}
+      ORDER BY sale_date DESC, pos_sale_id DESC`,
+    [memberId, ...memberDateFilter("sale_date", query).params],
+  );
+  const [rentalRows] = await connection.execute<MemberFinancialRow[]>(
+    `SELECT CAST(rental_booking_id AS CHAR) AS id,
+            'Expense' AS recordType,
+            'Rental payments' AS category,
+            total_amount AS amount,
+            COALESCE(completed_at, start_datetime) AS date,
+            booking_number AS description,
+            'Rental' AS source
+       FROM rental_bookings
+      WHERE member_id = ?
+        AND payment_status = 'Paid'
+        AND booking_status NOT IN ('Cancelled', 'Rejected')
+        ${memberDateFilter("COALESCE(completed_at, start_datetime)", query).clause}
+      ORDER BY COALESCE(completed_at, start_datetime) DESC, rental_booking_id DESC`,
+    [memberId, ...memberDateFilter("COALESCE(completed_at, start_datetime)", query).params],
+  );
+  const [patronageRows] = await connection.execute<MemberFinancialRow[]>(
+    `SELECT CAST(pa.patronage_allocation_id AS CHAR) AS id,
+            'Income' AS recordType,
+            'Patronage' AS category,
+            pa.refund_amount AS amount,
+            COALESCE(pa.paid_at, pp.period_end) AS date,
+            pp.period_name AS description,
+            'Patronage' AS source
+       FROM patronage_allocations pa
+       JOIN patronage_periods pp ON pp.patronage_period_id = pa.patronage_period_id
+      WHERE pa.member_id = ?
+        AND pa.payment_status = 'Paid'
+        ${memberDateFilter("COALESCE(pa.paid_at, pp.period_end)", query).clause}
+      ORDER BY COALESCE(pa.paid_at, pp.period_end) DESC, pa.patronage_allocation_id DESC`,
+    [memberId, ...memberDateFilter("COALESCE(pa.paid_at, pp.period_end)", query).params],
+  );
+  const [dividendRows] = await connection.execute<MemberFinancialRow[]>(
+    `SELECT CAST(md.member_dividend_id AS CHAR) AS id,
+            'Income' AS recordType,
+            'Annual interest on Share Capital' AS category,
+            md.dividend_amount AS amount,
+            COALESCE(md.processed_at, md.decided_at, md.available_at, md.created_at) AS date,
+            declaration.declaration_name AS description,
+            'Share Capital Interest' AS source
+       FROM member_dividends md
+       JOIN dividend_declarations declaration
+         ON declaration.dividend_declaration_id = md.dividend_declaration_id
+      WHERE md.member_id = ?
+        AND declaration.declaration_status = 'Published'
+        AND md.dividend_status IN (
+          'Available',
+          'Withdrawal Requested',
+          'Capitalization Requested',
+          'Withdrawn',
+          'Added to Share Capital'
+        )
+        ${memberDateFilter("COALESCE(md.processed_at, md.decided_at, md.available_at, md.created_at)", query).clause}
+      ORDER BY COALESCE(md.processed_at, md.decided_at, md.available_at, md.created_at) DESC, md.member_dividend_id DESC`,
+    [memberId, ...memberDateFilter("COALESCE(md.processed_at, md.decided_at, md.available_at, md.created_at)", query).params],
+  );
+  const [shareCapitalRows] = await connection.execute<MemberFinancialRow[]>(
+    `SELECT CAST(share_capital_transaction_id AS CHAR) AS id,
+            'Expense' AS recordType,
+            'Share Capital contributions' AS category,
+            amount,
+            transaction_date AS date,
+            COALESCE(transaction_type, 'Share Capital contribution') AS description,
+            'Share Capital' AS source
+       FROM share_capital_transactions
+      WHERE member_id = ?
+        AND transaction_status = 'Posted'
+        AND direction = 'Credit'
+        ${memberDateFilter("transaction_date", query).clause}
+      ORDER BY transaction_date DESC, share_capital_transaction_id DESC`,
+    [memberId, ...memberDateFilter("transaction_date", query).params],
+  );
+
+  const incomeRows = [...financialRows, ...patronageRows, ...dividendRows].filter((row) => row.recordType === "Income");
+  const expenseRows = [...financialRows, ...purchaseRows, ...rentalRows].filter((row) => row.recordType === "Expense");
+  const totalEarnings = incomeRows.reduce((total, row) => total + Number(row.amount || 0), 0);
+  const annualInterestEarnings = dividendRows.reduce((total, row) => total + Number(row.amount || 0), 0);
+  const totalExpenses = expenseRows.reduce((total, row) => total + Number(row.amount || 0), 0);
+  const transactions = [...incomeRows, ...expenseRows]
+    .map((row) => ({
+      id: String(row.id ?? `${row.source}-${row.date}-${row.description}`),
+      type: row.recordType as "Income" | "Expense",
+      category: String(row.category || "Other"),
+      description: String(row.description || "Member financial activity"),
+      amount: Number(row.amount || 0),
+      date: row.date ?? "",
+      source: String(row.source || "Other"),
+    }))
+    .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime())
+    .slice(0, 50);
+
+  return {
+    scope: "Member-linked posted activity",
+    totalEarnings,
+    annualInterestEarnings,
+    totalExpenses,
+    netResult: totalEarnings - totalExpenses,
+    totalPurchases: purchaseRows.reduce((total, row) => total + Number(row.amount || 0), 0),
+    totalPatronage: patronageRows.reduce((total, row) => total + Number(row.amount || 0), 0),
+    shareCapitalContributions: shareCapitalRows.reduce((total, row) => total + Number(row.amount || 0), 0),
+    incomeByCategory: aggregateMemberFinancialCategories(incomeRows),
+    expenseByCategory: aggregateMemberFinancialCategories(expenseRows),
+    transactions,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export interface MemberSelfRepository {
   dashboard(auth: AuthContext, query?: MemberDashboardQuery): Promise<Record<string, unknown>>;
   activity(auth: AuthContext, query: MemberActivityQuery): Promise<Record<string, unknown>>;
@@ -115,7 +314,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       try {
         [members] = await databasePool().execute<MemberProfileRow[]>(
           `SELECT member_id, member_code, referral_code, application_date, approved_at, true_member_since, created_at,
-                  share_capital_deadline, contact_number, email, barangay, municipality, province
+                  share_capital_deadline, contact_number, email, barangay, municipality, province, sector
              FROM member_profiles
             WHERE user_id = ?`,
           [auth.user.id],
@@ -124,7 +323,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         // Keep the dashboard available while the referral migration is still pending.
         [members] = await databasePool().execute<MemberProfileRow[]>(
           `SELECT member_id, member_code, application_date, approved_at, true_member_since, created_at,
-                  share_capital_deadline, contact_number, email, barangay, municipality, province
+                  share_capital_deadline, contact_number, email, barangay, municipality, province, sector
              FROM member_profiles
             WHERE user_id = ?`,
           [auth.user.id],
@@ -303,6 +502,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           LIMIT 10`,
         [member.member_id],
       ).catch(() => [[] as RowDataPacket[]]);
+      const memberFinancialSummary = await selectMemberFinancialSummary(databasePool(), member.member_id, query);
 
       return {
         isLinked: true,
@@ -316,6 +516,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           ...financialTransparency,
           scope: "Posted cooperative records. Share Capital contributions are shown separately.",
         },
+        memberFinancialSummary,
         stats: {
           announcements: allAnnouncements[0]?.count || 0,
           purchases: purchaseCount[0]?.count || 0,
@@ -341,6 +542,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           barangay: member.barangay,
           municipality: member.municipality,
           province: member.province,
+          sector: member.sector,
         },
       };
     },

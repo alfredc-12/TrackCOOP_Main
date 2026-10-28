@@ -99,6 +99,8 @@ export function BudgetControlsClient({ canManageBudgets = true }: { canManageBud
     }
   }, []);
 
+  // The initial request synchronizes this screen with the budgeting API.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const availableCategories = useMemo(() => categories.filter((category) => !form.lines.some((line) => line.financialCategoryId === category.id && !line.seasonId)), [categories, form.lines]);

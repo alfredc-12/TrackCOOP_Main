@@ -110,10 +110,10 @@ export async function insertApprovedMemberProfile(input: {
   const [result] = await input.connection.execute<ResultSetHeader>(
     `INSERT INTO member_profiles
        (user_id, member_code, full_name, contact_number, email, barangay,
-        municipality, province, membership_type, approval_status,
+        municipality, province, sector, membership_type, approval_status,
         official_member_status, application_date, approved_by, approved_at,
         true_member_since, share_capital_deadline, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Approved', 'Active', DATE(?), ?,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Approved', 'Active', DATE(?), ?,
              UTC_TIMESTAMP(), ?, ?, ?)`,
     [
       input.userId,
@@ -124,6 +124,7 @@ export async function insertApprovedMemberProfile(input: {
       input.application.barangay,
       input.application.municipality,
       input.application.province,
+      input.application.sector,
       input.membershipType,
       input.application.submittedAt,
       input.auth.user.id,

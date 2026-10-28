@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type ComponentType } from "react";
 import {
   getChairmanDashboard,
+  type ProductCategorySales,
+  type ProductSalesItem,
+  type ReferralAnalytics,
   type ChairmanDashboardData,
   type DashboardFilters,
 } from "@/features/chairman/dashboard-api";
@@ -50,7 +53,9 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   );
 }
 
-function CustomSelect({ value, onChange, options, placeholder = "Select...", className = "" }: { value: string | number, onChange: (v: any) => void, options: {label: string, value: string | number}[], placeholder?: string, className?: string }) {
+type SelectOption = { label: string; value: string | number };
+
+function CustomSelect({ value, onChange, options, placeholder = "Select...", className = "" }: { value: string | number, onChange: (value: string | number) => void, options: SelectOption[], placeholder?: string, className?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   
@@ -64,7 +69,7 @@ function CustomSelect({ value, onChange, options, placeholder = "Select...", cla
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedLabel = options.find((o: any) => o.value == value)?.label || placeholder;
+  const selectedLabel = options.find((option) => String(option.value) === String(value))?.label || placeholder;
 
   return (
     <div className={`relative ${className}`} ref={ref}>
@@ -77,7 +82,7 @@ function CustomSelect({ value, onChange, options, placeholder = "Select...", cla
       </button>
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 w-full min-w-[max-content] bg-white border border-[#EEF2EC] rounded-lg shadow-lg z-50 py-1 overflow-hidden whitespace-nowrap">
-          {options.map((opt: any) => (
+          {options.map((opt) => (
             <div 
               key={opt.value} 
               onClick={() => { onChange(opt.value); setIsOpen(false); }}
@@ -103,7 +108,7 @@ function DeltaBadge({ value, className = "", neutral = false }: { value: number;
   );
 }
 
-function SectionHeader({ title, subtitle, href, hrefLabel = "View All", icon: Icon }: { title: string; subtitle?: string; href?: string; hrefLabel?: string; icon?: any }) {
+function SectionHeader({ title, subtitle, href, hrefLabel = "View All", icon: Icon }: { title: string; subtitle?: string; href?: string; hrefLabel?: string; icon?: ComponentType<{ className?: string }> }) {
   return (
     <div className="mb-4 flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -434,21 +439,23 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
     </div>
   );
 
-  const d = data || {} as ChairmanDashboardData;
-  const m = d.metrics || {} as any;
+  if (!data) return null;
+
+  const d: ChairmanDashboardData = data;
+  const m = d.metrics;
   const metrics = { totalIncome: m.totalIncome ?? 0, totalExpenses: m.totalExpenses ?? 0, netSurplus: m.netSurplus ?? 0, totalShareCapital: m.totalShareCapital ?? 0, totalMembers: m.totalMembers ?? 0, newMembersThisPeriod: m.newMembersThisPeriod ?? 0, shareCapitalThisPeriod: m.shareCapitalThisPeriod ?? 0, pendingApprovals: m.pendingApprovals ?? 0, pendingActionsCount: m.pendingActionsCount ?? 0 };
-  const h = d.memberHealth || {} as any;
+  const h = d.memberHealth;
   const memberHealth = { active: h.active ?? 0, needsMonitoring: h.needsMonitoring ?? 0, inactive: h.inactive ?? 0 };
   const revenueTrend = d.revenueTrend || [];
   const demographics = d.demographics || [];
   const sectorColumns = Array.from(new Set(demographics.flatMap((item) => item.sectorCounts?.map((sector) => sector.sector) ?? [])));
   const selectedMapBarangay = demographics.find((item) => item.barangay === mapBarangay);
   const actionItems = d.actionItems || [];
-  const sp = d.shareCapitalProgress || {} as any;
+  const sp = d.shareCapitalProgress;
   const shareCapitalProgress = { reachedMinimum: sp.reachedMinimum ?? 0, belowMinimum: sp.belowMinimum ?? 0, contributingMembers: sp.contributingMembers ?? 0, reachedMaximum: sp.reachedMaximum ?? 0, totalMembers: sp.totalMembers ?? 0 };
-  const os = d.operationsSnapshot || {} as any;
+  const os = d.operationsSnapshot;
   const operationsSnapshot = { pos: { totalSales: os.pos?.totalSales ?? 0, transactions: os.pos?.transactions ?? 0, productsSold: os.pos?.productsSold ?? 0 }, rental: { totalIncome: os.rental?.totalIncome ?? 0, completed: os.rental?.completed ?? 0, upcoming: os.rental?.upcoming ?? 0 }, inventory: { lowStock: os.inventory?.lowStock ?? 0, outOfStock: os.inventory?.outOfStock ?? 0 } };
-  const productShopData = d.productShopAnalytics || {} as any;
+  const productShopData = d.productShopAnalytics;
   const productShopAnalytics = {
     totalSales: Number(productShopData.totalSales ?? operationsSnapshot.pos.totalSales),
     transactions: Number(productShopData.transactions ?? operationsSnapshot.pos.transactions),
@@ -457,7 +464,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
     topProducts: productShopData.topProducts || [],
     categorySales: productShopData.categorySales || [],
   };
-  const referralData = d.referralAnalytics || {} as any;
+  const referralData: ReferralAnalytics = d.referralAnalytics;
   const referralAnalytics = {
     total: Number(referralData.total ?? 0),
     pending: Number(referralData.pending ?? 0),
@@ -472,7 +479,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
   };
   const recentActivity = d.recentActivity || [];
   const incomeSources = d.incomeSources || [];
-  const highestIncomeSource = incomeSources.length > 0 ? incomeSources.reduce((prev: any, curr: any) => (prev.amount > curr.amount) ? prev : curr).source : "N/A";
+  const highestIncomeSource = incomeSources.length > 0 ? incomeSources.reduce((prev, curr) => (prev.amount > curr.amount) ? prev : curr).source : "N/A";
   const generatedAtLabel = d.generatedAt
     ? format(new Date(d.generatedAt), "MMM d, yyyy h:mm a")
     : "Loading latest data";
@@ -561,16 +568,16 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
       {/* ── 2. FILTER BAR ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between rounded-xl bg-white p-3 shadow-sm border border-[#CAD8CB]">
         <div className="flex items-center gap-3">
-          <CustomSelect value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
+          <CustomSelect value={period} onChange={(value) => setPeriod(String(value))} options={PERIOD_OPTIONS} />
           <CustomSelect 
             value={barangay} 
-            onChange={setBarangay} 
+            onChange={(value) => setBarangay(String(value))}
             options={[{label: "All Barangays", value: ""}, ...NASUGBU_BARANGAYS.map(b => ({label: b, value: b}))]} 
             placeholder="All Barangays"
           />
           <CustomSelect 
             value={memberStatus} 
-            onChange={setMemberStatus} 
+            onChange={(value) => setMemberStatus(String(value))}
             options={[
               {label: "All Member Statuses", value: ""},
               {label: "Active", value: "Active"},
@@ -581,7 +588,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
           />
           <CustomSelect 
             value={incomeSource} 
-            onChange={setIncomeSource} 
+            onChange={(value) => setIncomeSource(String(value))}
             options={[
               {label: "All Income Sources", value: ""},
               {label: "Product / POS Sales", value: "Product / POS Sales"},
@@ -650,7 +657,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#5D6D63", fontSize: 10 }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#5D6D63", fontSize: 10 }} tickFormatter={v => `₱${v >= 1000 ? (v / 1000) + "k" : v}`} />
                 <Tooltip
-                  formatter={(val: any) => formatCurrency(val as number)}
+                  formatter={(val) => formatCurrency(Number(val))}
                   contentStyle={{ borderRadius: '12px', border: '1px solid #EEF2EC', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold', color: '#123D2A' }}
                 />
                 <Area type="monotone" dataKey="income" stroke="#123D2A" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
@@ -670,7 +677,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
             </div>
           </div>
           <div className="flex-1 space-y-4 flex flex-col justify-center">
-            {incomeSources.map((src: any) => (
+            {incomeSources.map((src) => (
               <div key={src.source} className="flex items-center gap-3">
                 <span className="w-[130px] text-xs font-bold text-[#123D2A] leading-tight truncate" title={src.source}>{src.source}</span>
                 <div className="flex-1 h-2 bg-[#EEF2EC] rounded-full overflow-hidden">
@@ -716,8 +723,8 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                 <Link href="/portal/chairman/reports" className="text-[11px] font-bold text-[#1F6B43] hover:underline">View reports</Link>
               </div>
               <div className="space-y-3">
-                {productShopAnalytics.categorySales.length > 0 ? productShopAnalytics.categorySales.slice(0, 5).map((category: any) => {
-                  const maxRevenue = Math.max(...productShopAnalytics.categorySales.map((item: any) => Number(item.revenue) || 0), 1);
+                {productShopAnalytics.categorySales.length > 0 ? productShopAnalytics.categorySales.slice(0, 5).map((category: ProductCategorySales) => {
+                  const maxRevenue = Math.max(...productShopAnalytics.categorySales.map((item) => Number(item.revenue) || 0), 1);
                   const width = Math.min(100, (Number(category.revenue || 0) / maxRevenue) * 100);
                   return (
                     <div key={category.category}>
@@ -742,7 +749,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
               <Link href="/portal/chairman/pos" className="shrink-0 text-[11px] font-bold text-[#1F6B43] hover:underline">Open POS</Link>
             </div>
             <div className="space-y-2">
-              {productShopAnalytics.topProducts.length > 0 ? productShopAnalytics.topProducts.slice(0, 8).map((product: any, index: number) => (
+              {productShopAnalytics.topProducts.length > 0 ? productShopAnalytics.topProducts.slice(0, 8).map((product: ProductSalesItem, index: number) => (
                 <div key={product.productId || product.productName} className="rounded-xl border border-[#EEF2EC] bg-[#FBFCFA] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -794,7 +801,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                   />
                   <YAxis hide domain={['dataMin - 10', 'dataMax + 10']} />
                   <Tooltip
-                    formatter={(val: any) => val as number}
+                    formatter={(val) => Number(val)}
                     contentStyle={{ borderRadius: '12px', border: '1px solid #EEF2EC', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold', color: '#123D2A' }}
                   />
                   <Area type="monotone" dataKey="members" stroke="#123D2A" strokeWidth={2} fillOpacity={1} fill="url(#colorMembers)" />
@@ -1011,7 +1018,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                       <div className="mt-3 overflow-x-auto rounded-lg border border-[#DDE8D8]">
                         <table className="w-full min-w-[360px] text-[11px]">
                           <thead className="bg-[#F7FAF7] text-left text-[#6C7A70]"><tr><th className="px-2 py-2">Top referrers</th><th className="px-2 py-2 text-right">Total</th><th className="px-2 py-2 text-right">Successful</th></tr></thead>
-                          <tbody>{referralAnalytics.topReferrers.slice(0, 5).map((referrer: any) => <tr key={referrer.memberCode} className="border-t border-[#EEF2EC]"><td className="px-2 py-2 font-semibold text-[#365F4A]">{referrer.memberName}</td><td className="px-2 py-2 text-right">{referrer.total}</td><td className="px-2 py-2 text-right font-bold text-[#1F6B43]">{referrer.successful}</td></tr>)}</tbody>
+                          <tbody>{referralAnalytics.topReferrers.slice(0, 5).map((referrer) => <tr key={referrer.memberCode} className="border-t border-[#EEF2EC]"><td className="px-2 py-2 font-semibold text-[#365F4A]">{referrer.memberName}</td><td className="px-2 py-2 text-right">{referrer.total}</td><td className="px-2 py-2 text-right font-bold text-[#1F6B43]">{referrer.successful}</td></tr>)}</tbody>
                         </table>
                       </div>
                     ) : null}

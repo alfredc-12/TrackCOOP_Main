@@ -72,6 +72,7 @@ import { ApplicationSuccess } from "./ApplicationSuccess";
 import { BeneficiaryFields } from "./BeneficiaryFields";
 import { CommitmentReview } from "./CommitmentReview";
 import { calculateAgeFromBirthDate } from "./beneficiary-age";
+import { PRIMARY_SECTOR_OPTIONS } from "@/features/membership/sector-options";
 
 const draftKey = "trackcoop.membershipApplicationDraft.v1";
 const maxUploadBytes = 5 * 1024 * 1024;
@@ -181,6 +182,10 @@ const applicationSchema = z
     barangay: optionalText,
     municipality: requiredText("Municipality"),
     province: requiredText("Province"),
+    sector: requiredText("Primary sector").refine(
+      (value) => PRIMARY_SECTOR_OPTIONS.includes(value as (typeof PRIMARY_SECTOR_OPTIONS)[number]),
+      "Select a valid primary sector.",
+    ),
     fatherName: requiredText("Father's name"),
     motherName: requiredText("Mother's name"),
     spouseName: optionalText,
@@ -250,6 +255,7 @@ const defaultValues: MembershipApplicationFormValues = {
   barangay: "",
   municipality: "Nasugbu",
   province: "Batangas",
+  sector: "",
   fatherName: "",
   motherName: "",
   spouseName: "",
@@ -295,6 +301,7 @@ const stepFields: FieldPath<MembershipApplicationFormValues>[][] = [
   ],
   [
     "requestedMembershipType",
+    "sector",
     "orientationCommitmentAccepted",
     "membershipFeeCommitmentAccepted",
     "shareSubscriptionCommitmentAccepted",
@@ -1180,6 +1187,18 @@ function MembershipStep({
       </div>
 
       <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+        <StyledOptionSelect
+          label="Primary sector"
+          required
+          value={watch("sector") || ""}
+          options={PRIMARY_SECTOR_OPTIONS}
+          error={errors.sector?.message}
+          onChange={(value) => setValue("sector", value, { shouldDirty: true, shouldValidate: true })}
+        />
+        <p className="mt-2 text-xs leading-5 text-[#6C7A70]">Select the member&apos;s primary cooperative sector. Multiple active sectors are not currently supported.</p>
+      </section>
+
+      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
         <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
           {requestedMembershipTypes.map((type) => (
             <option key={type} value={type}>
@@ -1387,6 +1406,7 @@ function FinalReviewStep({
 
         <ReviewPanel title="Membership" icon={<WalletCards className="size-4" />} onEdit={() => onEditStep(2)}>
           <div className="grid gap-3">
+            <ReviewFact label="Primary sector" value={values.sector || "Not selected"} strong />
             <ReviewFact label="Type" value={values.requestedMembershipType} strong />
             <ReviewFact
               label="Membership fee"
@@ -2003,12 +2023,14 @@ function PlaceOfBirthField({
 
 function StyledOptionSelect({
   label,
+  required = false,
   value,
   options,
   error,
   onChange,
 }: {
   label: string;
+  required?: boolean;
   value: string;
   options: readonly string[];
   error?: string;
@@ -2016,9 +2038,9 @@ function StyledOptionSelect({
 }) {
   return (
     <label className="block text-sm font-semibold text-[#365F4A]">
-      {label}
+      {label}{required ? <span className="ml-1 text-[#B42318]" aria-hidden="true">*</span> : null}
       <Select.Root value={value || undefined} onValueChange={onChange}>
-        <Select.Trigger aria-label={label} aria-invalid={Boolean(error)} className="mt-2 flex h-12 w-full items-center justify-between rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
+        <Select.Trigger aria-label={label} aria-required={required} aria-invalid={Boolean(error)} className={`mt-2 flex h-12 w-full items-center justify-between rounded-2xl border bg-white px-4 text-left text-base outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70] ${error ? "border-[#D92D20] bg-[#FFF6F5] text-[#B42318] focus:border-[#D92D20] focus:ring-[#D92D20]/20" : "border-[#DDE8D8] text-[#123D2A]"}`}>
           <Select.Value placeholder={`Select ${label.toLowerCase()}`} />
           <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
         </Select.Trigger>
@@ -2084,6 +2106,7 @@ function toPayload(values: MembershipApplicationFormValues): PublicMembershipApp
     barangay: values.barangay?.trim() || undefined,
     municipality: values.municipality.trim(),
     province: values.province.trim(),
+    sector: values.sector as (typeof PRIMARY_SECTOR_OPTIONS)[number],
     fatherName: values.fatherName?.trim() || undefined,
     motherName: values.motherName?.trim() || undefined,
     spouseName: values.spouseName?.trim() || undefined,

@@ -1,4 +1,4 @@
-import { ZodError, type ZodType } from "zod";
+import { type ZodType } from "zod";
 import { AppError } from "../../utils/app-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/response";

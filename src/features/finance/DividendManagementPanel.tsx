@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment -- legacy alias intentionally bypasses type checking and is not mounted. */
 // @ts-nocheck
 "use client";
 // This legacy alias is not mounted; the preview-enabled panel is the active implementation.

@@ -189,6 +189,7 @@ export default function MemberDashboardPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isFetchingDashboard, setIsFetchingDashboard] = useState(true);
   const [dashboardLoadError, setDashboardLoadError] = useState(false);
+  const [memberFinancialSummaryModalOpen, setMemberFinancialSummaryModalOpen] = useState(false);
   const [financialTransparencyModalOpen, setFinancialTransparencyModalOpen] = useState(false);
   const [financialPeriod, setFinancialPeriod] = useState<FinancialPeriod>("year");
   const [financialStartDate, setFinancialStartDate] = useState("");
@@ -268,6 +269,9 @@ export default function MemberDashboardPage() {
   const financialExpenseTotal = Number(financialTransparency?.expenseTotal || 0);
   const financialIncomeItems = (financialTransparency?.incomeByCategory || []) as FinancialCategoryItem[];
   const financialExpenseItems = (financialTransparency?.expenseByCategory || []) as FinancialCategoryItem[];
+  const memberFinancialSummary = dashboardData?.memberFinancialSummary;
+  const memberIncomeItems = (memberFinancialSummary?.incomeByCategory || []) as FinancialCategoryItem[];
+  const memberExpenseItems = (memberFinancialSummary?.expenseByCategory || []) as FinancialCategoryItem[];
   const financialComparison = financialTransparency?.comparison as { label: string; incomeTotal: number; expenseTotal: number; netTotal: number } | null | undefined;
   const financialGeneratedAt = financialTransparency?.generatedAt ? new Date(financialTransparency.generatedAt) : null;
   const financialCategoryPageSize = 6;
@@ -279,10 +283,6 @@ export default function MemberDashboardPage() {
     ) / financialCategoryPageSize),
   );
   const safeFinancialCategoryPage = Math.min(financialCategoryPage, financialCategoryPageCount);
-
-  useEffect(() => {
-    setFinancialCategoryPage(1);
-  }, [financialEndDate, financialPeriod, financialStartDate]);
 
   function financialComparisonMeta(current: number, previous: number, kind: "income" | "expense" | "net") {
     if (!financialComparison) return { label: "No previous-period comparison", className: "text-[#6C7A70]" };
@@ -1053,6 +1053,7 @@ export default function MemberDashboardPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              <a href="/statement" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-lg border border-[#CAD8CB] bg-white px-3 py-2 text-xs font-bold text-[#123D2A] hover:bg-[#EEF2EC]">View statement</a>
               <button type="button" onClick={() => void refreshDashboard()} className="inline-flex items-center gap-2 rounded-lg border border-[#CAD8CB] bg-white px-3 py-2 text-xs font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60" disabled={isFetchingDashboard}><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} /> Refresh</button>
               <button type="button" onClick={printFinancialReport} className="inline-flex items-center gap-2 rounded-lg bg-[#123D2A] px-3 py-2 text-xs font-bold text-white hover:bg-[#1F6B43]"><Printer className="size-4" /> Save as PDF</button>
             </div>
@@ -1439,52 +1440,169 @@ export default function MemberDashboardPage() {
                 ))}
               </section>
 
-              {/* 3. FINANCIAL TRANSPARENCY */}
-              <section className="mt-8 rounded-3xl border border-[#DDE8D8] bg-white p-6 shadow-sm sm:p-8">
+              {/* 3. MY FINANCIAL SUMMARY */}
+              <Modal
+                title="My financial summary"
+                description={`Published annual interest from Share Capital · ${FINANCIAL_PERIOD_LABELS[financialPeriod]}. Principal contributions remain separate.`}
+                maxWidth="max-w-5xl"
+                open={memberFinancialSummaryModalOpen}
+                onOpenChange={setMemberFinancialSummaryModalOpen}
+                trigger={
+                  <button type="button" aria-label="Open my financial summary" className="mt-8 block w-full rounded-3xl border border-[#DDE8D8] bg-[#FFFCF5] p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#B8D6BE] hover:shadow-md sm:p-8">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 text-[#2F7D57]"><Wallet className="h-5 w-5" /><p className="text-xs font-bold uppercase tracking-[0.18em]">My financial summary</p></div>
+                        <h3 className="mt-2 text-xl font-bold text-[#173626]">Your annual interest and expenses</h3>
+                        <p className="mt-1 text-sm text-[#6B7280]">Open the full member-linked financial breakdown.</p>
+                      </div>
+                      <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white">View summary</span>
+                    </div>
+                    <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                      {[
+                        { label: "Annual interest earnings", value: memberFinancialSummary?.annualInterestEarnings, className: "text-[#1F6B43]" },
+                        { label: "Total expenses", value: memberFinancialSummary?.totalExpenses, className: "text-[#A15C16]" },
+                        { label: "Net result (all income)", value: memberFinancialSummary?.netResult, className: "text-[#123D2A]" },
+                        { label: "Share Capital", value: memberFinancialSummary?.shareCapitalContributions, className: "text-[#52705D]" },
+                      ].map((summary) => (
+                        <div key={summary.label} className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
+                          <p className="text-xs font-bold uppercase tracking-wide text-[#6C7A70]">{summary.label}</p>
+                          <p className={`mt-2 whitespace-nowrap text-lg font-black ${summary.className}`}>{isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs font-semibold text-[#6C7A70]">{FINANCIAL_PERIOD_LABELS[financialPeriod]} · Click to view categories and recent activity</p>
+                  </button>
+                }
+              >
+                <div className="mt-2 space-y-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2 text-[#2F7D57]">
-                      <PieChart className="h-5 w-5" />
-                      <p className="text-xs font-bold uppercase tracking-[0.18em]">Financial transparency</p>
+                      <Wallet className="h-5 w-5" />
+                      <p className="text-xs font-bold uppercase tracking-[0.18em]">My financial summary</p>
                     </div>
-                    <h3 className="mt-2 text-xl font-bold text-[#173626]">Cooperative income &amp; expenses</h3>
+                    <h3 className="mt-2 text-xl font-bold text-[#173626]">Your annual interest and expenses</h3>
                     <p className="mt-1 max-w-2xl text-sm text-[#6B7280]">
-                      Posted cooperative records grouped by category. Share Capital contributions are tracked separately in your passbook.
+                      Published annual interest from your Share Capital is shown as earnings. Principal Share Capital contributions are shown separately and are not counted as earnings.
                     </p>
                   </div>
-                  <a href="/statement" target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center justify-center rounded-xl border border-[#B8D6BE] px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:bg-[#F3F7F1]">
-                    View statement
-                  </a>
+                  <Select.Root value={financialPeriod} onValueChange={(value) => setFinancialPeriod(value as FinancialPeriod)}>
+                    <Select.Trigger aria-label="My financial summary period" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-40">
+                      <Select.Value />
+                      <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                        <Select.Viewport>
+                          {(["year", "month", "30d", "all", "custom"] as FinancialPeriod[]).map((period) => (
+                            <Select.Item key={period} value={period} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                              <Select.ItemText>{FINANCIAL_PERIOD_LABELS[period]}</Select.ItemText>
+                              <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
                 </div>
 
-                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {financialPeriod === "custom" ? (
+                  <div className="mt-4 grid gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 sm:grid-cols-2">
+                    <label className="text-sm font-bold text-[#294B39]">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+                    <label className="text-sm font-bold text-[#294B39]">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+                    {financialStartDate && financialEndDate && financialStartDate > financialEndDate ? <p className="sm:col-span-2 text-xs font-semibold text-red-700">End date must be on or after the start date.</p> : null}
+                  </div>
+                ) : null}
+
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-4">
                   {[
-                    { label: "Posted income", value: dashboardData?.financialTransparency?.incomeTotal, className: "text-[#1F6B43]", icon: ArrowDownLeft },
-                    { label: "Posted expenses", value: dashboardData?.financialTransparency?.expenseTotal, className: "text-[#A15C16]", icon: ArrowUpRight },
-                    { label: "Net operating result", value: dashboardData?.financialTransparency?.netTotal, className: "text-[#123D2A]", icon: Wallet },
+                    { label: "Annual interest earnings", value: memberFinancialSummary?.annualInterestEarnings, className: "text-[#1F6B43]", icon: ArrowDownLeft },
+                    { label: "Total expenses", value: memberFinancialSummary?.totalExpenses, className: "text-[#A15C16]", icon: ArrowUpRight },
+                    { label: "Net result (all income)", value: memberFinancialSummary?.netResult, className: "text-[#123D2A]", icon: Wallet },
+                    { label: "Share Capital", value: memberFinancialSummary?.shareCapitalContributions, className: "text-[#52705D]", icon: Leaf },
                   ].map((summary) => (
-                    <div key={summary.label} className="rounded-2xl border border-[#E5E7EB] bg-[#F8FBF8] p-4">
+                    <div key={summary.label} className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-xs font-bold uppercase tracking-wide text-[#6C7A70]">{summary.label}</p>
                         <summary.icon className={`h-4 w-4 ${summary.className}`} />
                       </div>
-                      <p className={`mt-2 text-2xl font-black ${summary.className}`}>
-                        {isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}
-                      </p>
+                      <p className={`mt-2 text-xl font-black ${summary.className}`}>{isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#E5E7EB] bg-[#F8FBF8] p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-[#173626]">Category breakdown</h4>
-                    <p className="mt-1 text-sm text-[#6B7280]">Open the full income and expense allocation in a detailed popup.</p>
-                  </div>
-                  <button type="button" onClick={() => setFinancialTransparencyModalOpen(true)} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1B4D37]">
-                    View full breakdown
-                  </button>
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  {[
+                    { title: "My income by category", items: memberIncomeItems, color: "bg-[#1F6B43]", amountClass: "text-[#1F6B43]", empty: "No posted earnings for this period." },
+                    { title: "My expenses by category", items: memberExpenseItems, color: "bg-[#A15C16]", amountClass: "text-[#A15C16]", empty: "No posted expenses for this period." },
+                  ].map((group) => (
+                    <div key={group.title} className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-bold text-[#173626]">{group.title}</h4>
+                        <span className="text-[11px] font-semibold text-[#6C7A70]">{FINANCIAL_PERIOD_LABELS[financialPeriod]}</span>
+                      </div>
+                      <div className="mt-3 divide-y divide-[#EEF2EC]">
+                        {group.items.length ? group.items.slice(0, 5).map((item) => (
+                          <div key={item.category} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                            <span className="min-w-0 break-words font-medium text-[#42594B]">{item.category}</span>
+                            <span className={`shrink-0 font-bold ${group.amountClass}`}>{formatPeso(Number(item.amount))}</span>
+                          </div>
+                        )) : <p className="py-3 text-sm text-[#6B7280]">{group.empty}</p>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </section>
+
+                <div className="mt-5 rounded-2xl border border-[#E5E7EB] bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-[#173626]">Recent member-linked activity</h4>
+                    <span className="text-[11px] font-semibold text-[#6C7A70]">Latest 5</span>
+                  </div>
+                  <div className="mt-3 divide-y divide-[#EEF2EC]">
+                    {memberFinancialSummary?.transactions?.length ? memberFinancialSummary.transactions.slice(0, 5).map((transaction: { id: string; type: "Income" | "Expense"; category: string; description: string; amount: number; date: string | Date }) => (
+                      <div key={`${transaction.id}-${transaction.date}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-[#42594B]">{transaction.description}</p>
+                          <p className="text-xs text-[#6C7A70]">{transaction.category} · {new Date(transaction.date).toLocaleDateString("en-PH")}</p>
+                        </div>
+                        <span className={`shrink-0 font-bold ${transaction.type === "Income" ? "text-[#1F6B43]" : "text-[#A15C16]"}`}>{transaction.type === "Income" ? "+" : "-"}{formatPeso(Number(transaction.amount || 0))}</span>
+                      </div>
+                    )) : <p className="py-3 text-sm text-[#6B7280]">No member-linked activity for this period.</p>}
+                  </div>
+                </div>
+
+                <p className="mt-4 rounded-xl border border-[#DDE8D8] bg-white p-3 text-xs leading-relaxed text-[#5D6D63]">
+                  Annual interest earnings come from published Share Capital interest records for the selected period. Principal Share Capital contributions remain separate; other approved member-linked income is still visible in the category breakdown. Expenses include paid store purchases, rental payments, and other approved member-linked charges.
+                </p>
+                </div>
+              </Modal>
+
+              {/* 4. FINANCIAL TRANSPARENCY */}
+              <button type="button" onClick={() => setFinancialTransparencyModalOpen(true)} aria-label="Open financial transparency" className="mt-8 block w-full rounded-3xl border border-[#DDE8D8] bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#B8D6BE] hover:shadow-md sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 text-[#2F7D57]"><PieChart className="h-5 w-5" /><p className="text-xs font-bold uppercase tracking-[0.18em]">Financial transparency</p></div>
+                    <h3 className="mt-2 text-xl font-bold text-[#173626]">Cooperative income &amp; expenses</h3>
+                    <p className="mt-1 text-sm text-[#6B7280]">Open the cooperative-wide posted income and expense breakdown.</p>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white">View breakdown</span>
+                </div>
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    { label: "Posted income", value: dashboardData?.financialTransparency?.incomeTotal, className: "text-[#1F6B43]" },
+                    { label: "Posted expenses", value: dashboardData?.financialTransparency?.expenseTotal, className: "text-[#A15C16]" },
+                    { label: "Net operating result", value: dashboardData?.financialTransparency?.netTotal, className: "text-[#123D2A]" },
+                  ].map((summary) => (
+                    <div key={summary.label} className="rounded-2xl border border-[#E5E7EB] bg-[#F8FBF8] p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-[#6C7A70]">{summary.label}</p>
+                      <p className={`mt-2 text-2xl font-black ${summary.className}`}>{isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 rounded-2xl border border-[#E5E7EB] bg-[#F8FBF8] p-4 text-sm text-[#6B7280]">
+                  Category breakdown · Share Capital contributions tracked separately in the passbook.
+                </div>
+              </button>
 
               {/* 4. QUICK ACTIONS GRID & 5. RECENT TRANSACTIONS */}
               <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">

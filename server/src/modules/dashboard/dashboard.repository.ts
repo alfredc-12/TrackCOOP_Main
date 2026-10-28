@@ -148,7 +148,6 @@ export class DashboardRepository {
     );
     const shareCapitalThisPeriod = numberValue(shareCapitalPeriodRows[0]?.periodTotal);
 
-    const financialDateFilter = getDateFilter(period, "record_date");
     const financialTransparency = await getFinancialTransparency(pool, { period });
 
     const [shareCapitalProgressRows] = await pool.query<ShareCapitalProgressRow[]>(

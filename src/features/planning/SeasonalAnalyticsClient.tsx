@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/portal/PageHeader";
 import { ErrorState, LoadingSkeleton, StatCard, StatusBadge } from "@/components/portal/PortalPrimitives";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { ApiClientError } from "@/lib/api-client";
+import { HIGH_VALUE_CROP_DEFINITION, isHighValueCropName } from "@/features/crops/high-value-crops";
 import {
   createProductionRecord,
   createSeason,
@@ -121,6 +122,7 @@ function SummaryCards({ analytics }: { analytics: SeasonalAnalytics }) {
 
 type Props = { canManageSeasons?: boolean };
 type FinancialFilter = "All" | "Income" | "Expense";
+type CropValueFilter = "All" | "High-Value" | "Other";
 type SeasonFormErrors = Partial<Record<"seasonName" | "seasonType" | "seasonYear" | "startDate" | "endDate", string>>;
 
 export function SeasonalAnalyticsClient({ canManageSeasons = true }: Props) {
@@ -129,6 +131,7 @@ export function SeasonalAnalyticsClient({ canManageSeasons = true }: Props) {
   const [analytics, setAnalytics] = useState<SeasonalAnalytics | null>(null);
   const [productionRecords, setProductionRecords] = useState<ProductionRecord[]>([]);
   const [financialFilter, setFinancialFilter] = useState<FinancialFilter>("All");
+  const [cropValueFilter, setCropValueFilter] = useState<CropValueFilter>("All");
   const [financialPage, setFinancialPage] = useState(1);
   const [productionPage, setProductionPage] = useState(1);
   const [seasonModal, setSeasonModal] = useState(false);
@@ -183,14 +186,18 @@ export function SeasonalAnalyticsClient({ canManageSeasons = true }: Props) {
     }
   }, [selectedSeasonId]);
 
+  // Loading the selected season synchronizes the page with the analytics API.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const selectedSeason = useMemo(() => seasons.find((season) => season.id === selectedSeasonId) ?? analytics?.season ?? null, [analytics?.season, seasons, selectedSeasonId]);
   const filteredFinancial = useMemo(() => analytics?.financialByCategory.filter((item) => financialFilter === "All" || item.recordType === financialFilter) ?? [], [analytics?.financialByCategory, financialFilter]);
   const financialPageCount = Math.max(1, Math.ceil(filteredFinancial.length / 6));
   const visibleFinancial = filteredFinancial.slice((financialPage - 1) * 6, financialPage * 6);
-  const productionPageCount = Math.max(1, Math.ceil(productionRecords.length / 6));
-  const visibleProduction = productionRecords.slice((productionPage - 1) * 6, productionPage * 6);
+  const filteredProductionByCrop = useMemo(() => analytics?.productionByCrop.filter((crop) => cropValueFilter === "All" || (cropValueFilter === "High-Value" ? isHighValueCropName(crop.cropName) : !isHighValueCropName(crop.cropName))) ?? [], [analytics?.productionByCrop, cropValueFilter]);
+  const filteredProductionRecords = useMemo(() => productionRecords.filter((record) => cropValueFilter === "All" || (cropValueFilter === "High-Value" ? isHighValueCropName(record.cropName) : !isHighValueCropName(record.cropName))), [cropValueFilter, productionRecords]);
+  const productionPageCount = Math.max(1, Math.ceil(filteredProductionRecords.length / 6));
+  const visibleProduction = filteredProductionRecords.slice((productionPage - 1) * 6, productionPage * 6);
   const maxMonthlyValue = Math.max(...(analytics?.monthlyTrend.map((item) => Math.max(item.salesTotal, item.incomeTotal, item.expenseTotal)) ?? [1]), 1);
 
   function openProductionModal(seasonId = selectedSeason?.id ?? "") {
@@ -310,8 +317,8 @@ export function SeasonalAnalyticsClient({ canManageSeasons = true }: Props) {
             <div className="mt-4 flex flex-wrap gap-4 text-xs font-bold text-[#5D6D63]"><span><i className="mr-1 inline-block size-2 rounded-full bg-[#1F6B43]" />Sales</span><span><i className="mr-1 inline-block size-2 rounded-full bg-[#D8A011]" />Expenses</span></div>
           </Panel>
           <Panel className="h-[24rem] min-h-0 flex flex-col">
-            <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-black text-[#123D2A]">Production by crop</h2><p className="mt-1 text-sm text-[#6C7A70]">Harvest quantity and recorded production cost.</p></div><Factory className="size-5 text-[#1F6B43]" /></div>
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">{analytics.productionByCrop.length === 0 ? <EmptyState title="No production records yet" description="Add a crop record to see production quantity and cost by season." action={selectedSeason && selectedSeason.seasonStatus !== "Closed" ? <button type="button" onClick={() => openProductionModal()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-xs font-bold text-[#123D2A]"><Plus className="size-4" />Add production</button> : null} /> : analytics.productionByCrop.slice(0, 8).map((crop) => <div key={`${crop.cropName}-${crop.sector}`} className="flex items-center justify-between gap-3 border-b border-[#E7EEE7] py-3 text-sm"><div><p className="font-bold text-[#123D2A]">{crop.cropName}</p><p className="text-xs text-[#6C7A70]">{crop.sector} | {crop.records} record{crop.records === 1 ? "" : "s"}</p></div><div className="text-right"><p className="font-black text-[#1F6B43]">{number(crop.quantityProduced)}</p><p className="text-xs text-[#6C7A70]">{money(crop.productionCost)}</p></div></div>)}</div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-lg font-black text-[#123D2A]">Production by crop</h2><p className="mt-1 text-sm text-[#6C7A70]">Harvest quantity and recorded production cost.</p></div><div className="flex items-center gap-2"><select title={HIGH_VALUE_CROP_DEFINITION} aria-label="Filter production by High-Value Crop classification" value={cropValueFilter} onChange={(event) => { setCropValueFilter(event.target.value as CropValueFilter); setProductionPage(1); }} className="h-9 rounded-md border border-[#CAD8CB] bg-white px-2 text-xs font-bold text-[#294B39]"><option value="All">All crops</option><option value="High-Value">High-value crops</option><option value="Other">Other crops</option></select><Factory className="size-5 text-[#1F6B43]" /></div></div>
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">{filteredProductionByCrop.length === 0 ? <EmptyState title={analytics.productionByCrop.length === 0 ? "No production records yet" : "No crops match this filter"} description={analytics.productionByCrop.length === 0 ? "Add a crop record to see production quantity and cost by season." : "Choose another crop classification to view the available records."} action={analytics.productionByCrop.length === 0 && selectedSeason && selectedSeason.seasonStatus !== "Closed" ? <button type="button" onClick={() => openProductionModal()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-xs font-bold text-[#123D2A]"><Plus className="size-4" />Add production</button> : null} /> : filteredProductionByCrop.slice(0, 8).map((crop) => <div key={`${crop.cropName}-${crop.sector}`} className="flex items-center justify-between gap-3 border-b border-[#E7EEE7] py-3 text-sm"><div><p className="font-bold text-[#123D2A]">{crop.cropName}</p><p className="text-xs text-[#6C7A70]">{crop.sector} | {crop.records} record{crop.records === 1 ? "" : "s"}</p></div><div className="text-right"><p className="font-black text-[#1F6B43]">{number(crop.quantityProduced)}</p><p className="text-xs text-[#6C7A70]">{money(crop.productionCost)}</p></div></div>)}</div>
           </Panel>
         </div>
 
@@ -322,7 +329,7 @@ export function SeasonalAnalyticsClient({ canManageSeasons = true }: Props) {
           </Panel>
           <Panel className="h-[32rem] min-h-0 flex flex-col">
             <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><CalendarDays className="size-5 text-[#1F6B43]" /><div><h2 className="text-lg font-black text-[#123D2A]">Production records</h2><p className="mt-1 text-sm text-[#6C7A70]">Recent records for the selected season.</p></div></div>{productionRecords.length > 0 ? <span className="rounded-full bg-[#EEF2EC] px-2.5 py-1 text-xs font-bold text-[#1F6B43]">{productionRecords.length}</span> : null}</div>
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">{productionRecords.length === 0 ? <EmptyState title="No production records yet" description="Production records added here will appear with their crop, quantity, date, and status." action={selectedSeason && selectedSeason.seasonStatus !== "Closed" ? <button type="button" onClick={() => openProductionModal()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#123D2A] px-3 text-xs font-bold text-white"><Plus className="size-4" />Add production</button> : null} /> : <div className="grid gap-2">{visibleProduction.map((record) => <div key={record.id} className="flex items-center justify-between gap-3 rounded-md border border-[#E7EEE7] bg-[#FBFCF8] p-3 text-sm"><div><p className="font-bold text-[#123D2A]">{record.cropName}</p><p className="text-xs text-[#6C7A70]">{record.sector} | {record.harvestDate ?? "No harvest date"}</p></div><div className="text-right"><p className="font-black text-[#1F6B43]">{number(record.quantityProduced)} {record.quantityUnit}</p><StatusBadge tone={record.productionStatus === "Cancelled" ? "danger" : "success"}>{record.productionStatus}</StatusBadge></div></div>)}</div>}</div><Pagination page={productionPage} pageCount={productionPageCount} total={productionRecords.length} onPrevious={() => setProductionPage((page) => Math.max(1, page - 1))} onNext={() => setProductionPage((page) => Math.min(productionPageCount, page + 1))} />
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">{filteredProductionRecords.length === 0 ? <EmptyState title={productionRecords.length === 0 ? "No production records yet" : "No records match this filter"} description={productionRecords.length === 0 ? "Production records added here will appear with their crop, quantity, date, and status." : "Choose another crop classification to view the available records."} action={productionRecords.length === 0 && selectedSeason && selectedSeason.seasonStatus !== "Closed" ? <button type="button" onClick={() => openProductionModal()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#123D2A] px-3 text-xs font-bold text-white"><Plus className="size-4" />Add production</button> : null} /> : <div className="grid gap-2">{visibleProduction.map((record) => <div key={record.id} className="flex items-center justify-between gap-3 rounded-md border border-[#E7EEE7] bg-[#FBFCF8] p-3 text-sm"><div><p className="font-bold text-[#123D2A]">{record.cropName}</p><p className="text-xs text-[#6C7A70]">{record.sector} | {record.harvestDate ?? "No harvest date"}</p></div><div className="text-right"><p className="font-black text-[#1F6B43]">{number(record.quantityProduced)} {record.quantityUnit}</p><StatusBadge tone={record.productionStatus === "Cancelled" ? "danger" : "success"}>{record.productionStatus}</StatusBadge></div></div>)}</div>}</div><Pagination page={productionPage} pageCount={productionPageCount} total={filteredProductionRecords.length} onPrevious={() => setProductionPage((page) => Math.max(1, page - 1))} onNext={() => setProductionPage((page) => Math.min(productionPageCount, page + 1))} />
           </Panel>
         </div>
       </> : null}

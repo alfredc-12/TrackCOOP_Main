@@ -31,6 +31,7 @@ import type {
   PublicStatusRequirement,
   PublicSubmissionContext,
   PublicSubmissionResult,
+  PrimarySector,
   RequirementInput,
   RequirementStatus,
   RequirementType,
@@ -113,6 +114,7 @@ type ChairmanApplicationRow = RowDataPacket & {
   barangay: string | null;
   municipality: string;
   province: string;
+  sector: PrimarySector | null;
   fatherName: string | null;
   motherName: string | null;
   spouseName: string | null;
@@ -378,6 +380,7 @@ function applicationSelect() {
                  a.barangay,
                  a.municipality,
                  a.province,
+                 a.sector,
                  a.father_name AS fatherName,
                  a.mother_name AS motherName,
                  a.spouse_name AS spouseName,
@@ -442,6 +445,7 @@ function mapApplicationDetail(
     currentAddress: row.currentAddress,
     municipality: row.municipality,
     province: row.province,
+    sector: row.sector,
     fatherName: row.fatherName,
     motherName: row.motherName,
     spouseName: row.spouseName,
@@ -870,14 +874,14 @@ export function createMembershipApplicationRepository(
              (application_code, public_tracking_token_hash, application_source,
               requested_membership_type, first_name, middle_name, last_name, suffix, email, contact_number, civil_status,
               place_of_birth, date_of_birth, current_address, barangay, municipality, province,
-              father_name, mother_name, spouse_name, occupation,
+              sector, father_name, mother_name, spouse_name, occupation,
               orientation_commitment_accepted, membership_fee_commitment_accepted,
               membership_fee_amount, share_subscription_commitment_accepted,
               subscribed_shares, initial_share_capital_amount, target_share_capital_amount,
               share_capital_deadline_months, annual_interest_rate, patronage_refund_acknowledged,
               bylaws_agreement_accepted, privacy_consent_accepted, terms_version,
               applicant_signature_name, signed_at, signed_place, submitted_ip, submitted_user_agent)
-           VALUES (?, ?, 'Public Website', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           VALUES (?, ?, 'Public Website', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             placeholderCode,
@@ -896,6 +900,7 @@ export function createMembershipApplicationRepository(
             nullable(application.barangay),
             application.municipality,
             application.province,
+            nullable(application.sector),
             nullable(application.fatherName),
             nullable(application.motherName),
             nullable(application.spouseName),
@@ -1240,14 +1245,14 @@ export function createMembershipApplicationRepository(
              (application_code, public_tracking_token_hash, application_source,
               requested_membership_type, first_name, middle_name, last_name, suffix, email, contact_number, civil_status,
               place_of_birth, date_of_birth, current_address, barangay, municipality, province,
-              father_name, mother_name, spouse_name, occupation,
+              sector, father_name, mother_name, spouse_name, occupation,
               orientation_commitment_accepted, membership_fee_commitment_accepted,
               membership_fee_amount, share_subscription_commitment_accepted,
               subscribed_shares, initial_share_capital_amount, target_share_capital_amount,
               share_capital_deadline_months, annual_interest_rate, patronage_refund_acknowledged,
               bylaws_agreement_accepted, privacy_consent_accepted, terms_version,
               applicant_signature_name, signed_at, signed_place, submitted_by_user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                    ?, ?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             placeholderCode,
@@ -1267,6 +1272,7 @@ export function createMembershipApplicationRepository(
             nullable(application.barangay),
             application.municipality,
             application.province,
+            nullable(application.sector),
             nullable(application.fatherName),
             nullable(application.motherName),
             nullable(application.spouseName),
@@ -1401,6 +1407,7 @@ export function createMembershipApplicationRepository(
         ["barangay", "barangay", (value) => nullable(value as string | null)],
         ["municipality", "municipality", (value) => value as string],
         ["province", "province", (value) => value as string],
+        ["sector", "sector", (value) => nullable(value as string | null)],
         ["fatherName", "father_name", (value) => nullable(value as string | null)],
         ["motherName", "mother_name", (value) => nullable(value as string | null)],
         ["spouseName", "spouse_name", (value) => nullable(value as string | null)],

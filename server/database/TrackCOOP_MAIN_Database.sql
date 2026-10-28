@@ -366,6 +366,7 @@ CREATE TABLE membership_applications (
     barangay VARCHAR(120) NULL,
     municipality VARCHAR(120) NOT NULL DEFAULT 'Nasugbu',
     province VARCHAR(120) NOT NULL DEFAULT 'Batangas',
+    sector VARCHAR(100) NULL,
     father_name VARCHAR(190) NULL,
     mother_name VARCHAR(190) NULL,
     spouse_name VARCHAR(190) NULL,

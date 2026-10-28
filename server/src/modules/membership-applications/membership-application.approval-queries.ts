@@ -46,6 +46,7 @@ export async function selectApprovalApplication(
             a.barangay,
             a.municipality,
             a.province,
+            a.sector,
             a.orientation_commitment_accepted AS orientationCommitmentAccepted,
             a.membership_fee_commitment_accepted AS membershipFeeCommitmentAccepted,
             a.share_subscription_commitment_accepted AS shareSubscriptionCommitmentAccepted,

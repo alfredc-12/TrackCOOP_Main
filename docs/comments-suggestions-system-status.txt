@@ -1,7 +1,7 @@
 TrackCOOP - Comments, Suggestions, and Additional
 System Status Review - Sorted by Status
 
-Date reviewed: October 27, 2026
+Date reviewed: October 28, 2026
 
 Status legend:
 - [BLUE] NASA SYSTEM NA = Implemented and available in the current system.
@@ -24,6 +24,9 @@ Details: The system provides active referral codes and shareable links, Copy/Sha
 
 6. Define and clarify the purpose of seasonal analytics and how seasons affect production, sales, income, and expenses.
 Details: Chairman Seasonal Analytics supports season configuration, Draft/Active/Closed status, date ranges, production-record entry, crop-level production totals, monthly sales/income/expense trends, financial-category breakdowns, net result, and margin. Existing POS and financial records without an explicit season tag are included when their dates fall inside the selected season range.
+
+10. Make members' earnings, income, and expenses visible and understandable in the system.
+Details: The member dashboard now provides a member-scoped financial summary with date filters, total earnings, total expenses, net result, purchases, patronage, Annual Interest on Share Capital, Share Capital contributions shown separately, category breakdowns, recent transactions, and privacy limited to the signed-in member's linked records.
 
 11. Provide a separate Expense Management module with a detailed breakdown of expenses.
 Details: The system has Operating Expenses, expense categories, amount, payee, payment method, receipt, description, remarks, and financial ledger recording.
@@ -52,16 +55,13 @@ Details: Testing data includes members, Share Capital, expenses, POS sales, prod
 Details: The system has announcements, public gallery content, landing-page content, and targeted announcements. A dedicated recruitment campaign and promotional analytics feature are not yet available.
 
 7. Clearly define High-Value Crops and specify the criteria and crops included.
-Details: High-Value Crops is available as a sector option, but the detailed criteria and complete crop list have not yet been defined in the system.
+Details: The system now has a High-Value Crops reference definition, criteria, crop list, inventory badge/filter, guide modal, and Seasonal Analytics crop filter. The cooperative still needs to formally approve the final criteria and crop list.
 
 8. Clarify Barangay Recruitment Analytics, including membership and referral data per barangay.
 Details: The system has member counts, barangay mapping, sector breakdowns, top barangays, and a Chairman referral summary with total, pending, successful, top-referrer, and referral-by-barangay data.
 
 9. Confirm whether a person may belong to multiple sectors or whether a one-to-one relationship should be followed.
-Details: The current system stores one sector per member. The cooperative still needs to officially confirm and document whether this one-to-one rule is correct.
-
-10. Make members' earnings, income, and expenses visible and understandable in the system.
-Details: Members can view statements, deposits, purchases, patronage, and Share Capital information. A complete personal income-and-expense breakdown is not yet available.
+Details: New public and Chairman applications now require one primary sector, and the value is carried into the approved member profile. The system documents and presents the one-primary-sector policy through the application and member forms. The existing database stores a single scalar sector value; official cooperative confirmation of the policy is still pending.
 
 14. Use more detailed, realistic, and related data for dashboards and analytics during the Final Defense.
 Details: The system has dashboards and seeded realistic data, but additional records and scenarios are still needed for a stronger Final Defense demonstration.
@@ -96,14 +96,31 @@ RECENT IMPLEMENTATION UPDATES
 - Added date-range fallback for existing POS and financial records so historical data appears in a selected season even before every record is explicitly tagged.
 - Added Budget Controls with budget lines, approval workflow, warning thresholds, utilization, unbudgeted expense monitoring, and optional hard-limit blocking.
 - Added an optional Season selector to Operating Expenses and budget warning feedback after a successful expense posting.
+- Added a documented one-primary-sector policy to the Chairman member form while preserving the existing scalar member sector field.
+- Added required Primary sector capture to public and Chairman applications, review details, approval conversion, and application PDF output.
+- Removed the duplicate Primary sector control from the Chairman application review form and kept one saved primary-sector field in the workflow.
+- Added High-Value Crops criteria, reference crop names, inventory badges and filters, a guide modal, and a Seasonal Analytics crop classification filter.
+- Added a private member financial summary with date filters, earnings, expenses, net result, purchases, patronage, Annual Interest on Share Capital, separate Share Capital contributions, category breakdowns, and recent transactions.
+- Updated Annual Interest earnings to use published database dividend records and include available, withdrawn, and capitalized member decisions while keeping Share Capital principal separate.
+
+
+============================================================
+FINAL VERIFICATION
+============================================================
+
+- Web and API TypeScript checks passed with `npm run typecheck`.
+- Full API regression suite passed: 308 tests passed, 0 failed.
+- Production web build passed with `npm run build:web`.
+- CI lint baseline passed with no new lint debt.
+- `git diff --check` passed without whitespace errors; only normal Git line-ending warnings remain for selected files.
 
 
 ============================================================
 SUMMARY
 ============================================================
 
-[BLUE] NASA SYSTEM NA: 10 items
-[YELLOW] PARTIAL: 7 items
+[BLUE] NASA SYSTEM NA: 11 items
+[YELLOW] PARTIAL: 6 items
 [RED] WALA PA or external/manual action: 2 items
 
 Main remaining development priorities:

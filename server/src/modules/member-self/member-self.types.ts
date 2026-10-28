@@ -10,6 +10,37 @@ export type MemberDashboardQuery = {
   endDate?: string;
 };
 
+export type MemberFinancialCategoryItem = {
+  category: string;
+  amount: number;
+  recordCount: number;
+};
+
+export type MemberFinancialTransaction = {
+  id: string;
+  type: "Income" | "Expense";
+  category: string;
+  description: string;
+  amount: number;
+  date: string | Date;
+  source: string;
+};
+
+export type MemberFinancialSummary = {
+  scope: "Member-linked posted activity";
+  totalEarnings: number;
+  annualInterestEarnings: number;
+  totalExpenses: number;
+  netResult: number;
+  totalPurchases: number;
+  totalPatronage: number;
+  shareCapitalContributions: number;
+  incomeByCategory: MemberFinancialCategoryItem[];
+  expenseByCategory: MemberFinancialCategoryItem[];
+  transactions: MemberFinancialTransaction[];
+  generatedAt: string;
+};
+
 export type MemberProfileInput = {
   contact_number?: string | null;
   email?: string | null;

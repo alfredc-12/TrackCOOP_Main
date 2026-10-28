@@ -67,7 +67,6 @@ export type BeneficiaryInput = {
   ageAtApplication?: number | null;
   birthDate?: string | null;
 };
-
 export type PublicMembershipApplicationInput = {
   requestedMembershipType: RequestedMembershipType;
   firstName: string;
@@ -84,6 +83,7 @@ export type PublicMembershipApplicationInput = {
   barangay?: string | null;
   municipality: string;
   province: string;
+  sector?: string | null;
   fatherName?: string | null;
   motherName?: string | null;
   spouseName?: string | null;
@@ -100,7 +100,6 @@ export type PublicMembershipApplicationInput = {
   beneficiaries: BeneficiaryInput[];
   website?: string;
 };
-
 export type PublicSubmissionResult = {
   applicationCode: string;
   duplicateWarning: boolean;

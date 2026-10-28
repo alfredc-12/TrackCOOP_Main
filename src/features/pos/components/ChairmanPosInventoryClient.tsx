@@ -5,6 +5,12 @@ import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
+import {
+    HIGH_VALUE_CROP_CRITERIA,
+    HIGH_VALUE_CROP_DEFINITION,
+    HIGH_VALUE_CROP_NAMES,
+    isHighValueCropRecord,
+} from "@/features/crops/high-value-crops";
 
 type StockHistory = {
     type: "add" | "deduct";
@@ -38,6 +44,7 @@ function formatQuantityUnit(quantity: number | string, unit?: string) {
 
 type DemandLevel = "High" | "Medium" | "Low";
 type DemandFilter = "All" | DemandLevel;
+type HighValueFilter = "All" | "High-Value" | "Other";
 type DemandPeriod = "all" | "7d" | "30d" | "year";
 type StockStatus = "Healthy" | "Low Stock" | "Out of Stock";
 const DEFAULT_LOW_STOCK_THRESHOLD = 10;
@@ -79,6 +86,10 @@ function getStockStatus(item: Pick<InventoryItem, "stock" | "pending_qty" | "reo
     if (availableStock <= 0) return "Out of Stock";
     if (availableStock <= getLowStockThreshold(item)) return "Low Stock";
     return "Healthy";
+}
+
+function isHighValueInventoryItem(item: Pick<InventoryItem, "name" | "category">) {
+    return isHighValueCropRecord(item.name, item.category);
 }
 
 function stockStatusClass(status: StockStatus) {
@@ -262,10 +273,10 @@ function ThemedSelect({
     const selected = options.find((option) => option.value === value)?.label ?? value;
 
     return (
-        <div className="relative">
-            <button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex w-full items-center justify-between rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-medium text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
-                <span>{selected}</span>
-                <ChevronDown className={`size-4 text-[#52705D] transition ${open ? "rotate-180" : ""}`} />
+            <div className="relative min-w-0">
+            <button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex w-full min-w-0 items-center justify-between overflow-hidden whitespace-nowrap rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-medium text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
+                <span className="min-w-0 truncate">{selected}</span>
+                <ChevronDown className={`size-4 shrink-0 text-[#52705D] transition ${open ? "rotate-180" : ""}`} />
             </button>
             {open && (
                 <div className="absolute left-0 right-0 top-full z-[90] mt-2 overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]" role="listbox" aria-label={ariaLabel}>
@@ -530,7 +541,9 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [sortBy, setSortBy] = useState("name-asc");
     const [demandFilter, setDemandFilter] = useState<DemandFilter>("All");
+    const [highValueFilter, setHighValueFilter] = useState<HighValueFilter>("All");
     const [demandSort, setDemandSort] = useState(false);
+    const [isHighValueInfoOpen, setIsHighValueInfoOpen] = useState(false);
 
     // Form State
     const [newItemName, setNewItemName] = useState("");
@@ -560,13 +573,13 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
 
 
     useEffect(() => {
-        if (isAddModalOpen || isStockAlertModalOpen || detailsItem || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
+        if (isAddModalOpen || isStockAlertModalOpen || isHighValueInfoOpen || detailsItem || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isAddModalOpen, isStockAlertModalOpen, detailsItem, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
+    }, [isAddModalOpen, isStockAlertModalOpen, isHighValueInfoOpen, detailsItem, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -859,7 +872,9 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
             const demand = demandByProductId.get(item.id) ?? "Low";
             const matchesDemand = demandFilter === "All" || demand === demandFilter;
-            return matchesSearch && matchesCategory && matchesDemand;
+            const isHighValue = isHighValueInventoryItem(item);
+            const matchesHighValue = highValueFilter === "All" || (highValueFilter === "High-Value" ? isHighValue : !isHighValue);
+            return matchesSearch && matchesCategory && matchesDemand && matchesHighValue;
         })
         .sort((a, b) => {
             const demandRank = (item: InventoryItem) => ({ High: 3, Medium: 2, Low: 1 }[demandByProductId.get(item.id) ?? "Low"]);
@@ -874,9 +889,6 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             }
         });
 
-    const lowStockCount = inventory.filter((item) => getStockStatus(item) === "Low Stock").length;
-    const outOfStockCount = inventory.filter((item) => getStockStatus(item) === "Out of Stock").length;
-    const stockAlertCount = lowStockCount + outOfStockCount;
     const stockAlertItems = inventory
         .filter((item) => getStockStatus(item) !== "Healthy")
         .sort((a, b) => getAvailableStock(a) - getAvailableStock(b) || a.name.localeCompare(b.name));
@@ -886,14 +898,19 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     useEffect(() => {
         if (hasShownStockAlert.current || isInventoryLoading || inventoryError || inventory.length === 0) return;
         hasShownStockAlert.current = true;
-        if (stockAlertItems.length > 0) setIsStockAlertModalOpen(true);
+        if (stockAlertItems.length > 0) {
+            // The alert is intentionally opened after the initial inventory load.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setIsStockAlertModalOpen(true);
+        }
     }, [inventory, inventoryError, isInventoryLoading, stockAlertItems.length]);
 
-    const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== "All" || demandFilter !== "All" || demandSort;
+    const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== "All" || demandFilter !== "All" || highValueFilter !== "All" || demandSort;
     const clearFilters = () => {
         setSearchQuery("");
         setSelectedCategory("All");
         setDemandFilter("All");
+        setHighValueFilter("All");
         setDemandSort(false);
         setInventoryPage(1);
     };
@@ -916,31 +933,6 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
 
     return (
       <div className="-mx-4 -my-6 w-auto overflow-x-hidden bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-            {/* Branded overview banner */}
-            <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
-                <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
-                <div className="absolute -bottom-24 right-28 size-44 rounded-full bg-[#F6D354]/15 blur-2xl" />
-                <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]">
-                            <span className="h-2 w-2 rounded-full bg-[#F6D354] shadow-[0_0_0_5px_rgba(246,211,84,0.18)]" />
-                            Cooperative operations
-                        </div>
-                        <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Inventory Command Center</h2>
-                        <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">Keep products available, monitor stock movement, and respond quickly to orders across the cooperative.</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#CDE8D4]/20 bg-[#D8F0DE]/10 px-4 py-3 backdrop-blur-sm">
-                        <div className="flex size-10 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D] shadow-sm">
-                            <Sprout className="size-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-semibold text-white/60">Catalog health</p>
-                            <p className="font-bold">{stockAlertCount > 0 ? `${stockAlertCount} product${stockAlertCount > 1 ? "s" : ""} need attention` : "All stock levels healthy"}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             {/* Summary Cards */}
             <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
@@ -1001,26 +993,17 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             </div>
 
             {/* Header */}
-            <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white/75 p-5 shadow-sm backdrop-blur-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+            <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white/75 p-5 shadow-sm backdrop-blur-sm sm:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
                     <div className="mb-2 flex items-center gap-2">
                         <span className="h-2 w-2 rounded-full bg-[#F2C94C] shadow-[0_0_0_4px_rgba(242,201,76,0.18)]" />
                         <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B8A76]">Operations / Products</span>
                     </div>
                     <h2 className="text-3xl font-bold text-[#123D2A]">All Products</h2>
                     <p className="text-sm text-[#64748b] mt-1">Manage products, stock levels, and reorder alerts.</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#6B8A76]" aria-label="Demand levels">
-                        <span>Demand ({demandPeriodDescription(demandPeriod)}):</span>
-                        {(["High", "Medium", "Low"] as DemandLevel[]).map((level) => (
-                            <span key={level} className={`rounded-full px-2.5 py-1 ring-1 ring-inset ${demandBadgeClass(level)}`}>{level}</span>
-                        ))}
-                    </div>
-                    <p className="mt-2 text-[11px] text-[#789181]" title="High is the top 30%, Medium is the next 40%, and Low is the remaining products based on completed units sold.">
-                        Ranked by completed units sold for the selected period.
-                    </p>
-                    <p className="mt-2 text-xs font-medium text-[#789181]">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading inventory…"}</p>
                 </div>
-                <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+                <div className="flex flex-wrap items-center justify-start gap-2 lg:max-w-[620px] lg:justify-end">
                     {showOrdersPayments ? (
                         <button
                             onClick={fetchOrders}
@@ -1058,6 +1041,19 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                         <Plus className="size-4 transition-transform group-hover:rotate-90 duration-300" /> Add Product
                     </button>
                 </div>
+                </div>
+                <div className="mt-5 flex flex-col gap-3 border-t border-[#E7EFE8] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#6B8A76]" aria-label="Demand levels">
+                        <span>Demand ({demandPeriodDescription(demandPeriod)}):</span>
+                        {(["High", "Medium", "Low"] as DemandLevel[]).map((level) => (
+                            <span key={level} className={`rounded-full px-2.5 py-1 ring-1 ring-inset ${demandBadgeClass(level)}`}>{level}</span>
+                        ))}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#789181]">
+                        <span title="High is the top 30%, Medium is the next 40%, and Low is the remaining products based on completed units sold.">Ranked by completed units sold</span>
+                        <span className="font-medium">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading inventory..."}</span>
+                    </div>
+                </div>
             </div>
 
             {inventoryError && (
@@ -1069,9 +1065,9 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
 
             {/* Toolbar */}
             <div className="mb-6 mt-4 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
-                <div className="flex flex-col gap-3">
-                    <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="relative min-w-0 flex-1 max-w-[720px]">
+                <div className="flex flex-col gap-4">
+                    <div className="flex w-full flex-col items-stretch gap-3 xl:grid xl:grid-cols-[minmax(300px,0.8fr)_minmax(0,2.2fr)] xl:items-center">
+                    <div className="relative min-w-0 w-full">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
@@ -1092,7 +1088,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             </button>
                         )}
                     </div>
-                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                    <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:items-center">
                         <ThemedSelect
                             value={demandPeriod}
                             onChange={(value) => { setDemandPeriod(value as DemandPeriod); setInventoryPage(1); }}
@@ -1110,18 +1106,35 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             ]}
                             ariaLabel="Filter by demand level"
                         />
+                        <ThemedSelect
+                            value={highValueFilter}
+                            onChange={(value) => { setHighValueFilter(value as HighValueFilter); setInventoryPage(1); }}
+                            options={[
+                                { value: "All", label: "All crop types" },
+                                { value: "High-Value", label: "High-value crops" },
+                                { value: "Other", label: "Other products" },
+                            ]}
+                            ariaLabel="Filter by High-Value Crop classification"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setIsHighValueInfoOpen(true)}
+                            className="w-full min-w-0 overflow-hidden whitespace-nowrap rounded-xl border border-[#BBD7C1] bg-white px-3 py-3 text-sm font-semibold text-[#52705D] transition hover:border-[#1F6B43] hover:text-[#123D2A]"
+                        >
+                            <span className="block truncate">HVC guide</span>
+                        </button>
                         <button
                             type="button"
                             onClick={() => { const nextDemandSort = !demandSort; setDemandSort(nextDemandSort); setSortBy(nextDemandSort ? "demand-desc" : "name-asc"); setInventoryPage(1); }}
                             aria-pressed={demandSort}
-                            className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${demandSort ? "border-[#1F6B43] bg-[#EAF5EC] text-[#123D2A]" : "border-[#BBD7C1] bg-white text-[#52705D] hover:border-[#1F6B43]"}`}
+                            className={`w-full min-w-0 overflow-hidden whitespace-nowrap rounded-xl border px-3 py-3 text-sm font-semibold transition ${demandSort ? "border-[#1F6B43] bg-[#EAF5EC] text-[#123D2A]" : "border-[#BBD7C1] bg-white text-[#52705D] hover:border-[#1F6B43]"}`}
                         >
-                            {demandSort ? "Demand: high first" : "Sort by demand"}
+                            <span className="block truncate">{demandSort ? "Demand: high first" : "Sort by demand"}</span>
                         </button>
-                        <div className="relative">
-                            <button type="button" onClick={() => setIsSortMenuOpen((value) => !value)} aria-haspopup="listbox" aria-expanded={isSortMenuOpen} className="flex w-full min-w-[210px] items-center justify-between rounded-xl border border-[#BBD7C1] bg-white px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#0F9D58]/10 sm:w-auto">
+                        <div className="relative min-w-0">
+                            <button type="button" onClick={() => setIsSortMenuOpen((value) => !value)} aria-haspopup="listbox" aria-expanded={isSortMenuOpen} className="flex w-full min-w-0 items-center justify-between overflow-hidden whitespace-nowrap rounded-xl border border-[#BBD7C1] bg-white px-3 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#0F9D58]/10 [&>span]:min-w-0 [&>span]:truncate">
                                 <span>{({ "name-asc": "Name (A–Z)", "price-asc": "Price (low to high)", "price-desc": "Price (high to low)", "stock-asc": "Stock (low to high)", "stock-desc": "Stock (high to low)", "demand-desc": "Demand (high to low)" } as Record<string, string>)[sortBy]}</span>
-                                <ChevronDown className={`size-4 text-[#52705D] transition ${isSortMenuOpen ? "rotate-180" : ""}`} />
+                                <ChevronDown className={`size-4 shrink-0 text-[#52705D] transition ${isSortMenuOpen ? "rotate-180" : ""}`} />
                             </button>
                             {isSortMenuOpen && (
                                 <div className="absolute right-0 top-full z-30 mt-2 w-full min-w-[210px] overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]" role="listbox" aria-label="Sort inventory products">
@@ -1132,7 +1145,6 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     ))}
                                 </div>
                             )}
-                            <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         </div>
                     </div>
                 </div>
@@ -1140,8 +1152,8 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                 {/* Category Tabs */}
                 </div>
 
-                <div className="mt-2 flex w-full items-center justify-between gap-4">
-                <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                <div className="flex w-full flex-col gap-3 border-t border-[#E7EFE8] pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-3 overflow-x-auto pb-1 custom-scrollbar">
                     {categoryTabs.map(cat => (
                         <button
                             key={cat}
@@ -1155,15 +1167,17 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                         </button>
                     ))}
                 </div>
-                <p className="shrink-0 whitespace-nowrap text-right text-xs font-medium text-[#789181]" aria-live="polite">
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 sm:justify-end">
+                <p className="whitespace-nowrap text-right text-xs font-medium text-[#789181]" aria-live="polite">
                     Showing {filteredAndSortedInventory.length === 0 ? 0 : ((inventoryPage - 1) * inventoryPageSize) + 1}–{Math.min(inventoryPage * inventoryPageSize, filteredAndSortedInventory.length)} of {filteredAndSortedInventory.length} product{filteredAndSortedInventory.length === 1 ? "" : "s"}
                 </p>
                 {hasActiveFilters && (
-                    <button type="button" onClick={clearFilters} className="mt-1 shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-[#1F6B43] transition hover:bg-[#EAF5EC]" aria-label="Clear inventory filters">
+                    <button type="button" onClick={clearFilters} className="rounded-full px-2.5 py-1 text-xs font-bold text-[#1F6B43] transition hover:bg-[#EAF5EC]" aria-label="Clear inventory filters">
                         Clear filters
                     </button>
                 )}
                 </div>
+            </div>
             </div>
 
             {/* Grid */}
@@ -1187,8 +1201,8 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                         const isLowStock = stockStatus !== "Healthy";
                         const demand = demandByProductId.get(item.id) ?? "Low";
                         return (
-                            <div key={item.id} style={{ animationDelay: `${Math.min(filteredAndSortedInventory.indexOf(item) * 55, 440)}ms` }} className={`group flex h-full min-h-[320px] animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_16px_rgba(18,61,42,0.07)] border transition duration-300 hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(18,61,42,0.14)] ${isLowStock ? 'border-red-400 ring-1 ring-red-400' : 'border-[#DCE9DE]'}`}>
-                                <div className={`relative h-48 p-4 flex items-center justify-center rounded-t-2xl overflow-hidden ${item.category?.toLowerCase().includes('seed') ? 'bg-gradient-to-br from-[#FFF8E8] via-[#F8F1E5] to-[#E7F2E8]' : item.category?.toLowerCase().includes('fertil') ? 'bg-gradient-to-br from-[#EEF7FF] via-[#EAF5F0] to-[#DCEFE2]' : 'bg-gradient-to-br from-[#E8F8F0] via-[#F4FAF5] to-[#E5F0FF]'}`}>
+                            <div key={item.id} style={{ animationDelay: `${Math.min(filteredAndSortedInventory.indexOf(item) * 55, 440)}ms` }} className={`group flex h-full min-h-[350px] animate-in fade-in slide-in-from-bottom-2 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_16px_rgba(18,61,42,0.07)] border transition duration-300 hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(18,61,42,0.14)] ${isLowStock ? 'border-red-400 ring-1 ring-red-400' : 'border-[#DCE9DE]'}`}>
+                                <div className={`relative h-52 p-4 flex items-center justify-center rounded-t-2xl overflow-hidden ${item.category?.toLowerCase().includes('seed') ? 'bg-gradient-to-br from-[#FFF8E8] via-[#F8F1E5] to-[#E7F2E8]' : item.category?.toLowerCase().includes('fertil') ? 'bg-gradient-to-br from-[#EEF7FF] via-[#EAF5F0] to-[#DCEFE2]' : 'bg-gradient-to-br from-[#E8F8F0] via-[#F4FAF5] to-[#E5F0FF]'}`}>
                                     <div className="absolute left-4 top-4 flex gap-2 z-10">
                                         <span className={`rounded-md px-2.5 py-1 text-xs font-semibold text-white ${item.status === 'Available' ? 'bg-[#22c55e]' : 'bg-[#ef4444]'
                                             }`}>
@@ -1237,26 +1251,31 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#123D2A]/35 via-transparent to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100"></div>
                                     <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 translate-y-2 rounded-full bg-[#123D2A]/85 px-3 py-1 text-[10px] font-bold text-white opacity-0 shadow-sm transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">Product image</div>
                                 </div>
-                                <div className="flex flex-col p-4">
-                                    <div className="mb-3 min-h-[50px] min-w-0">
+                                <div className="flex flex-col p-5">
+                                    <div className="mb-5 min-h-[58px] min-w-0">
                                         <h3 className="font-bold text-[#1e293b] truncate leading-tight text-base" title={item.name}>{item.name}</h3>
                                         <div className="mt-2 flex flex-wrap items-center gap-2">
                                             <span className="inline-flex w-fit items-center rounded-full bg-[#EAF5EC] px-2.5 py-1 text-[11px] font-bold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{item.category || "Uncategorized"}</span>
                                             <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${demandBadgeClass(demand)}`} title={`Demand level based on ${Number(item.sold || 0).toLocaleString()} completed units sold for ${demandPeriodDescription(demandPeriod)}`}>
                                                 {demand} demand
                                             </span>
+                                            {isHighValueInventoryItem(item) && (
+                                                <span className="inline-flex w-fit items-center rounded-full bg-[#FFF6DD] px-2.5 py-1 text-[11px] font-bold text-[#A76500] ring-1 ring-inset ring-[#F2D28B]" title={HIGH_VALUE_CROP_DEFINITION}>
+                                                    High-value crop
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
                                     <button
                                         type="button"
                                         onClick={() => setDetailsItem(item)}
-                                        className="mb-3 inline-flex w-fit items-center text-xs font-bold text-[#1F6B43] transition hover:text-[#123D2A] hover:underline"
+                                        className="mb-5 inline-flex w-fit items-center text-xs font-bold text-[#1F6B43] transition hover:text-[#123D2A] hover:underline"
                                     >
                                         View product details
                                     </button>
 
-                                    <div className="mb-1 flex min-h-[42px] items-center justify-between text-sm">
+                                    <div className="mb-3 flex min-h-[46px] items-center justify-between text-sm">
                                         <span className="text-[#64748b]">Available stock</span>
                                         <div className="flex flex-col items-end">
                                             <span className={`font-bold ${stockStatus === "Out of Stock" ? "text-red-600" : stockStatus === "Low Stock" ? "text-amber-700" : "text-[#1e293b]"}`}>{formatQuantityUnit(availableStock, item.unit)}</span>
@@ -1265,24 +1284,24 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                             ) : null}
                                         </div>
                                     </div>
-                                    <div className="mb-2 flex min-h-[24px] items-center justify-between text-xs">
+                                    <div className="mb-3 flex min-h-[28px] items-center justify-between text-xs">
                                         <span className="text-[#94a3b8]">Stock status</span>
                                         <span className={`rounded-full px-2 py-1 font-bold ring-1 ring-inset ${stockStatusClass(stockStatus)}`}>{stockStatus}</span>
                                     </div>
-                                    <div className="mb-2 flex min-h-[18px] items-center justify-between text-xs">
+                                    <div className="mb-3 flex min-h-[22px] items-center justify-between text-xs">
                                         <span className="text-[#94a3b8]">Reorder level</span>
                                         <span className="font-semibold text-[#52705D]">{item.reorder_level ? formatQuantityUnit(item.reorder_level, item.unit) : "Not set"}</span>
                                     </div>
-                                    <div className="mb-2 flex min-h-[18px] items-center justify-between text-xs">
+                                    <div className="mb-3 flex min-h-[22px] items-center justify-between text-xs">
                                         <span className="text-[#94a3b8]">Units sold ({demandPeriodDescription(demandPeriod)})</span>
                                         <span className="font-semibold text-[#52705D]">{Number(item.sold || 0).toLocaleString()}</span>
                                     </div>
-                                    <div className="mb-3 flex min-h-[24px] items-center justify-between text-sm">
+                                    <div className="mb-4 flex min-h-[28px] items-center justify-between text-sm">
                                         <span className="text-[#64748b]">Selling price</span>
                                         <span className="font-bold text-[#1e293b]">₱ {item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
 
-                                    <div className="mt-auto flex gap-2">
+                                    <div className="mt-auto flex gap-3">
                                         <button
                                             onClick={() => {
                                                 const margin = item.cost_price && item.price ? (((item.price - item.cost_price) / item.cost_price) * 100).toFixed(1) : "";
@@ -1358,6 +1377,42 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
 
                         <div className="flex justify-end border-t border-[#E7EFE8] px-5 py-4 sm:px-7">
                             <button type="button" onClick={() => setIsStockAlertModalOpen(false)} className="rounded-xl bg-[#123D2A] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]">Continue to inventory</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* High-Value Crops reference modal */}
+            {isHighValueInfoOpen && (
+                <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[#0B2E20]/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="high-value-crops-title">
+                    <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
+                        <div className="flex items-start justify-between border-b border-[#E7EFE8] px-5 py-5 sm:px-7">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A76500]">Crop classification</p>
+                                <h2 id="high-value-crops-title" className="mt-1 text-xl font-black text-[#123D2A]">High-Value Crops</h2>
+                                <p className="mt-2 text-sm leading-5 text-[#64748b]">{HIGH_VALUE_CROP_DEFINITION}</p>
+                            </div>
+                            <button type="button" onClick={() => setIsHighValueInfoOpen(false)} className="rounded-full p-2 text-[#64748b] transition hover:bg-[#F1F6F1] hover:text-[#123D2A]" aria-label="Close High-Value Crops guide">
+                                <X className="size-5" />
+                            </button>
+                        </div>
+                        <div className="max-h-[min(65vh,520px)] space-y-5 overflow-y-auto px-5 py-5 sm:px-7">
+                            <div>
+                                <h3 className="text-sm font-black text-[#123D2A]">Classification criteria</h3>
+                                <ul className="mt-2 space-y-2 text-sm leading-5 text-[#52705D]">
+                                    {HIGH_VALUE_CROP_CRITERIA.map((criterion) => <li key={criterion} className="flex gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#1F6B43]" />{criterion}</li>)}
+                                </ul>
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black text-[#123D2A]">Reference crop list</h3>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {HIGH_VALUE_CROP_NAMES.map((crop) => <span key={crop} className="rounded-full bg-[#EAF5EC] px-2.5 py-1 text-xs font-semibold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{crop}</span>)}
+                                </div>
+                            </div>
+                            <p className="rounded-2xl border border-[#F2D28B] bg-[#FFF8E8] px-4 py-3 text-xs leading-5 text-[#7A5100]">This is the current system reference list. The cooperative can finalize or revise the official crop list before production use.</p>
+                        </div>
+                        <div className="flex justify-end border-t border-[#E7EFE8] px-5 py-4 sm:px-7">
+                            <button type="button" onClick={() => setIsHighValueInfoOpen(false)} className="rounded-xl bg-[#123D2A] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]">Done</button>
                         </div>
                     </div>
                 </div>

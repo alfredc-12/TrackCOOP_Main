@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- member QR previews are dynamic data URLs. */
+
 import * as Select from "@radix-ui/react-select";
 import { Calculator, Check, CheckCircle2, ChevronDown, Eye, EyeOff, HandCoins, History, Info, Plus, Send, Users, WalletCards, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -556,6 +558,8 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
     if (dialog?.kind !== "action" || dialog.request.decision !== "Withdraw") return;
     if (dialog.request.withdrawalMethod && dialog.request.withdrawalMethod !== "Cash") return;
     const generatedReference = `CASH-DIV-${dialog.request.id}`;
+    // Cash withdrawal references are derived from the selected request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPayout((current) => current.referenceNumber ? current : { ...current, referenceNumber: generatedReference });
   }, [dialog]);
 
@@ -1126,9 +1130,13 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
     currentActionHistoryPage * actionHistoryPageSize,
   );
   useEffect(() => {
+    // Keep pagination within the available result pages after async refreshes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActionRequestPage((page) => Math.min(page, actionRequestPageCount));
   }, [actionRequestPageCount]);
   useEffect(() => {
+    // Keep pagination within the available result pages after async refreshes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActionHistoryPage((page) => Math.min(page, actionHistoryPageCount));
   }, [actionHistoryPageCount]);
   const coverageConflict = findCoverageConflict([...declarations, ...publishedDeclarations], form.coverageStart, form.coverageEnd);

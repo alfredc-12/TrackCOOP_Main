@@ -38,6 +38,7 @@ export type ApplicationRow = RowDataPacket & {
   barangay: string | null;
   municipality: string;
   province: string;
+  sector: string | null;
   orientationCommitmentAccepted: number;
   membershipFeeCommitmentAccepted: number;
   shareSubscriptionCommitmentAccepted: number;

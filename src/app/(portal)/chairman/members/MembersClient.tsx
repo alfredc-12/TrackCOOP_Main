@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { PRIMARY_SECTOR_OPTIONS, PRIMARY_SECTOR_POLICY } from "@/features/membership/sector-options";
 import {
   ConfirmDialog,
   EmptyState,
@@ -227,6 +228,7 @@ const blankApplication: ApplicationFormState = {
   barangay: "",
   municipality: "Nasugbu",
   province: "Batangas",
+  sector: "",
   fatherName: "",
   motherName: "",
   spouseName: "",
@@ -256,6 +258,7 @@ type ApplicationFormState = ChairmanMembershipApplicationUpdateInput & {
   currentAddress: string;
   municipality: string;
   province: string;
+  sector: string;
   applicantSignatureName: string;
   signedAt: string;
   signedPlace: string;
@@ -372,6 +375,7 @@ export function MembersClient() {
 
   const selectedDetail = selectedId ? detailsById[selectedId] ?? null : null;
 
+  /* eslint-disable react-hooks/set-state-in-effect -- modal opening intentionally synchronizes local loading state with the settings request. */
   useEffect(() => {
     if (!rewardPolicyOpen) return;
     let active = true;
@@ -401,6 +405,7 @@ export function MembersClient() {
       active = false;
     };
   }, [rewardPolicyOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function saveReferralRewardPolicy() {
     setRewardPolicySaving(true);
@@ -1493,7 +1498,7 @@ function MemberOverviewSection({ member }: { member: MemberDetail }) {
         <MemberInfoCard label="Contact" value={member.contactNumber ?? "Not provided"} icon={Phone} />
         <MemberInfoCard label="Barangay" value={member.barangay ?? "Unspecified"} icon={MapPin} />
         <MemberInfoCard label="Municipality" value={`${member.municipality}, ${member.province}`} icon={Building2} />
-        <MemberInfoCard label="Sector" value={member.sector ?? "Not provided"} icon={Leaf} />
+        <MemberInfoCard label="Primary sector" value={member.sector ?? "Not assigned"} icon={Leaf} />
         <MemberInfoCard
           label="Linked Account"
           value={member.linkedUserEmail ? `${member.linkedUserEmail} (${member.linkedUserStatus ?? "Unknown"})` : "Unlinked"}
@@ -1714,7 +1719,15 @@ function MemberFormDialog({
       {step === 2 && (
       <div className="grid gap-4 md:grid-cols-2">
         <TextInput label="Barangay" value={draft.barangay} onChange={(value) => setDraft((current) => ({ ...current, barangay: value }))} />
-        <TextInput label="Sector" value={draft.sector} onChange={(value) => setDraft((current) => ({ ...current, sector: value }))} />
+        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+          Primary sector
+          <select value={draft.sector} onChange={(event) => setDraft((current) => ({ ...current, sector: event.target.value }))} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
+            <option value="">Not assigned</option>
+            {draft.sector && !PRIMARY_SECTOR_OPTIONS.includes(draft.sector as (typeof PRIMARY_SECTOR_OPTIONS)[number]) ? <option value={draft.sector}>{draft.sector} (existing value)</option> : null}
+            {PRIMARY_SECTOR_OPTIONS.map((sector) => <option key={sector} value={sector}>{sector}</option>)}
+          </select>
+          <span className="text-xs font-normal leading-relaxed text-[#6C7A70]">{PRIMARY_SECTOR_POLICY}</span>
+        </label>
         <TextInput label="Municipality" value={draft.municipality} onChange={(value) => setDraft((current) => ({ ...current, municipality: value }))} />
         <TextInput label="Province" value={draft.province} onChange={(value) => setDraft((current) => ({ ...current, province: value }))} />
       </div>
@@ -3817,9 +3830,10 @@ function ApplicantSummary({ detail }: { detail: ChairmanApplicationDetail }) {
   return (
     <ReviewSection index={1} title="Applicant Summary">
       <div className="grid divide-y divide-[#E7EEE5]">
-        <div className="grid gap-4 py-4 first:pt-0 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
+        <div className="grid gap-4 py-4 first:pt-0 lg:grid-cols-4 lg:divide-x lg:divide-[#E7EEE5]">
           <SummaryCell label="Source" value={detail.applicationSource} />
           <SummaryCell label="Requested Type" value={detail.requestedMembershipType} />
+          <SummaryCell label="Primary sector" value={detail.sector ?? "Not provided"} />
           <SummaryCell label="Email" value={detail.email ?? "Not provided"} />
         </div>
         <div className="grid gap-4 py-4 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
@@ -4301,6 +4315,7 @@ function toCreatePayload(draft: ApplicationFormState): ChairmanMembershipApplica
     barangay: draft.barangay || null,
     municipality: draft.municipality,
     province: draft.province,
+    sector: draft.sector || null,
     fatherName: draft.fatherName || null,
     motherName: draft.motherName || null,
     spouseName: draft.spouseName || null,
@@ -4349,6 +4364,7 @@ function fromDetail(detail: ChairmanApplicationDetail): ApplicationFormState {
     barangay: detail.barangay ?? "",
     municipality: detail.municipality,
     province: detail.province,
+    sector: detail.sector ?? "",
     fatherName: detail.fatherName ?? "",
     motherName: detail.motherName ?? "",
     spouseName: detail.spouseName ?? "",
