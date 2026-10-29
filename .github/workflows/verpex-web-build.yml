@@ -2,11 +2,13 @@ name: Build TrackCOOP Frontend for Verpex
 
 on:
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - .github/workflows/verpex-web-build.yml
 
 permissions:
   contents: read
@@ -14,6 +16,7 @@ permissions:
 jobs:
   build-web:
     name: Build standalone Next.js package
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -26,6 +29,8 @@ jobs:
     steps:
       - name: Check out TrackCOOP
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
