@@ -1,0 +1,31 @@
+name: Verify Verpex SSH endpoint
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/verpex-ssh-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe-ssh:
+    name: Check SSH reachability and host identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe SSH port 22 and record public host key fingerprints
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.VERPEX_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST"
+          ssh-keyscan -T 10 -p 22 "$SSH_HOST" > "$RUNNER_TEMP/verpex-hostkeys" 2>/dev/null
+          test -s "$RUNNER_TEMP/verpex-hostkeys"
+          echo 'SSH service is reachable on port 22.'
+          echo 'Public SSH host-key fingerprints (verify these with Verpex before authentication):'
+          ssh-keygen -lf "$RUNNER_TEMP/verpex-hostkeys"
