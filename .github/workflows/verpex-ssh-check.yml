@@ -1,4 +1,4 @@
-name: Verify Verpex SSH endpoint
+name: Verify Verpex SSH connection
 
 on:
   workflow_dispatch:
@@ -12,20 +12,61 @@ permissions:
   contents: read
 
 jobs:
-  probe-ssh:
-    name: Check SSH reachability and host identity
+  verify-ssh:
+    name: Verify host key and test read-only SSH login
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Probe SSH port 22 and record public host key fingerprints
+      - name: Validate Verpex server identity
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.VERPEX_SSH_HOST }}
+          VERPEX_HOST: ${{ secrets.VERPEX_SSH_HOST }}
         run: |
           set -euo pipefail
-          test -n "$SSH_HOST"
-          ssh-keyscan -T 10 -p 22 "$SSH_HOST" > "$RUNNER_TEMP/verpex-hostkeys" 2>/dev/null
-          test -s "$RUNNER_TEMP/verpex-hostkeys"
-          echo 'SSH service is reachable on port 22.'
-          echo 'Public SSH host-key fingerprints (verify these with Verpex before authentication):'
-          ssh-keygen -lf "$RUNNER_TEMP/verpex-hostkeys"
+          test -n "$VERPEX_HOST"
+          ssh-keyscan -T 10 -p 22 -t ed25519 "$VERPEX_HOST" 2>/dev/null > "$RUNNER_TEMP/verpex-known-hosts"
+          test -s "$RUNNER_TEMP/verpex-known-hosts"
+          actual=$(ssh-keygen -lf "$RUNNER_TEMP/verpex-known-hosts" -E sha256 | awk '$4=="(ED25519)" { print $2 }' | head -n 1)
+          expected="SHA256:fGMfvrvS+yTnR34uJmdcCotSizD8wO74DSs9IGyPUqQ"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Verpex SSH server host key does not match the verified fingerprint."
+            exit 1
+          fi
+          echo "Verified Verpex SSH host fingerprint."
+
+      - name: Authenticate with passphrase-protected key (read-only)
+        shell: bash
+        env:
+          VERPEX_HOST: ${{ secrets.VERPEX_SSH_HOST }}
+          VERPEX_USER: ${{ secrets.VERPEX_SSH_USER }}
+          VERPEX_KEY: ${{ secrets.VERPEX_SSH_KEY }}
+          VERPEX_SSH_PASSPHRASE: ${{ secrets.VERPEX_SSH_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$VERPEX_HOST"
+          test -n "$VERPEX_USER"
+          test -n "$VERPEX_KEY"
+          mkdir -p "$RUNNER_TEMP/verpex-ssh"
+          chmod 700 "$RUNNER_TEMP/verpex-ssh"
+          printf '%s\n' "$VERPEX_KEY" > "$RUNNER_TEMP/verpex-ssh/deploy_key"
+          chmod 600 "$RUNNER_TEMP/verpex-ssh/deploy_key"
+          cat > "$RUNNER_TEMP/verpex-ssh/askpass" <<'ASKPASS'
+          #!/bin/sh
+          printf '%s\n' "$VERPEX_SSH_PASSPHRASE"
+          ASKPASS
+          chmod 700 "$RUNNER_TEMP/verpex-ssh/askpass"
+          eval "$(ssh-agent -s)" > /dev/null
+          trap 'ssh-agent -k >/dev/null 2>&1 || true' EXIT
+          export SSH_ASKPASS="$RUNNER_TEMP/verpex-ssh/askpass"
+          export SSH_ASKPASS_REQUIRE=force
+          export DISPLAY=:0
+          ssh-add "$RUNNER_TEMP/verpex-ssh/deploy_key" < /dev/null
+          ssh -p 22 \
+            -i "$RUNNER_TEMP/verpex-ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/verpex-known-hosts" \
+            -o ConnectTimeout=15 \
+            "$VERPEX_USER@$VERPEX_HOST" \
+            'echo "SSH authentication succeeded"; whoami; test -d "$HOME/trackcoop-web" && echo "Frontend directory exists"'
