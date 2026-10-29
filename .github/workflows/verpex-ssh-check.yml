@@ -50,18 +50,12 @@ jobs:
           chmod 700 "$RUNNER_TEMP/verpex-ssh"
           printf '%s\n' "$VERPEX_KEY" > "$RUNNER_TEMP/verpex-ssh/deploy_key"
           chmod 600 "$RUNNER_TEMP/verpex-ssh/deploy_key"
-          cat > "$RUNNER_TEMP/verpex-ssh/askpass" <<'ASKPASS'
-          #!/bin/sh
-          printf '%s\n' "$VERPEX_SSH_PASSPHRASE"
-          ASKPASS
-          chmod 700 "$RUNNER_TEMP/verpex-ssh/askpass"
-          eval "$(ssh-agent -s)" > /dev/null
-          trap 'ssh-agent -k >/dev/null 2>&1 || true' EXIT
-          export SSH_ASKPASS="$RUNNER_TEMP/verpex-ssh/askpass"
-          export SSH_ASKPASS_REQUIRE=force
-          export DISPLAY=:0
-          ssh-add "$RUNNER_TEMP/verpex-ssh/deploy_key" < /dev/null
-          ssh -p 22 \
+          # Validate the passphrase and decrypt only the temporary runner copy.
+          # The protected key remains stored in GitHub Actions Secrets.
+          ssh-keygen -y -P "$VERPEX_SSH_PASSPHRASE" -f "$RUNNER_TEMP/verpex-ssh/deploy_key" > /dev/null
+          ssh-keygen -p -P "$VERPEX_SSH_PASSPHRASE" -N '' -f "$RUNNER_TEMP/verpex-ssh/deploy_key" > /dev/null
+          chmod 600 "$RUNNER_TEMP/verpex-ssh/deploy_key"
+          timeout 30s ssh -n -p 22 \
             -i "$RUNNER_TEMP/verpex-ssh/deploy_key" \
             -o IdentitiesOnly=yes \
             -o BatchMode=yes \
