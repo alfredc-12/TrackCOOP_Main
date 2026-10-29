@@ -2,6 +2,11 @@ name: Build TrackCOOP Frontend for Verpex
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/verpex-web-build.yml
 
 permissions:
   contents: read
