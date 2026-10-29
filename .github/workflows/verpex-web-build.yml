@@ -1,0 +1,57 @@
+name: Build TrackCOOP Frontend for Verpex
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: Build standalone Next.js package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_APP_URL: "https://verpex-test.trackcoop.online"
+      NEXT_PUBLIC_API_URL: "https://api-verpex-test.trackcoop.online"
+
+    steps:
+      - name: Check out TrackCOOP
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+
+      - name: Enable standalone output for this build only
+        run: |
+          sed -i '/const nextConfig: NextConfig = {/a\  output: "standalone",' next.config.ts
+
+      - name: Build frontend
+        run: npm run build:web
+
+      - name: Package standalone server, static assets, and public assets
+        run: |
+          set -e
+          test -f .next/standalone/server.js
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/
+          cp -a public .next/standalone/
+          tar -czf trackcoop-web-verpex.tar.gz -C .next/standalone .
+          ls -lh trackcoop-web-verpex.tar.gz
+
+      - name: Save package as downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trackcoop-web-verpex
+          path: trackcoop-web-verpex.tar.gz
+          if-no-files-found: error
+          retention-days: 7
