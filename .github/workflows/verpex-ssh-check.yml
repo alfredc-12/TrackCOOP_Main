@@ -60,4 +60,12 @@ jobs:
             -o UserKnownHostsFile="$RUNNER_TEMP/verpex-known-hosts" \
             -o ConnectTimeout=15 \
             "$VERPEX_USER@$VERPEX_HOST" \
-            'echo "SSH authentication succeeded"; whoami; test -d "$HOME/trackcoop-web" && echo "Frontend directory exists"'
+            'set -eu
+             echo "SSH authentication succeeded"
+             test -d "$HOME/trackcoop-web" && echo "Frontend directory exists"
+             if [ -L "$HOME/trackcoop-web/node_modules" ]; then echo "node_modules is symlink"; elif [ -d "$HOME/trackcoop-web/node_modules" ]; then echo "node_modules is directory"; else echo "node_modules absent"; fi
+             if [ -f "$HOME/trackcoop-web/server.js" ]; then echo "server.js exists"; else echo "server.js absent"; fi
+             if [ -f "$HOME/trackcoop-web/package.json" ]; then echo "package.json exists"; else echo "package.json absent"; fi
+             if [ -d "$HOME/trackcoop-web/.next" ]; then echo "next build exists"; else echo "next build absent"; fi
+             if [ -x "$HOME/nodevenv/trackcoop-web/24/bin/node" ]; then echo "Node.js 24 environment exists"; else echo "Node.js 24 environment absent"; fi
+             if [ -d "$HOME/trackcoop-web/tmp" ]; then echo "tmp directory exists"; else echo "tmp directory absent"; fi'
