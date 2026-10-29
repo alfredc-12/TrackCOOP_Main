@@ -34,13 +34,12 @@ jobs:
           fi
           echo "Verified Verpex SSH host fingerprint."
 
-      - name: Authenticate with passphrase-protected key (read-only)
+      - name: Authenticate with passwordless deployment key (read-only)
         shell: bash
         env:
           VERPEX_HOST: ${{ secrets.VERPEX_SSH_HOST }}
           VERPEX_USER: ${{ secrets.VERPEX_SSH_USER }}
           VERPEX_KEY: ${{ secrets.VERPEX_SSH_KEY }}
-          VERPEX_SSH_PASSPHRASE: ${{ secrets.VERPEX_SSH_PASSPHRASE }}
         run: |
           set -euo pipefail
           test -n "$VERPEX_HOST"
@@ -50,15 +49,13 @@ jobs:
           chmod 700 "$RUNNER_TEMP/verpex-ssh"
           printf '%s\n' "$VERPEX_KEY" > "$RUNNER_TEMP/verpex-ssh/deploy_key"
           chmod 600 "$RUNNER_TEMP/verpex-ssh/deploy_key"
-          # Validate the passphrase and decrypt only the temporary runner copy.
-          # The protected key remains stored in GitHub Actions Secrets.
-          ssh-keygen -y -P "$VERPEX_SSH_PASSPHRASE" -f "$RUNNER_TEMP/verpex-ssh/deploy_key" > /dev/null
-          ssh-keygen -p -P "$VERPEX_SSH_PASSPHRASE" -N '' -f "$RUNNER_TEMP/verpex-ssh/deploy_key" > /dev/null
-          chmod 600 "$RUNNER_TEMP/verpex-ssh/deploy_key"
+          # Validate key format without printing the public key.
+          ssh-keygen -y -P '' -f "$RUNNER_TEMP/verpex-ssh/deploy_key" > /dev/null
           timeout 30s ssh -n -p 22 \
             -i "$RUNNER_TEMP/verpex-ssh/deploy_key" \
             -o IdentitiesOnly=yes \
             -o BatchMode=yes \
+            -o PasswordAuthentication=no \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$RUNNER_TEMP/verpex-known-hosts" \
             -o ConnectTimeout=15 \
