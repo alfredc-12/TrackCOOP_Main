@@ -23,6 +23,7 @@ import {
   Bell,
   Search,
   User,
+  UserPlus,
   Wallet,
   Calendar,
   Megaphone,
@@ -585,11 +586,11 @@ export default function MemberDashboardPage() {
     <div className="flex min-h-[101vh] flex-col bg-[#F8F6EF] font-sans">
       {/* 1. TOP NAVBAR */}
       <header className="sticky top-0 z-50 border-b-2 border-[#1F6B43]/55 bg-white/92 text-[#123D2A] shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-2 px-3 sm:px-8">
           {/* Logo Section */}
-          <div className="shrink-0 lg:w-[210px]">
+          <div className="shrink-0 xl:w-[210px]">
             <Link href="#" onClick={() => setActiveTab("Dashboard")} className="flex items-center gap-3">
-              <span className="relative block size-14 overflow-hidden rounded-md">
+              <span className="relative block size-10 overflow-hidden rounded-md sm:size-14">
                 <Image
                   src="/trackcoop-logo.svg"
                   alt="TrackCOOP logo"
@@ -612,7 +613,7 @@ export default function MemberDashboardPage() {
           </div>
 
           {/* Center Nav Links */}
-          <nav aria-label="Member navigation" className="hidden items-center gap-1 lg:flex">
+          <nav aria-label="Member navigation" className="hidden items-center gap-1 xl:flex">
             <button onClick={() => setActiveTab("Dashboard")} className={navClass("Dashboard")}>Dashboard</button>
             <button onClick={() => setActiveTab("Member & Share")} className={navClass("Member & Share")}>Member & Share</button>
             <button onClick={() => setActiveTab("Financial")} className={navClass("Financial")}>Financial</button>
@@ -621,7 +622,7 @@ export default function MemberDashboardPage() {
           </nav>
 
           {/* Right Actions */}
-          <div className="flex shrink-0 items-center justify-end gap-3 lg:w-[210px]">
+          <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3">
 
             {/* <button onClick={() => setActiveTab("Help")} className={`transition ${activeTab === "Help" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Help Center">
               <MessageSquare className="size-5" />
@@ -637,16 +638,25 @@ export default function MemberDashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => setReferralModalOpen(true)}
+              aria-haspopup="dialog"
+              className="flex min-h-10 items-center gap-2 rounded-full border border-[#A9C9B1] bg-[#EAF3E8] px-3 py-2.5 text-xs font-bold text-[#1F6B43] transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] focus-visible:ring-offset-2 sm:px-4 sm:text-sm"
+            >
+              <UserPlus className="hidden size-4 sm:block" aria-hidden="true" />
+              Refer a Friend
+            </button>
+            <button
+              type="button"
               onClick={handleLogout}
               disabled={isSigningOut}
-              className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1F6B43] disabled:cursor-wait disabled:opacity-70"
+              className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[#1F6B43] sm:px-5 sm:text-sm disabled:cursor-wait disabled:opacity-70"
             >
               {isSigningOut ? "Logging out" : "Logout"}
               <LogOut className="size-4" />
             </button>
           </div>
         </div>
-        <nav aria-label="Mobile member navigation" className="flex gap-1 overflow-x-auto border-t border-[#DDE8D8] px-4 py-2 lg:hidden">
+        <nav aria-label="Mobile member navigation" className="flex gap-1 overflow-x-auto border-t border-[#DDE8D8] px-4 py-2 xl:hidden">
           {[
             { value: "Dashboard", label: "Dashboard" },
             { value: "Member & Share", label: "Member & Share" },
