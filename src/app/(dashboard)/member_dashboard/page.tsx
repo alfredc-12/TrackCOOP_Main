@@ -32,7 +32,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  Award,
   FileText,
   Briefcase,
   ChevronDown,
@@ -41,7 +40,6 @@ import {
   LogOut,
   Images,
   ArrowUpRight,
-  ArrowDownRight,
   ArrowDownLeft,
   Clock,
   CheckCircle2,
@@ -49,12 +47,9 @@ import {
   ShoppingBag,
   Store,
   Tractor,
-  TrendingUp,
-  Download,
   Printer,
   RefreshCw,
   PieChart,
-  Star,
   ShieldCheck,
   AlertCircle,
   Info,
@@ -67,6 +62,7 @@ import {
   ChevronsRight,
   Share2
 } from "lucide-react";
+import { MemberShareOverview } from "@/features/member-share-capital/MemberShareOverview";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
 import { ProfileSettings } from "./components/ProfileSettings";
@@ -113,33 +109,6 @@ function escapeHtml(value: unknown) {
     "'": "&#39;",
   })[character] ?? character);
 }
-
-function isAtLeastYearsAgo(value: unknown, years: number) {
-  if (!value) return false;
-  const startDate = new Date(String(value));
-  if (Number.isNaN(startDate.getTime())) return false;
-
-  const anniversary = new Date(startDate);
-  anniversary.setFullYear(anniversary.getFullYear() + years);
-  return new Date() >= anniversary;
-}
-
-const MAX_SHARE_CAPITAL = 15_000;
-const SHARE_CAPITAL_TIERS = [
-  { label: "Starter Tier", minimum: 0 },
-  { label: "Bronze Tier", minimum: 1_500 },
-  { label: "Silver Tier", minimum: 3_000 },
-  { label: "Gold Tier", minimum: 7_500 },
-  { label: "Platinum Tier", minimum: MAX_SHARE_CAPITAL },
-] as const;
-
-const SHARE_CAPITAL_TIER_BADGE_CLASSES = {
-  "Starter Tier": "bg-slate-100 text-slate-600",
-  "Bronze Tier": "bg-amber-100 text-amber-700",
-  "Silver Tier": "bg-slate-200 text-slate-700",
-  "Gold Tier": "bg-yellow-100 text-yellow-700",
-  "Platinum Tier": "bg-indigo-100 text-indigo-700",
-} as const;
 
 type FinancialPeriod = "year" | "month" | "30d" | "all" | "custom";
 
@@ -222,49 +191,6 @@ export default function MemberDashboardPage() {
   const referralLink = referralCode
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/membership/apply?ref=${encodeURIComponent(referralCode)}`
     : "";
-  const cappedShareCapital = Math.min(shareCapitalTotal, MAX_SHARE_CAPITAL);
-  const shareCapitalProgress = Math.round((cappedShareCapital / MAX_SHARE_CAPITAL) * 100);
-  const shareCapitalTierIndex = SHARE_CAPITAL_TIERS.reduce(
-    (currentIndex, tier, index) => (cappedShareCapital >= tier.minimum ? index : currentIndex),
-    0,
-  );
-  const currentShareCapitalTier = SHARE_CAPITAL_TIERS[shareCapitalTierIndex];
-  const nextShareCapitalTier = SHARE_CAPITAL_TIERS[shareCapitalTierIndex + 1];
-  const currentShareCapitalTierBadgeClass = SHARE_CAPITAL_TIER_BADGE_CLASSES[currentShareCapitalTier.label];
-  const amountToNextShareCapitalTier = nextShareCapitalTier
-    ? Math.max(0, nextShareCapitalTier.minimum - cappedShareCapital)
-    : 0;
-  const memberSince = dashboardData?.member?.memberSince;
-  const postedCapitalContributionCount = Number(dashboardData?.stats?.deposits) || 0;
-  const hasDividendReinvestment = memberDividends.some((dividend) => dividend.status === "Added to Share Capital");
-  const badgesReady = Boolean(dashboardData) && !isFetchingDashboard && !isFetchingDividends;
-  const memberBadges = [
-    {
-      label: "1 Year Member",
-      icon: Award,
-      iconClassName: "bg-amber-100 text-amber-600",
-      earned: isAtLeastYearsAgo(memberSince, 1),
-    },
-    {
-      label: "First Share Capital Deposit",
-      icon: Wallet,
-      iconClassName: "bg-blue-100 text-blue-600",
-      earned: postedCapitalContributionCount >= 1,
-    },
-    {
-      label: "Consistent Contributor",
-      icon: Star,
-      iconClassName: "bg-green-100 text-green-600",
-      earned: postedCapitalContributionCount >= 3,
-    },
-    {
-      label: "Dividend Reinvestor",
-      icon: TrendingUp,
-      iconClassName: "bg-purple-100 text-purple-600",
-      earned: hasDividendReinvestment,
-    },
-  ];
-
   const financialTransparency = dashboardData?.financialTransparency;
   const financialIncomeTotal = Number(financialTransparency?.incomeTotal || 0);
   const financialExpenseTotal = Number(financialTransparency?.expenseTotal || 0);
@@ -350,6 +276,18 @@ export default function MemberDashboardPage() {
     }
   }, []);
 
+  const refreshMemberPatronage = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setIsFetchingPatronage(true);
+    try {
+      setPatronageData(await getMemberPatronage());
+      setPatronageLoadError(false);
+    } catch {
+      setPatronageLoadError(true);
+    } finally {
+      setIsFetchingPatronage(false);
+    }
+  }, []);
+
   useEffect(() => {
     getAuthenticatedUser()
       .then(setUser)
@@ -362,41 +300,28 @@ export default function MemberDashboardPage() {
       void refreshMemberDividends();
     }, 0);
 
-    getMemberPatronage()
-      .then((data) => {
-        setPatronageData(data);
-        setPatronageLoadError(false);
-      })
-      .catch((error) => {
-        console.error(error);
-        setPatronageLoadError(true);
-      })
-      .finally(() => setIsFetchingPatronage(false));
+    const patronageRefreshTimer = window.setTimeout(() => { void refreshMemberPatronage(); }, 0);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") {
         void refreshDashboard({ silent: true });
         void refreshMemberDividends({ silent: true });
+        void refreshMemberPatronage({ silent: true });
       }
     };
     const interval = window.setInterval(refreshWhenVisible, 15_000);
     window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("trackcoop:patronage-updated", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(dashboardRefreshTimer);
       window.clearTimeout(dividendRefreshTimer);
+      window.clearTimeout(patronageRefreshTimer);
       window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("trackcoop:patronage-updated", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshDashboard, refreshMemberDividends]);
-
-  const publishedDividends = memberDividends
-    .filter((dividend) => dividend.declarationStatus === "Published")
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
-  const latestPublishedDividend = publishedDividends[0] ?? null;
-  const latestPublishedDividendAmount = Number(latestPublishedDividend?.amount ?? 0);
-  const latestPublishedDividendCompleted = latestPublishedDividend?.status === "Withdrawn" || latestPublishedDividend?.status === "Added to Share Capital";
-  const latestPublishedDividendBalance = latestPublishedDividendCompleted ? 0 : latestPublishedDividendAmount;
+  }, [refreshDashboard, refreshMemberDividends, refreshMemberPatronage]);
 
   function resetDividendAction() {
     setActionDividend(null);
@@ -1177,7 +1102,7 @@ export default function MemberDashboardPage() {
       </Modal>
 
       <main className="flex-1">
-        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Financial" ? "py-3" : "py-8"}`}>
+        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Financial" || activeTab === "Member & Share" ? "py-3" : "py-8"}`}>
 
           {/* ======================= DASHBOARD TAB ======================= */}
           {activeTab === "Dashboard" && (
@@ -1742,283 +1667,21 @@ export default function MemberDashboardPage() {
 
           {/* ======================= MEMBER & SHARE CAPITAL TAB ======================= */}
           {activeTab === "Member & Share" && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <section className="text-center mb-10">
-                <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-[#2F7D57]">Financial Overview</h2>
-                <h3 className="mt-2 text-3xl font-bold text-[#173626]">Share Capital & Milestones</h3>
-              </section>
-
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                {/* LEFT COLUMN: Premium Passbook & Growth */}
-                <div className="md:col-span-7 flex flex-col gap-6">
-
-                  {/* Digital Passbook Card */}
-                  <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#123D2A] via-[#1a5c3f] to-[#123D2A] p-8 shadow-2xl text-white">
-                    {/* Decorative Background Elements */}
-                    <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/5 blur-3xl"></div>
-                    <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-white/5 blur-3xl"></div>
-
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-8">
-                        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur-md border border-white/20">
-                          <Wallet className="h-4 w-4" /> Digital Passbook
-                        </div>
-                        <ShieldCheck className="h-6 w-6 text-white/50" />
-                      </div>
-
-                      <p className="text-sm font-medium text-white/80 tracking-wide">Total Share Capital</p>
-                      <h4 className="mt-2 text-5xl font-bold tracking-tight">
-                        {isFetchingDashboard ? "..." : `₱${(dashboardData?.shareCapital?.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-                      </h4>
-
-                      <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                        <button className="flex-1 rounded-xl bg-white px-6 py-3.5 font-bold text-[#123D2A] shadow-lg transition hover:bg-[#F8F6EF] hover:-translate-y-0.5 hover:shadow-xl flex items-center justify-center gap-2">
-                          <TrendingUp className="h-5 w-5" /> Deposit Capital
-                        </button>
-                        <a href="/statement" target="_blank" className="flex-1 rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-6 py-3.5 font-bold text-white transition hover:bg-white/20 hover:-translate-y-0.5 flex items-center justify-center gap-2">
-                          <Download className="h-5 w-5" /> Download Statement
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dividends & Patronage */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-2xl border border-[#B8D6BE] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6B7280]">Dividends Earned</p>
-                        <PieChart className="h-5 w-5 text-amber-500" />
-                      </div>
-                      {latestPublishedDividendCompleted ? (
-                        <div className="mt-3 flex min-h-[112px] flex-col justify-between gap-4">
-                          <h3 className="text-2xl font-bold text-[#173626]">
-                            {isFetchingDividends ? "..." : formatPeso(0)}
-                          </h3>
-                          <div className="flex items-end justify-between gap-3">
-                            <p className="max-w-[210px] text-[10px] font-semibold leading-3 text-[#6B7280]">
-                              {latestPublishedDividend?.declarationName}
-                            </p>
-                            <div className={`shrink-0 text-right ${latestPublishedDividend?.status === "Withdrawn" ? "text-red-600" : "text-emerald-700"}`}>
-                              <p className="text-[10px] font-bold uppercase tracking-wider">
-                                {latestPublishedDividend?.status === "Withdrawn"
-                                  ? latestPublishedDividend.withdrawalMethod ?? "Cash"
-                                  : "Share Capital"}
-                              </p>
-                              <p className="text-sm font-bold">
-                                {latestPublishedDividend?.status === "Withdrawn" ? "−" : "+"} {formatPeso(latestPublishedDividendAmount)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="mt-3 flex items-center justify-between gap-2">
-                            <h3 className="text-2xl font-bold text-[#173626]">
-                              {isFetchingDividends ? "..." : formatPeso(latestPublishedDividendBalance)}
-                            </h3>
-                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                              dividendLoadError
-                                ? "bg-red-50 text-red-600"
-                                : latestPublishedDividend?.status === "Available"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : latestPublishedDividend?.status === "Withdrawal Requested" || latestPublishedDividend?.status === "Capitalization Requested"
-                                    ? "bg-amber-50 text-amber-700"
-                                    : "bg-slate-100 text-slate-500"
-                            }`}>
-                              {isFetchingDividends
-                                ? "Loading"
-                                : dividendLoadError
-                                  ? "Unavailable"
-                                  : latestPublishedDividend?.status ?? "No published dividend"}
-                            </span>
-                          </div>
-                          <p className="mt-2 text-xs font-semibold text-slate-500">
-                            {latestPublishedDividend?.declarationName ?? "Published dividend allocations will appear here."}
-                          </p>
-                          {latestPublishedDividend?.status === "Available" ? (
-                            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                              <button
-                                type="button"
-                                onClick={() => openDividendAction(latestPublishedDividend, "withdraw")}
-                                disabled={dividendActionBusy}
-                                className="flex-1 rounded-lg border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#123D2A] transition hover:bg-[#F3F7F1] disabled:opacity-50"
-                              >
-                                Withdraw
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => openDividendAction(latestPublishedDividend, "capital")}
-                                disabled={dividendActionBusy}
-                                className="flex-1 rounded-lg bg-[#123D2A] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-50"
-                              >
-                                Add to capital
-                              </button>
-                            </div>
-                          ) : latestPublishedDividend ? (
-                            <p className="mt-4 text-xs font-semibold text-[#6B7280]">
-                              {latestPublishedDividend.status === "Pending"
-                                ? "Waiting for the scheduled distribution date."
-                                : latestPublishedDividend.status === "Withdrawal Requested"
-                                  ? "Withdrawal request sent to the Bookkeeper."
-                                  : latestPublishedDividend.status === "Capitalization Requested"
-                                    ? "Share Capital addition request sent to the Bookkeeper."
-                                    : "No action available for this dividend."}
-                            </p>
-                          ) : null}
-                        </>
-                      )}
-                    </div>
-                    <div className="hidden rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6B7280]">Dividends Earned</p>
-                        <PieChart className="h-5 w-5 text-amber-500" />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between">
-                        <h3 className="text-2xl font-bold text-[#173626]">₱0.00</h3>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Coming Soon</span>
-                      </div>
-                      <p className="mt-2 text-xs font-semibold text-slate-500 flex items-center gap-1">Available at year end</p>
-                    </div>
-                    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition hover:shadow-md hover:border-[#1F6B43]">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6B7280]">Patronage Refund</p>
-                        <Star className="h-5 w-5 text-blue-500" />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between">
-                        <h3 className="text-2xl font-bold text-[#173626]">
-                          {isFetchingPatronage
-                            ? "..."
-                            : `₱${(patronageData?.refunds.allocatedTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                        </h3>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
-                          patronageLoadError
-                            ? "bg-red-50 text-red-600"
-                            : (patronageData?.refunds.pendingTotal || 0) > 0
-                              ? "bg-amber-50 text-amber-700"
-                              : (patronageData?.refunds.paidTotal || 0) > 0
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-slate-100 text-slate-500"
-                        }`}>
-                          {isFetchingPatronage
-                            ? "Loading"
-                            : patronageLoadError
-                              ? "Unavailable"
-                              : (patronageData?.refunds.pendingTotal || 0) > 0
-                                ? "Pending"
-                                : (patronageData?.refunds.paidTotal || 0) > 0
-                                  ? "Paid"
-                                  : "No refund yet"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">
-                        {patronageLoadError
-                          ? "Could not load your refund balance"
-                          : `Balance: ₱${(patronageData?.refunds.pendingTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Received: ₱${(patronageData?.refunds.paidTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                      </p>
-                      <Link href="/portal/member/patronage" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#1F6B43] hover:underline">
-                        View patronage details <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT COLUMN: Achievements & Milestones */}
-                <div className="md:col-span-5 flex flex-col gap-6">
-
-                  {/* Achievements Panel */}
-                  <div className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm flex-1 flex flex-col">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-xl font-bold text-[#173626]">Badges & Tiers</h3>
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${currentShareCapitalTierBadgeClass}`}>
-                        {currentShareCapitalTier.label}
-                      </span>
-                    </div>
-
-                    <div className="mb-6">
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="font-semibold text-[#173626]">
-                          {nextShareCapitalTier ? `Next Milestone: ${nextShareCapitalTier.label}` : "Maximum Share Capital reached"}
-                        </span>
-                        <span className="font-bold text-[#2F7D57]">{shareCapitalProgress}%</span>
-                      </div>
-                      <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#1F6B43] to-[#2F7D57] transition-all duration-500"
-                          style={{ width: `${shareCapitalProgress}%` }}
-                        ></div>
-                      </div>
-                      <p className="mt-2 text-xs text-[#6B7280]">
-                        {nextShareCapitalTier
-                          ? `${formatPeso(amountToNextShareCapitalTier)} more share capital needed for ${nextShareCapitalTier.label}.`
-                          : `You have reached the ${formatPeso(MAX_SHARE_CAPITAL)} maximum share capital.`}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mt-auto">
-                      {memberBadges.map((badge) => {
-                        const BadgeIcon = badge.icon;
-                        const isEarned = badgesReady && badge.earned;
-
-                        return (
-                          <div
-                            key={badge.label}
-                            className={`flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-4 text-center transition hover:bg-white hover:shadow-md hover:border-[#E5E7EB] ${isEarned ? "" : "opacity-50 grayscale"}`}
-                          >
-                            <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ${isEarned ? badge.iconClassName : "bg-slate-200 text-slate-400"}`}>
-                              <BadgeIcon className="h-6 w-6" />
-                            </div>
-                            <h4 className="text-sm font-bold text-[#173626]">{badge.label}</h4>
-                            <span className={`mt-2 text-[10px] font-bold uppercase tracking-wider ${isEarned ? "text-[#2F7D57]" : "text-slate-400"}`}>
-                              {!badgesReady ? "Checking..." : isEarned ? "Earned" : "Locked"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* RECENT DEPOSITS LIST */}
-              <div className="mt-8 rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
-                <h3 className="text-xl font-bold text-[#173626] mb-6">Recent Capital Contributions</h3>
-                <div className="space-y-4">
-                  {dashboardData?.recentCapitalContributions?.length > 0 ? (
-                    dashboardData.recentCapitalContributions.map((item: any, idx: number) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:bg-white hover:shadow-sm transition">
-                        <div className="flex items-center gap-4 mb-3 sm:mb-0">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700">
-                            <ArrowDownRight className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-[#173626]">{item.type === "Dividend Added to Share Capital" ? "Dividend Added to Share Capital" : "Capital Deposit"}</h4>
-                            <p className="text-xs text-[#6B7280]">{item.type === "Dividend Added to Share Capital" ? "From dividend allocation" : "Member Share Capital payment"}</p>
-                            <p className="text-xs text-[#6B7280]">ID: {item.id}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-1/2">
-                          <div className="text-left sm:text-right">
-                            <p className="text-xs font-semibold text-[#6B7280]">
-                              {new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <h4 className="font-bold text-[#173626]">₱{Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</h4>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-green-600">{item.status}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center text-slate-500 py-4">No recent contributions found.</div>
-                  )}
-                </div>
-              </div>
-
-            </div>
+            <MemberShareOverview
+              capital={shareCapitalTotal}
+              linked={Boolean(dashboardData?.isLinked)}
+              memberSince={dashboardData?.member?.memberSince}
+              contributionCount={Number(dashboardData?.stats?.deposits) || 0}
+              activities={dashboardData?.recentCapitalContributions ?? []}
+              dividends={memberDividends}
+              patronage={patronageData}
+              loading={{ capital: isFetchingDashboard, interest: isFetchingDividends, patronage: isFetchingPatronage }}
+              errors={{ capital: dashboardLoadError, interest: dividendLoadError, patronage: patronageLoadError }}
+              onRefresh={() => { void refreshDashboard(); void refreshMemberDividends(); void refreshMemberPatronage(); }}
+              onDividendAction={openDividendAction}
+              dividendBusy={dividendActionBusy}
+            />
           )}
-
-
 
           {/* ======================= ANNOUNCEMENTS TAB ======================= */}
           {activeTab === "Announcements" && (

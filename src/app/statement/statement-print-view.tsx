@@ -3,7 +3,17 @@
 import { useEffect } from "react";
 import Image from "next/image";
 
-export default function StatementPrintView({ member, deposits, purchases }: { member: any, deposits: any[], purchases: any[] }) {
+type StatementItem = { amount: number | string; date: string | Date; ref: string | null; type?: string };
+export type MemberStatement = {
+  member: { full_name?: string; barangay?: string; municipality?: string; province?: string;
+    contact_number?: string; user_email?: string; member_code?: string; membership_type?: string; official_member_status?: string };
+  deposits: StatementItem[];
+  purchases: StatementItem[];
+  capitalBalance?: number;
+  reconciled?: boolean;
+};
+
+export default function StatementPrintView({ member, deposits, purchases, capitalBalance, reconciled }: MemberStatement) {
   
   useEffect(() => {
     // Automatically trigger print dialog when component mounts
@@ -13,7 +23,7 @@ export default function StatementPrintView({ member, deposits, purchases }: { me
     return () => clearTimeout(timer);
   }, []);
 
-  const totalCapital = deposits.reduce((sum, item) => sum + Number(item.amount), 0);
+  const totalCapital = capitalBalance ?? deposits.reduce((sum, item) => sum + Math.round(Number(item.amount) * 100), 0) / 100;
   const totalPurchases = purchases.reduce((sum, item) => sum + Number(item.amount), 0);
 
   return (
@@ -28,7 +38,7 @@ export default function StatementPrintView({ member, deposits, purchases }: { me
 
       <div className="no-print p-4 bg-gray-100 text-center border-b border-gray-300">
         <p className="text-sm text-gray-600 mb-2">This is the print preview of your Statement of Account.</p>
-        <button onClick={() => window.print()} className="bg-[#123D2A] text-white px-4 py-2 rounded-lg font-bold">Print Document</button>
+        <button onClick={() => window.print()} className="bg-[#123D2A] text-white px-4 py-2 rounded-lg font-bold">Print / Save as PDF</button>
         <button onClick={() => window.close()} className="ml-2 bg-white text-gray-800 border border-gray-300 px-4 py-2 rounded-lg font-bold">Close</button>
       </div>
 
@@ -69,7 +79,8 @@ export default function StatementPrintView({ member, deposits, purchases }: { me
 
         {/* Share Capital */}
         <div className="mb-10">
-          <h4 className="text-lg font-bold text-[#123D2A] mb-4 border-b border-gray-200 pb-2">Share Capital Deposits</h4>
+          <h4 className="text-lg font-bold text-[#123D2A] mb-4 border-b border-gray-200 pb-2">Share Capital History</h4>
+          {reconciled === false ? <p role="alert" className="mb-3 border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">The listed transactions do not match the recorded balance. Please ask the cooperative office to review your ledger.</p> : null}
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-100 text-xs uppercase tracking-wider text-gray-600">
@@ -82,12 +93,12 @@ export default function StatementPrintView({ member, deposits, purchases }: { me
               {deposits.length > 0 ? deposits.map((d, i) => (
                 <tr key={i} className="border-b border-gray-100">
                   <td className="p-3 text-sm text-gray-800">{new Date(d.date).toLocaleDateString()}</td>
-                  <td className="p-3 text-sm text-gray-600 uppercase">{d.ref || 'Capital Deposit'}</td>
+                  <td className="p-3 text-sm text-gray-600 uppercase">{d.ref || 'Capital record'}{d.type ? <span className="mt-1 block text-xs normal-case">{d.type}</span> : null}</td>
                   <td className="p-3 text-sm font-bold text-[#173626] text-right">{Number(d.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={3} className="p-6 text-center text-sm text-gray-400">No share capital deposits recorded.</td>
+                  <td colSpan={3} className="p-6 text-center text-sm text-gray-400">No posted capital changes recorded.</td>
                 </tr>
               )}
             </tbody>

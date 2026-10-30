@@ -19,6 +19,9 @@ export type PatronageAllocation = PatronageSourceAmount & {
   paymentStatus: PatronagePaymentStatus;
   paidAt: Date | null;
   paymentNotes: string | null;
+  capitalizedAmount?: number;
+  pendingCapitalAmount?: number;
+  availableRefund?: number;
 };
 
 export type PatronagePeriod = {
@@ -83,6 +86,8 @@ export type PatronageMemberSummary = {
     allocatedTotal: number;
     paidTotal: number;
     pendingTotal: number;
+    capitalizedTotal?: number;
+    pendingCapitalTotal?: number;
   };
   history: Array<{
     periodId: string;
@@ -94,5 +99,7 @@ export type PatronageMemberSummary = {
     refundAmount: number;
     paymentStatus: PatronagePaymentStatus;
     paidAt: Date | null;
+    capitalizedAmount?: number;
+    pendingCapitalAmount?: number;
   }>;
 };

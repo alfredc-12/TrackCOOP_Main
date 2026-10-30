@@ -1,3 +1,4 @@
+import { createPatronageCapitalRouter } from "./patronage-capital.routes";
 import { Router } from "express";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
@@ -24,5 +25,6 @@ export function createPatronageRouter(
   router.post("/patronage/allocations/:id/paid", ...staff, controller.markPaid);
   router.get("/members/me/patronage", ...memberOnly, controller.memberSummary);
 
+  router.use(createPatronageCapitalRouter(authService));
   return router;
 }

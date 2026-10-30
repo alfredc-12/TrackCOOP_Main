@@ -1,3 +1,5 @@
+import { patronageCapitalColumns, patronageCapitalTotals } from "./patronage-capital.repository";
+import { availablePatronageRefund, moneyCents } from "./patronage-capital.rules";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -56,6 +58,8 @@ type AllocationRow = RowDataPacket & {
   paymentStatus: PatronageAllocation["paymentStatus"];
   paidAt: Date | null;
   paymentNotes: string | null;
+  capitalizedAmount?: string | number;
+  pendingCapitalAmount?: string | number;
 };
 
 type MemberRow = RowDataPacket & {
@@ -97,6 +101,9 @@ function mapAllocation(row: AllocationRow): PatronageAllocation {
     totalPatronage: Number(row.totalPatronage),
     patronageSharePercent: Number(row.patronageSharePercent),
     refundAmount: Number(row.refundAmount),
+    capitalizedAmount: Number(row.capitalizedAmount ?? 0),
+    pendingCapitalAmount: Number(row.pendingCapitalAmount ?? 0),
+    availableRefund: availablePatronageRefund({ ...row, capitalizedAmount: row.capitalizedAmount ?? 0, pendingCapitalAmount: row.pendingCapitalAmount ?? 0 }),
   };
 }
 
@@ -206,7 +213,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
               a.refund_amount AS refundAmount,
               a.payment_status AS paymentStatus,
               a.paid_at AS paidAt,
-              a.payment_notes AS paymentNotes
+              a.payment_notes AS paymentNotes, ${patronageCapitalColumns}
          FROM patronage_allocations a
          JOIN member_profiles m ON m.member_id = a.member_id
         WHERE a.patronage_period_id = ?
@@ -418,9 +425,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
     async markPaid(allocationId, notes, auth) {
       return withTransaction(async (connection) => {
-        const [rows] = await connection.execute<Array<RowDataPacket & { periodId: string; periodStatus: string; paymentStatus: string }>>(
+        const [rows] = await connection.execute<Array<RowDataPacket & { periodId: string; periodStatus: string; paymentStatus: string; refundAmount: number | string }>>(
           `SELECT CAST(a.patronage_period_id AS CHAR) AS periodId, p.period_status AS periodStatus,
-                  a.payment_status AS paymentStatus
+                  a.refund_amount AS refundAmount, a.payment_status AS paymentStatus
              FROM patronage_allocations a
              JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
             WHERE a.patronage_allocation_id = ? FOR UPDATE`,
@@ -434,11 +441,18 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         if (record.paymentStatus === "Paid") {
           throw new AppError("This patronage refund is already recorded as paid.", 409, "PATRONAGE_REFUND_ALREADY_PAID");
         }
+        const totals = await patronageCapitalTotals(connection, allocationId);
+        if (totals.pendingCapitalAmount > 0) {
+          throw new AppError("Review the pending Share Capital transfer before recording a cash payout.", 409, "PATRONAGE_TRANSFER_PENDING");
+        }
+        const cashAmount = availablePatronageRefund({ ...record, ...totals });
+        if (cashAmount <= 0) throw new AppError("No refund remains for cash payout.", 409, "PATRONAGE_REFUND_UNAVAILABLE");
+        const payoutNotes = `Cash paid: ${cashAmount.toFixed(2)}. Added to Share Capital: ${totals.capitalizedAmount.toFixed(2)}.${notes ? ` ${notes}` : ""}`;
         await connection.execute(
           `UPDATE patronage_allocations
               SET payment_status = 'Paid', paid_at = UTC_TIMESTAMP(), paid_by = ?, payment_notes = ?
             WHERE patronage_allocation_id = ?`,
-          [auth.user.id, notes, allocationId],
+          [auth.user.id, payoutNotes, allocationId],
         );
         const [pendingRows] = await connection.execute<Array<RowDataPacket & { pending: number | string }>>(
           `SELECT SUM(payment_status = 'Pending') AS pending
@@ -455,7 +469,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         await connection.execute(
           `INSERT INTO audit_logs (user_id, action, entity_table, record_id, description, new_values)
            VALUES (?, 'patronage.refund_paid', 'patronage_allocations', ?, 'A member patronage refund was marked paid.', ?)`,
-          [auth.user.id, allocationId, JSON.stringify({ notes })],
+          [auth.user.id, allocationId, JSON.stringify({ notes, cashAmount, capitalizedAmount: totals.capitalizedAmount })],
         );
         const [updatedRows] = await connection.execute<AllocationRow[]>(
           `SELECT CAST(a.patronage_allocation_id AS CHAR) AS id,
@@ -465,9 +479,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
                   a.purchase_patronage AS purchasePatronage, a.rental_patronage AS rentalPatronage,
                   a.total_patronage AS totalPatronage, a.patronage_share_percent AS patronageSharePercent,
                   a.refund_amount AS refundAmount, a.payment_status AS paymentStatus,
-                  a.paid_at AS paidAt, a.payment_notes AS paymentNotes
+                  a.paid_at AS paidAt, a.payment_notes AS paymentNotes, ${patronageCapitalColumns}
              FROM patronage_allocations a JOIN member_profiles m ON m.member_id = a.member_id
-            WHERE a.patronage_allocation_id = ?`,
+            WHERE a.patronage_allocation_id = ? FOR UPDATE`,
           [allocationId],
         );
         return mapAllocation(updatedRows[0]);
@@ -503,13 +517,13 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
       const [historyRows] = await databasePool().execute<Array<RowDataPacket & {
         periodId: string; periodName: string; startDate: string; endDate: string;
         periodStatus: PatronagePeriod["status"]; totalPatronage: string | number;
-        refundAmount: string | number; paymentStatus: PatronageAllocation["paymentStatus"]; paidAt: Date | null;
+        capitalizedAmount: string | number; pendingCapitalAmount: string | number; refundAmount: string | number; paymentStatus: PatronageAllocation["paymentStatus"]; paidAt: Date | null;
       }>>(
         `SELECT CAST(p.patronage_period_id AS CHAR) AS periodId, p.period_name AS periodName,
                 DATE_FORMAT(p.period_start, '%Y-%m-%d') AS startDate,
                 DATE_FORMAT(p.period_end, '%Y-%m-%d') AS endDate,
                 p.period_status AS periodStatus, a.total_patronage AS totalPatronage,
-                a.refund_amount AS refundAmount, a.payment_status AS paymentStatus, a.paid_at AS paidAt
+                a.refund_amount AS refundAmount, a.payment_status AS paymentStatus, a.paid_at AS paidAt, ${patronageCapitalColumns}
            FROM patronage_allocations a
            JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
           WHERE a.member_id = ? AND p.period_status IN ('Finalized', 'Paid')
@@ -520,14 +534,18 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         ...row,
         totalPatronage: Number(row.totalPatronage),
         refundAmount: Number(row.refundAmount),
+        capitalizedAmount: Number(row.capitalizedAmount ?? 0),
+        pendingCapitalAmount: Number(row.pendingCapitalAmount ?? 0),
       }));
       const allocatedTotal = history.reduce((sum, row) => sum + row.refundAmount, 0);
-      const paidTotal = history.filter((row) => row.paymentStatus === "Paid").reduce((sum, row) => sum + row.refundAmount, 0);
+      const capitalizedTotal = history.reduce((sum, row) => sum + row.capitalizedAmount, 0);
+      const pendingCapitalTotal = history.reduce((sum, row) => sum + row.pendingCapitalAmount, 0);
+      const paidTotal = history.filter((row) => row.paymentStatus === "Paid").reduce((sum, row) => sum + row.refundAmount - row.capitalizedAmount, 0);
 
       return {
         member: { code: member.memberCode, name: member.memberName, membershipType: member.membershipType },
         currentYear: { startDate, endDate, purchasePatronage, rentalPatronage, totalPatronage: purchasePatronage + rentalPatronage },
-        refunds: { allocatedTotal, paidTotal, pendingTotal: allocatedTotal - paidTotal },
+        refunds: { allocatedTotal, paidTotal, capitalizedTotal, pendingCapitalTotal, pendingTotal: Math.max(0, moneyCents(allocatedTotal) - moneyCents(paidTotal) - moneyCents(capitalizedTotal)) / 100 },
         history,
       };
     },

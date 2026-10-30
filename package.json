@@ -22,6 +22,7 @@
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
     "db:migrate:records": "tsx server/src/scripts/migrate-records.ts",
+    "db:migrate:patronage-capital": "tsx server/src/scripts/migrate-patronage-capital.ts",
     "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",
     "db:migrate:share-capital-ledger": "tsx server/src/scripts/migrate-share-capital-ledger.ts",
     "records:verify": "tsx scripts/verify-records-modules.ts",

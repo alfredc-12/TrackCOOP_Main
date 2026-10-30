@@ -6,7 +6,7 @@
 2. Import `server/database/TrackCOOP_MAIN_Database.sql`.
 3. Apply outstanding dated migrations in chronological order.
 4. Run `npm run db:migrate:share-capital-ledger` for the Share Capital ledger, dividend tables, Interest on Share Capital fields, historical backfill, and reconciliation check.
-5. Run `npm run db:check`; expect 60 required TrackCOOP base tables.
+5. Run `npm run db:check`; expect 61 required TrackCOOP base tables.
 
 ## Existing database
 
@@ -25,3 +25,5 @@ Migrations are manual operator actions and never run during API startup.
 The referral feature uses `20261022_member_referrals.sql` for referral codes and tracking, followed by `20261023_referral_reward_policy.sql` for the Chairman-configurable tracking-credit policy. Apply both in chronological order on an existing database.
 
 Seasonal Analytics and Budget Controls use `20261027_seasons_and_budget_controls.sql`. Apply it after the referral migrations. It creates season, production-record, budget, and budget-line tables and adds nullable season links to financial and POS records. Existing records remain valid; selected-season analytics includes untagged historical records when their dates fall within the season range.
+
+Patronage refund transfers use `20261030_patronage_capital_transfers.sql`. Run `npm run db:migrate:patronage-capital` after the Share Capital ledger and patronage tables, before using the updated patronage screens. The command is safe to retry and only creates the new transfer table. It preserves original refund amounts and cash payouts. Members reserve all or part of an unpaid finalized refund; only a Bookkeeper can approve the capital credit or reject and release the reservation. QRPH and transfer approval recheck current ledger balances and pending online payments. No migration runs at API startup.

@@ -2,13 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { env } from "@/config/env";
 import { getServerAuthUser } from "@/lib/auth-server";
-import StatementPrintView from "./statement-print-view";
-
-type StatementResponse = {
-  member: Record<string, unknown>;
-  deposits: Array<Record<string, unknown>>;
-  purchases: Array<Record<string, unknown>>;
-};
+import StatementPrintView, { type MemberStatement } from "./statement-print-view";
 
 export default async function StatementPage() {
   const user = await getServerAuthUser();
@@ -39,13 +33,15 @@ export default async function StatementPage() {
     return <div className="p-10 text-center">Statement could not be loaded.</div>;
   }
 
-  const statement = (await response.json()) as StatementResponse;
+  const statement = (await response.json()) as MemberStatement;
 
   return (
     <StatementPrintView
       member={statement.member}
       deposits={statement.deposits}
       purchases={statement.purchases}
+      capitalBalance={statement.capitalBalance}
+      reconciled={statement.reconciled}
     />
   );
 }

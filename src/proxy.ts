@@ -83,6 +83,9 @@ function internalPath(pathname: string) {
     return `/bookkeeper${suffix || "/financial-dashboard"}`;
   }
 
+  if (pathname === "/portal/member/patronage" || pathname === "/portal/member/share-capital") {
+    return pathname;
+  }
   if (pathname.startsWith("/portal/member")) {
     return "/member_dashboard";
   }

@@ -191,20 +191,27 @@ async function selectMemberFinancialSummary(
     [memberId, ...memberDateFilter("COALESCE(completed_at, start_datetime)", query).params],
   );
   const [patronageRows] = await connection.execute<MemberFinancialRow[]>(
-    `SELECT CAST(pa.patronage_allocation_id AS CHAR) AS id,
-            'Income' AS recordType,
-            'Patronage' AS category,
-            pa.refund_amount AS amount,
-            COALESCE(pa.paid_at, pp.period_end) AS date,
-            pp.period_name AS description,
-            'Patronage' AS source
-       FROM patronage_allocations pa
-       JOIN patronage_periods pp ON pp.patronage_period_id = pa.patronage_period_id
-      WHERE pa.member_id = ?
-        AND pa.payment_status = 'Paid'
+    `SELECT CONCAT('PAT-CASH-', pa.patronage_allocation_id) AS id,
+            'Income' AS recordType, 'Patronage' AS category,
+            pa.refund_amount - COALESCE((SELECT SUM(t.amount) FROM patronage_capital_transfers t
+              WHERE t.patronage_allocation_id = pa.patronage_allocation_id AND t.transfer_status = 'Approved'), 0) AS amount,
+            COALESCE(pa.paid_at, pp.period_end) AS date, pp.period_name AS description, 'Patronage' AS source
+       FROM patronage_allocations pa JOIN patronage_periods pp ON pp.patronage_period_id = pa.patronage_period_id
+      WHERE pa.member_id = ? AND pa.payment_status = 'Paid'
         ${memberDateFilter("COALESCE(pa.paid_at, pp.period_end)", query).clause}
-      ORDER BY COALESCE(pa.paid_at, pp.period_end) DESC, pa.patronage_allocation_id DESC`,
-    [memberId, ...memberDateFilter("COALESCE(pa.paid_at, pp.period_end)", query).params],
+      HAVING amount > 0
+      UNION ALL
+     SELECT CONCAT('PAT-CAP-', t.transfer_id) AS id,
+            'Income' AS recordType, 'Patronage' AS category, t.amount, t.processed_at AS date,
+            CONCAT(p.period_name, ' — added to Share Capital') AS description, 'Patronage' AS source
+       FROM patronage_capital_transfers t
+       JOIN patronage_allocations a ON a.patronage_allocation_id = t.patronage_allocation_id
+       JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
+      WHERE t.member_id = ? AND t.transfer_status = 'Approved'
+        ${memberDateFilter("t.processed_at", query).clause}
+      ORDER BY date DESC, id DESC`,
+    [memberId, ...memberDateFilter("COALESCE(pa.paid_at, pp.period_end)", query).params,
+      memberId, ...memberDateFilter("t.processed_at", query).params],
   );
   const [dividendRows] = await connection.execute<MemberFinancialRow[]>(
     `SELECT CAST(md.member_dividend_id AS CHAR) AS id,
@@ -378,9 +385,12 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         `SELECT CAST(ledger_tx.share_capital_transaction_id AS CHAR) AS id,
                 ledger_tx.transaction_date AS date,
                 ledger_tx.amount,
+                ledger_tx.direction,
                 'Validated' AS status,
                 CASE WHEN ledger_tx.transaction_type = 'Dividend Added to Share Capital'
                      THEN 'Dividend Added to Share Capital'
+                     WHEN ledger_tx.source_type = 'patronage_capital_transfer'
+                     THEN 'Patronage Refund Added to Share Capital'
                      ELSE 'Share Capital Deposit'
                 END AS type
            FROM share_capital_transactions ledger_tx
@@ -468,7 +478,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       );
       const [depositCount] = await databasePool().execute<CountRow[]>(
-        "SELECT COUNT(*) as count FROM share_capital_transactions WHERE member_id = ? AND transaction_status = 'Posted'",
+        "SELECT COUNT(*) as count FROM share_capital_transactions WHERE member_id = ? AND transaction_status = 'Posted' AND direction = 'Credit'",
         [member.member_id],
       );
       const [rentalCount] = await databasePool().execute<CountRow[]>(
@@ -536,7 +546,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         },
         member: {
           code: member.member_code,
-          memberSince: member.true_member_since ?? member.approved_at ?? member.application_date ?? member.created_at ?? null,
+          memberSince: member.approved_at ?? member.application_date ?? member.created_at ?? member.true_member_since ?? null,
           contact_number: member.contact_number,
           email: member.email,
           barangay: member.barangay,

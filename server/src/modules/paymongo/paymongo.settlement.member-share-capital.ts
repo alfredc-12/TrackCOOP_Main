@@ -130,12 +130,12 @@ export async function postMemberShareCapitalSettlement(input: {
     15000,
   );
   const [capitalRows] = await input.connection.execute<AmountRow[]>(
-    `SELECT COALESCE(SUM(amount), 0) AS total
+    `SELECT COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), SUM(amount), 0) AS total
        FROM share_capital_payments
       WHERE member_id = ?
         AND payment_status = 'Validated'
         AND (payment_reference_id IS NULL OR payment_reference_id <> ?)`,
-    [member.id, input.payment.id],
+    [member.id, member.id, input.payment.id],
   );
   const existingCapital = settlementMoney(Number(capitalRows[0]?.total ?? 0));
   if (

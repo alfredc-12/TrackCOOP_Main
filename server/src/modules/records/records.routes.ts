@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
-import type { RowDataPacket } from "mysql2/promise";
-import { getPool } from "../../db/pool";
+import { withTransaction } from "../../db/transaction";
+import { selectMemberStatement } from "./member-statement.repository";
 import { createAuthenticate, createOptionalAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
 import { createAuthService, type AuthService } from "../auth/auth.service";
@@ -39,8 +39,6 @@ import type {
   ReportFilters,
 } from "./records-types";
 
-type StatementMemberRow = RowDataPacket & Record<string, unknown>;
-type StatementItemRow = RowDataPacket & Record<string, unknown>;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -573,36 +571,12 @@ async function reportActivityRoute(request: Request, response: Response) {
 async function statementRoute(request: Request, response: Response) {
   try {
     const actor = user(request);
-    const pool = getPool();
-    const [members] = await pool.query<StatementMemberRow[]>(
-      `SELECT m.*, u.email as user_email
-         FROM member_profiles m
-         LEFT JOIN users u ON m.user_id = u.user_id
-        WHERE m.user_id = ?`,
-      [actor.id],
-    );
-    const member = members[0];
-    if (!member) {
+    const statement = await withTransaction((connection) => selectMemberStatement(connection, actor.id));
+    if (!statement) {
       response.status(404).json({ error: "Member profile not found." });
       return;
     }
-
-    const [deposits] = await pool.query<StatementItemRow[]>(
-      `SELECT amount, payment_date as date, payment_reference_id as ref
-         FROM share_capital_payments
-        WHERE member_id = ? AND payment_status = 'Validated'
-        ORDER BY payment_date ASC`,
-      [member.member_id],
-    );
-    const [purchases] = await pool.query<StatementItemRow[]>(
-      `SELECT sale_number as ref, sale_date as date, total_amount as amount
-         FROM pos_sales
-        WHERE member_id = ? AND sale_status = 'Completed'
-        ORDER BY sale_date ASC`,
-      [member.member_id],
-    );
-
-    response.json({ member, deposits, purchases });
+    response.json(statement);
   } catch (error) {
     handleRecordsError(response, error);
   }

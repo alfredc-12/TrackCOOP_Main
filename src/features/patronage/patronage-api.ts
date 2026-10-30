@@ -39,6 +39,9 @@ export type PatronageAllocation = {
   paymentStatus: PatronagePaymentStatus;
   paidAt: string | null;
   paymentNotes: string | null;
+  capitalizedAmount?: number;
+  pendingCapitalAmount?: number;
+  availableRefund?: number;
 };
 
 export type PatronageOverview = {
@@ -68,7 +71,7 @@ export type PatronageFinancialBasis = {
 export type MemberPatronageSummary = {
   member: { code: string; name: string; membershipType: "Associate" | "True Member" };
   currentYear: { startDate: string; endDate: string; purchasePatronage: number; rentalPatronage: number; totalPatronage: number };
-  refunds: { allocatedTotal: number; paidTotal: number; pendingTotal: number };
+  refunds: { allocatedTotal: number; paidTotal: number; pendingTotal: number; capitalizedTotal?: number; pendingCapitalTotal?: number };
   history: Array<{
     periodId: string;
     periodName: string;
@@ -79,6 +82,8 @@ export type MemberPatronageSummary = {
     refundAmount: number;
     paymentStatus: PatronagePaymentStatus;
     paidAt: string | null;
+    capitalizedAmount?: number;
+    pendingCapitalAmount?: number;
   }>;
 };
 
@@ -110,4 +115,33 @@ export function markPatronageRefundPaid(id: string, notes?: string) {
 
 export function getMemberPatronage() {
   return apiRequest<MemberPatronageSummary>("/api/members/me/patronage");
+}
+
+
+export type PatronageCapitalTransfer = {
+  id: string; allocationId: string; memberId: string; memberName: string; memberCode: string;
+  periodName: string; amount: number; status: "Pending" | "Approved" | "Rejected";
+  requestedAt: string; processedAt: string | null; notes: string | null; capitalTransactionId: string | null;
+};
+
+export type PatronageCapitalOverview = {
+  currentCapital: number; availableCapacity: number;
+  refunds: Array<{ allocationId: string; periodName: string; availableAmount: number }>;
+  transfers: PatronageCapitalTransfer[];
+};
+
+export function getPatronageCapitalOverview() {
+  return apiRequest<PatronageCapitalOverview>("/api/members/me/patronage-capital");
+}
+
+export function requestPatronageCapital(input: { allocationId: string; amount: number; requestKey: string }) {
+  return apiRequest<PatronageCapitalTransfer>("/api/members/me/patronage-capital", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function getPatronageCapitalTransfers() {
+  return apiRequest<PatronageCapitalTransfer[]>("/api/patronage/capital-transfers");
+}
+
+export function decidePatronageCapital(id: string, decision: "Approve" | "Reject", notes?: string) {
+  return apiRequest<PatronageCapitalTransfer>(`/api/patronage/capital-transfers/${id}/decision`, { method: "POST", body: JSON.stringify({ decision, notes }) });
 }

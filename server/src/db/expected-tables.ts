@@ -27,6 +27,7 @@ export const expectedDatabaseTables = [
   "dividend_action_history",
   "patronage_periods",
   "patronage_allocations",
+  "patronage_capital_transfers",
   "payment_receipts",
   "financial_categories",
   "financial_records",

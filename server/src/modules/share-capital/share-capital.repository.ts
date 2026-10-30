@@ -118,18 +118,16 @@ async function getValidatedTotal(
   memberId: string,
   excludingPaymentId?: string,
 ) {
-  const params: string[] = [memberId];
-  let excludeSql = "";
-  if (excludingPaymentId) {
-    excludeSql = " AND share_payment_id <> ?";
-    params.push(excludingPaymentId);
-  }
-
+  const excludedAmount = excludingPaymentId
+    ? "COALESCE((SELECT amount FROM share_capital_payments WHERE share_payment_id = ? AND member_id = ? AND payment_status = 'Validated'), 0)"
+    : "0";
   const [rows] = await pool.execute<SumRow[]>(
-    `SELECT COALESCE(SUM(amount), 0) AS total
+    `SELECT COALESCE(
+       (SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1) - ${excludedAmount},
+       SUM(amount), 0) AS total
        FROM share_capital_payments
-      WHERE member_id = ? AND payment_status = 'Validated'${excludeSql}`,
-    params,
+      WHERE member_id = ? AND payment_status = 'Validated'${excludingPaymentId ? " AND share_payment_id <> ?" : ""}`,
+    [memberId, ...(excludingPaymentId ? [excludingPaymentId, memberId] : []), memberId, ...(excludingPaymentId ? [excludingPaymentId] : [])],
   );
 
   return Number(rows[0]?.total ?? 0);
