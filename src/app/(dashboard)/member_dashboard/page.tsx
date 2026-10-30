@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import * as Select from "@radix-ui/react-select";
 import * as Tabs from "@radix-ui/react-tabs";
 import SiteFooter from "@/components/layout/SiteFooter";
-import RentalLandingPage from "@/app/rental/page";
+import { MemberRentalSection } from "@/app/rental/_components/MemberRentalSection";
 import { RentalProvider } from "@/app/rental/_context/RentalProvider";
 import { logout, getAuthenticatedUser } from "@/lib/auth-client";
 import type { AuthUser } from "@/features/auth/types";
@@ -1102,7 +1102,7 @@ export default function MemberDashboardPage() {
       </Modal>
 
       <main className="flex-1">
-        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Financial" || activeTab === "Member & Share" ? "py-3" : "py-8"}`}>
+        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Financial" || activeTab === "Member & Share" || activeTab === "Rental" ? "py-3" : "py-8"}`}>
 
           {/* ======================= DASHBOARD TAB ======================= */}
           {activeTab === "Dashboard" && (
@@ -1870,9 +1870,9 @@ export default function MemberDashboardPage() {
 
           {/* ======================= RENTAL TAB ======================= */}
           {activeTab === "Rental" && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm mt-6">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
               <RentalProvider>
-                <RentalLandingPage />
+                <MemberRentalSection />
               </RentalProvider>
             </div>
           )}
