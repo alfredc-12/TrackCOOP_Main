@@ -25,13 +25,10 @@ import {
   User,
   UserPlus,
   Wallet,
-  Calendar,
   Megaphone,
   MessageSquare,
   Inbox,
   MapPin,
-  Phone,
-  Mail,
   FileText,
   Briefcase,
   ChevronDown,
@@ -1102,7 +1099,7 @@ export default function MemberDashboardPage() {
       </Modal>
 
       <main className="flex-1">
-        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Financial" || activeTab === "Member & Share" || activeTab === "Rental" ? "py-3" : "py-8"}`}>
+        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Dashboard" || activeTab === "Financial" || activeTab === "Member & Share" || activeTab === "Rental" || activeTab === "Store" ? "py-3" : "py-8"}`}>
 
           {/* ======================= DASHBOARD TAB ======================= */}
           {activeTab === "Dashboard" && (
@@ -1120,95 +1117,54 @@ export default function MemberDashboardPage() {
                 </div>
               ) : (
                 <>
-                  {/* 1. ENHANCED WELCOME BANNER */}
-                  <section className="relative overflow-hidden rounded-3xl bg-white p-8 shadow-sm lg:p-12 border border-[#E5E7EB]">
-                    <div className="absolute right-0 top-0 h-full w-2/3 bg-gradient-to-l from-[#DFF5E8]/60 via-[#DFF5E8]/10 to-transparent"></div>
-                    <div className="relative z-10 flex flex-col justify-between gap-12 md:flex-row md:items-center">
-                  <div className="max-w-xl">
-                    <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#F8F6EF] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#2F7D57] border border-[#DDE8D8]">
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2F7D57] opacity-75"></span>
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#2F7D57]"></span>
-                      </span>
-                      Member Portal Active
-                    </div>
-                    <h1 className="mb-4 text-4xl font-bold tracking-tight text-[#173626] sm:text-5xl">
-                      Welcome back, {user?.displayName?.split(" ")[0] || "Member"} 👋
-                    </h1>
-                    <p className="mb-8 text-lg text-[#6B7280] leading-relaxed">
-                      Track your cooperative contributions, review the latest updates, and manage your assets with ease.
-                    </p>
-                    <div className="flex flex-wrap gap-4">
-                      <button onClick={() => setActiveTab("Member & Share")} className="rounded-xl bg-[#123D2A] px-6 py-3.5 font-semibold text-white shadow-lg shadow-[#123D2A]/20 transition hover:bg-[#1B4D37] hover:shadow-xl hover:-translate-y-0.5">
-                        View Share Capital
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Interactive Floating Cards */}
-                  <div className="group relative hidden h-48 w-full max-w-sm shrink-0 md:block md:w-72 cursor-default perspective-1000">
-                    <div className="absolute right-0 top-0 z-20 w-64 -translate-y-4 translate-x-4 rounded-2xl bg-gradient-to-br from-[#123D2A] to-[#1a5c3f] p-6 text-white shadow-2xl transition-all duration-500 ease-out group-hover:-translate-y-8 group-hover:shadow-[0_20px_40px_-15px_rgba(18,61,42,0.5)]">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-white/80">Total Share Capital</p>
-                        <Wallet className="h-5 w-5 text-white/50" />
-                      </div>
-                      <h3 className="mt-2 text-3xl font-bold tracking-tight">
-                        {isFetchingDashboard ? "..." : `₱${(dashboardData?.shareCapital?.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-                      </h3>
-                      <div className="mt-4 flex items-center justify-between text-xs font-medium">
-                        <span className="flex items-center gap-1 text-[#DFF5E8]"><ArrowUpRight className="h-3 w-3" /> Up to date</span>
-                      </div>
-                    </div>
-                    <div className="absolute right-8 top-12 z-10 w-64 rounded-2xl border border-[#E5E7EB] bg-white/90 backdrop-blur-sm p-6 shadow-lg transition-all duration-500 ease-out group-hover:translate-x-6 group-hover:translate-y-2 group-hover:rotate-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-[#6B7280]">Next Due Date</p>
-                        <Clock className="h-5 w-5 text-[#94A3B8]" />
-                      </div>
-                      <h3 className="mt-2 text-xl font-bold text-[#173626]">
-                        {isFetchingDashboard ? "..." : (dashboardData?.shareCapital?.deadline ? new Date(dashboardData.shareCapital.deadline).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "None")}
-                      </h3>
-                      <p className="mt-1 text-xs text-amber-600 font-semibold">Keep it updated</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* 2. UPGRADED STAT CARDS */}
-              <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  { label: "Capital Deposits", value: dashboardData?.stats?.deposits || "0", icon: Wallet, color: "text-blue-600", bg: "bg-blue-50", trend: "Total transactions", trendColor: "text-slate-500" },
-                  { label: "Store Purchases", value: dashboardData?.stats?.purchases || "0", icon: ShoppingBag, color: "text-amber-600", bg: "bg-amber-50", trend: "Total transactions", trendColor: "text-amber-600" },
-                  { label: "Active Rentals", value: dashboardData?.stats?.rentals || "0", icon: Tractor, color: "text-purple-600", bg: "bg-purple-50", trend: "Total bookings", trendColor: "text-purple-600" },
-                  { label: "Announcements", value: dashboardData?.stats?.announcements || "0", icon: Calendar, color: "text-green-600", bg: "bg-green-50", trend: "Active", trendColor: "text-green-600" },
-                ].map((stat, i) => (
-                  <div key={i} className="group flex flex-col justify-between rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer">
-                    <div className="flex items-start justify-between">
+                  <section aria-labelledby="member-dashboard-heading" className="rounded-2xl border border-[#DDE8D8] bg-gradient-to-r from-white to-[#EDF6EE] p-4 shadow-sm">
+                    <div className="grid items-center gap-5 md:grid-cols-[1fr_20rem]">
                       <div>
-                        <h3 className="text-3xl font-bold tracking-tight text-[#173626]">{stat.value}</h3>
-                        <p className="mt-1 text-sm font-medium text-[#6B7280]">{stat.label}</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2F7D57]">My cooperative</p>
+                        <h1 id="member-dashboard-heading" className="mt-2 text-2xl font-bold tracking-tight text-[#173626] sm:text-3xl">Welcome back, {user?.displayName?.split(" ")[0] || "Member"}</h1>
+                        <p className="mt-2 text-sm text-[#6B7280]">Your savings, activities, and cooperative updates in one place.</p>
                       </div>
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${stat.bg} ${stat.color} transition-transform group-hover:scale-110`}>
-                        <stat.icon className="h-6 w-6" />
+                      <div className="rounded-2xl bg-[#123D2A] p-3 text-white">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-[#DFF5E8]">My Share Capital</p>
+                          <Wallet className="size-5 text-[#A9D5B5]" aria-hidden="true" />
+                        </div>
+                        <p className="mt-2 text-3xl font-bold tracking-tight" aria-live="polite">{isFetchingDashboard ? "Loading…" : dashboardLoadError ? "—" : formatPeso(dashboardData?.shareCapital?.total ?? 0)}</p>
+                        <button onClick={() => setActiveTab("Member & Share")} className="mt-2 inline-flex min-h-8 items-center gap-2 rounded-lg text-sm font-semibold text-[#DFF5E8] underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">View My Savings<ArrowRight className="size-4" aria-hidden="true" /></button>
                       </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-slate-100">
-                      <p className={`text-xs font-semibold ${stat.trendColor}`}>{stat.trend}</p>
-                    </div>
-                  </div>
-                ))}
-              </section>
+                  </section>
+                  {dashboardLoadError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><p>We couldn’t load your records. Please try again.</p><button onClick={() => void refreshDashboard()} className="min-h-10 rounded-lg px-3 font-bold underline">Try again</button></div>}
+
+                  <section aria-label="My activity summary" className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {[
+                      { label: "Capital Deposits", value: dashboardData?.stats?.deposits ?? 0, icon: Wallet, tab: "Member & Share", detail: "Recorded additions" },
+                      { label: "Store Purchases", value: dashboardData?.stats?.purchases ?? 0, icon: ShoppingBag, tab: "Store", detail: "Purchase records" },
+                      { label: "Rental Bookings", value: dashboardData?.stats?.rentals ?? 0, icon: Tractor, tab: "Rental", detail: "All bookings" },
+                      { label: "Announcements", value: dashboardData?.stats?.announcements ?? 0, icon: Megaphone, tab: "Announcements", detail: "Cooperative updates" },
+                    ].map((stat) => (
+                      <button key={stat.label} onClick={() => setActiveTab(stat.tab)} className="flex items-center justify-between gap-2 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-left shadow-sm transition hover:border-[#2F7D57] hover:bg-[#F5FAF4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F7D57]">
+                        <div>
+                          <p className="text-2xl font-bold text-[#173626]">{isFetchingDashboard ? "…" : dashboardLoadError ? "—" : stat.value}</p>
+                          <h2 className="mt-1 text-sm font-semibold text-[#365F4A]">{stat.label}</h2>
+                          <p className="mt-1 text-xs text-[#6B7280]">{stat.detail}</p>
+                        </div>
+                        <span className="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF6EE] text-[#2F7D57] sm:flex"><stat.icon className="size-5" aria-hidden="true" /></span>
+                      </button>
+                    ))}
+                  </section>
 
               {/* 4. QUICK ACTIONS GRID & 5. RECENT TRANSACTIONS */}
-              <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
 
                 {/* RECENT TRANSACTIONS TABLE */}
-                <section className="lg:col-span-2 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm sm:p-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-[#173626]">Recent Activity</h3>
+                <section className="min-w-0 lg:col-span-2 rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm sm:p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-bold text-[#173626]">Recent Activity</h2><span className="text-xs text-[#6B7280]">Latest 5 records</span>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
+                  <div className="max-h-56 overflow-auto" tabIndex={0} role="region" aria-label="Recent activity records">
+                    <table className="w-full min-w-[32rem] text-left text-sm">
                       <thead className="border-b border-[#E5E7EB] text-[#6B7280]">
                         <tr>
                           <th className="pb-3 font-semibold">Transaction</th>
@@ -1218,24 +1174,24 @@ export default function MemberDashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#E5E7EB]">
-                        {dashboardData?.recentActivity?.length > 0 ? (
+                        {!isFetchingDashboard && !dashboardLoadError && dashboardData?.recentActivity?.length > 0 ? (
                           dashboardData.recentActivity.map((item: any, idx: number) => (
                             <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-4">
+                              <td className="py-3">
                                 <div className="flex items-center gap-3">
-                                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${item.type.includes('Withdrawal') ? 'bg-red-50 text-red-600' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${item.type.includes('Withdrawal') ? 'bg-red-50 text-red-600' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
                                     {item.type.includes('Withdrawal') ? <ArrowUpRight className="h-5 w-5" /> : item.type.includes('Deposit') || item.type.includes('Share Capital') ? <ArrowDownLeft className="h-5 w-5" /> : <Store className="h-5 w-5" />}
                                   </div>
                                   <span className="font-medium text-[#173626]">{item.type}</span>
                                 </div>
                               </td>
-                              <td className="py-4 text-[#6B7280]">
+                              <td className="py-3 text-[#6B7280]">
                                 {new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}
                               </td>
-                              <td className={`relative py-4 font-bold ${item.amount == null ? 'text-transparent after:absolute after:left-4 after:top-1/2 after:-translate-y-1/2 after:text-[#9CA3AF] after:content-["—"]' : item.type.includes('Withdrawal') ? 'text-red-700' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? 'text-green-700' : 'text-[#173626]'}`}>
+                              <td className={`relative py-3 font-bold ${item.amount == null ? 'text-transparent after:absolute after:left-4 after:top-1/2 after:-translate-y-1/2 after:text-[#9CA3AF] after:content-["—"]' : item.type.includes('Withdrawal') ? 'text-red-700' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? 'text-green-700' : 'text-[#173626]'}`}>
                                 {item.amount == null ? '—' : `${item.type.includes('Withdrawal') ? '-' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? '+' : '-'} ₱${Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
                               </td>
-                              <td className="py-4">
+                              <td className="py-3">
                                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' || item.status === 'Withdrawn' ? 'bg-green-50 text-green-700 border-green-200' :
                                     item.status === 'Pending' || item.status === 'Not Acknowledged' || item.status === 'Withdrawal Requested' || item.status === 'Capitalization Requested' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                       'bg-red-50 text-red-700 border-red-200'
@@ -1249,7 +1205,7 @@ export default function MemberDashboardPage() {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={4} className="py-8 text-center text-[#6B7280]">No recent activity found.</td>
+                            <td colSpan={4} className="py-8 text-center text-[#6B7280]">{isFetchingDashboard ? "Loading your activity…" : dashboardLoadError ? "Your activity is unavailable. Please try again." : "No activity yet. Your cooperative transactions will appear here."}</td>
                           </tr>
                         )}
                       </tbody>
@@ -1257,99 +1213,30 @@ export default function MemberDashboardPage() {
                   </div>
                 </section>
 
-                {/* QUICK ACTIONS */}
-                <section className="flex flex-col gap-4">
-                  <h3 className="mb-2 text-lg font-bold text-[#173626]">Quick Actions</h3>
-
-                  <button onClick={() => setActiveTab("Requests")} className="group flex w-full items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F8F6EF] text-[#123D2A] transition group-hover:bg-[#123D2A] group-hover:text-white">
-                        <Inbox className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[#173626]">My Requests</h4>
-                        <p className="text-xs text-[#6B7280]">Submit & track inquiries</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setReferralModalOpen(true)}
-                    className="group flex w-full items-center justify-between rounded-2xl border border-[#CFE4D4] bg-gradient-to-r from-[#F2FAF3] to-[#FFF9EC] p-4 text-left shadow-sm transition hover:border-[#1F6B43] hover:shadow-md"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#E4F3E7] text-[#1F6B43] transition group-hover:bg-[#123D2A] group-hover:text-white">
-                        <Link2 className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[#173626]">Member Referrals</h4>
-                        <p className="text-xs text-[#6B7280]">
-                          {Number(dashboardData?.referrals?.successful || 0)} successful · {Number(dashboardData?.referrals?.pending || 0)} pending
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:translate-x-1 group-hover:text-[#123D2A]" />
-                  </button>
-
-                  <button onClick={() => setActiveTab("Member & Share")} className="group flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F8F6EF] text-[#123D2A] transition group-hover:bg-[#123D2A] group-hover:text-white">
-                        <Wallet className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[#173626]">Deposit Share</h4>
-                        <p className="text-xs text-[#6B7280]">Add to your capital</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
-                  </button>
-
-                  <button onClick={() => setActiveTab("Rental")} className="group flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F8F6EF] text-[#123D2A] transition group-hover:bg-[#123D2A] group-hover:text-white">
-                        <Tractor className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[#173626]">Rent Equipment</h4>
-                        <p className="text-xs text-[#6B7280]">Browse machinery</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
-                  </button>
-
-                  <button onClick={() => setActiveTab("Store")} className="group flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-[#1F6B43] hover:shadow-md text-left">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F8F6EF] text-[#123D2A] transition group-hover:bg-[#123D2A] group-hover:text-white">
-                        <ShoppingBag className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-[#173626]">Coop Store</h4>
-                        <p className="text-xs text-[#6B7280]">Buy farm inputs</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-slate-300 transition group-hover:text-[#123D2A] group-hover:translate-x-1" />
-                  </button>
+                <section aria-labelledby="dashboard-actions-heading" className="rounded-2xl border border-[#DDE8D8] bg-white p-3 shadow-sm sm:p-4">
+                  <h2 id="dashboard-actions-heading" className="mb-3 text-lg font-bold text-[#173626]">Quick Actions</h2>
+                  <div className="grid gap-1">
+                    {[
+                      { label: "View My Savings", detail: "Share Capital and earnings", icon: Wallet, action: () => setActiveTab("Member & Share") },
+                      { label: "Rent Equipment", detail: "Find equipment for your farm", icon: Tractor, action: () => setActiveTab("Rental") },
+                      { label: "Visit Coop Store", detail: "Browse farm supplies", icon: ShoppingBag, action: () => setActiveTab("Store") },
+                      { label: "My Requests", detail: "Ask for help and check replies", icon: Inbox, action: () => setActiveTab("Requests") },
+                      { label: "Refer a Friend", detail: "Invite someone to join", icon: UserPlus, action: () => setReferralModalOpen(true) },
+                    ].map((item) => (
+                      <button key={item.label} onClick={item.action} className="group flex min-h-11 items-center gap-3 rounded-xl px-2 py-1 text-left transition hover:bg-[#F1F7EF] focus-visible:outline-2 focus-visible:outline-[#2F7D57]">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[#EDF6EE] text-[#2F7D57]"><item.icon className="size-4" aria-hidden="true" /></span>
+                        <span className="flex-1"><span className="block text-sm font-bold text-[#173626]">{item.label}</span><span className="block text-xs text-[#6B7280]">{item.detail}</span></span>
+                        <ArrowRight className="size-4 shrink-0 text-[#52705D]" aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
                 </section>
               </div>
 
-              {/* 5. CONSOLIDATED GET IN TOUCH */}
-              <section className="mb-8 mt-8 flex flex-col md:flex-row items-center justify-between rounded-3xl bg-[#123D2A] p-8 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-white/10 to-transparent"></div>
-                <div className="relative z-10 text-center md:text-left mb-6 md:mb-0">
-                  <h3 className="text-2xl font-bold">Need assistance?</h3>
-                  <p className="mt-1 text-white/80">Our support team is here to help you with your account.</p>
-                </div>
-                <div className="relative z-10 flex gap-4">
-                  <button className="flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-[#123D2A] hover:bg-slate-100 transition">
-                    <Phone className="h-4 w-4" /> Call Hotline
-                  </button>
-                  <button className="flex items-center gap-2 rounded-xl bg-white/20 px-5 py-3 font-bold text-white hover:bg-white/30 transition backdrop-blur-sm">
-                    <Mail className="h-4 w-4" /> Message Us
-                  </button>
-                </div>
-              </section>
+              <div className="mb-14 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDE8D8] bg-[#EDF6EE] px-4 py-2 text-sm text-[#365F4A]">
+                <p>Need help with your account? Send a request to the cooperative.</p>
+                <button onClick={() => setActiveTab("Requests")} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 font-bold text-[#123D2A] hover:bg-white">Get Help<ArrowRight className="size-4" aria-hidden="true" /></button>
+              </div>
               </>
               )}
             </div>

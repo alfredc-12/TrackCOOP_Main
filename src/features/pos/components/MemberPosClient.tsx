@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
+import { MemberStorePhoto, MemberStoreProductCard } from "./MemberStoreProductCard";
 import { StorePaymentReturnPanel } from "./StorePaymentReturnPanel";
 
 type InventoryItem = {
@@ -460,15 +461,15 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
     };
 
     return (
-        <div className="-mx-4 -my-6 min-h-screen flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+        <div className={isPublicView ? "-mx-4 -my-6 min-h-screen flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative" : "relative animate-in fade-in slide-in-from-bottom-4 duration-500"}>
             {/* Header */}
-            <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
+            <div className={isPublicView ? "relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7" : "relative mb-4 overflow-hidden rounded-2xl bg-[#123D2A] p-4 text-white shadow-sm"}>
                 <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
                 <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative marketplace</div>
-                    <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Cooperative Shop</h2>
-                    <p className="mt-2 text-sm leading-6 text-white/75">Order agricultural supplies directly from the cooperative.</p>
+                    {isPublicView && <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative marketplace</div>}
+                    <h2 className={isPublicView ? "text-2xl font-black tracking-tight sm:text-3xl" : "text-2xl font-bold tracking-tight"}>{isPublicView ? "Cooperative Shop" : "Coop Store"}</h2>
+                    <p className="mt-2 text-sm leading-6 text-white/75">{isPublicView ? "Order agricultural supplies directly from the cooperative." : "Find seeds, fertilizer, and supplies for your farm."}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     {!isPublicView && (
@@ -477,16 +478,16 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                                 fetchHistory();
                                 setIsHistoryOpen(true);
                             }}
-                            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-white/20 relative"
+                            className="flex min-h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-white/20 relative"
                         >
                             <History className="size-4" />
-                            Order History
+                            My Orders
                         </button>
                     )}
                     {!isPublicView && (
                         <button
                             onClick={openCart}
-                            className="relative flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#123D2A]/90"
+                            className="relative flex min-h-11 items-center gap-2 rounded-xl bg-[#E7EFBD] px-4 py-2 text-sm font-bold text-[#123D2A] shadow-sm hover:bg-white"
                         >
                             <ShoppingCart className="size-4" />
                             My Cart
@@ -518,7 +519,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
             )}
 
             {/* Toolbar */}
-            <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
+            <div className={`${isPublicView ? "mb-6" : "mb-4"} rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="relative w-full max-w-md">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
@@ -537,10 +538,11 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                 </div>
 
                 {/* Category Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                <div aria-label="Product categories" className={`flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar ${isPublicView ? "" : "mt-3"}`}>
                     {categoryTabs.map(cat => (
                         <button
                             key={cat}
+                            aria-pressed={selectedCategory === cat}
                             onClick={() => { setSelectedCategory(cat); setProductPage(1); }}
                             className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${selectedCategory === cat
                                 ? "bg-[#123D2A] text-white shadow-sm"
@@ -551,7 +553,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                         </button>
                     ))}
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {filteredAndSortedInventory.length} available product{filteredAndSortedInventory.length === 1 ? "" : "s"}</span>{searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setProductPage(1); }} className="font-bold text-[#1F6B43] hover:underline">Clear search</button>}</div>
+                <div className={`${isPublicView ? "mt-3 border-t border-[#EEF4EF] pt-3" : "mt-1"} flex items-center justify-between gap-3 text-xs font-medium text-[#52705D]`}><span>Showing {filteredAndSortedInventory.length} available product{filteredAndSortedInventory.length === 1 ? "" : "s"}</span>{searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setProductPage(1); }} className="font-bold text-[#1F6B43] hover:underline">Clear search</button>}</div>
             </div>
 
             {isPublicView && checkoutStep === "cart" && (
@@ -559,7 +561,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
             )}
 
             {/* Product Grid */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-12">
+            <div className={`grid grid-cols-1 ${isPublicView ? "gap-6 pb-12" : "gap-4 pb-32 sm:pb-12"} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`}>
                 {inventoryError && inventory.length === 0 ? (
                     <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-red-200 bg-white px-6 py-16 text-center shadow-sm" role="alert" aria-live="assertive">
                         <AlertCircle className="mb-4 size-12 text-red-500" aria-hidden="true" />
@@ -574,6 +576,8 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                 ) : filteredAndSortedInventory.length > 0 ? (
                     paginatedInventory.map(item => {
                         const cartItem = cart.find(c => c.id === item.id);
+
+                        if (!isPublicView) return <MemberStoreProductCard key={item.id} product={item} quantity={cartItem?.quantity ?? 0} onAdd={() => addToCart(item)} onAdjust={(delta) => updateCartQuantity(item.id, delta)} />;
 
                         return (
                             <div key={item.id} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(18,61,42,0.14)]">
@@ -668,7 +672,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
             )}
 
             {totalCartItems > 0 && (
-                <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-2xl border border-[#BBD7C1] bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(18,61,42,0.2)] backdrop-blur-md sm:hidden">
+                <div className={`fixed inset-x-3 ${isPublicView ? "bottom-3" : "bottom-20"} z-40 flex items-center justify-between gap-3 rounded-2xl border border-[#BBD7C1] bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(18,61,42,0.2)] backdrop-blur-md sm:hidden`}>
                     <div><p className="text-xs font-bold text-[#789181]">{totalCartItems} item{totalCartItems === 1 ? "" : "s"} in cart</p><p className="font-black text-[#123D2A]">₱ {finalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p></div>
                     <button type="button" onClick={openCart} className="rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white">View cart</button>
                 </div>
@@ -820,7 +824,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                                     {cart.map(item => (
                                         <div key={item.id} className="flex gap-4 p-4 bg-white rounded-2xl shadow-sm border border-gray-100 items-center">
                                             <div className="w-16 h-16 rounded-xl bg-[#f4f7f9] overflow-hidden flex-shrink-0 relative">
-                                                {item.img ? (
+                                                {!isPublicView ? <MemberStorePhoto src={item.img} name={item.name} compact /> : item.img ? (
                                                     <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <ImageIcon className="size-8 text-gray-300 m-auto mt-4" />
