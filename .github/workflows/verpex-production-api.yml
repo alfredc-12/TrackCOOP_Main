@@ -1,0 +1,134 @@
+name: Deploy TrackCOOP API to Verpex Production
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verpex-api-production
+  cancel-in-progress: false
+
+jobs:
+  build-api:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
+    name: Build Express API on GitHub
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install and compile
+        run: |
+          set -euo pipefail
+          npm ci --include=dev --no-audit --no-fund
+          npm run build:api
+          test -f server/dist/index.js
+      - name: Package compiled API
+        run: |
+          tar -czf trackcoop-api-verpex.tar.gz server/dist package.json package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trackcoop-api-verpex
+          path: trackcoop-api-verpex.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-api:
+    name: Deploy API to isolated Verpex production application
+    needs: build-api
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: trackcoop-api-verpex
+          path: deploy-files
+
+      - name: Set up verified SSH connection
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.VERPEX_SSH_HOST }}
+          SSH_USER: ${{ secrets.VERPEX_SSH_USER }}
+          SSH_KEY: ${{ secrets.VERPEX_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST"; test -n "$SSH_USER"; test -n "$SSH_KEY"
+          mkdir -p "$RUNNER_TEMP/ssh-stage"
+          chmod 700 "$RUNNER_TEMP/ssh-stage"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ssh-stage/id_ed25519"
+          chmod 600 "$RUNNER_TEMP/ssh-stage/id_ed25519"
+          ssh-keygen -y -P '' -f "$RUNNER_TEMP/ssh-stage/id_ed25519" > /dev/null
+          ssh-keyscan -T 10 -p 22 -t ed25519 "$SSH_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh-stage/known_hosts"
+          fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh-stage/known_hosts" -E sha256 | awk '$4=="(ED25519)" {print $2}')
+          test "$fingerprint" = "SHA256:fGMfvrvS+yTnR34uJmdcCotSizD8wO74DSs9IGyPUqQ" || { echo "::error::Host fingerprint mismatch"; exit 1; }
+          cat > "$RUNNER_TEMP/ssh-stage/config" <<EOF
+          Host verpex-stage
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port 22
+            IdentityFile $RUNNER_TEMP/ssh-stage/id_ed25519
+            UserKnownHostsFile $RUNNER_TEMP/ssh-stage/known_hosts
+            StrictHostKeyChecking yes
+            BatchMode yes
+            PasswordAuthentication no
+            IdentitiesOnly yes
+          EOF
+          chmod 600 "$RUNNER_TEMP/ssh-stage/config"
+
+      - name: Upload, install, and restart compiled API
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/ssh-stage/config"
+          ssh -F "$config" verpex-stage 'test -d "$HOME/trackcoop-api-production" && mkdir -p "$HOME/trackcoop-api-production/.deploy/releases"'
+          scp -F "$config" deploy-files/trackcoop-api-verpex.tar.gz "verpex-stage:trackcoop-api-production/.deploy/incoming-$GITHUB_RUN_ID.tar.gz"
+          ssh -F "$config" verpex-stage "DEPLOY_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+          set -euo pipefail
+          root="$HOME/trackcoop-api-production"
+          release="$root/.deploy/releases/$DEPLOY_ID"
+          mkdir -p "$release"
+          tar -xzf "$root/.deploy/incoming-$DEPLOY_ID.tar.gz" -C "$release"
+          test -f "$release/server/dist/index.js"
+          test -f "$root/app.js"
+          test -d "$root/node_modules"
+          # Fail closed if dependencies changed. Never mutate cPanel-managed node_modules
+          # or deploy code whose runtime packages may not match.
+          if ! cmp -s "$release/package-lock.json" "$root/package-lock.json"; then
+            echo "ERROR: Runtime dependency lockfile changed; review/install dependencies on Verpex before deploying this API update."
+            exit 1
+          fi
+          mkdir -p "$root/.deploy/backups"
+          cp -a "$root/server/dist" "$root/.deploy/backups/dist-before-$DEPLOY_ID"
+          cp -a "$release/server/dist" "$root/server/dist.new-$DEPLOY_ID"
+          mv "$root/server/dist" "$root/.deploy/backups/dist-old-$DEPLOY_ID"
+          mv "$root/server/dist.new-$DEPLOY_ID" "$root/server/dist"
+          mkdir -p "$root/tmp"
+          touch "$root/tmp/restart.txt"
+          rm -f "$root/.deploy/incoming-$DEPLOY_ID.tar.gz"
+          echo "API deployment files updated and restart requested; no database migrations run."
+          REMOTE
+
+      - name: Check production API on Verpex
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            payload=$(curl --noproxy '*' --resolve api.nffac.trackcoop.online:80:192.250.235.19 --fail --silent --show-error --max-time 20 http://api.nffac.trackcoop.online/api/health || true)
+            if echo "$payload" | grep -q '"service":"trackcoop-api"'; then
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then echo "::error::Production API health check failed."; exit 1; fi
+            sleep 5
+          done
+          payload=$(curl --noproxy '*' --resolve api.nffac.trackcoop.online:80:192.250.235.19 --fail --silent --show-error --max-time 30 http://api.nffac.trackcoop.online/api/health/database)
+          echo "$payload" | grep -q '"message":"Database is reachable"' || { echo "::error::Database health check failed."; exit 1; }
