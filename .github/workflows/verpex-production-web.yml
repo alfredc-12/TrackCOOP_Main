@@ -1,0 +1,151 @@
+name: Build TrackCOOP Production Frontend for Verpex
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
+    name: Build standalone Next.js package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_APP_URL: "https://nffac.trackcoop.online"
+      NEXT_PUBLIC_API_URL: "https://api.nffac.trackcoop.online"
+
+    steps:
+      - name: Check out TrackCOOP
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+
+      - name: Enable standalone output for this build only
+        run: |
+          sed -i '/const nextConfig: NextConfig = {/a\  output: "standalone",' next.config.ts
+
+      - name: Build frontend
+        run: npm run build:web
+
+      - name: Package standalone server, static assets, and public assets
+        run: |
+          set -e
+          test -f .next/standalone/server.js
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/
+          cp -a public .next/standalone/
+          tar -czf trackcoop-web-verpex-production.tar.gz -C .next/standalone .
+          ls -lh trackcoop-web-verpex-production.tar.gz
+
+      - name: Save package as downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trackcoop-web-verpex-production
+          path: trackcoop-web-verpex-production.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-web:
+    name: Prepare isolated production frontend on Verpex
+    needs: build-web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: trackcoop-web-verpex-production
+          path: deploy-files
+
+      - name: Set up authenticated SSH with verified host key
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.VERPEX_SSH_HOST }}
+          SSH_USER: ${{ secrets.VERPEX_SSH_USER }}
+          SSH_KEY: ${{ secrets.VERPEX_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ssh-stage"
+          chmod 700 "$RUNNER_TEMP/ssh-stage"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ssh-stage/id_ed25519"
+          chmod 600 "$RUNNER_TEMP/ssh-stage/id_ed25519"
+          ssh-keygen -y -P '' -f "$RUNNER_TEMP/ssh-stage/id_ed25519" > /dev/null
+          ssh-keyscan -T 10 -p 22 -t ed25519 "$SSH_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh-stage/known_hosts"
+          fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh-stage/known_hosts" -E sha256 | awk '$4=="(ED25519)" {print $2}')
+          test "$fingerprint" = "SHA256:fGMfvrvS+yTnR34uJmdcCotSizD8wO74DSs9IGyPUqQ"
+          cat > "$RUNNER_TEMP/ssh-stage/config" <<EOF
+          Host verpex-stage
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port 22
+            IdentityFile $RUNNER_TEMP/ssh-stage/id_ed25519
+            UserKnownHostsFile $RUNNER_TEMP/ssh-stage/known_hosts
+            StrictHostKeyChecking yes
+            BatchMode yes
+            IdentitiesOnly yes
+          EOF
+          chmod 600 "$RUNNER_TEMP/ssh-stage/config"
+
+      - name: Transfer and activate standalone release
+        shell: bash
+        env:
+          SSH_USER: ${{ secrets.VERPEX_SSH_USER }}
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/ssh-stage/config"
+          test -f deploy-files/trackcoop-web-verpex-production.tar.gz
+          ssh -F "$config" verpex-stage 'mkdir -p "$HOME/trackcoop-web-production/.deploy/releases"'
+          scp -F "$config" deploy-files/trackcoop-web-verpex-production.tar.gz "verpex-stage:/home/$SSH_USER/trackcoop-web-production/.deploy/incoming-$GITHUB_RUN_ID.tar.gz"
+          ssh -F "$config" verpex-stage "DEPLOY_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+          set -euo pipefail
+          umask 077
+          root="$HOME/trackcoop-web-production"
+          release="$root/.deploy/releases/$DEPLOY_ID"
+          mkdir -p "$release"
+          tar -xzf "$root/.deploy/incoming-$DEPLOY_ID.tar.gz" -C "$release"
+          test -f "$release/server.js"
+          test -d "$release/.next/static"
+          test -d "$release/node_modules"
+          if [ ! -f "$root/.deploy/original-server.js" ] && [ -f "$root/server.js" ]; then
+            cp -p "$root/server.js" "$root/.deploy/original-server.js"
+          fi
+          printf '%s\n' 'require("./.deploy/current/server.js");' > "$root/server.js.tmp"
+          mv -f "$root/server.js.tmp" "$root/server.js"
+          ln -s "$release" "$root/.deploy/next-release"
+          mv -Tf "$root/.deploy/next-release" "$root/.deploy/current"
+          rm -f "$root/.deploy/incoming-$DEPLOY_ID.tar.gz"
+          mkdir -p "$root/tmp"
+          touch "$root/tmp/restart.txt"
+          echo "Isolated production Next.js release prepared."
+          REMOTE
+
+
+      - name: Check production frontend on Verpex
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            status=$(curl --noproxy '*' --resolve nffac.trackcoop.online:80:192.250.235.19 -s -o /dev/null -w '%{http_code}' --max-time 20 http://nffac.trackcoop.online/ || true)
+            case "$status" in
+              200) exit 0 ;;
+            esac
+            sleep 5
+          done
+          echo "::error::Production frontend health check did not pass."
+          exit 1
