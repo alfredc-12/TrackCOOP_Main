@@ -189,7 +189,7 @@ const applicationSchema = z
     fatherName: requiredText("Father's name"),
     motherName: requiredText("Mother's name"),
     spouseName: optionalText,
-    occupation: optionalText,
+    occupation: requiredText("Occupation").max(190, "Keep the selected occupations and other occupation within 190 characters."),
     beneficiaries: z.array(beneficiarySchema),
     orientationCommitmentAccepted: trueLiteral("Orientation commitment is required."),
     membershipFeeCommitmentAccepted: z.boolean(),
@@ -929,8 +929,6 @@ function PersonalInfoStep({
 }) {
   const civilStatus = watch("civilStatus");
   const occupation = watch("occupation");
-  const isOtherOccupation = Boolean(occupation) && !occupationOptions.includes(occupation as (typeof occupationOptions)[number]);
-  const [showOtherOccupation, setShowOtherOccupation] = useState(isOtherOccupation);
   const [placeSuggestions, setPlaceSuggestions] = useState<string[]>(["Batangas City, Batangas", "Lipa City, Batangas", "Manila, Metro Manila", "Quezon City, Metro Manila", "Cebu City, Cebu", "Davao City, Davao del Sur"]);
 
   useEffect(() => {
@@ -1061,21 +1059,11 @@ function PersonalInfoStep({
       </ApplicationFieldGroup>
 
       <ApplicationFieldGroup icon={BadgeCheck} title="Occupation">
-        {showOtherOccupation ? (
-          <div className="relative md:col-span-2">
-            <TextField label="Occupation" error={errors.occupation?.message} inputProps={register("occupation")} placeholder="Type your occupation" className="[&_input]:pr-36" />
-            <button type="button" onClick={() => { setShowOtherOccupation(false); setValue("occupation", "", { shouldDirty: true }); }} className="absolute right-4 top-[3.4rem] -translate-y-1/2 text-xs font-bold text-[#1F6B43] underline">Choose from list</button>
-          </div>
-        ) : (
-          <OccupationSelect
-            value={occupationOptions.includes(occupation as (typeof occupationOptions)[number]) ? occupation ?? "" : ""}
-            error={errors.occupation?.message}
-            onChange={(value) => {
-              setShowOtherOccupation(value === "Other");
-              setValue("occupation", value === "Other" ? "" : value, { shouldDirty: true, shouldValidate: true });
-            }}
-          />
-        )}
+        <OccupationCheckboxes
+          value={occupation ?? ""}
+          error={errors.occupation?.message}
+          onChange={(value) => setValue("occupation", value, { shouldDirty: true, shouldValidate: true })}
+        />
       </ApplicationFieldGroup>
     </div>
   );
@@ -1391,6 +1379,7 @@ function FinalReviewStep({
             value={values.dateOfBirth || "Date of birth missing"}
           />
         </div>
+        <div className="mt-4"><ReviewFact icon={<BadgeCheck className="size-4" />} label="Occupation" value={values.occupation || "Not selected"} /></div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
@@ -1928,39 +1917,36 @@ function TextField({
   );
 }
 
-function OccupationSelect({
-  value,
-  error,
-  onChange,
-}: {
+function OccupationCheckboxes({ value, error, onChange }: {
   value: string;
   error?: string;
   onChange: (value: string) => void;
 }) {
-  const options = [...occupationOptions, "Other"];
+  const entries = value.split("; ").filter(Boolean);
+  const selected = occupationOptions.filter((option) => entries.includes(option));
+  const other = entries.filter((entry) => !occupationOptions.some((option) => option === entry)).join("; ");
+  const update = (choices: readonly string[], custom: string) => {
+    onChange([...choices, custom].filter(Boolean).join("; "));
+  };
+
   return (
-    <label className="block text-sm font-semibold text-[#365F4A]">
-      Occupation
-      <Select.Root value={value || undefined} onValueChange={onChange}>
-        <Select.Trigger aria-label="Occupation" aria-invalid={Boolean(error)} className="mt-2 flex h-12 w-full items-center justify-between rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
-          <Select.Value placeholder="Select occupation" />
-          <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Content position="popper" sideOffset={6} className="z-[100] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
-            <Select.Viewport>
-              {options.map((option) => (
-                <Select.Item key={option} value={option} className="relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
-                  <Select.ItemText>{option}</Select.ItemText>
-                  <Select.ItemIndicator className="absolute right-3"><SelectCheck className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
-                </Select.Item>
-              ))}
-            </Select.Viewport>
-          </Select.Content>
-        </Select.Portal>
-      </Select.Root>
-      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
-    </label>
+    <fieldset className="min-w-0 md:col-span-2" aria-describedby={`occupation-help${error ? " occupation-error" : ""}`} aria-invalid={Boolean(error)}>
+      <legend className="text-sm font-semibold text-[#365F4A]">Occupation — select all that apply</legend>
+      <p id="occupation-help" className="mt-1 text-sm text-[#6C7A70]">Choose at least one. You can choose more than one job.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {occupationOptions.map((option) => (
+          <label key={option} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold text-[#365F4A] transition ${selected.includes(option) ? "border-[#91B99A] bg-[#EAF3E8]" : "border-[#DDE8D8] bg-white hover:border-[#9FB7A4]"}`}>
+            <input type="checkbox" checked={selected.includes(option)} onChange={(event) => update(event.target.checked ? [...selected, option] : selected.filter((entry) => entry !== option), other)} className="size-5 shrink-0 accent-[#1F6B43] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]" />
+            {option}
+          </label>
+        ))}
+      </div>
+      <label className="mt-4 block text-sm font-semibold text-[#365F4A]">
+        Other occupation (optional)
+        <input type="text" value={other} onChange={(event) => update(selected, event.target.value)} placeholder="Enter another occupation" className="mt-2 min-h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" />
+      </label>
+      {error && <p id="occupation-error" role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+    </fieldset>
   );
 }
 

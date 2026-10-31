@@ -582,6 +582,30 @@ test("POST /api/membership-applications/public submits an application without ex
   assert.equal(response.body.data.duplicateWarning, false);
   assert.equal(response.body.data.nextStep, "Chairman review");
   assert.equal(repository.created?.hash.length, 64);
+  assert.equal(repository.created?.input.occupation, "Farmer");
+});
+
+test("public applications preserve multiple occupations and a custom occupation", async () => {
+  const { app, repository } = createTestApp();
+  const occupation = "Farmer; Livestock raiser; Farm equipment operator";
+  const response = await request(app)
+    .post("/api/membership-applications/public")
+    .send({ ...validApplicationPayload(), occupation });
+
+  assert.equal(response.status, 201);
+  assert.equal(repository.created?.input.occupation, occupation);
+});
+
+test("public applications require an occupation before creating a record", async () => {
+  for (const occupation of [undefined, "", "   "]) {
+    const { app, repository } = createTestApp();
+    const response = await request(app)
+      .post("/api/membership-applications/public")
+      .send({ ...validApplicationPayload(), occupation });
+
+    assert.equal(response.status, 400);
+    assert.equal(repository.created, null);
+  }
 });
 
 test("POST /api/membership-applications/public rejects missing required commitments", async () => {

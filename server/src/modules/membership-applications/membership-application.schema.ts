@@ -118,7 +118,7 @@ export const publicMembershipApplicationSchema = z
     fatherName: requiredText(190),
     motherName: requiredText(190),
     spouseName: optionalText(190),
-    occupation: optionalText(190),
+    occupation: requiredText(190),
     orientationCommitmentAccepted: accepted("Orientation commitment must be accepted"),
     membershipFeeCommitmentAccepted: z.boolean().default(false),
     shareSubscriptionCommitmentAccepted: accepted("Share subscription commitment must be accepted"),
