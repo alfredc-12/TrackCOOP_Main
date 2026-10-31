@@ -258,6 +258,8 @@ CREATE TABLE member_profiles (
     full_name VARCHAR(190) NOT NULL,
     contact_number VARCHAR(40) NULL,
     email VARCHAR(190) NULL,
+    occupation VARCHAR(190) NULL,
+    livelihoods JSON NULL,
     barangay VARCHAR(120) NULL,
     municipality VARCHAR(120) NOT NULL DEFAULT 'Nasugbu',
     province VARCHAR(120) NOT NULL DEFAULT 'Batangas',

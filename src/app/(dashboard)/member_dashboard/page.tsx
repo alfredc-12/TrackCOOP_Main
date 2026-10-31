@@ -62,6 +62,7 @@ import {
 import { MemberShareOverview } from "@/features/member-share-capital/MemberShareOverview";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
+import { SeasonGuide } from "@/features/member-livelihoods/SeasonGuide";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
 import {
@@ -131,6 +132,9 @@ const FINANCIAL_PERIOD_LABELS: Record<FinancialPeriod, string> = {
 export default function MemberDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const [profileSection, setProfileSection] = useState("");
+  const openLivelihoods = () => { setProfileSection("livelihoods"); setActiveTab("Profile"); };
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); }, [activeTab]);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isFetchingAnnouncements, setIsFetchingAnnouncements] = useState(false);
@@ -549,7 +553,7 @@ export default function MemberDashboardPage() {
             {/* <button onClick={() => setActiveTab("Help")} className={`transition ${activeTab === "Help" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Help Center">
               <MessageSquare className="size-5" />
             </button> */}
-            <button onClick={() => setActiveTab("Profile")} className={`transition ${activeTab === "Profile" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Profile & Settings">
+            <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className={`transition ${activeTab === "Profile" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Profile & Settings">
               <User className="size-5" />
             </button>
             <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Announcements">
@@ -1099,7 +1103,7 @@ export default function MemberDashboardPage() {
       </Modal>
 
       <main className="flex-1">
-        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Dashboard" || activeTab === "Financial" || activeTab === "Member & Share" || activeTab === "Rental" || activeTab === "Store" ? "py-3" : "py-8"}`}>
+        <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Dashboard" || activeTab === "Financial" || activeTab === "Member & Share" || activeTab === "Rental" || activeTab === "Store" || activeTab === "Profile" ? "py-3" : "py-8"}`}>
 
           {/* ======================= DASHBOARD TAB ======================= */}
           {activeTab === "Dashboard" && (
@@ -1123,6 +1127,12 @@ export default function MemberDashboardPage() {
                         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2F7D57]">My cooperative</p>
                         <h1 id="member-dashboard-heading" className="mt-2 text-2xl font-bold tracking-tight text-[#173626] sm:text-3xl">Welcome back, {user?.displayName?.split(" ")[0] || "Member"}</h1>
                         <p className="mt-2 text-sm text-[#6B7280]">Your savings, activities, and cooperative updates in one place.</p>
+                        {!dashboardLoadError && !isFetchingDashboard && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="My occupations and livelihoods">
+                          {(dashboardData?.member?.occupation || "").split("; ").filter(Boolean).map((occupation: string) => <span key={occupation} className="rounded-full border border-[#CFE2D1] bg-white px-2.5 py-1 text-xs font-semibold text-[#365F4A]">{occupation}</span>)}
+                          {(dashboardData?.member?.livelihoods ?? []).map((item: { activity: string }) => <span key={item.activity} className="rounded-full bg-[#E4F0DE] px-2.5 py-1 text-xs font-semibold text-[#365F4A]">{item.activity}</span>)}
+                          <SeasonGuide livelihoods={dashboardData?.member?.livelihoods ?? []} province={dashboardData?.member?.province ?? ""} municipality={dashboardData?.member?.municipality ?? ""} onEdit={openLivelihoods} onFinancial={() => { setFinancialView("personal"); setActiveTab("Financial"); }} />
+                          {!dashboardData?.member?.occupation && <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-[#1F6B43] underline">Add your occupation</button>}
+                        </div>}
                       </div>
                       <div className="rounded-2xl bg-[#123D2A] p-3 text-white">
                         <div className="flex items-center justify-between gap-3">
@@ -1264,6 +1274,11 @@ export default function MemberDashboardPage() {
 
                 <Tabs.Content value="personal" className="rounded-3xl border border-[#DDE8D8] bg-[#FFFCF5] p-4 outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] sm:p-5">
                   {dashboardLoadError ? <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">We could not get the latest amounts. Please press Update to try again.</p> : null}
+                  <details className="mb-4 rounded-xl border border-[#DDE8D8] bg-white p-3 text-sm text-[#52705D]">
+                    <summary className="cursor-pointer font-bold text-[#173626]">What is seasonal analytics?</summary>
+                    <p className="mt-2 leading-6">It compares production, sales, income, and expenses between planting, growing, and harvest periods. This helps you see when money comes in and when you need money for farm costs.</p>
+                    <p className="mt-2 leading-6">The Season Guide gives typical guidance or crop-age estimates. The amounts below are recorded cooperative transactions. Personal farm production and comparisons by crop season need farm records and are not available here yet.</p>
+                  </details>
                   <div className="space-y-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
@@ -1780,7 +1795,7 @@ export default function MemberDashboardPage() {
 
           {/* ======================= PROFILE TAB ======================= */}
           {activeTab === "Profile" && (
-            <ProfileSettings />
+            <ProfileSettings initialSection={profileSection} onSaved={() => void refreshDashboard({ silent: true })} />
           )}
 
           {/* ======================= HELP CENTER TAB ======================= */}

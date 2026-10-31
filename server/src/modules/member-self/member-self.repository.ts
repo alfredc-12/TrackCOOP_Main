@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { readLivelihoods, validateLivelihoods } from "./member-livelihoods";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
@@ -33,6 +34,15 @@ type MemberProfileRow = RowDataPacket & {
 
 type CountRow = RowDataPacket & { count?: number | string; total?: number | string };
 type PasswordRow = RowDataPacket & { password_hash: string };
+type SelfProfileRow = RowDataPacket & {
+  contact_number: string | null;
+  email: string | null;
+  barangay: string | null;
+  municipality: string;
+  province: string;
+  occupation: string | null;
+  livelihoods: unknown;
+};
 type MemberFinancialRow = RowDataPacket & {
   id?: string | number;
   recordType?: "Income" | "Expense";
@@ -315,6 +325,22 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
     return member;
   }
 
+  async function selectMemberProfile(auth: AuthContext) {
+      const [members] = await databasePool().execute<SelfProfileRow[]>(
+        `SELECT m.contact_number, m.email, m.barangay, m.municipality, m.province, m.livelihoods,
+                COALESCE(m.occupation, (
+                  SELECT a.occupation FROM membership_applications a
+                   WHERE a.converted_member_id = m.member_id AND a.occupation IS NOT NULL
+                   ORDER BY a.membership_application_id DESC LIMIT 1
+                )) AS occupation
+           FROM member_profiles m WHERE m.user_id = ?`,
+        [auth.user.id],
+      );
+      const member = members[0];
+      if (!member) throw new AppError("Member profile not found", 404, "MEMBER_PROFILE_NOT_FOUND");
+      return { ...member, livelihoods: readLivelihoods(member.livelihoods) };
+  }
+
   return {
     async dashboard(auth, query = {}) {
       let members: MemberProfileRow[];
@@ -513,6 +539,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       ).catch(() => [[] as RowDataPacket[]]);
       const memberFinancialSummary = await selectMemberFinancialSummary(databasePool(), member.member_id, query);
+      const memberProfile = await selectMemberProfile(auth);
 
       return {
         isLinked: true,
@@ -545,6 +572,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           items: referralItems,
         },
         member: {
+          occupation: memberProfile.occupation,
+          livelihoods: memberProfile.livelihoods,
           code: member.member_code,
           memberSince: member.approved_at ?? member.application_date ?? member.created_at ?? member.true_member_since ?? null,
           contact_number: member.contact_number,
@@ -623,16 +652,15 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
     },
 
     async profile(auth) {
-      const [members] = await databasePool().execute<RowDataPacket[]>(
-        "SELECT contact_number, email, barangay, municipality, province FROM member_profiles WHERE user_id = ?",
-        [auth.user.id],
-      );
-      const member = members[0];
-      if (!member) throw new AppError("Member profile not found", 404, "MEMBER_PROFILE_NOT_FOUND");
-      return member;
+      return selectMemberProfile(auth);
     },
 
     async updateProfile(auth, input) {
+      if (input.occupation !== undefined && input.occupation !== null &&
+          (typeof input.occupation !== "string" || !input.occupation.trim() || input.occupation.trim().length > 190)) {
+        throw new AppError("Choose at least one occupation. Keep all occupations within 190 characters.", 400, "INVALID_OCCUPATION");
+      }
+      const livelihoods = input.livelihoods === undefined ? undefined : validateLivelihoods(input.livelihoods);
       const member = await requireMemberForUser(auth.user.id);
       await databasePool().execute(
         `UPDATE member_profiles
@@ -641,6 +669,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
                 barangay = ?,
                 municipality = ?,
                 province = ?,
+                occupation = COALESCE(?, occupation),
+                livelihoods = COALESCE(?, livelihoods),
                 updated_at = NOW()
           WHERE member_id = ?`,
         [
@@ -649,6 +679,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           input.barangay ?? null,
           input.municipality ?? null,
           input.province ?? null,
+          input.occupation?.trim() ?? null,
+          livelihoods === undefined ? null : JSON.stringify(livelihoods),
           member.member_id,
         ],
       );

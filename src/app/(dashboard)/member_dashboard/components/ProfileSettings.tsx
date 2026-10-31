@@ -1,287 +1,180 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { User, Phone, MapPin, Mail, KeyRound, Save, Loader2, CheckCircle2 } from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { User, KeyRound, Save, Loader2, Eye, EyeOff } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
+import { LivelihoodFields } from "@/features/member-livelihoods/LivelihoodFields";
+import { isValidPlantingDate, type MemberLivelihood } from "@/features/member-livelihoods/livelihoods";
+import { OccupationCheckboxes } from "@/features/membership/OccupationCheckboxes";
 
-export function ProfileSettings() {
-  const [isLoading, setIsLoading] = useState(false);
+type Profile = {
+  contact_number: string;
+  email: string;
+  barangay: string;
+  municipality: string;
+  province: string;
+  occupation: string;
+  livelihoods: MemberLivelihood[];
+};
+type Password = { currentPassword: string; newPassword: string; confirmPassword: string };
+type Notice = { text: string; type: "success" | "error" } | null;
+const emptyProfile: Profile = { contact_number: "", email: "", barangay: "", municipality: "", province: "", occupation: "", livelihoods: [] };
+const emptyPassword: Password = { currentPassword: "", newPassword: "", confirmPassword: "" };
+const inputClass = "min-h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-sm text-[#173626] outline-none transition focus:border-[#2F7D57] focus:ring-2 focus:ring-[#2F7D57]/15 disabled:bg-gray-50";
+
+export function ProfileSettings({ initialSection, onSaved }: { initialSection?: string; onSaved?: () => void }) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-  
-  const [profileMsg, setProfileMsg] = useState({ text: "", type: "" });
-  const [passwordMsg, setPasswordMsg] = useState({ text: "", type: "" });
+  const [profileMsg, setProfileMsg] = useState<Notice>(null);
+  const [passwordMsg, setPasswordMsg] = useState<Notice>(null);
+  const [profile, setProfile] = useState<Profile>(emptyProfile);
+  const [password, setPassword] = useState<Password>(emptyPassword);
+  const [occupationError, setOccupationError] = useState("");
+  const [livelihoodError, setLivelihoodError] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState<Partial<Record<keyof Password, string>>>({});
+  const [visiblePasswords, setVisiblePasswords] = useState<Partial<Record<keyof Password, boolean>>>({});
 
-  const [profile, setProfile] = useState({
-    contact_number: "",
-    email: "",
-    barangay: "",
-    municipality: "Nasugbu",
-    province: "Batangas"
-  });
-
-  const [password, setPassword] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: ""
-  });
-
-  useEffect(() => {
-    // Fetch initial profile data from the dashboard endpoint which has member info
+  const loadProfile = useCallback(async () => {
     setIsLoading(true);
-    expressFetch("/api/members/me/dashboard")
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.member) {
-          setProfile({
-            contact_number: data.member.contact_number || "",
-            email: data.member.email || "",
-            barangay: data.member.barangay || "",
-            municipality: data.member.municipality || "Nasugbu",
-            province: data.member.province || "Batangas"
-          });
-        }
-      })
-      .finally(() => setIsLoading(false));
+    setLoadError("");
+    try {
+      const res = await expressFetch("/api/members/me/profile");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "We could not load your profile.");
+      setProfile({ ...(Object.fromEntries(Object.keys(emptyProfile).filter((key) => key !== "livelihoods").map((key) => [key, data[key] ?? ""])) as Omit<Profile, "livelihoods">), livelihoods: Array.isArray(data.livelihoods) ? data.livelihoods : [] });
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "We could not load your profile.");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-  };
+  useEffect(() => { void loadProfile(); }, [loadProfile]);
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword({ ...password, [e.target.name]: e.target.value });
-  };
-
-  const saveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingProfile(true);
-    setProfileMsg({ text: "", type: "" });
-    
-    try {
-      const res = await expressFetch("/api/members/me/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile)
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update profile");
-      
-      setProfileMsg({ text: "Profile updated successfully!", type: "success" });
-    } catch (err: any) {
-      setProfileMsg({ text: err.message, type: "error" });
-    } finally {
-      setIsSavingProfile(false);
-      setTimeout(() => setProfileMsg({ text: "", type: "" }), 5000);
+  useEffect(() => {
+    if (initialSection === "livelihoods" && !isLoading && !loadError) {
+      const section = document.getElementById("my-livelihoods");
+      section?.scrollIntoView({ block: "start" });
+      section?.focus({ preventScroll: true });
     }
-  };
+  }, [initialSection, isLoading, loadError]);
 
-  const savePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password.newPassword !== password.confirmPassword) {
-      setPasswordMsg({ text: "New passwords do not match", type: "error" });
+  const saveProfile = async (event: FormEvent) => {
+    event.preventDefault();
+    setProfileMsg(null);
+    if (!profile.occupation.trim() || profile.occupation.trim().length > 190) {
+      setOccupationError(!profile.occupation.trim() ? "Choose at least one occupation or enter another job." : "Keep all occupations within 190 characters.");
       return;
     }
-    
-    setIsSavingPassword(true);
-    setPasswordMsg({ text: "", type: "" });
-    
+    setOccupationError("");
+    if (profile.livelihoods.length > 20 || new Set(profile.livelihoods.map((item) => item.activity.trim().toLowerCase())).size !== profile.livelihoods.length || profile.livelihoods.some((item) => !item.activity.trim() || item.activity.trim().length > 80 || (item.plantingDate && !isValidPlantingDate(item.plantingDate)))) {
+      setLivelihoodError("Check your activity names and sowing dates. Dates cannot be in the future.");
+      return;
+    }
+    setLivelihoodError("");
+    setIsSavingProfile(true);
     try {
-      const res = await expressFetch("/api/members/me/password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword: password.currentPassword,
-          newPassword: password.newPassword
-        })
-      });
-      
+      const res = await expressFetch("/api/members/me/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update password");
-      
-      setPasswordMsg({ text: "Password changed successfully!", type: "success" });
-      setPassword({ currentPassword: "", newPassword: "", confirmPassword: "" });
-    } catch (err: any) {
-      setPasswordMsg({ text: err.message, type: "error" });
+      if (!res.ok) throw new Error(data.error || "We could not save your changes. Please try again.");
+      setProfileMsg({ text: "Your profile changes have been saved.", type: "success" });
+      onSaved?.();
+    } catch (error) {
+      setProfileMsg({ text: error instanceof Error ? error.message : "We could not save your changes. Please try again.", type: "error" });
     } finally {
-      setIsSavingPassword(false);
-      setTimeout(() => setPasswordMsg({ text: "", type: "" }), 5000);
+      setIsSavingProfile(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#2F7D57]" />
-      </div>
-    );
-  }
+  const savePassword = async (event: FormEvent) => {
+    event.preventDefault();
+    setPasswordMsg(null);
+    if (password.newPassword !== password.confirmPassword) {
+      setPasswordErrors({ confirmPassword: "The new passwords do not match." });
+      return;
+    }
+    setPasswordErrors({});
+    setIsSavingPassword(true);
+    try {
+      const res = await expressFetch("/api/members/me/password", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword: password.currentPassword, newPassword: password.newPassword }) });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "Incorrect current password") {
+          setPasswordErrors({ currentPassword: "Your current password is incorrect." });
+          return;
+        }
+        throw new Error(data.error || "We could not change your password. Please try again.");
+      }
+      setPasswordMsg({ text: "Your password has been changed.", type: "success" });
+      setPassword(emptyPassword);
+      setVisiblePasswords({});
+    } catch (error) {
+      setPasswordMsg({ text: error instanceof Error ? error.message : "We could not change your password. Please try again.", type: "error" });
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto mt-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        
-        {/* Profile Info Section */}
-        <div className="rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
-            <div className="rounded-full bg-[#e8f3ec] p-2 text-[#123D2A]">
-              <User className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-bold text-[#173626]">Personal Information</h2>
-          </div>
-          
-          <form onSubmit={saveProfile} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">Contact Number</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="text" 
-                  name="contact_number"
-                  value={profile.contact_number}
-                  onChange={handleProfileChange}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="email" 
-                  name="email"
-                  value={profile.email}
-                  onChange={handleProfileChange}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">Barangay</label>
-              <div className="relative mb-3">
-                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="text" 
-                  name="barangay"
-                  value={profile.barangay}
-                  onChange={handleProfileChange}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-[#4b6b5a]">Municipality</label>
-                  <input 
-                    type="text" 
-                    name="municipality"
-                    value={profile.municipality}
-                    onChange={handleProfileChange}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-[#4b6b5a]">Province</label>
-                  <input 
-                    type="text" 
-                    name="province"
-                    value={profile.province}
-                    onChange={handleProfileChange}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none transition focus:border-[#2F7D57] focus:ring-1 focus:ring-[#2F7D57]"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="pt-4">
-              <button 
-                type="submit" 
-                disabled={isSavingProfile}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#123D2A] py-3 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-70"
-              >
-                {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save Changes
-              </button>
-              {profileMsg.text && (
-                <div className={`mt-3 flex items-center gap-2 rounded-lg p-3 text-xs font-bold ${profileMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {profileMsg.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : null}
-                  {profileMsg.text}
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* Security Section */}
-        <div className="rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-sm h-fit">
-          <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
-            <div className="rounded-full bg-amber-100 p-2 text-amber-700">
-              <KeyRound className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-bold text-[#173626]">Security & Password</h2>
-          </div>
-          
-          <form onSubmit={savePassword} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">Current Password</label>
-              <input 
-                type="password" 
-                name="currentPassword"
-                required
-                value={password.currentPassword}
-                onChange={handlePasswordChange}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none transition focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-              />
-            </div>
-            
-            <div>
-              <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">New Password</label>
-              <input 
-                type="password" 
-                name="newPassword"
-                required
-                minLength={6}
-                value={password.newPassword}
-                onChange={handlePasswordChange}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none transition focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-              />
-            </div>
-            
-            <div>
-              <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">Confirm New Password</label>
-              <input 
-                type="password" 
-                name="confirmPassword"
-                required
-                minLength={6}
-                value={password.confirmPassword}
-                onChange={handlePasswordChange}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm outline-none transition focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-              />
-            </div>
-            
-            <div className="pt-4">
-              <button 
-                type="submit" 
-                disabled={isSavingPassword}
-                className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-200 bg-white py-3 text-sm font-bold text-[#173626] shadow-sm transition hover:bg-gray-50 disabled:opacity-70"
-              >
-                {isSavingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Password"}
-              </button>
-              {passwordMsg.text && (
-                <div className={`mt-3 flex items-center gap-2 rounded-lg p-3 text-xs font-bold ${passwordMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {passwordMsg.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : null}
-                  {passwordMsg.text}
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
-
+    <section aria-labelledby="my-profile-heading" className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
+      <div className="mb-4">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2F7D57]">My account</p>
+        <h1 id="my-profile-heading" className="mt-1 text-2xl font-bold text-[#173626]">My Profile</h1>
+        <p className="mt-1 text-sm text-[#6B7280]">Keep your contact details and occupations up to date.</p>
       </div>
-    </div>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section aria-labelledby="personal-information-heading" className="min-w-0 rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm sm:p-5">
+          <h2 id="personal-information-heading" className="mb-4 flex items-center gap-2 text-lg font-bold text-[#173626]"><User className="size-5 text-[#2F7D57]" aria-hidden="true" />Personal Information</h2>
+          {isLoading ? <p role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm text-[#52705D]"><Loader2 className="size-5 animate-spin" />Loading your profile…</p> : loadError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{loadError}</p><button type="button" onClick={() => void loadProfile()} className="mt-2 min-h-11 rounded-lg px-2 font-bold underline">Try again</button></div> : (
+            <form onSubmit={saveProfile}>
+              <fieldset disabled={isSavingProfile} className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {([['contact_number', 'Contact Number', 'tel'], ['email', 'Email Address', 'email']] as const).map(([name, label, type]) => <ProfileField key={name} name={name} label={label} type={type} value={profile[name]} onChange={(value) => { setProfile({ ...profile, [name]: value }); setProfileMsg(null); }} />)}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {([['barangay', 'Barangay'], ['municipality', 'Municipality'], ['province', 'Province']] as const).map(([name, label]) => <ProfileField key={name} name={name} label={label} value={profile[name]} onChange={(value) => { setProfile({ ...profile, [name]: value }); setProfileMsg(null); }} />)}
+                </div>
+                <div className="border-t border-[#EDF2EA] pt-4">
+                  <OccupationCheckboxes compact value={profile.occupation} error={occupationError} onChange={(value) => { setProfile({ ...profile, occupation: value }); setOccupationError(""); setProfileMsg(null); }} />
+                </div>
+                <LivelihoodFields value={profile.livelihoods} occupation={profile.occupation} error={livelihoodError} onChange={(value) => { setProfile({ ...profile, livelihoods: value }); setLivelihoodError(""); setProfileMsg(null); }} />
+                <button type="submit" aria-busy={isSavingProfile} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-4 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60">{isSavingProfile ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}{isSavingProfile ? "Saving…" : "Save Changes"}</button>
+              </fieldset>
+              <Feedback notice={profileMsg} />
+            </form>
+          )}
+        </section>
+        <section aria-labelledby="password-heading" className="min-w-0 rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm sm:p-5">
+          <h2 id="password-heading" className="flex items-center gap-2 text-lg font-bold text-[#173626]"><KeyRound className="size-5 text-[#2F7D57]" aria-hidden="true" />Security & Password</h2>
+          <p id="password-guidance" className="mt-2 text-sm leading-5 text-[#6B7280]">Use at least 6 characters for your new password. Keep it private.</p>
+          <form onSubmit={savePassword} className="mt-4">
+            <fieldset disabled={isSavingPassword} className="space-y-4">
+              {([['currentPassword', 'Current Password'], ['newPassword', 'New Password'], ['confirmPassword', 'Confirm New Password']] as const).map(([name, label]) => (
+                <div key={name}>
+                  <label htmlFor={name} className="mb-1 block text-sm font-semibold text-[#365F4A]">{label}</label>
+                  <div className="relative">
+                    <input id={name} name={name} type={visiblePasswords[name] ? "text" : "password"} required minLength={name === 'currentPassword' ? undefined : 6} autoComplete={name === 'currentPassword' ? 'current-password' : 'new-password'} value={password[name]} onChange={(event) => { setPassword({ ...password, [name]: event.target.value }); setPasswordErrors({}); setPasswordMsg(null); }} aria-invalid={Boolean(passwordErrors[name])} aria-describedby={passwordErrors[name] ? `${name}-error` : name === 'newPassword' ? 'password-guidance' : undefined} className={`${inputClass} pr-12`} />
+                    <button type="button" aria-label={`${visiblePasswords[name] ? 'Hide' : 'Show'} ${label.toLowerCase()}`} aria-pressed={Boolean(visiblePasswords[name])} onClick={() => setVisiblePasswords({ ...visiblePasswords, [name]: !visiblePasswords[name] })} className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-xl text-[#52705D] hover:bg-[#EDF6EE]">{visiblePasswords[name] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
+                  </div>
+                  {passwordErrors[name] && <p id={`${name}-error`} role="alert" className="mt-1 text-sm text-red-700">{passwordErrors[name]}</p>}
+                </div>
+              ))}
+              <button type="submit" aria-busy={isSavingPassword} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#CAD8CB] bg-[#F4F8F0] px-4 text-sm font-bold text-[#123D2A] transition hover:bg-[#EAF3E8] disabled:opacity-60">{isSavingPassword && <Loader2 className="size-4 animate-spin" />}{isSavingPassword ? "Updating…" : "Update Password"}</button>
+            </fieldset>
+            <Feedback notice={passwordMsg} />
+          </form>
+        </section>
+      </div>
+    </section>
   );
+}
+
+function ProfileField({ name, label, type = "text", value, onChange }: { name: string; label: string; type?: string; value: string; onChange: (value: string) => void }) {
+  return <div><label htmlFor={`profile-${name}`} className="mb-1 block text-sm font-semibold text-[#365F4A]">{label}</label><input id={`profile-${name}`} name={name} type={type} value={value} onChange={(event) => onChange(event.target.value)} maxLength={name === 'contact_number' ? 40 : name === 'email' ? 190 : 120} className={inputClass} /></div>;
+}
+
+function Feedback({ notice }: { notice: Notice }) {
+  return notice && <p role={notice.type === 'success' ? 'status' : 'alert'} className={`mt-3 rounded-xl border p-3 text-sm ${notice.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>{notice.text}</p>;
 }
