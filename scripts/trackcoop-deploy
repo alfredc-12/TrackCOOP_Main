@@ -50,8 +50,6 @@ deploy_one() {
 }
 
 deploy_one api
-if ! deploy_one web; then
-  echo "Backend deployed but frontend failed; inspect the run and redeploy a known-good commit if needed." >&2
-  exit 1
-fi
+echo "Backend deployment passed. The frontend will now be deployed."
+deploy_one web
 echo "Frontend and backend deployment checks passed for $commit."
