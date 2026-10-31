@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! command -v gh >/dev/null 2>&1 && [[ -x "$HOME/.local/opt/trackcoop-gh/gh" ]]; then
+  export PATH="$HOME/.local/opt/trackcoop-gh:$PATH"
+fi
+export GOMAXPROCS="${GOMAXPROCS:-1}"
+
 repository="alfredc-12/TrackCOOP_Main"
 requested="${1:-}"
 if [[ "$#" -ne 1 || ! "$requested" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
