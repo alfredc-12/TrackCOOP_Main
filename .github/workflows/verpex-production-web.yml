@@ -151,7 +151,26 @@ jobs:
           rm -f "$root/.deploy/incoming-$DEPLOY_ID.tar.gz"
           mkdir -p "$root/tmp"
           touch "$root/tmp/restart.txt"
-          echo "Isolated production Next.js release prepared."
+
+          # LiteSpeed may leave detached Next.js processes serving older releases.
+          # Only stop this account's Next.js processes whose cwd is an old
+          # production release. Never touch staging or the production API.
+          for proc in /proc/[0-9]*; do
+            [ -O "$proc" ] || continue
+            IFS= read -r process_name < "$proc/comm" 2>/dev/null || continue
+            case "$process_name" in next-server*) ;; *) continue ;; esac
+            process_cwd="$(readlink -f "$proc/cwd" 2>/dev/null || true)"
+            case "$process_cwd" in
+              "$root"/.deploy/releases/*)
+                [ "$process_cwd" = "$release" ] && continue
+                if ! kill -TERM "${proc##*/}" 2>/dev/null && [ -d "$proc" ]; then
+                  echo "ERROR: Could not stop outdated production frontend process."
+                  exit 1
+                fi
+                ;;
+            esac
+          done
+          echo "Production frontend release activated and outdated instances stopped."
           REMOTE
 
 
@@ -161,9 +180,39 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             status=$(curl --noproxy '*' --resolve nffac.trackcoop.online:443:192.250.235.19 -s -o /dev/null -w '%{http_code}' --max-time 20 https://nffac.trackcoop.online/ || true)
             case "$status" in
-              200) exit 0 ;;
+              200) break ;;
             esac
+            if [ "$attempt" -eq 6 ]; then
+              echo "::error::Production frontend health check did not pass."
+              exit 1
+            fi
             sleep 5
           done
-          echo "::error::Production frontend health check did not pass."
+
+          # HTTP 200 alone can come from a detached older Next.js process.
+          ssh -F "$RUNNER_TEMP/ssh-stage/config" verpex-stage "DEPLOY_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
+          set -euo pipefail
+          root="$HOME/trackcoop-web-production"
+          expected="$root/.deploy/releases/$DEPLOY_ID"
+          for attempt in 1 2 3 4 5 6; do
+            current_found=0
+            stale_found=0
+            for proc in /proc/[0-9]*; do
+              [ -O "$proc" ] || continue
+              IFS= read -r process_name < "$proc/comm" 2>/dev/null || continue
+              case "$process_name" in next-server*) ;; *) continue ;; esac
+              process_cwd="$(readlink -f "$proc/cwd" 2>/dev/null || true)"
+              case "$process_cwd" in
+                "$expected") current_found=1 ;;
+                "$root"/.deploy/releases/*) stale_found=1 ;;
+              esac
+            done
+            if [ "$current_found" -eq 1 ] && [ "$stale_found" -eq 0 ]; then
+              echo "Production frontend is running the requested release."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "ERROR: Could not verify the requested production frontend process."
           exit 1
+          REMOTE
