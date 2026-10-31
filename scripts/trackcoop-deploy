@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository="alfredc-12/TrackCOOP_Main"
+requested="${1:-}"
+if [[ "$#" -ne 1 || ! "$requested" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+  echo "Usage: bash scripts/trackcoop-deploy <commit-hash>" >&2
+  exit 2
+fi
+if ! command -v gh >/dev/null 2>&1; then
+  echo "GitHub CLI (gh) is required on this computer." >&2
+  exit 1
+fi
+if ! gh auth status --hostname github.com >/dev/null 2>&1; then
+  echo "Sign in to GitHub CLI securely with: gh auth login" >&2
+  exit 1
+fi
+requested="${requested,,}"
+commit="$(gh api "repos/$repository/commits/$requested" --jq .sha)"
+if [[ ! "$commit" =~ ^[0-9a-f]{40}$ || "$commit" != "$requested"* ]]; then
+  echo "The supplied hash did not resolve to a unique commit in $repository." >&2
+  exit 1
+fi
+
+deploy_one() {
+  local component="$1" workflow request_id run_id title attempt
+  workflow="verpex-production-$component.yml"
+  request_id="$(date -u +%Y%m%d%H%M%S)-$$-$RANDOM-$RANDOM"
+  title="Manual Verpex $component · $request_id"
+  echo "Starting $component deployment of $commit ..."
+  gh workflow run "$workflow" --repo "$repository" --ref main \
+    -f "commit=$commit" -f "request_id=$request_id"
+  run_id=""
+  for attempt in {1..30}; do
+    run_id="$(gh run list --repo "$repository" --workflow "$workflow" \
+      --event workflow_dispatch --limit 50 --json databaseId,displayTitle \
+      --jq ".[] | select(.displayTitle == \"$title\") | .databaseId" | head -n 1)"
+    [[ -n "$run_id" ]] && break
+    sleep 2
+  done
+  if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+    echo "Could not find the $component run. Check GitHub Actions before retrying." >&2
+    exit 1
+  fi
+  echo "Watching: https://github.com/$repository/actions/runs/$run_id"
+  if ! gh run watch "$run_id" --repo "$repository" --exit-status; then
+    echo "$component deployment failed; inspect its GitHub Actions run." >&2
+    exit 1
+  fi
+}
+
+deploy_one api
+if ! deploy_one web; then
+  echo "Backend deployed but frontend failed; inspect the run and redeploy a known-good commit if needed." >&2
+  exit 1
+fi
+echo "Frontend and backend deployment checks passed for $commit."
