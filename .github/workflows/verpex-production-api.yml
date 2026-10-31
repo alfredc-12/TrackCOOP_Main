@@ -123,12 +123,12 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5 6; do
-            payload=$(curl --noproxy '*' --resolve api.nffac.trackcoop.online:80:192.250.235.19 --fail --silent --show-error --max-time 20 http://api.nffac.trackcoop.online/api/health || true)
+            payload=$(curl --noproxy '*' --resolve api.nffac.trackcoop.online:443:192.250.235.19 --fail --silent --show-error --max-time 20 https://api.nffac.trackcoop.online/api/health || true)
             if echo "$payload" | grep -q '"service":"trackcoop-api"'; then
               break
             fi
             if [ "$attempt" -eq 6 ]; then echo "::error::Production API health check failed."; exit 1; fi
             sleep 5
           done
-          payload=$(curl --noproxy '*' --resolve api.nffac.trackcoop.online:80:192.250.235.19 --fail --silent --show-error --max-time 30 http://api.nffac.trackcoop.online/api/health/database)
+          payload=$(curl --noproxy '*' --resolve api.nffac.trackcoop.online:443:192.250.235.19 --fail --silent --show-error --max-time 30 https://api.nffac.trackcoop.online/api/health/database)
           echo "$payload" | grep -q '"message":"Database is reachable"' || { echo "::error::Database health check failed."; exit 1; }
