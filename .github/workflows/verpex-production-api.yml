@@ -1,11 +1,17 @@
 name: Deploy TrackCOOP API to Verpex Production
+run-name: "Manual Verpex api · ${{ inputs.request_id }}"
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+    inputs:
+      commit:
+        description: "Full Git commit SHA to deploy"
+        required: true
+        type: string
+      request_id:
+        description: "Unique deployment request identifier"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,14 +22,22 @@ concurrency:
 
 jobs:
   build-api:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     name: Build Express API on GitHub
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.commit }}
+      - name: Verify exact requested commit
+        env:
+          REQUESTED_COMMIT: ${{ inputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$REQUESTED_COMMIT"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
