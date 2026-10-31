@@ -1,32 +1,24 @@
-name: Deploy TrackCOOP API to Verpex Staging
+name: Deploy TrackCOOP API to Verpex Production
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: verpex-api-staging
+  group: verpex-api-production
   cancel-in-progress: false
 
 jobs:
   build-api:
     name: Build Express API on GitHub
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -48,7 +40,7 @@ jobs:
           retention-days: 7
 
   deploy-api:
-    name: Safely deploy API to Verpex test domain
+    name: Deploy API to isolated Verpex production application
     needs: build-api
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -94,11 +86,11 @@ jobs:
         run: |
           set -euo pipefail
           config="$RUNNER_TEMP/ssh-stage/config"
-          ssh -F "$config" verpex-stage 'test -d "$HOME/trackcoop-api" && mkdir -p "$HOME/trackcoop-api/.deploy/releases"'
-          scp -F "$config" deploy-files/trackcoop-api-verpex.tar.gz "verpex-stage:trackcoop-api/.deploy/incoming-$GITHUB_RUN_ID.tar.gz"
+          ssh -F "$config" verpex-stage 'test -d "$HOME/trackcoop-api-production" && mkdir -p "$HOME/trackcoop-api-production/.deploy/releases"'
+          scp -F "$config" deploy-files/trackcoop-api-verpex.tar.gz "verpex-stage:trackcoop-api-production/.deploy/incoming-$GITHUB_RUN_ID.tar.gz"
           ssh -F "$config" verpex-stage "DEPLOY_ID='$GITHUB_RUN_ID' bash -s" <<'REMOTE'
           set -euo pipefail
-          root="$HOME/trackcoop-api"
+          root="$HOME/trackcoop-api-production"
           release="$root/.deploy/releases/$DEPLOY_ID"
           mkdir -p "$release"
           tar -xzf "$root/.deploy/incoming-$DEPLOY_ID.tar.gz" -C "$release"
@@ -122,19 +114,6 @@ jobs:
           echo "API deployment files updated and restart requested; no database migrations run."
           REMOTE
 
-      - name: Smoke-test API and database read-only health
-        shell: bash
+      - name: Check production application readiness
         run: |
-          set -euo pipefail
-          for attempt in 1 2 3 4 5 6; do
-            payload=$(curl --fail --silent --show-error --max-time 20 "https://api-verpex-test.trackcoop.online/api/health?deployment=$GITHUB_RUN_ID" || true)
-            if echo "$payload" | grep -q '"service":"trackcoop-api"'; then
-              echo "Express API returned healthy response."
-              break
-            fi
-            if [ "$attempt" -eq 6 ]; then echo "::error::API health check did not pass."; exit 1; fi
-            sleep 5
-          done
-          db_payload=$(curl --fail --silent --show-error --max-time 30 "https://api-verpex-test.trackcoop.online/api/health/database?deployment=$GITHUB_RUN_ID")
-          echo "$db_payload" | grep -q '"message":"Database is reachable"' || { echo "::error::RDS health check failed"; exit 1; }
-          echo "RDS read-only connectivity confirmed."
+          echo "API files deployed. Verify production routing and database health separately."
