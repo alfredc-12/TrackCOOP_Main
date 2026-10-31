@@ -155,3 +155,19 @@ test("public upload route works for S3-style storage without a public base URL",
     visibility: "public",
   });
 });
+
+
+test("missing bundled announcement image redirects to the frontend copy", async () => {
+  const response = await request(createUploadTestApp(new FakeStorageProvider()))
+    .get("/uploads/announcements/189624d50c425759ab35eee56d8a3b19.jpg");
+  assert.equal(response.status, 302);
+  assert.match(response.headers.location, /\/uploads\/announcements\/189624d50c425759ab35eee56d8a3b19\.jpg$/);
+});
+
+test("storage takes precedence for a bundled announcement image", async () => {
+  const key = "announcements/189624d50c425759ab35eee56d8a3b19.jpg";
+  const provider = new FakeStorageProvider([{ key, visibility: "public", body: Buffer.from("from storage") }]);
+  const response = await request(createUploadTestApp(provider)).get(`/uploads/${key}`);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.toString(), "from storage");
+});
