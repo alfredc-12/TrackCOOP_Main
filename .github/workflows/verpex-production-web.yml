@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: verpex-web-production
+  cancel-in-progress: false
+
 jobs:
   build-web:
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
@@ -141,7 +145,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5 6; do
-            status=$(curl --noproxy '*' --resolve nffac.trackcoop.online:80:192.250.235.19 -s -o /dev/null -w '%{http_code}' --max-time 20 http://nffac.trackcoop.online/ || true)
+            status=$(curl --noproxy '*' --resolve nffac.trackcoop.online:443:192.250.235.19 -s -o /dev/null -w '%{http_code}' --max-time 20 https://nffac.trackcoop.online/ || true)
             case "$status" in
               200) exit 0 ;;
             esac
