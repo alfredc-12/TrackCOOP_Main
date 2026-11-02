@@ -93,7 +93,11 @@ export class DashboardRepository {
            SELECT latest.indicator_id
              FROM member_status_indicators latest
             WHERE latest.member_id = m.member_id
-            ORDER BY latest.computed_at DESC, latest.indicator_id DESC
+              AND latest.basis_period_start IS NOT NULL AND latest.basis_period_start <= latest.basis_period_end
+              AND latest.basis_period_end <= DATE(UTC_TIMESTAMP() + INTERVAL 8 HOUR)
+              AND latest.recency_score BETWEEN 1 AND 5 AND latest.frequency_score BETWEEN 1 AND 5 AND latest.contribution_score BETWEEN 1 AND 5
+              AND latest.total_score = latest.recency_score + latest.frequency_score + latest.contribution_score
+            ORDER BY latest.basis_period_end DESC, latest.computed_at DESC, latest.indicator_id DESC
             LIMIT 1
          )
        WHERE ${memberWhere.join(" AND ")}`,
@@ -336,7 +340,11 @@ export class DashboardRepository {
              SELECT latest.indicator_id
                FROM member_status_indicators latest
               WHERE latest.member_id = m.member_id
-              ORDER BY latest.computed_at DESC, latest.indicator_id DESC
+                AND latest.basis_period_start IS NOT NULL AND latest.basis_period_start <= latest.basis_period_end
+                AND latest.basis_period_end <= DATE(UTC_TIMESTAMP() + INTERVAL 8 HOUR)
+                AND latest.recency_score BETWEEN 1 AND 5 AND latest.frequency_score BETWEEN 1 AND 5 AND latest.contribution_score BETWEEN 1 AND 5
+                AND latest.total_score = latest.recency_score + latest.frequency_score + latest.contribution_score
+              ORDER BY latest.basis_period_end DESC, latest.computed_at DESC, latest.indicator_id DESC
               LIMIT 1
            )
         WHERE m.approval_status = 'Approved'

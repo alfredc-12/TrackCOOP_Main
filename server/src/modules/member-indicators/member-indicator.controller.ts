@@ -55,8 +55,8 @@ export function createMemberIndicatorController(
       });
     }),
 
-    summary: asyncHandler(async (_request, response) => {
-      return sendSuccess(response, await service.summary());
+    summary: asyncHandler(async (request, response) => {
+      return sendSuccess(response, await service.summary(parseBody(listMemberIndicatorsQuerySchema, request.query)));
     }),
 
     detail: asyncHandler(async (request, response) => {

@@ -12,7 +12,7 @@ export interface MemberIndicatorService {
   listIndicators(query: MemberIndicatorListQuery): ReturnType<MemberIndicatorRepository["list"]>;
   getMemberIndicator(memberId: string): ReturnType<MemberIndicatorRepository["findLatestByMemberId"]>;
   getMemberIndicatorHistory(memberId: string): ReturnType<MemberIndicatorRepository["history"]>;
-  summary(): ReturnType<MemberIndicatorRepository["summary"]>;
+  summary(query?: MemberIndicatorListQuery): ReturnType<MemberIndicatorRepository["summary"]>;
   recalculate(
     input: RecalculateIndicatorsInput,
     auth: AuthContext,
@@ -35,8 +35,8 @@ export function createMemberIndicatorService(
       return repository.history(memberId);
     },
 
-    summary() {
-      return repository.summary();
+    summary(query) {
+      return repository.summary(query);
     },
 
     recalculate(input, auth) {

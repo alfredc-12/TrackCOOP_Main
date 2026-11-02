@@ -232,7 +232,12 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
               basis_summary AS basisSummary
          FROM member_status_indicators
         WHERE member_id = ?
-        ORDER BY computed_at DESC, indicator_id DESC
+          AND basis_period_start IS NOT NULL
+          AND basis_period_start <= basis_period_end
+          AND basis_period_end <= DATE(UTC_TIMESTAMP() + INTERVAL 8 HOUR)
+          AND recency_score BETWEEN 1 AND 5 AND frequency_score BETWEEN 1 AND 5 AND contribution_score BETWEEN 1 AND 5
+          AND total_score = recency_score + frequency_score + contribution_score
+        ORDER BY basis_period_end DESC, computed_at DESC, indicator_id DESC
         LIMIT 1`,
       [memberId],
     );

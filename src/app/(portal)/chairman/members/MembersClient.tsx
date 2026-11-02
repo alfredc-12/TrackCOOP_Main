@@ -351,6 +351,7 @@ export function MembersClient() {
   const [memberError, setMemberError] = useState("");
   const [isMemberLoading, setIsMemberLoading] = useState(false);
   const [selectedMember, setSelectedMember] = useState<MemberDetail | null>(null);
+  const [rfmReturn, setRfmReturn] = useState<string | null>(null);
   const [memberFormOpen, setMemberFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<MemberDetail | null>(null);
   const [statusMember, setStatusMember] = useState<MemberDetail | null>(null);
@@ -372,6 +373,22 @@ export function MembersClient() {
   const [rewardPolicySaving, setRewardPolicySaving] = useState(false);
   const [rewardPolicyError, setRewardPolicyError] = useState("");
   const realtimeRefreshTimer = useRef<number | null>(null);
+
+  // Read-only deep link from the RFM workspace; profile/status mutations remain in Member Management.
+  useEffect(() => {
+    const parameters = new URLSearchParams(window.location.search);
+    const memberId = parameters.get("rfmMemberId");
+    if (!memberId || !/^\d+$/.test(memberId)) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setActiveTab("directory");
+      setMemberQuery(current => ({ ...current, search: parameters.get("search") ?? "", page: 1 }));
+      const returnPath = parameters.get("rfmReturn");
+      if (returnPath?.startsWith("/portal/chairman/member-indicators?")) setRfmReturn(returnPath);
+      getMemberDetail(memberId).then(detail => { if (active) setSelectedMember(detail); }).catch(caught => { if (active) setMemberError(caught instanceof Error ? caught.message : "Member profile could not be loaded."); });
+    }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, []);
 
   const selectedDetail = selectedId ? detailsById[selectedId] ?? null : null;
 
@@ -697,6 +714,7 @@ export function MembersClient() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {rfmReturn && <a href={rfmReturn} className="inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-[#123D2A] underline underline-offset-4">Back to Member Indicators</a>}
           <Button
             type="button"
             onClick={() => setRewardPolicyOpen(true)}

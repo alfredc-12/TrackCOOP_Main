@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 
 type StyledSelectProps = {
@@ -9,58 +9,65 @@ type StyledSelectProps = {
   onChange: (value: string) => void;
   disabled?: boolean;
   prefix?: string;
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
 };
 
-export function StyledSelect({ value, options, onChange, disabled, prefix }: StyledSelectProps) {
-  const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const optionsId = useId();
-
-  function toggleOpen() {
-    if (!open && rootRef.current) {
-      const bounds = rootRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - bounds.bottom;
-      const spaceAbove = bounds.top;
-      setOpenUpward(spaceBelow < 280 && spaceAbove > spaceBelow);
-    }
-    setOpen((current) => !current);
-  }
-
-  useEffect(() => {
-    const close = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
+// Retain the existing string contract; Radix supplies keyboard navigation, focus return and collision handling.
+export function StyledSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+  prefix,
+  id,
+  ...aria
+}: StyledSelectProps) {
+  const selected = options.indexOf(value);
   return (
-    <div ref={rootRef} className="styled-select-root relative">
-      <button ref={triggerRef} type="button" disabled={disabled} onClick={toggleOpen} aria-expanded={open} aria-haspopup="listbox" aria-controls={optionsId}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && open) {
-            event.preventDefault();
-            setOpen(false);
-            triggerRef.current?.focus();
-          }
-        }}
-        className="flex h-11 w-full items-center justify-between rounded-md border border-[#9BC7A9] bg-[#F7F8F3] px-4 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20 disabled:opacity-60">
-        <span>{prefix ? `${prefix}: ${value}` : value}</span>
-        <ChevronDown size={17} className={`text-[#527765] transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div id={optionsId} role="listbox" aria-label={prefix ?? "Options"} className={`absolute inset-x-0 z-50 max-h-64 overflow-y-auto rounded-xl border border-[#D4E5D8] bg-white p-2 shadow-[0_14px_30px_rgba(18,61,42,0.14)] custom-scrollbar ${openUpward ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}>
-          {options.map((option) => (
-            <button type="button" role="option" aria-selected={option === value} key={option} onClick={() => { onChange(option); setOpen(false); triggerRef.current?.focus(); }}
-              className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#466B59] hover:bg-[#F4F8F3]"}`}>
-              <span>{prefix ? `${prefix}: ${option}` : option}</span>
-              {option === value && <Check size={18} className="text-[#16804D]" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Select.Root
+      value={selected < 0 ? undefined : String(selected)}
+      onValueChange={(index) => onChange(options[Number(index)])}
+      disabled={disabled}
+    >
+      <Select.Trigger
+        id={id}
+        {...aria}
+        aria-label={aria["aria-label"] ?? prefix}
+        className="flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-[#9BC7A9] bg-[#F7F8F3] px-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:opacity-60"
+      >
+        <span className="truncate">
+          {prefix ? `${prefix}: ` : ""}
+          <Select.Value placeholder="Choose an option" />
+        </span>
+        <Select.Icon>
+          <ChevronDown size={17} aria-hidden="true" />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={5}
+          collisionPadding={12}
+          className="z-[100] max-h-[min(20rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-24px)] overflow-hidden rounded-lg border border-[#D4E5D8] bg-white p-1 text-sm shadow-xl"
+        >
+          <Select.Viewport>
+            {options.map((option, index) => (
+              <Select.Item
+                key={`${index}:${option}`}
+                value={String(index)}
+                className="relative flex min-h-11 cursor-default items-center gap-3 rounded-md px-3 py-2 pr-9 text-[#294B39] outline-none data-[highlighted]:bg-[#EAF3E8] data-[state=checked]:font-bold"
+              >
+                <Select.ItemText>{option}</Select.ItemText>
+                <Select.ItemIndicator className="absolute right-3">
+                  <Check size={16} aria-hidden="true" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   );
 }

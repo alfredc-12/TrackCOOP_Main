@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+﻿import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 
 const apiPort = Number(process.env.PLAYWRIGHT_API_PORT ?? 5055);
@@ -245,20 +245,42 @@ test("chairman manages member directory and unified status history", async ({ pa
 
   await page.getByRole("button", { name: "View", exact: true }).click();
   await expect(page.getByText("Share-Capital Progress")).toBeVisible();
+  await page.getByRole("button", { name: "3 Capital Progress" }).click();
   await expect(page.getByText("GCASH-100")).toBeVisible();
+  await page.getByRole("button", { name: "4 Cooperative Activity" }).click();
   await expect(page.getByText("POS-100")).toBeVisible();
   await expect(page.getByText("RNT-100")).toBeVisible();
 
+  await page.getByRole("button", { name: "1 Profile" }).click();
   await page.getByRole("button", { name: "Update Status / Type" }).click();
-  await page.getByLabel("Membership type").selectOption("True Member");
+  await page.getByLabel("Membership type").click();
+  await page.getByRole("menuitem", { name: "True Member", exact: true }).click();
+  await page.keyboard.press("Escape");
   await page.getByLabel("Reason").fill("Capital requirement met.");
   await page.getByLabel('Type "Sample Member" to confirm').fill("Sample Member");
   await page.getByRole("button", { name: "Save Status" }).click();
 
   await expect(page.getByText("True Member").first()).toBeVisible();
 
-  await page.getByRole("dialog").filter({ hasText: "NFFAC-2026-000010" }).locator("button").first().click();
+  await page.getByRole("dialog").filter({ hasText: "NFFAC-2026-000010" }).getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Status History" }).click();
+  await page.getByRole("button", { name: "Expand status details" }).click();
   await expect(page.getByText("Capital requirement met.").first()).toBeVisible();
   await expect(page.getByText("Member").first()).toBeVisible();
+});
+
+test("RFM deep link opens the existing member profile and preserves the workspace return context", async ({ page, context }) => {
+  await page.route(`${apiUrl}/api/**`, async route => {
+    const url = new URL(route.request().url());
+    const result = mockApiResponse(`${url.pathname}${url.search}`, route.request().method());
+    await route.fulfill({ status: result.status, contentType: "application/json", headers: { "Access-Control-Allow-Origin": process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000", "Access-Control-Allow-Credentials": "true" }, body: result.body });
+  });
+  await context.addCookies([{ name: "trackcoop_session", value: "test-session", url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" }]);
+  const returnPath = "/portal/chairman/member-indicators?context=historical&basisEnd=2026-01-31&classification=Active&page=2";
+  await page.goto(`/portal/chairman/members?rfmMemberId=10&search=NFFAC-2026-000010&rfmReturn=${encodeURIComponent(returnPath)}`);
+  const profile = page.getByRole("dialog").filter({ hasText: "NFFAC-2026-000010" });
+  await expect(profile.getByRole("heading", { name: /Sample Member/ })).toBeVisible();
+  await expect(profile.getByText("Share-Capital Progress")).toBeVisible();
+  await profile.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Back to Member Indicators" })).toHaveAttribute("href", returnPath);
 });
