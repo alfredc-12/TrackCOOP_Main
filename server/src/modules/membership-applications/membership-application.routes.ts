@@ -207,6 +207,7 @@ export function createMembershipApplicationRouter(
   );
 
   router.get("/membership-applications/summary", ...staffReadOnly, controller.summary);
+  router.get("/membership-applications/barangays", ...staffReadOnly, controller.barangayOptions);
   router.get("/membership-applications", ...staffReadOnly, controller.list);
   router.post("/membership-applications", ...chairmanOnly, controller.createChairman);
   router.get("/membership-applications/:id", ...staffReadOnly, controller.detail);

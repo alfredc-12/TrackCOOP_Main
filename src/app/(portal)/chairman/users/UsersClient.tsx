@@ -14,7 +14,6 @@ import {
   Monitor,
   Pencil,
   RefreshCcw,
-  Search,
   ShieldCheck,
   UserCheck,
   UserCog,
@@ -30,7 +29,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
@@ -71,6 +70,34 @@ import {
   type UserSummaryCounts,
   type AuditLogEntry,
 } from "@/features/chairman/people-api";
+import {
+  DateRangeFilter,
+  FilterPanel,
+  FilterSelect,
+  InlineNote,
+  KpiGrid,
+  MoreFilters,
+  ResultSummary,
+  SearchField,
+} from "@/features/people-management/PeopleFilterUi";
+import {
+  defaultUserQuery,
+  lastLoginPeriodChoices,
+  mergeViewParams,
+  userChips,
+  userLastLoginChoices,
+  userMemberLinkChoices,
+  userMoreFilterCount,
+  userQueryFromParams,
+  userQueryToParams,
+  userStatusChoice,
+  userStatusChoices,
+  validateDateRange,
+  viewParamKeys,
+  type UserStatusChoice,
+} from "@/features/people-management/people-filters";
+import { replaceUrlParams, useRequestGuard } from "@/features/people-management/people-hooks";
+import { buildUserKpis, memberLinkageText } from "@/features/people-management/people-kpis";
 
 const accountStatuses: AccountStatus[] = ["Pending", "Active", "Suspended", "Inactive"];
 const roles: RoleSlug[] = ["chairman", "bookkeeper", "member"];
@@ -159,29 +186,24 @@ function initials(name: string) {
     .join("") || "UA";
 }
 
-function UserMetricCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  icon: ComponentType<{ className?: string }>;
-}) {
-  return (
-    <article className="min-w-0 rounded-lg border border-[#D9E2D8] bg-white p-4 shadow-[0_12px_28px_rgba(18,61,42,0.05)]">
-      <div className="flex items-center gap-4">
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EEF6EC] text-[#1F6B43]">
-          <Icon className="size-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-[#6C7A70]">{label}</p>
-          <p className="text-2xl font-black leading-none text-[#123D2A]">{value}</p>
-        </div>
-      </div>
-    </article>
-  );
-}
+const emptyUserSummary: UserSummaryCounts = {
+  total: 0,
+  active: 0,
+  pendingActivation: 0,
+  suspendedInactive: 0,
+  suspended: 0,
+  inactive: 0,
+  byRole: { chairman: 0, bookkeeper: 0, member: 0 },
+  memberAccounts: { eligible: 0, linked: 0 },
+  overallTotal: 0,
+};
+
+const kpiIcons: Record<string, ComponentType<{ className?: string }>> = {
+  total: UsersRound,
+  active: ShieldCheck,
+  pending: KeyRound,
+  restricted: UserMinus,
+};
 
 function ComboSelect<T extends string>({
   value,
@@ -253,22 +275,11 @@ function actionStatus(kind: ActionKind): AccountStatus | null {
 
 export function UsersClient() {
   const [users, setUsers] = useState<UserSummary[]>([]);
-  const [summary, setSummary] = useState<UserSummaryCounts>({
-    total: 0,
-    active: 0,
-    pendingActivation: 0,
-    suspendedInactive: 0,
-  });
-  const [query, setQuery] = useState<UserListQuery>({
-    page: 1,
-    pageSize: 5,
-    search: "",
-    role: "all",
-    status: "all",
-    includeHidden: false,
-    sortBy: "createdAt",
-    sortDirection: "desc",
-  });
+  const [summary, setSummary] = useState<UserSummaryCounts | null>(null);
+  const [summaryError, setSummaryError] = useState("");
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
+  const [query, setQuery] = useState<UserListQuery>({ ...defaultUserQuery });
+  const [urlReady, setUrlReady] = useState(false);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -282,43 +293,102 @@ export function UsersClient() {
   const [auditLogsOpen, setAuditLogsOpen] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const beginListRequest = useRequestGuard();
+  const beginSummaryRequest = useRequestGuard();
 
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  // The KPI cards describe everything the filters select except the status filter, which the cards themselves apply.
+  const summaryFilters = useMemo(() => ({
+    search: query.search,
+    role: query.role,
+    includeHidden: query.includeHidden,
+    createdFrom: query.createdFrom,
+    createdTo: query.createdTo,
+    memberLink: query.memberLink,
+    lastLogin: query.lastLogin,
+    lastLoginDays: query.lastLoginDays,
+  }), [query.search, query.role, query.includeHidden, query.createdFrom, query.createdTo, query.memberLink, query.lastLogin, query.lastLoginDays]);
+
   const loadUsers = useCallback(async () => {
+    const request = beginListRequest();
     setIsLoading(true);
     setError("");
 
     try {
-      const [listResult, counts, authUser] = await Promise.all([
-        listUsersPaginated(query),
-        getUserSummary({ includeHidden: query.includeHidden }),
+      const [listResult, authUser] = await Promise.all([
+        listUsersPaginated(query, { signal: request.signal }),
         getAuthenticatedUser(),
       ]);
+      if (!request.isCurrent()) return;
       setUsers(listResult.users);
       setTotal(listResult.total);
-      setSummary(counts);
       setCurrentUserId(authUser.id);
     } catch (caught) {
+      if (!request.isCurrent()) return;
       setError(
         caught instanceof ApiClientError
           ? caught.message
           : "User accounts could not be loaded.",
       );
     } finally {
-      setIsLoading(false);
+      if (request.isCurrent()) setIsLoading(false);
     }
-  }, [query]);
+  }, [query, beginListRequest]);
+
+  const loadSummary = useCallback(async () => {
+    const request = beginSummaryRequest();
+    setIsSummaryLoading(true);
+    setSummaryError("");
+
+    try {
+      const counts = await getUserSummary(summaryFilters, { signal: request.signal });
+      if (request.isCurrent()) setSummary(counts);
+    } catch (caught) {
+      if (!request.isCurrent()) return;
+      setSummaryError(caught instanceof ApiClientError ? caught.message : "The account figures could not be loaded.");
+    } finally {
+      if (request.isCurrent()) setIsSummaryLoading(false);
+    }
+  }, [summaryFilters, beginSummaryRequest]);
+
+  // Filters in the address bar restore the view; read them once after hydration.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const restored = userQueryFromParams(new URLSearchParams(window.location.search));
+      setQuery((current) => ({ ...current, ...restored, page: 1 }));
+      setUrlReady(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
+    if (!urlReady) return;
+    replaceUrlParams((current) => mergeViewParams(current, viewParamKeys.users, userQueryToParams(query), ""));
+  }, [query, urlReady]);
+
+  useEffect(() => {
+    if (!urlReady) return;
     const timeoutId = window.setTimeout(() => {
       void loadUsers();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [loadUsers]);
+  }, [loadUsers, urlReady]);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    const timeoutId = window.setTimeout(() => {
+      void loadSummary();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadSummary, urlReady]);
+
+  const reload = useCallback(() => Promise.all([loadUsers(), loadSummary()]), [loadUsers, loadSummary]);
 
   const refreshSelected = useCallback(async (userId: string) => {
     const detail = await getUserDetail(userId);
@@ -331,7 +401,7 @@ export function UsersClient() {
     try {
       await action();
       toast.success(successMessage);
-      await loadUsers();
+      await reload();
     } catch (caught) {
       toast.error(
         caught instanceof ApiClientError
@@ -370,6 +440,24 @@ export function UsersClient() {
     ];
     updateQuery({ sortBy, sortDirection });
   }
+
+  const statusChoice = userStatusChoice(query);
+  const chips = userChips(query);
+  const kpis = buildUserKpis(summary ?? emptyUserSummary, query);
+  const linkage = summary ? memberLinkageText(summary) : null;
+  const filtersNarrowSummary = chips.some((chip) => chip.key !== "status");
+  const clearAllFilters: Partial<UserListQuery> = {
+    search: "",
+    role: "all",
+    statuses: [],
+    status: "all",
+    includeHidden: false,
+    createdFrom: undefined,
+    createdTo: undefined,
+    memberLink: "all",
+    lastLogin: "all",
+    lastLoginDays: defaultUserQuery.lastLoginDays,
+  };
 
   async function openAuditLogs(userId: string) {
     setIsMutating(true);
@@ -421,7 +509,7 @@ export function UsersClient() {
             </button>
             <button
               type="button"
-              onClick={() => void loadUsers()}
+              onClick={() => void reload()}
               className="grid size-11 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] shadow-sm transition hover:bg-[#F7F8F3]"
               aria-label="Refresh users"
               title="Refresh users"
@@ -432,53 +520,54 @@ export function UsersClient() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <UserMetricCard label="Total Accounts" value={String(summary.total)} icon={UsersRound} />
-        <UserMetricCard label="Active" value={String(summary.active)} icon={ShieldCheck} />
-        <UserMetricCard label="Pending Activation" value={String(summary.pendingActivation)} icon={KeyRound} />
-        <UserMetricCard label="Suspended / Inactive" value={String(summary.suspendedInactive)} icon={UserMinus} />
-      </div>
+      <KpiGrid
+        specs={kpis}
+        icons={kpiIcons}
+        onSelect={updateQuery}
+        onClear={updateQuery}
+        loading={isSummaryLoading && !summary}
+        error={summaryError}
+        onRetry={() => void loadSummary()}
+        scopeNote={summary ? (
+          <>
+            {filtersNarrowSummary
+              ? `Figures describe the ${summary.total.toLocaleString("en-PH")} accounts matching your search and filters.`
+              : `Figures cover all ${summary.total.toLocaleString("en-PH")} accounts${query.includeHidden ? ", including hidden accounts" : ""}.`}
+            {linkage ? ` ${linkage}.` : ""}
+          </>
+        ) : undefined}
+      />
 
-      <section className="grid min-w-0 gap-3 rounded-lg border border-[#D9E2D8] bg-white p-4 shadow-[0_14px_32px_rgba(18,61,42,0.06)]">
-        <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1.6fr)_minmax(8rem,0.7fr)_minmax(9rem,0.7fr)_minmax(10rem,0.8fr)_minmax(8rem,0.7fr)_auto]">
-          <label className="relative block min-w-0 md:col-span-2 xl:col-span-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
-            <input
-              value={query.search ?? ""}
-              onChange={(event) => updateQuery({ search: event.target.value })}
-              className="h-11 w-full rounded-md border border-[#D9E2D8] bg-white pl-10 pr-4 text-sm outline-none transition placeholder:text-[#8A9A91] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
-              placeholder="Search users"
-              type="search"
-            />
-          </label>
-          <ComboSelect
+      <FilterPanel chips={chips} onRemoveChip={(chip) => updateQuery(chip.clear)} onClearAll={() => updateQuery(clearAllFilters)}>
+        <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(13rem,1.5fr)_minmax(9rem,0.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)_minmax(10rem,0.9fr)_auto]">
+          <div className="md:col-span-2 xl:col-span-1">
+            <SearchField label="Search user accounts" value={query.search ?? ""} onCommit={(search) => updateQuery({ search })} placeholder="Search name, username or email" />
+          </div>
+          <FilterSelect
+            label="Role"
             value={query.role ?? "all"}
-            onChange={(value) => updateQuery({ role: value })}
-            ariaLabel="Role filter"
+            onChange={(role) => updateQuery({ role })}
+            options={[{ value: "all", label: "All roles" }, ...roles.map((role) => ({ value: role, label: roleLabel(role) }))]}
+          />
+          <FilterSelect
+            label="Status"
+            value={statusChoice}
+            onChange={(choice) => updateQuery({ statuses: userStatusChoices.find((entry) => entry.value === choice)?.statuses ?? [], status: "all" })}
             options={[
-              { value: "all", label: "All roles" },
-              ...roles.map((role) => ({ value: role, label: roleLabel(role) })),
+              ...userStatusChoices.map((choice) => ({ value: choice.value as UserStatusChoice | "custom", label: choice.label })),
+              ...(statusChoice === "custom" ? [{ value: "custom" as const, label: (query.statuses ?? []).join(" or ") }] : []),
             ]}
           />
-          <ComboSelect
-            value={query.status ?? "all"}
-            onChange={(value) => updateQuery({ status: value })}
-            ariaLabel="Status filter"
-            options={[
-              { value: "all", label: "All statuses" },
-              ...accountStatuses.map((status) => ({ value: status, label: status })),
-            ]}
-          />
-          <ComboSelect
+          <FilterSelect
+            label="Sort"
             value={`${query.sortBy ?? "createdAt"}:${query.sortDirection ?? "desc"}`}
             onChange={updateSort}
-            ariaLabel="Sort users"
             options={[...sortOptions]}
           />
-          <ComboSelect
+          <FilterSelect
+            label="Order"
             value={query.sortDirection ?? "desc"}
-            onChange={(value) => updateQuery({ sortDirection: value })}
-            ariaLabel="Sort direction"
+            onChange={(sortDirection) => updateQuery({ sortDirection })}
             options={[
               { value: "desc", label: "Descending" },
               { value: "asc", label: "Ascending" },
@@ -512,7 +601,45 @@ export function UsersClient() {
             </span>
           </button>
         </div>
-      </section>
+        <MoreFilters activeCount={userMoreFilterCount(query)}>
+          <DateRangeFilter
+            label="Account created"
+            from={query.createdFrom}
+            to={query.createdTo}
+            onChange={({ from, to }) => updateQuery({ createdFrom: from, createdTo: to })}
+            error={validateDateRange(query.createdFrom, query.createdTo)}
+          />
+          <FilterSelect
+            label="Member link"
+            value={query.memberLink ?? "all"}
+            onChange={(memberLink) => updateQuery({ memberLink })}
+            options={userMemberLinkChoices}
+          />
+          <div className="grid min-w-0 gap-2">
+            <FilterSelect
+              label="Last login"
+              value={query.lastLogin ?? "all"}
+              onChange={(lastLogin) => updateQuery({ lastLogin })}
+              options={userLastLoginChoices}
+            />
+            {query.lastLogin === "recent" || query.lastLogin === "inactive" ? (
+              <FilterSelect
+                label="Within"
+                value={String(query.lastLoginDays ?? 30)}
+                onChange={(days) => updateQuery({ lastLoginDays: Number(days) })}
+                options={lastLoginPeriodChoices.map((days) => ({ value: String(days), label: `${days} days` }))}
+              />
+            ) : null}
+            <InlineNote>
+              {query.lastLogin === "inactive"
+                ? "Only accounts that have signed in before are listed. Accounts with no recorded login are under “Never logged in”."
+                : "A missing last-login time means no sign-in was recorded, not that the account is abandoned."}
+            </InlineNote>
+          </div>
+        </MoreFilters>
+      </FilterPanel>
+
+      <ResultSummary total={total} overall={summary?.overallTotal} noun="user accounts" filtered={chips.length > 0} loading={isLoading} />
 
       {error ? <ErrorState message={error} /> : null}
       {isLoading ? (

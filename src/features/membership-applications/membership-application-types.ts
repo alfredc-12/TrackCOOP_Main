@@ -173,6 +173,10 @@ export type DocumentUploadDraft = {
   clientError: string | null;
 };
 
+/**
+ * Counts for everything matching the filters except the status filter. `approved` is the number of
+ * applications that are currently Approved, not the number approved within a period.
+ */
 export type ChairmanApplicationSummary = {
   total: number;
   submitted: number;
@@ -183,6 +187,19 @@ export type ChairmanApplicationSummary = {
   approved: number;
   rejected: number;
   withdrawn: number;
+  /** Submitted + Under Review. */
+  forReview: number;
+  /** Payment Required + Payment Confirmed. */
+  paymentStage: number;
+  /** Applications visible with no filter at all. */
+  overallTotal: number;
+};
+
+export type RequirementCompletionFilter = "All" | "complete" | "incomplete";
+
+export type ChairmanApplicationBarangayOptions = {
+  barangays: Array<{ barangay: string; total: number }>;
+  unspecified: number;
 };
 
 export type ChairmanApplicationListItem = {
@@ -275,14 +292,24 @@ export type ChairmanApplicationDetail = ChairmanApplicationListItem &
     history: ChairmanApplicationHistoryEntry[];
   };
 
-export type ChairmanApplicationListQuery = {
-  page: number;
-  pageSize: number;
+export type ChairmanApplicationFilterQuery = {
   search?: string;
   status?: MembershipApplicationStatus | "All";
+  /** Several statuses at once; takes precedence over `status`. */
+  statuses?: MembershipApplicationStatus[];
   requestedMembershipType?: RequestedMembershipType | "All";
   applicationSource?: MembershipApplicationSource | "All";
   barangay?: string;
+  /** Inclusive Asia/Manila dates for the submission date. */
+  submittedFrom?: string;
+  submittedTo?: string;
+  /** Evaluated on the server over every application, not only the loaded page. */
+  requirementCompletion?: RequirementCompletionFilter;
+};
+
+export type ChairmanApplicationListQuery = ChairmanApplicationFilterQuery & {
+  page: number;
+  pageSize: number;
   sortBy: "submittedAt" | "fullName" | "applicationStatus" | "requestedMembershipType";
   sortDirection: "asc" | "desc";
 };

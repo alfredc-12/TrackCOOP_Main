@@ -205,18 +205,32 @@ export type StoredChairmanApplicationDocument = StoredMembershipApplicationDocum
   storedFilePath: string;
 };
 
-export type ChairmanApplicationListQuery = {
-  page: number;
-  pageSize: number;
+export type ChairmanApplicationFilters = {
   search?: string | null;
   status?: MembershipApplicationStatus;
+  /** Takes precedence over `status` when both are given. */
+  statuses?: MembershipApplicationStatus[];
   requestedMembershipType?: RequestedMembershipType;
   applicationSource?: MembershipApplicationSource;
   barangay?: string | null;
+  /** Inclusive Asia/Manila calendar dates (YYYY-MM-DD) for the submission date. */
+  submittedFrom?: string;
+  submittedTo?: string;
+  requirementCompletion?: "complete" | "incomplete";
+};
+
+export type ChairmanApplicationListQuery = ChairmanApplicationFilters & {
+  page: number;
+  pageSize: number;
   sortBy: "submittedAt" | "fullName" | "applicationStatus" | "requestedMembershipType";
   sortDirection: "asc" | "desc";
 };
 
+/**
+ * Counts for the population matching every filter except the status filter, so the status cards keep
+ * showing the distribution the status filter selects from. `approved` is the number of applications
+ * that are currently Approved, not the number approved within a period.
+ */
 export type ChairmanApplicationSummary = {
   total: number;
   submitted: number;
@@ -227,6 +241,12 @@ export type ChairmanApplicationSummary = {
   approved: number;
   rejected: number;
   withdrawn: number;
+  /** Submitted + Under Review. */
+  forReview: number;
+  /** Payment Required + Payment Confirmed. */
+  paymentStage: number;
+  /** Applications visible with no filter at all. */
+  overallTotal: number;
 };
 
 export type ChairmanApplicationListItem = {

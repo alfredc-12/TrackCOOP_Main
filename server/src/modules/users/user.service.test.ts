@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AppError } from "../../utils/app-error";
+import { userSummaryFixture } from "../people-test-fixtures";
 import type { AuthContext } from "../auth/auth.types";
 import { createUserService } from "./user.service";
 import type { UserRepository } from "./user.repository";
@@ -51,7 +52,7 @@ function createRepository(overrides: Partial<UserRepository> = {}): UserReposito
       return { users: [userSummary], total: 1, page: 1, pageSize: 10 };
     },
     async summary() {
-      return { total: 1, active: 1, pendingActivation: 0, suspendedInactive: 0 };
+      return userSummaryFixture();
     },
     async findById() {
       return userDetail;

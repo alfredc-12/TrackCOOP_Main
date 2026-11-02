@@ -2,6 +2,7 @@
 
 import { env } from "@/config/env";
 import { apiRequest, ApiClientError } from "@/lib/api-client";
+import { requireSummaryFields } from "@/features/people-management/summary-guard";
 
 export type AccountStatus = "Pending" | "Active" | "Suspended" | "Inactive";
 export type RoleSlug = "chairman" | "bookkeeper" | "member";
@@ -35,20 +36,41 @@ export type UserDetail = UserSummary & {
   sessions: UserSession[];
 };
 
+/** Counts for everything matching the filters except the account-status filter. */
 export type UserSummaryCounts = {
   total: number;
   active: number;
   pendingActivation: number;
   suspendedInactive: number;
+  suspended: number;
+  inactive: number;
+  byRole: Record<RoleSlug, number>;
+  /** Member-role accounts in scope and how many have a member profile. */
+  memberAccounts: { eligible: number; linked: number };
+  /** Accounts visible under the hidden-account policy alone. */
+  overallTotal: number;
 };
 
-export type UserListQuery = {
-  page?: number;
-  pageSize?: number;
+export type UserMemberLinkFilter = "all" | "linked" | "unlinked";
+export type UserLastLoginFilter = "all" | "never" | "recent" | "inactive";
+
+export type UserFilterQuery = {
   search?: string;
   role?: RoleSlug | "all";
   status?: AccountStatus | "all";
+  /** Several statuses at once; takes precedence over `status`. */
+  statuses?: AccountStatus[];
   includeHidden?: boolean;
+  createdFrom?: string;
+  createdTo?: string;
+  memberLink?: UserMemberLinkFilter;
+  lastLogin?: UserLastLoginFilter;
+  lastLoginDays?: number;
+};
+
+export type UserListQuery = UserFilterQuery & {
+  page?: number;
+  pageSize?: number;
   sortBy?: "displayName" | "email" | "role" | "accountStatus" | "createdAt";
   sortDirection?: "asc" | "desc";
 };
@@ -196,14 +218,24 @@ export type MemberDetail = MemberProfile & {
   statusHistory: MemberStatusHistoryEntry[];
 };
 
-export type MemberListQuery = {
-  page?: number;
-  pageSize?: number;
+export type MemberAccountLinkFilter = "all" | "linked" | "unlinked";
+
+export type MemberFilterQuery = {
   search?: string;
   approvalStatus?: ApprovalStatus | "All";
   officialMemberStatus?: OfficialMemberStatus | "All";
   membershipType?: MembershipType | "All";
   barangay?: string;
+  /** The primary sector, or `Unspecified`. */
+  sector?: string;
+  accountLink?: MemberAccountLinkFilter;
+  approvedFrom?: string;
+  approvedTo?: string;
+};
+
+export type MemberListQuery = MemberFilterQuery & {
+  page?: number;
+  pageSize?: number;
   sortBy?: "fullName" | "memberCode" | "createdAt" | "applicationDate";
   sortDirection?: "asc" | "desc";
 };
@@ -234,6 +266,9 @@ export type MemberProfileInput = {
   notes?: string | null;
 };
 
+export type HistorySource = "All" | "Application" | "Member" | "Account";
+export type HistoryChangeTypeFilter = "all" | "application-status" | "member-status" | "membership-type" | "account-status" | "account-role";
+
 export type UnifiedStatusHistoryEntry = {
   id: string;
   sourceModule: "Application" | "Member" | "Account";
@@ -244,7 +279,36 @@ export type UnifiedStatusHistoryEntry = {
   newStatus: string;
   reason: string | null;
   actor: string | null;
+  actorId: string | null;
+  changeType: Exclude<HistoryChangeTypeFilter, "all"> | "member-status-and-type";
   changedAt: string;
+};
+
+export type HistoryFilterQuery = {
+  search?: string;
+  sourceModule?: HistorySource;
+  /** One exact Asia/Manila date; takes precedence over `from`/`to`. */
+  date?: string;
+  from?: string;
+  to?: string;
+  /** A user id, or `none` for events with no recorded actor. */
+  actorId?: string;
+  changeType?: HistoryChangeTypeFilter;
+};
+
+/** Counts are history events, not distinct people. */
+export type UnifiedStatusHistorySummary = {
+  total: number;
+  application: number;
+  member: number;
+  account: number;
+  distinctSubjects: number;
+  overallTotal: number;
+};
+
+export type HistoryActorOptions = {
+  actors: Array<{ id: string; name: string; total: number }>;
+  withoutActor: number;
 };
 
 export type UnifiedStatusHistoryResult = {
@@ -296,15 +360,31 @@ async function apiRequestWithMeta<T>(path: string, init: RequestInit = {}) {
   };
 }
 
+/** Counts for everything matching the filters except approval status, official status and membership type. */
 export type MemberSummary = {
   total: number;
   pendingApproval: number;
+  needsInformation: number;
+  rejected: number;
   approved: number;
+  /** Counts every profile, approved or not. Prefer `approvedMembers` for membership KPIs. */
   associate: number;
   trueMember: number;
   active: number;
   inactive: number;
   suspended: number;
+  approvedMembers: {
+    total: number;
+    active: number;
+    inactive: number;
+    suspended: number;
+    terminated: number;
+    pendingOfficial: number;
+    associate: number;
+    trueMember: number;
+    unlinked: number;
+  };
+  overallTotal: number;
 };
 
 export type MemberIndicatorStatus = "Active" | "Needs Monitoring" | "Inactive";
@@ -401,19 +481,32 @@ export async function listUsers(search?: string) {
   return result.users;
 }
 
-export async function listUsersPaginated(query: UserListQuery = {}): Promise<UserListResult> {
-  const params = new URLSearchParams({
+/** Filter parameters shared by the user list, export and KPI summary. */
+export function userFilterParams(query: UserFilterQuery, params = new URLSearchParams()) {
+  if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.role && query.role !== "all") params.set("role", query.role);
+  if (query.statuses?.length) params.set("statuses", query.statuses.join("|"));
+  else if (query.status && query.status !== "all") params.set("status", query.status);
+  if (query.includeHidden) params.set("includeHidden", "true");
+  if (query.createdFrom) params.set("createdFrom", query.createdFrom);
+  if (query.createdTo) params.set("createdTo", query.createdTo);
+  if (query.memberLink && query.memberLink !== "all") params.set("memberLink", query.memberLink);
+  if (query.lastLogin && query.lastLogin !== "all") {
+    params.set("lastLogin", query.lastLogin);
+    if (query.lastLogin !== "never" && query.lastLoginDays) params.set("lastLoginDays", String(query.lastLoginDays));
+  }
+  return params;
+}
+
+export async function listUsersPaginated(query: UserListQuery = {}, options: { signal?: AbortSignal } = {}): Promise<UserListResult> {
+  const params = userFilterParams(query, new URLSearchParams({
     page: String(query.page ?? 1),
     pageSize: String(query.pageSize ?? 20),
     sortBy: query.sortBy ?? "createdAt",
     sortDirection: query.sortDirection ?? "desc",
-  });
-  if (query.search?.trim()) params.set("search", query.search.trim());
-  if (query.role && query.role !== "all") params.set("role", query.role);
-  if (query.status && query.status !== "all") params.set("status", query.status);
-  if (query.includeHidden) params.set("includeHidden", "true");
+  }));
 
-  const result = await apiRequestWithMeta<UserSummary[]>(`/api/users?${params}`);
+  const result = await apiRequestWithMeta<UserSummary[]>(`/api/users?${params}`, { signal: options.signal });
   return {
     users: result.data,
     total: Number(result.meta.total ?? result.data.length),
@@ -422,11 +515,11 @@ export async function listUsersPaginated(query: UserListQuery = {}): Promise<Use
   };
 }
 
-export function getUserSummary(options: { includeHidden?: boolean } = {}) {
-  const params = new URLSearchParams();
-  if (options.includeHidden) params.set("includeHidden", "true");
-  const queryString = params.toString();
-  return apiRequest<UserSummaryCounts>(`/api/users/summary${queryString ? `?${queryString}` : ""}`);
+/** KPI counts for the filtered population. The status filter is ignored: the cards are the status breakdown. */
+export async function getUserSummary(filters: UserFilterQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const queryString = userFilterParams({ ...filters, status: undefined, statuses: undefined }).toString();
+  const summary = await apiRequest<UserSummaryCounts>(`/api/users/summary${queryString ? `?${queryString}` : ""}`, { signal: options.signal });
+  return requireSummaryFields(summary, ["total", "active", "pendingActivation", "suspended", "inactive", "byRole.chairman", "byRole.bookkeeper", "byRole.member", "memberAccounts.eligible", "memberAccounts.linked", "overallTotal"], "account");
 }
 
 export function getUserDetail(userId: string) {
@@ -521,16 +614,12 @@ export function resetUserPassword(userId: string, password: string, reason: stri
 }
 
 export function exportUsersCsv(query: UserListQuery = {}): string {
-  const params = new URLSearchParams({
+  const params = userFilterParams(query, new URLSearchParams({
     page: String(query.page ?? 1),
     pageSize: String(query.pageSize ?? 20),
     sortBy: query.sortBy ?? "createdAt",
     sortDirection: query.sortDirection ?? "desc",
-  });
-  if (query.search?.trim()) params.set("search", query.search.trim());
-  if (query.role && query.role !== "all") params.set("role", query.role);
-  if (query.status && query.status !== "all") params.set("status", query.status);
-  if (query.includeHidden) params.set("includeHidden", "true");
+  }));
 
   return `${env.apiUrl}/api/users/export?${params}`;
 }
@@ -571,20 +660,29 @@ export function listMembers(search?: string) {
     .then((result) => result.members);
 }
 
-export async function listMembersPaginated(query: MemberListQuery = {}): Promise<MemberListResult> {
-  const params = new URLSearchParams({
-    page: String(query.page ?? 1),
-    pageSize: String(query.pageSize ?? 20),
-    sortBy: query.sortBy ?? "createdAt",
-    sortDirection: query.sortDirection ?? "desc",
-  });
+/** Filter parameters shared by the member list and its KPI summary. */
+export function memberFilterParams(query: MemberFilterQuery, params = new URLSearchParams()) {
   if (query.search?.trim()) params.set("search", query.search.trim());
   if (query.approvalStatus && query.approvalStatus !== "All") params.set("approvalStatus", query.approvalStatus);
   if (query.officialMemberStatus && query.officialMemberStatus !== "All") params.set("officialMemberStatus", query.officialMemberStatus);
   if (query.membershipType && query.membershipType !== "All") params.set("membershipType", query.membershipType);
   if (query.barangay?.trim()) params.set("barangay", query.barangay.trim());
+  if (query.sector?.trim()) params.set("sector", query.sector.trim());
+  if (query.accountLink && query.accountLink !== "all") params.set("accountLink", query.accountLink);
+  if (query.approvedFrom) params.set("approvedFrom", query.approvedFrom);
+  if (query.approvedTo) params.set("approvedTo", query.approvedTo);
+  return params;
+}
 
-  const result = await apiRequestWithMeta<MemberProfile[]>(`/api/members?${params}`);
+export async function listMembersPaginated(query: MemberListQuery = {}, options: { signal?: AbortSignal } = {}): Promise<MemberListResult> {
+  const params = memberFilterParams(query, new URLSearchParams({
+    page: String(query.page ?? 1),
+    pageSize: String(query.pageSize ?? 20),
+    sortBy: query.sortBy ?? "createdAt",
+    sortDirection: query.sortDirection ?? "desc",
+  }));
+
+  const result = await apiRequestWithMeta<MemberProfile[]>(`/api/members?${params}`, { signal: options.signal });
   return {
     members: result.data,
     total: Number(result.meta.total ?? result.data.length),
@@ -593,8 +691,16 @@ export async function listMembersPaginated(query: MemberListQuery = {}): Promise
   };
 }
 
-export function getMemberSummary() {
-  return apiRequest<MemberSummary>("/api/members/summary");
+/** KPI counts for the filtered population. Approval, official status and type filters are ignored: the cards break them down. */
+export async function getMemberSummary(filters: MemberFilterQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const queryString = memberFilterParams({ ...filters, approvalStatus: undefined, officialMemberStatus: undefined, membershipType: undefined }).toString();
+  const summary = await apiRequest<MemberSummary>(`/api/members/summary${queryString ? `?${queryString}` : ""}`, { signal: options.signal });
+  return requireSummaryFields(summary, ["total", "approved", "pendingApproval", "approvedMembers.total", "approvedMembers.active", "approvedMembers.associate", "approvedMembers.trueMember", "approvedMembers.unlinked", "overallTotal"], "member directory");
+}
+
+/** Distinct barangays recorded on member profiles, with counts. */
+export function listMemberBarangays(options: { signal?: AbortSignal } = {}) {
+  return apiRequest<Array<{ barangay: string; total: number }>>("/api/members/distribution/barangay", { signal: options.signal });
 }
 
 export function getMemberDetail(memberId: string) {
@@ -630,28 +736,47 @@ export function updateMemberStatus(
   });
 }
 
-export async function listUnifiedStatusHistory(query: {
-  search?: string;
-  sourceModule?: "All" | "Application" | "Member" | "Account";
-  date?: string;
+/** Filter parameters shared by the history table, its KPI summary and the actor options. */
+export function historyFilterParams(query: HistoryFilterQuery, params = new URLSearchParams()) {
+  if (query.search?.trim()) params.set("search", query.search.trim());
+  if (query.sourceModule) params.set("sourceModule", query.sourceModule);
+  if (query.date?.trim()) params.set("date", query.date.trim());
+  else {
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+  }
+  if (query.actorId) params.set("actorId", query.actorId);
+  if (query.changeType && query.changeType !== "all") params.set("changeType", query.changeType);
+  return params;
+}
+
+export async function listUnifiedStatusHistory(query: HistoryFilterQuery & {
   page?: number;
   pageSize?: number;
-} = {}): Promise<UnifiedStatusHistoryResult> {
-  const params = new URLSearchParams({
+} = {}, options: { signal?: AbortSignal } = {}): Promise<UnifiedStatusHistoryResult> {
+  const params = historyFilterParams({ ...query, sourceModule: query.sourceModule ?? "All" }, new URLSearchParams({
     page: String(query.page ?? 1),
     pageSize: String(query.pageSize ?? 20),
-    sourceModule: query.sourceModule ?? "All",
-  });
-  if (query.search?.trim()) params.set("search", query.search.trim());
-  if (query.date?.trim()) params.set("date", query.date.trim());
+  }));
 
-  const result = await apiRequestWithMeta<UnifiedStatusHistoryEntry[]>(`/api/members/status-history?${params}`);
+  const result = await apiRequestWithMeta<UnifiedStatusHistoryEntry[]>(`/api/members/status-history?${params}`, { signal: options.signal });
   return {
     entries: result.data,
     total: Number(result.meta.total ?? result.data.length),
     page: Number(result.meta.page ?? query.page ?? 1),
     pageSize: Number(result.meta.pageSize ?? query.pageSize ?? 20),
   };
+}
+
+/** Event counts for the filtered history. The source filter is ignored: the cards are the per-source breakdown. */
+export function getUnifiedStatusHistorySummary(filters: HistoryFilterQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const queryString = historyFilterParams({ ...filters, sourceModule: undefined }).toString();
+  return apiRequest<UnifiedStatusHistorySummary>(`/api/members/status-history/summary${queryString ? `?${queryString}` : ""}`, { signal: options.signal });
+}
+
+export function listUnifiedStatusHistoryActors(filters: HistoryFilterQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const queryString = historyFilterParams({ ...filters, sourceModule: undefined, actorId: undefined }).toString();
+  return apiRequest<HistoryActorOptions>(`/api/members/status-history/actors${queryString ? `?${queryString}` : ""}`, { signal: options.signal });
 }
 
 export async function listMemberIndicators(query: MemberIndicatorListQuery = {}): Promise<MemberIndicatorListResult> {

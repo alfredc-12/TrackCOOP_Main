@@ -9,6 +9,7 @@ import type { AuthContext, AuthUser, RoleSlug } from "../auth/auth.types";
 import { createMemberRouter } from "./member.routes";
 import type { MemberService } from "./member.service";
 import type { MemberDetail } from "./member.types";
+import { historyEntryFixture, historySummaryFixture, memberSummaryFixture } from "../people-test-fixtures";
 
 const chairman: AuthUser = {
   id: "1",
@@ -112,37 +113,16 @@ function createMemberService(): MemberService {
       return [];
     },
     async unifiedStatusHistory(query) {
-      return {
-        entries: [
-          {
-            id: "member-1",
-            sourceModule: "Member",
-            subjectId: "10",
-            subjectCode: "NFFAC-2026-000010",
-            subjectName: "Sample Member",
-            oldStatus: "Associate / Active",
-            newStatus: "True Member / Active",
-            reason: "Capital requirement met.",
-            actor: "Chair Person",
-            changedAt: new Date("2026-07-24T00:00:00.000Z"),
-          },
-        ],
-        total: 1,
-        page: query.page,
-        pageSize: query.pageSize,
-      };
+      return { entries: [historyEntryFixture()], total: 1, page: query.page, pageSize: query.pageSize };
+    },
+    async unifiedStatusHistorySummary() {
+      return historySummaryFixture({ total: 1, member: 1, distinctSubjects: 1, overallTotal: 1 });
+    },
+    async unifiedStatusHistoryActors() {
+      return { actors: [{ id: "1", name: "Chair Person", total: 1 }], withoutActor: 0 };
     },
     async summary() {
-      return {
-        total: 1,
-        pendingApproval: 0,
-        approved: 1,
-        associate: 1,
-        trueMember: 0,
-        active: 1,
-        inactive: 0,
-        suspended: 0,
-      };
+      return memberSummaryFixture({ total: 1, approved: 1, associate: 1, active: 1 });
     },
     async barangayDistribution() {
       return [];

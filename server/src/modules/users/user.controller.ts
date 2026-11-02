@@ -8,6 +8,7 @@ import {
   linkMemberSchema,
   listLinkableMembersQuerySchema,
   listUsersQuerySchema,
+  userSummaryQuerySchema,
   revokeSessionSchema,
   unlinkMemberSchema,
   updateUserRoleSchema,
@@ -71,7 +72,7 @@ export function createUserController(service: UserService) {
     }),
 
     summary: asyncHandler(async (request, response) => {
-      const query = parseBody(listUsersQuerySchema.pick({ includeHidden: true }), request.query);
+      const query = parseBody(userSummaryQuerySchema, request.query);
       const summary = await service.getSummary(query);
       return sendSuccess(response, summary);
     }),

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AppError } from "../../utils/app-error";
+import { historySummaryFixture, memberSummaryFixture } from "../people-test-fixtures";
 import type { AuthContext } from "../auth/auth.types";
 import { createMemberService } from "./member.service";
 import type { MemberRepository } from "./member.repository";
@@ -92,16 +93,13 @@ function createRepository(overrides: Partial<MemberRepository> = {}): MemberRepo
       return { entries: [], total: 0, page: 1, pageSize: 20 };
     },
     async summary() {
-      return {
-        total: 0,
-        pendingApproval: 0,
-        approved: 0,
-        associate: 0,
-        trueMember: 0,
-        active: 0,
-        inactive: 0,
-        suspended: 0,
-      };
+      return memberSummaryFixture();
+    },
+    async unifiedStatusHistorySummary() {
+      return historySummaryFixture();
+    },
+    async unifiedStatusHistoryActors() {
+      return { actors: [], withoutActor: 0 };
     },
     async barangayDistribution() {
       return [];

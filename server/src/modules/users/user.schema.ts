@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { roleSlugs } from "../auth/auth.types";
+import { csvEnum, isoDateSchema, refineDateRange } from "../../utils/people-filters";
 
 export const accountStatuses = ["Pending", "Active", "Suspended", "Inactive"] as const;
 
@@ -8,18 +9,42 @@ const booleanQuery = z.preprocess(
   z.boolean(),
 );
 
-export const listUsersQuerySchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(100).default(20),
+export const memberLinkFilters = ["linked", "unlinked"] as const;
+export const lastLoginFilters = ["never", "recent", "inactive"] as const;
+export const defaultLastLoginDays = 30;
+
+/** Filters shared by the list, the export and the KPI summary so all three always agree. */
+const userFilterShape = {
   search: z.string().trim().min(1).max(190).optional(),
   role: z.enum(roleSlugs).optional(),
   status: z.enum(accountStatuses).optional(),
+  /** Several statuses at once, e.g. `Suspended|Inactive`; takes precedence over `status`. */
+  statuses: csvEnum(accountStatuses).optional(),
   includeHidden: booleanQuery.default(false),
-  sortBy: z
-    .enum(["displayName", "email", "role", "accountStatus", "createdAt"])
-    .default("createdAt"),
-  sortDirection: z.enum(["asc", "desc"]).default("desc"),
-});
+  createdFrom: isoDateSchema.optional(),
+  createdTo: isoDateSchema.optional(),
+  /** `unlinked` means a member-role account with no member profile; staff accounts are never "unlinked". */
+  memberLink: z.enum(memberLinkFilters).optional(),
+  lastLogin: z.enum(lastLoginFilters).optional(),
+  lastLoginDays: z.coerce.number().int().min(1).max(3650).default(defaultLastLoginDays),
+};
+
+export const listUsersQuerySchema = z
+  .object({
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce.number().int().positive().max(100).default(20),
+    ...userFilterShape,
+    sortBy: z
+      .enum(["displayName", "email", "role", "accountStatus", "createdAt"])
+      .default("createdAt"),
+    sortDirection: z.enum(["asc", "desc"]).default("desc"),
+  })
+  .superRefine(refineDateRange("createdFrom", "createdTo"));
+
+/** KPI summary: every list filter except paging and sorting. */
+export const userSummaryQuerySchema = z
+  .object(userFilterShape)
+  .superRefine(refineDateRange("createdFrom", "createdTo"));
 
 export const listLinkableMembersQuerySchema = z.object({
   search: z.string().trim().min(1).max(190).optional(),

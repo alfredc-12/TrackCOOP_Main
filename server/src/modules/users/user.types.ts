@@ -27,22 +27,47 @@ export type RoleSummary = {
   description: string | null;
 };
 
-export type UserListQuery = {
-  page: number;
-  pageSize: number;
+/** Filters shared by the list, export and KPI summary. */
+export type UserFilters = {
   search?: string;
   role?: RoleSlug;
   status?: AccountStatus;
+  /** Takes precedence over `status` when both are given. */
+  statuses?: AccountStatus[];
   includeHidden?: boolean;
+  /** Inclusive Asia/Manila calendar dates (YYYY-MM-DD) for the account creation date. */
+  createdFrom?: string;
+  createdTo?: string;
+  /** `unlinked` = a member-role account with no member profile. */
+  memberLink?: "linked" | "unlinked";
+  /** `inactive` = has logged in before, but not within `lastLoginDays`; it never includes "never logged in". */
+  lastLogin?: "never" | "recent" | "inactive";
+  lastLoginDays?: number;
+};
+
+export type UserListQuery = UserFilters & {
+  page: number;
+  pageSize: number;
   sortBy: "displayName" | "email" | "role" | "accountStatus" | "createdAt";
   sortDirection: "asc" | "desc";
 };
 
+/**
+ * Counts for the population matching every filter except the account-status filter, so the status cards
+ * keep showing the distribution that the status filter selects from.
+ */
 export type UserSummaryCounts = {
   total: number;
   active: number;
   pendingActivation: number;
   suspendedInactive: number;
+  suspended: number;
+  inactive: number;
+  byRole: Record<RoleSlug, number>;
+  /** Member-role accounts in scope and how many have a member profile. */
+  memberAccounts: { eligible: number; linked: number };
+  /** Accounts visible under the hidden-account policy alone, ignoring every other filter. */
+  overallTotal: number;
 };
 
 export type UserListResult = {
