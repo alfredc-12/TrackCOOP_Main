@@ -19,7 +19,7 @@ export function createFinanceRouter(
   router.patch("/financial-categories/:id", ...bookkeeperOnly, controller.updateCategory);
 
   router.get("/operating-expenses", ...staff, controller.listOperatingExpenses);
-  router.post("/operating-expenses", ...staff, controller.createOperatingExpense);
+  router.post("/operating-expenses", ...bookkeeperOnly, controller.createOperatingExpense);
   router.get("/operating-expenses/report", ...staff, controller.operatingExpenseReport);
 
   router.get("/financial-records", ...staff, controller.listRecords);

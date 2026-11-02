@@ -232,6 +232,7 @@ function operatingExpenseWhere(query: OperatingExpenseListQuery) {
   const where = [
     "r.record_type = 'Expense'",
     "r.record_status = 'Active'",
+    "r.approved_by IS NOT NULL",
     "r.source_module NOT IN ('POS', 'Rental')",
     `c.category_code IN (${operatingExpenseCategoryCodes.map(() => "?").join(", ")})`,
   ];
@@ -258,7 +259,8 @@ export interface FinanceRepository {
   postRecord(id: string, auth: AuthContext): Promise<FinancialRecord>;
   voidRecord(id: string, reason: string | null | undefined, auth: AuthContext): Promise<FinancialRecord>;
   createOperatingExpense(input: OperatingExpenseInput, auth: AuthContext): Promise<OperatingExpenseRecord>;
-  operatingExpenses(query: OperatingExpenseListQuery): Promise<OperatingExpenseSummary>;
+  /** `all` returns every matching record (used by the report); otherwise the 100 most recent. */
+  operatingExpenses(query: OperatingExpenseListQuery, options?: { all?: boolean }): Promise<OperatingExpenseSummary>;
   summary(): Promise<FinancialSummary>;
   trends(): Promise<FinancialTrend[]>;
 }
@@ -642,10 +644,9 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
       }, databasePool());
     },
 
-    async operatingExpenses(query) {
+    async operatingExpenses(query, options = {}) {
       const where = operatingExpenseWhere(query);
-      const [rows] = await databasePool().execute<OperatingExpenseRow[]>(
-        `SELECT CAST(r.financial_record_id AS CHAR) AS id,
+      const select = `SELECT CAST(r.financial_record_id AS CHAR) AS id,
                 r.record_number AS recordNumber,
                 c.category_code AS categoryCode,
                 c.category_name AS categoryName,
@@ -659,10 +660,19 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
            FROM financial_records r
            JOIN financial_categories c ON c.financial_category_id = r.financial_category_id
           ${where.sql}
-          ORDER BY r.record_date DESC, r.financial_record_id DESC
-          ${limitOffsetSql(100, 0)}`,
-        where.values,
-      );
+          ORDER BY r.record_date DESC, r.financial_record_id DESC`;
+      const rows: OperatingExpenseRow[] = [];
+      if (options.all) {
+        // Report path: page through the whole filtered population instead of stopping at the list's 100.
+        for (let offset = 0; ; offset += 1000) {
+          const [chunk] = await databasePool().execute<OperatingExpenseRow[]>(`${select} ${limitOffsetSql(1000, offset)}`, where.values);
+          rows.push(...chunk);
+          if (chunk.length < 1000) break;
+        }
+      } else {
+        const [chunk] = await databasePool().execute<OperatingExpenseRow[]>(`${select} ${limitOffsetSql(100, 0)}`, where.values);
+        rows.push(...chunk);
+      }
       const [totalRows] = await databasePool().execute<OperatingExpenseTypeTotalRow[]>(
         `SELECT c.category_code AS categoryCode,
                 COALESCE(SUM(r.amount), 0) AS total,

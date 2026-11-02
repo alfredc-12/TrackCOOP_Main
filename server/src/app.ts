@@ -17,6 +17,7 @@ import {
 import { createAuthRouter } from "./modules/auth/auth.routes";
 import type { AuthService } from "./modules/auth/auth.service";
 import { createCommunicationRouter } from "./modules/communication/communication.routes";
+import { createExpenseOverviewRouter } from "./modules/expense-overview/expense-overview.routes";
 import { createFinanceRouter } from "./modules/finance/finance.routes";
 import { createInventoryRouter } from "./modules/inventory/inventory.routes";
 import { createLandingRouter } from "./modules/landing/landing.routes";
@@ -168,6 +169,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createPatronageRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
+  app.use("/api", createExpenseOverviewRouter(options.authService));
   app.use("/api", createBudgetRouter(options.authService));
   app.use("/api", createSeasonRouter(options.authService));
   app.use("/api", createInventoryRouter(options.authService));
