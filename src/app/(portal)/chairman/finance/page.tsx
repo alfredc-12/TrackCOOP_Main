@@ -1,11 +1,5 @@
-import { DashboardClient } from "../dashboard/DashboardClient";
-import { OperatingExpensesView } from "@/features/finance/OperatingExpensesView";
+import { ExpenseOverviewClient } from "@/features/expense-overview/ExpenseOverviewClient";
 
 export default function ChairmanFinancePage() {
-  return (
-    <div className="space-y-6">
-      <OperatingExpensesView />
-      <DashboardClient mode="financial" />
-    </div>
-  );
+  return <ExpenseOverviewClient />;
 }
