@@ -281,7 +281,7 @@ export function createPaymentReferenceRepository(
                 SUM(validation_status = 'Pending') AS pendingTotal,
                 SUM(validation_status = 'Pending' AND payment_channel <> 'PayMongo') AS pendingManual,
                 SUM(validation_status = 'Needs Clarification') AS needsClarification,
-                SUM(validation_status = 'Validated' AND DATE(validated_at) = UTC_DATE()) AS validatedToday,
+                SUM(validation_status = 'Validated' AND validated_at >= DATE(UTC_TIMESTAMP() + INTERVAL 8 HOUR) - INTERVAL 8 HOUR AND validated_at < DATE(UTC_TIMESTAMP() + INTERVAL 8 HOUR) + INTERVAL 16 HOUR) AS validatedToday,
                 SUM(validation_status = 'Validated') AS validatedTotal,
                 SUM(payment_channel = 'PayMongo' AND gateway_environment = 'Test') AS paymongoTestPayments,
                 SUM(validation_status = 'Rejected') AS rejected,
