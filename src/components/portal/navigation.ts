@@ -106,7 +106,7 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           label: "Financial Overview",
           href: "/portal/chairman/finance",
           icon: Landmark,
-          summary: "View ledger performance and financial totals.",
+          summary: "Review recorded expenses, categories and changes over time.",
         },
         {
           label: "Patronage",

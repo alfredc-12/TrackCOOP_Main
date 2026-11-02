@@ -119,7 +119,7 @@ async function renderOperatingExpenseReport(summary: OperatingExpenseSummary, au
     document.y = y + 26;
   }
 
-  sectionTitle("Recent Posted Expense Records");
+  sectionTitle("Posted Expense Records");
   drawRecordHeader();
   for (const item of summary.items) {
     if (document.y + 36 > bottomLimit) {
@@ -221,7 +221,7 @@ export function createFinanceService(
       return repository.operatingExpenses(query);
     },
     async operatingExpenseReport(query, auth) {
-      return renderOperatingExpenseReport(await repository.operatingExpenses(query), auth);
+      return renderOperatingExpenseReport(await repository.operatingExpenses(query, { all: true }), auth);
     },
     summary() {
       return repository.summary();

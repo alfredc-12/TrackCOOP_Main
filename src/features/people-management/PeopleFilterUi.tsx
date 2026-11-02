@@ -76,12 +76,15 @@ export function KpiCard<Query>({
   icon: Icon,
   onSelect,
   loading,
+  hint,
 }: {
   spec: KpiSpec<Query>;
   icon: ComponentType<{ className?: string }>;
   /** Called with the filter to apply, or the one that clears this card's selection. */
   onSelect?: (patch: Partial<Query>) => void;
   loading?: boolean;
+  /** Replaces the spoken "Select to filter the list" for cards whose click does something else, such as opening details. */
+  hint?: string;
 }) {
   const body = (
     <>
@@ -89,10 +92,10 @@ export function KpiCard<Query>({
         <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${toneStyles[spec.tone]}`}>
           <Icon className="size-4" aria-hidden="true" />
         </span>
-        <span className="min-w-0 truncate text-[0.72rem] font-semibold text-[#5D6D63]">{spec.label}</span>
+        <span className="line-clamp-2 min-w-0 text-[0.72rem] font-semibold leading-4 text-[#5D6D63]">{spec.label}</span>
       </span>
       <span className="flex items-baseline gap-2">
-        <span className="text-2xl font-black leading-none text-[#123D2A]">{loading ? "…" : spec.value}</span>
+        <span className="min-w-0 break-words text-2xl font-black leading-tight text-[#123D2A]">{loading ? "…" : spec.value}</span>
         {spec.selected ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-[#123D2A] px-2 py-0.5 text-[0.65rem] font-bold text-white">
             <Check className="size-3" aria-hidden="true" />Filtering
@@ -112,7 +115,7 @@ export function KpiCard<Query>({
         <button
           type="button"
           aria-pressed={spec.selected}
-          aria-label={`${spec.label}: ${loading ? "loading" : spec.value}. ${spec.selected ? "Filtering the list. Select to show all." : "Select to filter the list."}`}
+          aria-label={`${spec.label}: ${loading ? "loading" : spec.value}. ${hint ?? (spec.selected ? "Filtering the list. Select to show all." : "Select to filter the list.")}`}
           onClick={() => onSelect(spec.selected ? spec.clear : spec.apply)}
           className="flex w-full min-w-0 flex-col gap-1.5 rounded-lg p-3 text-left outline-none transition hover:bg-[#FBFCF8] focus-visible:ring-2 focus-visible:ring-[#1F6B43]/40"
         >
