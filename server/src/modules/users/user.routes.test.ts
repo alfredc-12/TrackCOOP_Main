@@ -6,6 +6,7 @@ import request from "supertest";
 import { errorHandler } from "../../middleware/error-handler";
 import type { AuthService } from "../auth/auth.service";
 import type { AuthContext, AuthUser, RoleSlug } from "../auth/auth.types";
+import { userSummaryFixture } from "../people-test-fixtures";
 import { createUserRouter } from "./user.routes";
 import type { UserService } from "./user.service";
 
@@ -83,12 +84,7 @@ function createUserService(): UserService {
       };
     },
     async getSummary() {
-      return {
-        total: 1,
-        active: 1,
-        pendingActivation: 0,
-        suspendedInactive: 0,
-      };
+      return userSummaryFixture();
     },
     async listRoles() {
       return [

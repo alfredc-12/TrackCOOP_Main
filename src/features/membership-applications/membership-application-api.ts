@@ -1,11 +1,14 @@
 import { env } from "@/config/env";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
+import { requireSummaryFields } from "@/features/people-management/summary-guard";
 import type {
   ApprovalInput,
   ApprovalResult,
   BeneficiaryInput,
   ChairmanApplicationDetail,
   ChairmanApplicationDocument,
+  ChairmanApplicationBarangayOptions,
+  ChairmanApplicationFilterQuery,
   ChairmanApplicationListQuery,
   ChairmanApplicationListResult,
   ChairmanApplicationSummary,
@@ -201,20 +204,11 @@ export function createMembershipApplicationPaymongoCheckout(
   );
 }
 
-export function getChairmanApplicationSummary() {
-  return apiRequest<ChairmanApplicationSummary>("/api/membership-applications/summary");
-}
-
-export async function listChairmanApplications(query: ChairmanApplicationListQuery) {
-  const params = new URLSearchParams({
-    page: String(query.page),
-    pageSize: String(query.pageSize),
-    sortBy: query.sortBy,
-    sortDirection: query.sortDirection,
-  });
-
+/** Filter parameters shared by the application list and its KPI summary. */
+export function applicationFilterParams(query: ChairmanApplicationFilterQuery, params = new URLSearchParams()) {
   if (query.search?.trim()) params.set("search", query.search.trim());
-  if (query.status && query.status !== "All") params.set("status", query.status);
+  if (query.statuses?.length) params.set("statuses", query.statuses.join("|"));
+  else if (query.status && query.status !== "All") params.set("status", query.status);
   if (query.requestedMembershipType && query.requestedMembershipType !== "All") {
     params.set("requestedMembershipType", query.requestedMembershipType);
   }
@@ -222,9 +216,42 @@ export async function listChairmanApplications(query: ChairmanApplicationListQue
     params.set("applicationSource", query.applicationSource);
   }
   if (query.barangay?.trim()) params.set("barangay", query.barangay.trim());
+  if (query.submittedFrom) params.set("submittedFrom", query.submittedFrom);
+  if (query.submittedTo) params.set("submittedTo", query.submittedTo);
+  if (query.requirementCompletion && query.requirementCompletion !== "All") {
+    params.set("requirementCompletion", query.requirementCompletion);
+  }
+  return params;
+}
+
+/** KPI counts for the filtered population. The status filter is ignored: the cards are the status breakdown. */
+export async function getChairmanApplicationSummary(
+  filters: ChairmanApplicationFilterQuery = {},
+  options: { signal?: AbortSignal } = {},
+) {
+  const queryString = applicationFilterParams({ ...filters, status: undefined, statuses: undefined }).toString();
+  const summary = await apiRequest<ChairmanApplicationSummary>(
+    `/api/membership-applications/summary${queryString ? `?${queryString}` : ""}`,
+    { signal: options.signal },
+  );
+  return requireSummaryFields(summary, ["total", "submitted", "underReview", "needsInformation", "paymentRequired", "paymentConfirmed", "approved", "forReview", "paymentStage", "overallTotal"], "application");
+}
+
+export function getChairmanApplicationBarangays(options: { signal?: AbortSignal } = {}) {
+  return apiRequest<ChairmanApplicationBarangayOptions>("/api/membership-applications/barangays", { signal: options.signal });
+}
+
+export async function listChairmanApplications(query: ChairmanApplicationListQuery, options: { signal?: AbortSignal } = {}) {
+  const params = applicationFilterParams(query, new URLSearchParams({
+    page: String(query.page),
+    pageSize: String(query.pageSize),
+    sortBy: query.sortBy,
+    sortDirection: query.sortDirection,
+  }));
 
   const response = await apiRequestWithMeta<ChairmanApplicationListResult["applications"]>(
     `/api/membership-applications?${params.toString()}`,
+    { signal: options.signal },
   );
 
   return {

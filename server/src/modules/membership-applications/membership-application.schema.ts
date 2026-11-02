@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { csvEnum, isoDateSchema, refineDateRange } from "../../utils/people-filters";
 import {
   civilStatuses,
   documentTypes,
@@ -184,19 +185,39 @@ export const publicDocumentUploadSchema = z.object({
   documentType: z.enum(documentTypes),
 });
 
-export const chairmanApplicationListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+export const requirementCompletionFilters = ["complete", "incomplete"] as const;
+
+/** Filters shared by the list and the KPI summary so both always cover the same population. */
+const applicationFilterShape = {
   search: optionalText(120),
   status: z.enum(membershipApplicationStatuses).optional(),
+  /** Several statuses at once, e.g. `Submitted|Under Review`; takes precedence over `status`. */
+  statuses: csvEnum(membershipApplicationStatuses).optional(),
   requestedMembershipType: z.enum(requestedMembershipTypes).optional(),
   applicationSource: z.enum(membershipApplicationSources).optional(),
   barangay: optionalText(120),
-  sortBy: z
-    .enum(["submittedAt", "fullName", "applicationStatus", "requestedMembershipType"])
-    .default("submittedAt"),
-  sortDirection: z.enum(["asc", "desc"]).default("desc"),
-});
+  /** Inclusive Asia/Manila dates for `submitted_at`. */
+  submittedFrom: isoDateSchema.optional(),
+  submittedTo: isoDateSchema.optional(),
+  /** Pre-payment requirement completion, evaluated over every application, not only the loaded page. */
+  requirementCompletion: z.enum(requirementCompletionFilters).optional(),
+};
+
+export const chairmanApplicationListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+    ...applicationFilterShape,
+    sortBy: z
+      .enum(["submittedAt", "fullName", "applicationStatus", "requestedMembershipType"])
+      .default("submittedAt"),
+    sortDirection: z.enum(["asc", "desc"]).default("desc"),
+  })
+  .superRefine(refineDateRange("submittedFrom", "submittedTo"));
+
+export const chairmanApplicationSummaryQuerySchema = z
+  .object(applicationFilterShape)
+  .superRefine(refineDateRange("submittedFrom", "submittedTo"));
 
 export const idParamsSchema = z.object({
   id: z.coerce.string().trim().regex(/^\d+$/, "ID must be numeric"),

@@ -20,13 +20,14 @@ import type {
   UserMutationResult,
   BulkUserActionInput,
   AuditLogEntry,
+  UserFilters,
   UserSummary,
 } from "./user.types";
 
 export interface UserService {
   listUsers(query: UserListQuery): ReturnType<UserRepository["list"]>;
   getUser(userId: string): Promise<UserDetail | null>;
-  getSummary(options?: { includeHidden?: boolean }): Promise<UserSummaryCounts>;
+  getSummary(filters?: UserFilters): Promise<UserSummaryCounts>;
   listRoles(): ReturnType<UserRepository["listRoles"]>;
   listLinkableMembers(query: { search?: string; pageSize: number }): Promise<LinkableMember[]>;
   createUser(input: CreateUserInput, auth: AuthContext): Promise<UserMutationResult>;
@@ -78,8 +79,8 @@ export function createUserService(
       return repository.findById(userId);
     },
 
-    getSummary(options) {
-      return repository.summary(options);
+    getSummary(filters) {
+      return repository.summary(filters);
     },
 
     listRoles() {

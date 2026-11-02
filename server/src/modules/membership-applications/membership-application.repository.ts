@@ -2,6 +2,7 @@ import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql
 import crypto from "node:crypto";
 import path from "node:path";
 import { limitOffsetSql } from "../../db/pagination";
+import { barangayFilter, inFilter, joinFilters, likeTerm, manilaDateRangeFilter, type SqlFilter } from "../../utils/people-filters";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
@@ -14,6 +15,7 @@ import type {
   ChairmanApplicationDocument,
   ChairmanApplicationHistoryEntry,
   ChairmanApplicationListItem,
+  ChairmanApplicationFilters,
   ChairmanApplicationListQuery,
   ChairmanApplicationListResult,
   ChairmanApplicationRequirement,
@@ -44,6 +46,7 @@ import type {
 import {
   assertPrePaymentRequirementsComplete,
   isPaymentRequirementType,
+  prePaymentRequirementsCompleteSql,
 } from "./membership-application.requirements";
 
 type SettingRow = RowDataPacket & {
@@ -156,6 +159,7 @@ type SummaryRow = RowDataPacket & {
   approved: number;
   rejected: number;
   withdrawn: number;
+  overallTotal?: number;
 };
 
 type PaymentAmountRow = RowDataPacket & { total: string | number | null };
@@ -210,6 +214,50 @@ const listSortColumns: Record<ChairmanApplicationListQuery["sortBy"], string> = 
   applicationStatus: applicationStatusSql,
   requestedMembershipType: "a.requested_membership_type",
 };
+
+/**
+ * One predicate builder for the list, its count and the KPI summary. The summary leaves out the status
+ * filter (`omitStatus`) because its cards are the status breakdown of everything else.
+ */
+export function applicationFilterConditions(
+  filters: ChairmanApplicationFilters,
+  options: { omitStatus?: boolean } = {},
+): SqlFilter[] {
+  const conditions: SqlFilter[] = [];
+
+  if (filters.search) {
+    const search = likeTerm(filters.search);
+    conditions.push({
+      sql: `(a.application_code LIKE ?
+            OR ${applicantFullNameSql} LIKE ?
+            OR a.first_name LIKE ?
+            OR a.middle_name LIKE ?
+            OR a.last_name LIKE ?
+            OR a.suffix LIKE ?
+            OR a.email LIKE ?
+            OR a.contact_number LIKE ?)`,
+      values: [search, search, search, search, search, search, search, search],
+    });
+  }
+  if (!options.omitStatus) {
+    if (filters.statuses?.length) conditions.push(inFilter(`(${applicationStatusSql})`, filters.statuses));
+    else if (filters.status) conditions.push({ sql: `${applicationStatusSql} = ?`, values: [filters.status] });
+  }
+  if (filters.requestedMembershipType) {
+    conditions.push({ sql: "a.requested_membership_type = ?", values: [filters.requestedMembershipType] });
+  }
+  if (filters.applicationSource) conditions.push({ sql: "a.application_source = ?", values: [filters.applicationSource] });
+  if (filters.barangay) conditions.push(barangayFilter("a.barangay", filters.barangay));
+  conditions.push(...manilaDateRangeFilter("a.submitted_at", filters.submittedFrom, filters.submittedTo));
+  if (filters.requirementCompletion === "complete") {
+    conditions.push({ sql: prePaymentRequirementsCompleteSql("a"), values: [] });
+  }
+  if (filters.requirementCompletion === "incomplete") {
+    conditions.push({ sql: `NOT ${prePaymentRequirementsCompleteSql("a")}`, values: [] });
+  }
+
+  return conditions;
+}
 
 const allowedTransitions: Record<MembershipApplicationStatus, MembershipApplicationStatus[]> = {
   Submitted: ["Under Review", "Needs Information", "Rejected", "Withdrawn"],
@@ -741,7 +789,8 @@ export interface MembershipApplicationRepository {
     checksumSha256: string;
     storedFilePath: string;
   }): Promise<StoredMembershipApplicationDocument>;
-  summary(): Promise<ChairmanApplicationSummary>;
+  summary(filters?: ChairmanApplicationFilters): Promise<ChairmanApplicationSummary>;
+  barangayOptions(): Promise<{ barangays: Array<{ barangay: string; total: number }>; unspecified: number }>;
   list(query: ChairmanApplicationListQuery): Promise<ChairmanApplicationListResult>;
   createChairmanApplication(input: {
     application: ChairmanMembershipApplicationInput;
@@ -1147,72 +1196,51 @@ export function createMembershipApplicationRepository(
       }, databasePool());
     },
 
-    async summary() {
-      const [rows] = await databasePool().execute<SummaryRow[]>(
-        `SELECT COUNT(*) AS total,
-                SUM(status = 'Submitted') AS submitted,
-                SUM(status = 'Under Review') AS underReview,
-                SUM(status = 'Needs Information') AS needsInformation,
-                SUM(status = 'Payment Required') AS paymentRequired,
-                SUM(status = 'Payment Confirmed') AS paymentConfirmed,
-                SUM(status = 'Approved') AS approved,
-                SUM(status = 'Rejected') AS rejected,
-                SUM(status = 'Withdrawn') AS withdrawn
-           FROM (
-             SELECT ${applicationStatusSql} AS status
-               FROM membership_applications a
-           ) normalized_applications`,
-      );
+    async summary(filters = {}) {
+      const { whereSql, values } = joinFilters(applicationFilterConditions(filters, { omitStatus: true }));
+      const [[rows], [overallRows]] = await Promise.all([
+        databasePool().execute<SummaryRow[]>(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(status = 'Submitted'), 0) AS submitted,
+                  COALESCE(SUM(status = 'Under Review'), 0) AS underReview,
+                  COALESCE(SUM(status = 'Needs Information'), 0) AS needsInformation,
+                  COALESCE(SUM(status = 'Payment Required'), 0) AS paymentRequired,
+                  COALESCE(SUM(status = 'Payment Confirmed'), 0) AS paymentConfirmed,
+                  COALESCE(SUM(status = 'Approved'), 0) AS approved,
+                  COALESCE(SUM(status = 'Rejected'), 0) AS rejected,
+                  COALESCE(SUM(status = 'Withdrawn'), 0) AS withdrawn
+             FROM (
+               SELECT ${applicationStatusSql} AS status
+                 FROM membership_applications a
+                ${whereSql}
+             ) normalized_applications`,
+          values,
+        ),
+        databasePool().execute<CountRow[]>("SELECT COUNT(*) AS total FROM membership_applications"),
+      ]);
       const row = rows[0];
+      const submitted = Number(row?.submitted ?? 0);
+      const underReview = Number(row?.underReview ?? 0);
+      const paymentRequired = Number(row?.paymentRequired ?? 0);
+      const paymentConfirmed = Number(row?.paymentConfirmed ?? 0);
       return {
         total: Number(row?.total ?? 0),
-        submitted: Number(row?.submitted ?? 0),
-        underReview: Number(row?.underReview ?? 0),
+        submitted,
+        underReview,
         needsInformation: Number(row?.needsInformation ?? 0),
-        paymentRequired: Number(row?.paymentRequired ?? 0),
-        paymentConfirmed: Number(row?.paymentConfirmed ?? 0),
+        paymentRequired,
+        paymentConfirmed,
         approved: Number(row?.approved ?? 0),
         rejected: Number(row?.rejected ?? 0),
         withdrawn: Number(row?.withdrawn ?? 0),
+        forReview: submitted + underReview,
+        paymentStage: paymentRequired + paymentConfirmed,
+        overallTotal: Number(overallRows[0]?.total ?? 0),
       };
     },
 
     async list(query) {
-      const where: string[] = [];
-      const values: Array<string | number> = [];
-
-      if (query.search) {
-        where.push(
-          `(a.application_code LIKE ?
-            OR ${applicantFullNameSql} LIKE ?
-            OR a.first_name LIKE ?
-            OR a.middle_name LIKE ?
-            OR a.last_name LIKE ?
-            OR a.suffix LIKE ?
-            OR a.email LIKE ?
-            OR a.contact_number LIKE ?)`,
-        );
-        const search = `%${query.search}%`;
-        values.push(search, search, search, search, search, search, search, search);
-      }
-      if (query.status) {
-        where.push(`${applicationStatusSql} = ?`);
-        values.push(query.status);
-      }
-      if (query.requestedMembershipType) {
-        where.push("a.requested_membership_type = ?");
-        values.push(query.requestedMembershipType);
-      }
-      if (query.applicationSource) {
-        where.push("a.application_source = ?");
-        values.push(query.applicationSource);
-      }
-      if (query.barangay) {
-        where.push("a.barangay = ?");
-        values.push(query.barangay);
-      }
-
-      const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+      const { whereSql, values } = joinFilters(applicationFilterConditions(query));
       const orderBy = listSortColumns[query.sortBy];
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const offset = (query.page - 1) * query.pageSize;
@@ -1233,6 +1261,23 @@ export function createMembershipApplicationRepository(
         total: Number(countRows[0]?.total ?? 0),
         page: query.page,
         pageSize: query.pageSize,
+      };
+    },
+
+    async barangayOptions() {
+      const [rows] = await databasePool().execute<(RowDataPacket & { barangay: string; total: number })[]>(
+        `SELECT MIN(TRIM(a.barangay)) AS barangay, COUNT(*) AS total
+           FROM membership_applications a
+          WHERE a.barangay IS NOT NULL AND TRIM(a.barangay) <> ''
+          GROUP BY LOWER(TRIM(a.barangay))
+          ORDER BY barangay ASC`,
+      );
+      const [unspecified] = await databasePool().execute<CountRow[]>(
+        "SELECT COUNT(*) AS total FROM membership_applications a WHERE a.barangay IS NULL OR TRIM(a.barangay) = ''",
+      );
+      return {
+        barangays: rows.map((row) => ({ barangay: row.barangay, total: Number(row.total) })),
+        unspecified: Number(unspecified[0]?.total ?? 0),
       };
     },
 

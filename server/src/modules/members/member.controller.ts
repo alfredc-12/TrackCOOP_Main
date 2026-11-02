@@ -5,6 +5,8 @@ import { sendSuccess } from "../../utils/response";
 import {
   listMembersQuerySchema,
   listUnifiedStatusHistoryQuerySchema,
+  memberSummaryQuerySchema,
+  unifiedStatusHistorySummaryQuerySchema,
   memberProfileSchema,
   updateMemberApprovalSchema,
   updateMemberProfileSchema,
@@ -53,8 +55,19 @@ export function createMemberController(service: MemberService) {
       });
     }),
 
-    summary: asyncHandler(async (_request, response) => {
-      return sendSuccess(response, await service.summary());
+    summary: asyncHandler(async (request, response) => {
+      const filters = parseBody(memberSummaryQuerySchema, request.query);
+      return sendSuccess(response, await service.summary(filters));
+    }),
+
+    unifiedStatusHistorySummary: asyncHandler(async (request, response) => {
+      const filters = parseBody(unifiedStatusHistorySummaryQuerySchema, request.query);
+      return sendSuccess(response, await service.unifiedStatusHistorySummary(filters));
+    }),
+
+    unifiedStatusHistoryActors: asyncHandler(async (request, response) => {
+      const filters = parseBody(unifiedStatusHistorySummaryQuerySchema, request.query);
+      return sendSuccess(response, await service.unifiedStatusHistoryActors(filters));
     }),
 
     barangayDistribution: asyncHandler(async (_request, response) => {

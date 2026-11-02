@@ -6,10 +6,13 @@ import {
 } from "./member.repository";
 import type {
   ApprovalStatus,
+  MemberFilters,
   MemberListQuery,
   MemberProfileInput,
   UpdateMemberStatusInput,
   UpdateMemberProfileInput,
+  UnifiedStatusHistoryFilters,
+  UnifiedStatusHistoryQuery,
 } from "./member.types";
 
 export interface MemberService {
@@ -20,8 +23,10 @@ export interface MemberService {
   updateApproval(memberId: string, approvalStatus: ApprovalStatus, reason: string | null | undefined, auth: AuthContext): ReturnType<MemberRepository["updateApproval"]>;
   updateStatus(memberId: string, input: UpdateMemberStatusInput, auth: AuthContext): ReturnType<MemberRepository["updateStatus"]>;
   statusHistory(memberId: string): ReturnType<MemberRepository["history"]>;
-  unifiedStatusHistory(query: { search?: string; sourceModule?: string; date?: string; page: number; pageSize: number }): ReturnType<MemberRepository["unifiedStatusHistory"]>;
-  summary(): ReturnType<MemberRepository["summary"]>;
+  unifiedStatusHistory(query: UnifiedStatusHistoryQuery): ReturnType<MemberRepository["unifiedStatusHistory"]>;
+  unifiedStatusHistorySummary(filters?: UnifiedStatusHistoryFilters): ReturnType<MemberRepository["unifiedStatusHistorySummary"]>;
+  unifiedStatusHistoryActors(filters?: UnifiedStatusHistoryFilters): ReturnType<MemberRepository["unifiedStatusHistoryActors"]>;
+  summary(filters?: MemberFilters): ReturnType<MemberRepository["summary"]>;
   barangayDistribution(): ReturnType<MemberRepository["barangayDistribution"]>;
 }
 
@@ -86,8 +91,16 @@ export function createMemberService(
       return repository.unifiedStatusHistory(query);
     },
 
-    summary() {
-      return repository.summary();
+    unifiedStatusHistorySummary(filters) {
+      return repository.unifiedStatusHistorySummary(filters);
+    },
+
+    unifiedStatusHistoryActors(filters) {
+      return repository.unifiedStatusHistoryActors(filters);
+    },
+
+    summary(filters) {
+      return repository.summary(filters);
     },
 
     barangayDistribution() {

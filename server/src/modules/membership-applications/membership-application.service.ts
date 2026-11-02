@@ -20,6 +20,7 @@ import type {
   ChairmanApplicationListQuery,
   ChairmanApplicationListResult,
   ChairmanApplicationRequirement,
+  ChairmanApplicationFilters,
   ChairmanApplicationSummary,
   ChairmanMembershipApplicationInput,
   ChairmanMembershipApplicationUpdateInput,
@@ -326,7 +327,8 @@ export interface MembershipApplicationService {
     originalFileName: string;
     mimeType: string;
   }>;
-  summary(auth: AuthContext): Promise<ChairmanApplicationSummary>;
+  summary(filters: ChairmanApplicationFilters, auth: AuthContext): Promise<ChairmanApplicationSummary>;
+  barangayOptions(auth: AuthContext): ReturnType<MembershipApplicationRepository["barangayOptions"]>;
   list(query: ChairmanApplicationListQuery, auth: AuthContext): Promise<ChairmanApplicationListResult>;
   createChairmanApplication(
     input: ChairmanMembershipApplicationInput,
@@ -593,8 +595,12 @@ export function createMembershipApplicationService(
       return readStoredDocument(document);
     },
 
-    summary() {
-      return repository.summary();
+    summary(filters) {
+      return repository.summary(filters);
+    },
+
+    barangayOptions() {
+      return repository.barangayOptions();
     },
 
     list(query) {

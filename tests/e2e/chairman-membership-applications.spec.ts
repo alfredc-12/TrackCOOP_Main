@@ -125,9 +125,14 @@ function mockApiResponse(url: string, method: string) {
         submitted: currentStatus === "Submitted" ? 1 : 0,
         underReview: currentStatus === "Under Review" ? 1 : 0,
         needsInformation: 0,
+        paymentRequired: 0,
+        paymentConfirmed: 0,
         approved: currentStatus === "Approved" ? 1 : 0,
         rejected: 0,
         withdrawn: 0,
+        forReview: currentStatus === "Submitted" || currentStatus === "Under Review" ? 1 : 0,
+        paymentStage: 0,
+        overallTotal: 1,
       }),
     };
   }
@@ -226,10 +231,10 @@ test("chairman reviews and approves a membership application", async ({ page, co
   await page.goto("/portal/chairman/members");
 
   await expect(page.getByRole("main").getByRole("heading", { name: "Members" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Applications" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Applications", exact: true })).toBeVisible();
   await expect(page.getByText("MEM-APP-2026-000001").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Review" }).click();
+  await page.getByRole("button", { name: "Review", exact: true }).click();
   await expect(page.getByText("Maria Santos").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Start Review" }).click();

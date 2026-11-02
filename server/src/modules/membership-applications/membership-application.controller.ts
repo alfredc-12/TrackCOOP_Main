@@ -9,6 +9,7 @@ import {
   beneficiaryCreateSchema,
   beneficiaryUpdateSchema,
   chairmanApplicationListQuerySchema,
+  chairmanApplicationSummaryQuerySchema,
   chairmanMembershipApplicationSchema,
   chairmanMembershipApplicationUpdateSchema,
   idParamsSchema,
@@ -207,7 +208,12 @@ export function createMembershipApplicationController(
     }),
 
     summary: asyncHandler(async (request, response) => {
-      return sendSuccess(response, await service.summary(authContext(request)));
+      const filters = parse(chairmanApplicationSummaryQuerySchema, request.query);
+      return sendSuccess(response, await service.summary(filters, authContext(request)));
+    }),
+
+    barangayOptions: asyncHandler(async (request, response) => {
+      return sendSuccess(response, await service.barangayOptions(authContext(request)));
     }),
 
     list: asyncHandler(async (request, response) => {

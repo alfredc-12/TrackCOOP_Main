@@ -1,5 +1,6 @@
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
+import { inFilter, joinFilters, likeTerm, manilaDateRangeFilter, type SqlFilter } from "../../utils/people-filters";
 import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
@@ -16,6 +17,7 @@ import type {
   UserListQuery,
   UserListResult,
   UserMutationResult,
+  UserFilters,
   UserSummaryCounts,
   UserSummary,
   BulkUserActionInput,
@@ -49,7 +51,17 @@ type CountRow = RowDataPacket & {
   total: number;
 };
 
-type SummaryRow = RowDataPacket & UserSummaryCounts;
+type SummaryRow = RowDataPacket & {
+  total: number;
+  active: number;
+  pendingActivation: number;
+  suspended: number;
+  inactive: number;
+  chairman: number;
+  bookkeeper: number;
+  member: number;
+  memberLinked: number;
+};
 
 type SessionRow = RowDataPacket & {
   id: string;
@@ -76,7 +88,7 @@ const sortColumns: Record<UserListQuery["sortBy"], string> = {
 
 export interface UserRepository {
   list(query: UserListQuery): Promise<UserListResult>;
-  summary(options?: { includeHidden?: boolean }): Promise<UserSummaryCounts>;
+  summary(filters?: UserFilters): Promise<UserSummaryCounts>;
   findById(userId: string): Promise<UserDetail | null>;
   listRoles(): Promise<RoleSummary[]>;
   listLinkableMembers(query: { search?: string; pageSize: number }): Promise<LinkableMember[]>;
@@ -154,6 +166,47 @@ function userSelect() {
 function hiddenAccountSql(alias = "u") {
   return `(${alias}.username = 'paymongo-system' OR ${alias}.email = 'paymongo-system@trackcoop.local')`;
 }
+
+const DAY_MS = 86_400_000;
+
+/**
+ * One predicate builder for the list, its count and the KPI summary. The summary leaves out the
+ * account-status filter (`omitStatus`) because its cards are the status breakdown of everything else.
+ */
+export function userFilterConditions(filters: UserFilters, options: { omitStatus?: boolean; now?: Date } = {}): SqlFilter[] {
+  const conditions: SqlFilter[] = [];
+
+  if (filters.search) {
+    const search = likeTerm(filters.search);
+    conditions.push({ sql: "(u.display_name LIKE ? OR u.email LIKE ? OR u.username LIKE ?)", values: [search, search, search] });
+  }
+  if (filters.role) conditions.push({ sql: "r.role_slug = ?", values: [filters.role] });
+  if (!options.omitStatus) {
+    if (filters.statuses?.length) conditions.push(inFilter("u.account_status", filters.statuses));
+    else if (filters.status) conditions.push({ sql: "u.account_status = ?", values: [filters.status] });
+  }
+  if (!filters.includeHidden) conditions.push({ sql: `NOT ${hiddenAccountSql("u")}`, values: [] });
+  conditions.push(...manilaDateRangeFilter("u.created_at", filters.createdFrom, filters.createdTo));
+  if (filters.memberLink === "linked") conditions.push({ sql: "m.member_id IS NOT NULL", values: [] });
+  if (filters.memberLink === "unlinked") conditions.push({ sql: "(r.role_slug = 'member' AND m.member_id IS NULL)", values: [] });
+
+  if (filters.lastLogin === "never") conditions.push({ sql: "u.last_login_at IS NULL", values: [] });
+  if (filters.lastLogin === "recent" || filters.lastLogin === "inactive") {
+    const days = filters.lastLoginDays ?? 30;
+    const cutoff = new Date((options.now ?? new Date()).getTime() - days * DAY_MS).toISOString().slice(0, 19).replace("T", " ");
+    conditions.push(
+      filters.lastLogin === "recent"
+        ? { sql: "u.last_login_at >= ?", values: [cutoff] }
+        : { sql: "(u.last_login_at IS NOT NULL AND u.last_login_at < ?)", values: [cutoff] },
+    );
+  }
+
+  return conditions;
+}
+
+const userFromSql = `FROM users u
+           JOIN roles r ON r.role_id = u.role_id
+           LEFT JOIN member_profiles m ON m.user_id = u.user_id`;
 
 async function getRoleId(role: RoleSlug, pool: Pool) {
   const [rows] = await pool.execute<(RowDataPacket & { roleId: number })[]>(
@@ -274,30 +327,7 @@ export function createUserRepository(pool?: Pool): UserRepository {
 
   return {
     async list(query) {
-      const where: string[] = [];
-      const values: Array<string | number> = [];
-
-      if (query.search) {
-        where.push("(u.display_name LIKE ? OR u.email LIKE ? OR u.username LIKE ?)");
-        const search = `%${query.search}%`;
-        values.push(search, search, search);
-      }
-
-      if (query.role) {
-        where.push("r.role_slug = ?");
-        values.push(query.role);
-      }
-
-      if (query.status) {
-        where.push("u.account_status = ?");
-        values.push(query.status);
-      }
-
-      if (!query.includeHidden) {
-        where.push(`NOT ${hiddenAccountSql("u")}`);
-      }
-
-      const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+      const { whereSql, values } = joinFilters(userFilterConditions(query));
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const orderBy = sortColumns[query.sortBy];
       const offset = (query.page - 1) * query.pageSize;
@@ -311,37 +341,65 @@ export function createUserRepository(pool?: Pool): UserRepository {
       );
       const [countRows] = await databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS total
-           FROM users u
-           JOIN roles r ON r.role_id = u.role_id
+           ${userFromSql}
          ${whereSql}`,
         values,
       );
 
       return {
         users: rows.map(mapUser),
-        total: countRows[0]?.total ?? 0,
+        total: Number(countRows[0]?.total ?? 0),
         page: query.page,
         pageSize: query.pageSize,
       };
     },
 
-    async summary(options = {}) {
-      const whereSql = options.includeHidden ? "" : `WHERE NOT ${hiddenAccountSql("u")}`;
-      const [rows] = await databasePool().execute<SummaryRow[]>(
-        `SELECT COUNT(*) AS total,
-                SUM(CASE WHEN account_status = 'Active' THEN 1 ELSE 0 END) AS active,
-                SUM(CASE WHEN account_status = 'Pending' THEN 1 ELSE 0 END) AS pendingActivation,
-                SUM(CASE WHEN account_status IN ('Suspended', 'Inactive') THEN 1 ELSE 0 END) AS suspendedInactive
-           FROM users u
-           ${whereSql}`,
-      );
+    async summary(filters = {}) {
+      const scoped = joinFilters(userFilterConditions(filters, { omitStatus: true }));
+      const overall = joinFilters(userFilterConditions({ includeHidden: filters.includeHidden }));
+      const [[rows], [overallRows]] = await Promise.all([
+        databasePool().execute<SummaryRow[]>(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(u.account_status = 'Active'), 0) AS active,
+                  COALESCE(SUM(u.account_status = 'Pending'), 0) AS pendingActivation,
+                  COALESCE(SUM(u.account_status = 'Suspended'), 0) AS suspended,
+                  COALESCE(SUM(u.account_status = 'Inactive'), 0) AS inactive,
+                  COALESCE(SUM(r.role_slug = 'chairman'), 0) AS chairman,
+                  COALESCE(SUM(r.role_slug = 'bookkeeper'), 0) AS bookkeeper,
+                  COALESCE(SUM(r.role_slug = 'member'), 0) AS member,
+                  COALESCE(SUM(r.role_slug = 'member' AND m.member_id IS NOT NULL), 0) AS memberLinked
+             ${userFromSql}
+           ${scoped.whereSql}`,
+          scoped.values,
+        ),
+        databasePool().execute<CountRow[]>(
+          `SELECT COUNT(*) AS total
+             ${userFromSql}
+           ${overall.whereSql}`,
+          overall.values,
+        ),
+      ]);
       const row = rows[0];
+      const suspended = Number(row?.suspended ?? 0);
+      const inactive = Number(row?.inactive ?? 0);
 
       return {
         total: Number(row?.total ?? 0),
         active: Number(row?.active ?? 0),
         pendingActivation: Number(row?.pendingActivation ?? 0),
-        suspendedInactive: Number(row?.suspendedInactive ?? 0),
+        suspendedInactive: suspended + inactive,
+        suspended,
+        inactive,
+        byRole: {
+          chairman: Number(row?.chairman ?? 0),
+          bookkeeper: Number(row?.bookkeeper ?? 0),
+          member: Number(row?.member ?? 0),
+        },
+        memberAccounts: {
+          eligible: Number(row?.member ?? 0),
+          linked: Number(row?.memberLinked ?? 0),
+        },
+        overallTotal: Number(overallRows[0]?.total ?? 0),
       };
     },
 

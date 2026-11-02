@@ -12,7 +12,6 @@ import {
   Eye,
   FilePlus2,
   FileText,
-  Filter,
   History,
   Leaf,
   Link2,
@@ -25,7 +24,6 @@ import {
   Plus,
   Printer,
   RefreshCcw,
-  Search,
   Send,
   ShieldCheck,
   ShoppingCart,
@@ -51,7 +49,6 @@ import {
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { Button } from "@/components/ui/Button";
-import { DatePicker } from "@/components/ui/DatePicker";
 import type { AuthUser } from "@/features/auth/types";
 import { ApiClientError } from "@/lib/api-client";
 import { getAuthenticatedUser } from "@/lib/auth-client";
@@ -67,6 +64,7 @@ import {
   deleteApplicationDocument,
   downloadApplicationPdf,
   getChairmanApplication,
+  getChairmanApplicationBarangays,
   getChairmanApplicationSummary,
   listChairmanApplications,
   transitionApplication,
@@ -78,13 +76,17 @@ import {
   createMember,
   getMemberDetail,
   getMemberSummary,
+  getUnifiedStatusHistorySummary,
   linkUserMember,
+  listMemberBarangays,
   listMembersPaginated,
   listUnifiedStatusHistory,
+  listUnifiedStatusHistoryActors,
   listUsersPaginated,
   unlinkUserMember,
   updateMember,
   updateMemberStatus,
+  type HistoryActorOptions,
   type MemberDetail,
   type MemberListQuery,
   type MemberProfile,
@@ -93,12 +95,34 @@ import {
   type MembershipType,
   type OfficialMemberStatus,
   type UnifiedStatusHistoryEntry,
+  type UnifiedStatusHistorySummary,
   type UserSummary,
 } from "@/features/chairman/people-api";
 import {
+  ApplicationsToolbar,
+  DirectoryToolbar,
+  HistoryToolbar,
+  buildBarangayOptions,
+} from "@/features/people-management/PeopleToolbars";
+import {
+  applicationQueryFromParams,
+  applicationQueryToParams,
+  defaultApplicationQuery,
+  defaultHistoryQuery,
+  defaultMemberQuery,
+  historyApiFilters,
+  historyQueryFromParams,
+  historyQueryToParams,
+  memberQueryFromParams,
+  memberQueryToParams,
+  mergeViewParams,
+  viewParamKeys,
+  viewParams,
+  type HistoryQueryState,
+} from "@/features/people-management/people-filters";
+import { replaceUrlParams, useRequestGuard } from "@/features/people-management/people-hooks";
+import {
   civilStatuses,
-  membershipApplicationSources,
-  membershipApplicationStatuses,
   requirementTypes,
   requestedMembershipTypes,
   type ApprovalInput,
@@ -119,49 +143,6 @@ import {
   type RequirementType,
   type RequestedMembershipType,
 } from "@/features/membership-applications/membership-application-types";
-
-const emptySummary: ChairmanApplicationSummary = {
-  total: 0,
-  submitted: 0,
-  underReview: 0,
-  needsInformation: 0,
-  paymentRequired: 0,
-  paymentConfirmed: 0,
-  approved: 0,
-  rejected: 0,
-  withdrawn: 0,
-};
-
-const defaultQuery: ChairmanApplicationListQuery = {
-  page: 1,
-  pageSize: 10,
-  status: "All",
-  requestedMembershipType: "All",
-  applicationSource: "All",
-  sortBy: "submittedAt",
-  sortDirection: "desc",
-};
-
-const emptyDirectorySummary: DirectoryMemberSummary = {
-  total: 0,
-  pendingApproval: 0,
-  approved: 0,
-  associate: 0,
-  trueMember: 0,
-  active: 0,
-  inactive: 0,
-  suspended: 0,
-};
-
-const defaultMemberQuery: MemberListQuery = {
-  page: 1,
-  pageSize: 10,
-  approvalStatus: "All",
-  officialMemberStatus: "All",
-  membershipType: "All",
-  sortBy: "createdAt",
-  sortDirection: "desc",
-};
 
 const officialMemberStatuses: OfficialMemberStatus[] = [
   "Pending",
@@ -266,8 +247,6 @@ type ApplicationFormState = ChairmanMembershipApplicationUpdateInput & {
 
 type DetailMap = Record<string, ChairmanApplicationDetail>;
 type TabKey = "applications" | "directory" | "history";
-type HistorySource = "All" | "Application" | "Member" | "Account";
-type HistoryQuery = { page: number; pageSize: number; search: string; sourceModule: HistorySource; date: string };
 type MemberFormState = {
   memberCode: string;
   fullName: string;
@@ -330,13 +309,16 @@ function confirmationCopy(action: ConfirmAction | null) {
 export function MembersClient() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("applications");
-  const [summary, setSummary] = useState<ChairmanApplicationSummary>(emptySummary);
+  const [summary, setSummary] = useState<ChairmanApplicationSummary | null>(null);
+  const [summaryError, setSummaryError] = useState("");
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
+  const [applicationTotal, setApplicationTotal] = useState(0);
+  const [urlReady, setUrlReady] = useState(false);
   const [applications, setApplications] = useState<ChairmanApplicationListItem[]>([]);
   const [detailsById, setDetailsById] = useState<DetailMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [query, setQuery] = useState<ChairmanApplicationListQuery>(defaultQuery);
-  const [requirementCompletion, setRequirementCompletion] = useState("All");
-  const [applicationBarangays, setApplicationBarangays] = useState<string[]>([]);
+  const [query, setQuery] = useState<ChairmanApplicationListQuery>({ ...defaultApplicationQuery });
+  const [applicationBarangays, setApplicationBarangays] = useState<{ names: string[]; unspecified: boolean }>({ names: [], unspecified: false });
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
   const [error, setError] = useState("");
@@ -344,9 +326,12 @@ export function MembersClient() {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [activationResult, setActivationResult] = useState<ApprovalResult | null>(null);
-  const [memberSummary, setMemberSummary] = useState<DirectoryMemberSummary>(emptyDirectorySummary);
+  const [memberSummary, setMemberSummary] = useState<DirectoryMemberSummary | null>(null);
+  const [memberSummaryError, setMemberSummaryError] = useState("");
+  const [isMemberSummaryLoading, setIsMemberSummaryLoading] = useState(true);
+  const [memberBarangays, setMemberBarangays] = useState<{ names: string[]; unspecified: boolean }>({ names: [], unspecified: false });
   const [members, setMembers] = useState<MemberProfile[]>([]);
-  const [memberQuery, setMemberQuery] = useState<MemberListQuery>(defaultMemberQuery);
+  const [memberQuery, setMemberQuery] = useState<MemberListQuery>({ ...defaultMemberQuery });
   const [memberTotal, setMemberTotal] = useState(0);
   const [memberError, setMemberError] = useState("");
   const [isMemberLoading, setIsMemberLoading] = useState(false);
@@ -357,13 +342,11 @@ export function MembersClient() {
   const [statusMember, setStatusMember] = useState<MemberDetail | null>(null);
   const [accountAction, setAccountAction] = useState<MemberAccountAction | null>(null);
   const [historyEntries, setHistoryEntries] = useState<UnifiedStatusHistoryEntry[]>([]);
-  const [historyQuery, setHistoryQuery] = useState<HistoryQuery>({
-    page: 1,
-    pageSize: 10,
-    search: "",
-    sourceModule: "All",
-    date: "",
-  });
+  const [historyQuery, setHistoryQuery] = useState<HistoryQueryState>({ ...defaultHistoryQuery });
+  const [historySummary, setHistorySummary] = useState<UnifiedStatusHistorySummary | null>(null);
+  const [historySummaryError, setHistorySummaryError] = useState("");
+  const [isHistorySummaryLoading, setIsHistorySummaryLoading] = useState(true);
+  const [historyActors, setHistoryActors] = useState<HistoryActorOptions | null>(null);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyError, setHistoryError] = useState("");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -462,21 +445,57 @@ export function MembersClient() {
     };
   }, []);
 
+  const beginApplicationList = useRequestGuard();
+  const beginApplicationSummary = useRequestGuard();
+  const beginDirectoryList = useRequestGuard();
+  const beginDirectorySummary = useRequestGuard();
+  const beginHistoryList = useRequestGuard();
+  const beginHistorySummary = useRequestGuard();
+  const beginHistoryActors = useRequestGuard();
+
+  // KPI cards describe everything the filters select except the dimension the cards themselves break down.
+  const applicationSummaryFilters = useMemo(() => ({
+    search: query.search,
+    requestedMembershipType: query.requestedMembershipType,
+    applicationSource: query.applicationSource,
+    barangay: query.barangay,
+    submittedFrom: query.submittedFrom,
+    submittedTo: query.submittedTo,
+    requirementCompletion: query.requirementCompletion,
+  }), [query.search, query.requestedMembershipType, query.applicationSource, query.barangay, query.submittedFrom, query.submittedTo, query.requirementCompletion]);
+
+  const directorySummaryFilters = useMemo(() => ({
+    search: memberQuery.search,
+    barangay: memberQuery.barangay,
+    sector: memberQuery.sector,
+    accountLink: memberQuery.accountLink,
+    approvedFrom: memberQuery.approvedFrom,
+    approvedTo: memberQuery.approvedTo,
+  }), [memberQuery.search, memberQuery.barangay, memberQuery.sector, memberQuery.accountLink, memberQuery.approvedFrom, memberQuery.approvedTo]);
+
+  const historyFilters = useMemo(() => historyApiFilters(historyQuery), [historyQuery]);
+  const historySummaryFilters = useMemo(() => ({ ...historyFilters, sourceModule: undefined }), [historyFilters]);
+
   const loadApplications = useCallback(async () => {
+    const request = beginApplicationList();
     setIsLoading(true);
     setError("");
 
     try {
-      const [nextSummary, list] = await Promise.all([
-        getChairmanApplicationSummary(),
-        listChairmanApplications(query),
-      ]);
-      setSummary(nextSummary);
+      const list = await listChairmanApplications(query, { signal: request.signal });
+      if (!request.isCurrent()) return;
+      const lastPage = Math.max(1, Math.ceil(list.total / query.pageSize));
+      if (query.page > lastPage) {
+        setQuery((current) => ({ ...current, page: lastPage }));
+        return;
+      }
       setApplications(list.applications);
+      setApplicationTotal(list.total);
 
       const details = await Promise.all(
         list.applications.map((application) => getChairmanApplication(application.id)),
       );
+      if (!request.isCurrent()) return;
       setDetailsById((current) => {
         const next = { ...current };
         details.forEach((detail) => {
@@ -485,80 +504,193 @@ export function MembersClient() {
         return next;
       });
     } catch (caught) {
+      if (!request.isCurrent()) return;
       setError(
         caught instanceof ApiClientError
           ? caught.message
           : "Membership applications could not be loaded.",
       );
     } finally {
-      setIsLoading(false);
+      if (request.isCurrent()) setIsLoading(false);
     }
-  }, [query]);
+  }, [query, beginApplicationList]);
+
+  const loadApplicationSummary = useCallback(async () => {
+    const request = beginApplicationSummary();
+    setIsSummaryLoading(true);
+    setSummaryError("");
+
+    try {
+      const next = await getChairmanApplicationSummary(applicationSummaryFilters, { signal: request.signal });
+      if (request.isCurrent()) setSummary(next);
+    } catch (caught) {
+      if (!request.isCurrent()) return;
+      setSummaryError(caught instanceof ApiClientError ? caught.message : "The application figures could not be loaded.");
+    } finally {
+      if (request.isCurrent()) setIsSummaryLoading(false);
+    }
+  }, [applicationSummaryFilters, beginApplicationSummary]);
+
+  const reloadApplications = useCallback(() => Promise.all([loadApplications(), loadApplicationSummary()]), [loadApplications, loadApplicationSummary]);
 
   const loadApplicationBarangays = useCallback(async () => {
     try {
-      const barangays: Array<string | null | undefined> = [];
-      let page = 1;
-      let total = 0;
-
-      do {
-        const result = await listChairmanApplications({
-          ...defaultQuery,
-          page,
-          pageSize: 100,
-        });
-        barangays.push(...result.applications.map((application) => application.barangay));
-        total = result.total;
-        page += 1;
-      } while ((page - 1) * 100 < total);
-
-      setApplicationBarangays(groupBarangays(barangays));
+      const options = await getChairmanApplicationBarangays();
+      setApplicationBarangays({ names: options.barangays.map((entry) => entry.barangay), unspecified: options.unspecified > 0 });
     } catch {
-      setApplicationBarangays([]);
+      setApplicationBarangays({ names: [], unspecified: false });
     }
   }, []);
 
   const loadDirectory = useCallback(async () => {
+    const request = beginDirectoryList();
     setIsMemberLoading(true);
     setMemberError("");
 
     try {
-      const [nextSummary, list] = await Promise.all([
-        getMemberSummary(),
-        listMembersPaginated(memberQuery),
-      ]);
-      setMemberSummary(nextSummary);
+      const list = await listMembersPaginated(memberQuery, { signal: request.signal });
+      if (!request.isCurrent()) return;
+      const lastPage = Math.max(1, Math.ceil(list.total / (memberQuery.pageSize ?? 10)));
+      if ((memberQuery.page ?? 1) > lastPage) {
+        setMemberQuery((current) => ({ ...current, page: lastPage }));
+        return;
+      }
       setMembers(list.members);
       setMemberTotal(list.total);
     } catch (caught) {
+      if (!request.isCurrent()) return;
       setMemberError(caught instanceof ApiClientError ? caught.message : "Member directory could not be loaded.");
     } finally {
-      setIsMemberLoading(false);
+      if (request.isCurrent()) setIsMemberLoading(false);
     }
-  }, [memberQuery]);
+  }, [memberQuery, beginDirectoryList]);
+
+  const loadDirectorySummary = useCallback(async () => {
+    const request = beginDirectorySummary();
+    setIsMemberSummaryLoading(true);
+    setMemberSummaryError("");
+
+    try {
+      const [next, barangays] = await Promise.all([
+        getMemberSummary(directorySummaryFilters, { signal: request.signal }),
+        listMemberBarangays({ signal: request.signal }),
+      ]);
+      if (!request.isCurrent()) return;
+      setMemberSummary(next);
+      setMemberBarangays({
+        names: barangays.filter((entry) => entry.barangay.toLowerCase() !== "unspecified").map((entry) => entry.barangay),
+        unspecified: barangays.some((entry) => entry.barangay.toLowerCase() === "unspecified" && entry.total > 0),
+      });
+    } catch (caught) {
+      if (!request.isCurrent()) return;
+      setMemberSummaryError(caught instanceof ApiClientError ? caught.message : "The directory figures could not be loaded.");
+    } finally {
+      if (request.isCurrent()) setIsMemberSummaryLoading(false);
+    }
+  }, [directorySummaryFilters, beginDirectorySummary]);
+
+  const reloadDirectory = useCallback(() => Promise.all([loadDirectory(), loadDirectorySummary()]), [loadDirectory, loadDirectorySummary]);
 
   const loadUnifiedHistory = useCallback(async () => {
+    const request = beginHistoryList();
     setIsHistoryLoading(true);
     setHistoryError("");
 
     try {
-      const result = await listUnifiedStatusHistory(historyQuery);
+      const result = await listUnifiedStatusHistory({ ...historyFilters, page: historyQuery.page, pageSize: historyQuery.pageSize }, { signal: request.signal });
+      if (!request.isCurrent()) return;
+      const lastPage = Math.max(1, Math.ceil(result.total / historyQuery.pageSize));
+      if (historyQuery.page > lastPage) {
+        setHistoryQuery((current) => ({ ...current, page: lastPage }));
+        return;
+      }
       setHistoryEntries(result.entries);
       setHistoryTotal(result.total);
     } catch (caught) {
+      if (!request.isCurrent()) return;
       setHistoryError(caught instanceof ApiClientError ? caught.message : "Unified status history could not be loaded.");
     } finally {
-      setIsHistoryLoading(false);
+      if (request.isCurrent()) setIsHistoryLoading(false);
     }
-  }, [historyQuery]);
+  }, [historyFilters, historyQuery.page, historyQuery.pageSize, beginHistoryList]);
+
+  const loadHistorySummary = useCallback(async () => {
+    const request = beginHistorySummary();
+    setIsHistorySummaryLoading(true);
+    setHistorySummaryError("");
+
+    try {
+      const next = await getUnifiedStatusHistorySummary(historySummaryFilters, { signal: request.signal });
+      if (request.isCurrent()) setHistorySummary(next);
+    } catch (caught) {
+      if (!request.isCurrent()) return;
+      setHistorySummaryError(caught instanceof ApiClientError ? caught.message : "The history figures could not be loaded.");
+    } finally {
+      if (request.isCurrent()) setIsHistorySummaryLoading(false);
+    }
+  }, [historySummaryFilters, beginHistorySummary]);
+
+  const loadHistoryActors = useCallback(async () => {
+    const request = beginHistoryActors();
+    try {
+      const next = await listUnifiedStatusHistoryActors({ ...historySummaryFilters, actorId: undefined }, { signal: request.signal });
+      if (request.isCurrent()) setHistoryActors(next);
+    } catch {
+      // The actor list only feeds an optional filter; the table and cards keep working without it.
+    }
+  }, [historySummaryFilters, beginHistoryActors]);
+
+  const reloadHistory = useCallback(() => Promise.all([loadUnifiedHistory(), loadHistorySummary(), loadHistoryActors()]), [loadUnifiedHistory, loadHistorySummary, loadHistoryActors]);
+
+  // Filters in the address bar restore each tab; read them once after hydration.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const search = new URLSearchParams(window.location.search);
+      const tab = search.get("tab");
+      if (tab === "directory" || tab === "history") setActiveTab(tab);
+      setQuery((current) => ({ ...current, ...applicationQueryFromParams(viewParams(search, "a_")), page: 1 }));
+      setMemberQuery((current) => {
+        const restored = { ...current, ...memberQueryFromParams(viewParams(search, "d_")), page: 1 };
+        // The RFM deep link seeds the directory search before this runs; an absent d_q must not clear it.
+        if (search.get("rfmMemberId") && !search.has("d_q")) restored.search = current.search;
+        return restored;
+      });
+      setHistoryQuery((current) => ({ ...current, ...historyQueryFromParams(viewParams(search, "h_")), page: 1 }));
+      setUrlReady(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
+    if (!urlReady) return;
+    replaceUrlParams((current) => {
+      let next = mergeViewParams(current, viewParamKeys.applications, applicationQueryToParams(query), "a_");
+      next = mergeViewParams(next, viewParamKeys.directory, memberQueryToParams(memberQuery), "d_");
+      next = mergeViewParams(next, viewParamKeys.history, historyQueryToParams(historyQuery), "h_");
+      if (activeTab === "applications") next.delete("tab");
+      else next.set("tab", activeTab);
+      return next;
+    });
+  }, [urlReady, activeTab, query, memberQuery, historyQuery]);
+
+  useEffect(() => {
+    if (!urlReady) return;
     const timeoutId = window.setTimeout(() => {
       void loadApplications();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [loadApplications]);
+  }, [loadApplications, urlReady]);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    const timeoutId = window.setTimeout(() => {
+      void loadApplicationSummary();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadApplicationSummary, urlReady]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -569,43 +701,61 @@ export function MembersClient() {
   }, [loadApplicationBarangays]);
 
   useEffect(() => {
-    if (activeTab !== "directory") return;
+    if (!urlReady || activeTab !== "directory") return;
     const timeoutId = window.setTimeout(() => {
       void loadDirectory();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeTab, loadDirectory]);
+  }, [urlReady, activeTab, loadDirectory]);
 
   useEffect(() => {
-    if (activeTab !== "history") return;
+    if (!urlReady || activeTab !== "directory") return;
+    const timeoutId = window.setTimeout(() => {
+      void loadDirectorySummary();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [urlReady, activeTab, loadDirectorySummary]);
+
+  useEffect(() => {
+    if (!urlReady || activeTab !== "history") return;
     const timeoutId = window.setTimeout(() => {
       void loadUnifiedHistory();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeTab, loadUnifiedHistory]);
+  }, [urlReady, activeTab, loadUnifiedHistory]);
 
-  const filteredApplications = useMemo(() => {
-    return applications.filter((application) => {
-      const detail = detailsById[application.id];
-      if (requirementCompletion !== "All" && detail) {
-        const completed = prePaymentRequirementProgress(detail).isComplete;
-        if (requirementCompletion === "Complete" && !completed) return false;
-        if (requirementCompletion === "Incomplete" && completed) return false;
-      }
-      return true;
-    });
-  }, [applications, detailsById, requirementCompletion]);
+  useEffect(() => {
+    if (!urlReady || activeTab !== "history") return;
+    const timeoutId = window.setTimeout(() => {
+      void loadHistorySummary();
+      void loadHistoryActors();
+    }, 0);
 
-  const barangayOptions = useMemo(
-    () => groupBarangays([
-      ...applicationBarangays,
-      ...applications.map((application) => application.barangay),
-      ...Object.values(detailsById).map((detail) => detail.barangay),
-      ...members.map((member) => member.barangay),
-    ]),
-    [applicationBarangays, applications, detailsById, members],
+    return () => window.clearTimeout(timeoutId);
+  }, [urlReady, activeTab, loadHistorySummary, loadHistoryActors]);
+
+  const updateApplicationQuery = useCallback((patch: Partial<ChairmanApplicationListQuery>) => {
+    setQuery((current) => ({ ...current, ...patch, page: 1 }));
+  }, []);
+
+  const updateDirectoryQuery = useCallback((patch: Partial<MemberListQuery>) => {
+    setMemberQuery((current) => ({ ...current, ...patch, page: 1 }));
+  }, []);
+
+  const updateHistoryQuery = useCallback((patch: Partial<HistoryQueryState>) => {
+    setHistoryQuery((current) => ({ ...current, ...patch, page: 1 }));
+  }, []);
+
+  const applicationBarangayOptions = useMemo(
+    () => buildBarangayOptions(applicationBarangays.names, applicationBarangays.unspecified, query.barangay),
+    [applicationBarangays, query.barangay],
+  );
+  const memberBarangayOptions = useMemo(
+    () => buildBarangayOptions(memberBarangays.names, memberBarangays.unspecified, memberQuery.barangay),
+    [memberBarangays, memberQuery.barangay],
   );
 
   const refreshDetail = async (id: string) => {
@@ -622,7 +772,7 @@ export function MembersClient() {
     }
 
     realtimeRefreshTimer.current = window.setTimeout(() => {
-      void loadApplications();
+      void reloadApplications();
       if (selectedId) {
         void refreshDetail(selectedId).catch(() => undefined);
       }
@@ -650,7 +800,7 @@ export function MembersClient() {
     try {
       await action();
       toast.success(successMessage);
-      await loadApplications();
+      await reloadApplications();
     } catch (caught) {
       toast.error(caught instanceof ApiClientError ? caught.message : "Action failed.");
     } finally {
@@ -736,9 +886,9 @@ export function MembersClient() {
             <Button
               type="button"
               onClick={() => {
-                if (activeTab === "directory") void loadDirectory();
-                else if (activeTab === "history") void loadUnifiedHistory();
-                else void loadApplications();
+                if (activeTab === "directory") void reloadDirectory();
+                else if (activeTab === "history") void reloadHistory();
+                else void reloadApplications();
               }}
               className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC]"
             >
@@ -771,26 +921,22 @@ export function MembersClient() {
 
       {activeTab === "applications" ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <ApplicationMetricCard label="Submitted" value={summary.submitted} icon={FileText} />
-            <ApplicationMetricCard label="Under Review" value={summary.underReview} icon={ClipboardCheck} />
-            <ApplicationMetricCard label="Payment Due" value={summary.paymentRequired} icon={WalletCards} />
-            <ApplicationMetricCard label="Payment OK" value={summary.paymentConfirmed} icon={CheckCircle2} />
-            <ApplicationMetricCard label="Approved" value={summary.approved} icon={CheckCircle2} />
-          </div>
-
-          <ApplicationFilters
+          <ApplicationsToolbar
+            summary={summary}
+            summaryError={summaryError}
+            summaryLoading={isSummaryLoading}
+            onRetrySummary={() => void loadApplicationSummary()}
             query={query}
-            requirementCompletion={requirementCompletion}
-            barangayOptions={barangayOptions}
-            setQuery={setQuery}
-            setRequirementCompletion={setRequirementCompletion}
+            total={applicationTotal}
+            loading={isLoading}
+            barangays={applicationBarangayOptions}
+            update={updateApplicationQuery}
           />
 
           {error ? <ErrorState message={error} /> : null}
           {isLoading ? (
             <LoadingSkeleton />
-          ) : filteredApplications.length === 0 ? (
+          ) : applications.length === 0 ? (
             <EmptyState
               icon={UsersRound}
               title="No membership applications found"
@@ -799,11 +945,11 @@ export function MembersClient() {
           ) : (
             <>
               <ApplicationsResponsiveList
-                applications={filteredApplications}
+                applications={applications}
                 detailsById={detailsById}
                 onSelect={setSelectedId}
                 query={query}
-                total={summary.total}
+                total={applicationTotal}
                 setQuery={setQuery}
               />
             </>
@@ -812,12 +958,16 @@ export function MembersClient() {
       ) : activeTab === "directory" ? (
         <MemberDirectorySection
           summary={memberSummary}
+          summaryError={memberSummaryError}
+          isSummaryLoading={isMemberSummaryLoading}
+          onRetrySummary={() => void loadDirectorySummary()}
           members={members}
-          barangayOptions={barangayOptions}
+          barangayOptions={memberBarangayOptions}
           query={memberQuery}
           total={memberTotal}
           isLoading={isMemberLoading}
           error={memberError}
+          update={updateDirectoryQuery}
           setQuery={setMemberQuery}
           onOpen={async (memberId) => {
             try {
@@ -835,6 +985,12 @@ export function MembersClient() {
           total={historyTotal}
           isLoading={isHistoryLoading}
           error={historyError}
+          summary={historySummary}
+          summaryError={historySummaryError}
+          isSummaryLoading={isHistorySummaryLoading}
+          onRetrySummary={() => void loadHistorySummary()}
+          actors={historyActors}
+          update={updateHistoryQuery}
           setQuery={setHistoryQuery}
         />
       )}
@@ -1003,35 +1159,46 @@ export function MembersClient() {
 
 function MemberDirectorySection({
   summary,
+  summaryError,
+  isSummaryLoading,
+  onRetrySummary,
   members,
   barangayOptions,
   query,
   total,
   isLoading,
   error,
+  update,
   setQuery,
   onOpen,
 }: {
-  summary: DirectoryMemberSummary;
+  summary: DirectoryMemberSummary | null;
+  summaryError: string;
+  isSummaryLoading: boolean;
+  onRetrySummary: () => void;
   members: MemberProfile[];
-  barangayOptions: string[];
+  barangayOptions: Array<{ value: string; label: string }>;
   query: MemberListQuery;
   total: number;
   isLoading: boolean;
   error: string;
+  update: (patch: Partial<MemberListQuery>) => void;
   setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
   onOpen: (memberId: string) => Promise<void>;
 }) {
   return (
     <div className="grid gap-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ApplicationMetricCard label="Members" value={summary.total} icon={UsersRound} />
-        <ApplicationMetricCard label="Active" value={summary.active} icon={UserCheck} />
-        <ApplicationMetricCard label="Associates" value={summary.associate} icon={WalletCards} />
-        <ApplicationMetricCard label="True Members" value={summary.trueMember} icon={ShieldCheck} />
-      </div>
-
-      <MemberFilters query={query} barangayOptions={barangayOptions} setQuery={setQuery} />
+      <DirectoryToolbar
+        summary={summary}
+        summaryError={summaryError}
+        summaryLoading={isSummaryLoading}
+        onRetrySummary={onRetrySummary}
+        query={query}
+        total={total}
+        loading={isLoading}
+        barangays={barangayOptions}
+        update={update}
+      />
 
       {error ? <ErrorState message={error} /> : null}
       {isLoading ? (
@@ -1048,57 +1215,6 @@ function MemberDirectorySection({
         </>
       )}
     </div>
-  );
-}
-
-function MemberFilters({
-  query,
-  barangayOptions,
-  setQuery,
-}: {
-  query: MemberListQuery;
-  barangayOptions: string[];
-  setQuery: (updater: (current: MemberListQuery) => MemberListQuery) => void;
-}) {
-  const updateQuery = (patch: Partial<MemberListQuery>) => {
-    setQuery((current) => ({ ...current, ...patch, page: 1 }));
-  };
-
-  return (
-    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
-      <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
-        <Filter className="size-4" aria-hidden="true" />
-        Filters
-      </div>
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[1.45fr_0.9fr_0.9fr_0.9fr_0.9fr]">
-        <label className="relative block">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
-          <input
-            value={query.search ?? ""}
-            onChange={(event) => updateQuery({ search: event.target.value })}
-            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-3 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:font-normal placeholder:text-[#7D8C82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
-            placeholder="Search members"
-            type="search"
-          />
-        </label>
-        <Select value={query.officialMemberStatus ?? "All"} onChange={(value) => updateQuery({ officialMemberStatus: value as MemberListQuery["officialMemberStatus"] })}>
-          <option value="All">All official statuses</option>
-          {officialMemberStatuses.map((status) => <option key={status}>{status}</option>)}
-        </Select>
-        <Select value={query.membershipType ?? "All"} onChange={(value) => updateQuery({ membershipType: value as MemberListQuery["membershipType"] })}>
-          <option value="All">All member types</option>
-          {membershipTypes.map((type) => <option key={type}>{type}</option>)}
-        </Select>
-        <Select value={query.barangay ?? "All"} onChange={(value) => updateQuery({ barangay: value === "All" ? undefined : value })}>
-          <option value="All">All barangays</option>
-          {barangayOptions.map((barangay) => <option key={barangay}>{barangay}</option>)}
-        </Select>
-        <Select value={query.sortDirection ?? "desc"} onChange={(value) => setQuery((current) => ({ ...current, sortDirection: value as "asc" | "desc", page: 1 }))}>
-          <option value="desc">Descending</option>
-          <option value="asc">Ascending</option>
-        </Select>
-      </div>
-    </section>
   );
 }
 
@@ -1966,56 +2082,40 @@ function UnifiedHistorySection({
   total,
   isLoading,
   error,
+  summary,
+  summaryError,
+  isSummaryLoading,
+  onRetrySummary,
+  actors,
+  update,
   setQuery,
 }: {
   entries: UnifiedStatusHistoryEntry[];
-  query: HistoryQuery;
+  query: HistoryQueryState;
   total: number;
   isLoading: boolean;
   error: string;
-  setQuery: (updater: (current: HistoryQuery) => HistoryQuery) => void;
+  summary: UnifiedStatusHistorySummary | null;
+  summaryError: string;
+  isSummaryLoading: boolean;
+  onRetrySummary: () => void;
+  actors: HistoryActorOptions | null;
+  update: (patch: Partial<HistoryQueryState>) => void;
+  setQuery: (updater: (current: HistoryQueryState) => HistoryQueryState) => void;
 }) {
-  const updateQuery = (patch: Partial<typeof query>) => {
-    setQuery((current) => ({ ...current, ...patch, page: 1 }));
-  };
   return (
     <div className="grid gap-5">
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
-              <Filter className="size-4" aria-hidden="true" />
-              Filters
-            </div>
-          </div>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-3">
-          <label className="relative block min-w-0">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
-            <input
-              value={query.search}
-              onChange={(event) => updateQuery({ search: event.target.value })}
-              className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-3 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:font-normal placeholder:text-[#7D8C82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
-              placeholder="Search history"
-              type="search"
-            />
-          </label>
-          <Select value={query.sourceModule} onChange={(value) => updateQuery({ sourceModule: value as HistorySource })}>
-            <option value="All">All sources</option>
-            {["Application", "Member", "Account"].map((source) => <option key={source}>{source}</option>)}
-          </Select>
-          <DatePicker
-            label="Filter history by date"
-            value={query.date}
-            onChange={(date) => updateQuery({ date })}
-            placeholder="Filter by date"
-            hideLabel
-            triggerClassName="h-11 rounded-md border-[#CAD8CB] px-3 text-sm focus:ring-[#1F6B43]/10"
-            allowClear
-            clearLabel="Clear date filter"
-          />
-        </div>
-      </section>
+      <HistoryToolbar
+        summary={summary}
+        summaryError={summaryError}
+        summaryLoading={isSummaryLoading}
+        onRetrySummary={onRetrySummary}
+        query={query}
+        total={total}
+        loading={isLoading}
+        actors={actors}
+        update={update}
+      />
 
       {error ? <ErrorState message={error} /> : null}
       {isLoading ? (
@@ -2037,90 +2137,6 @@ function UnifiedHistorySection({
         </>
       )}
     </div>
-  );
-}
-
-function ApplicationMetricCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <article className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF7ED] text-[#1F6B43]">
-          <Icon className="size-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[0.72rem] font-semibold text-[#6C7A70]">{label}</p>
-          <p className="mt-1 text-xl font-black leading-none text-[#123D2A]">{value}</p>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function ApplicationFilters({
-  query,
-  requirementCompletion,
-  barangayOptions,
-  setQuery,
-  setRequirementCompletion,
-}: {
-  query: ChairmanApplicationListQuery;
-  requirementCompletion: string;
-  barangayOptions: string[];
-  setQuery: (updater: (current: ChairmanApplicationListQuery) => ChairmanApplicationListQuery) => void;
-  setRequirementCompletion: (value: string) => void;
-}) {
-  const updateQuery = (patch: Partial<ChairmanApplicationListQuery>) => {
-    setQuery((current) => ({ ...current, ...patch, page: 1 }));
-  };
-
-  return (
-    <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
-      <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
-        <Filter className="size-4" aria-hidden="true" />
-        Filters
-      </div>
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[1.45fr_0.85fr_0.85fr_0.85fr_0.85fr_0.95fr]">
-        <label className="relative block">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
-          <input
-            value={query.search ?? ""}
-            onChange={(event) => updateQuery({ search: event.target.value })}
-            className="h-11 w-full rounded-md border border-[#CAD8CB] bg-white pl-10 pr-3 text-sm font-semibold text-[#123D2A] outline-none transition placeholder:font-normal placeholder:text-[#7D8C82] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/10"
-            placeholder="Search application"
-            type="search"
-          />
-        </label>
-        <Select value={query.status ?? "All"} onChange={(value) => updateQuery({ status: value as ChairmanApplicationListQuery["status"] })}>
-          <option value="All">All statuses</option>
-          {membershipApplicationStatuses.map((status) => <option key={status}>{status}</option>)}
-        </Select>
-        <Select value={query.requestedMembershipType ?? "All"} onChange={(value) => updateQuery({ requestedMembershipType: value as ChairmanApplicationListQuery["requestedMembershipType"] })}>
-          <option value="All">All types</option>
-          {requestedMembershipTypes.map((type) => <option key={type}>{type}</option>)}
-        </Select>
-        <Select value={query.applicationSource ?? "All"} onChange={(value) => updateQuery({ applicationSource: value as ChairmanApplicationListQuery["applicationSource"] })}>
-          <option value="All">All sources</option>
-          {membershipApplicationSources.map((source) => <option key={source}>{source}</option>)}
-        </Select>
-        <Select value={query.barangay ?? "All"} onChange={(value) => updateQuery({ barangay: value === "All" ? undefined : value })}>
-          <option value="All">All barangays</option>
-          {barangayOptions.map((barangay) => <option key={barangay}>{barangay}</option>)}
-        </Select>
-        <Select value={requirementCompletion} onChange={setRequirementCompletion}>
-          <option value="All">All requirements</option>
-          <option value="Complete">Complete</option>
-          <option value="Incomplete">Incomplete</option>
-        </Select>
-      </div>
-    </section>
   );
 }
 
@@ -4194,21 +4210,6 @@ function prePaymentRequirementProgress(detail: ChairmanApplicationDetail) {
     ["Verified", "Waived"].includes(requirement.requirementStatus),
   ).length;
   return { completed, total, isComplete: total > 0 && completed === total };
-}
-
-function groupBarangays(values: Array<string | null | undefined>) {
-  const grouped = new Map<string, string>();
-
-  values.forEach((value) => {
-    const barangay = value?.trim();
-    if (!barangay) return;
-    const key = barangay.toLocaleLowerCase("en-PH");
-    if (!grouped.has(key)) grouped.set(key, barangay);
-  });
-
-  return Array.from(grouped.values()).sort((first, second) =>
-    first.localeCompare(second, "en-PH", { sensitivity: "base" }),
-  );
 }
 
 function formatDate(value: string | null | undefined) {

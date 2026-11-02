@@ -1,6 +1,7 @@
 import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
+import { barangayFilter, inFilter, joinFilters, likeTerm, manilaDateRangeFilter, type SqlFilter } from "../../utils/people-filters";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
@@ -23,7 +24,12 @@ import type {
   ShareCapitalProgress,
   UpdateMemberProfileInput,
   UpdateMemberStatusInput,
+  HistoryActorOptions,
+  MemberFilters,
   UnifiedStatusHistoryEntry,
+  UnifiedStatusHistoryFilters,
+  UnifiedStatusHistoryQuery,
+  UnifiedStatusHistorySummary,
 } from "./member.types";
 
 type MemberRow = RowDataPacket & {
@@ -67,7 +73,7 @@ type HistoryRow = RowDataPacket & {
 };
 
 type CountRow = RowDataPacket & { total: number };
-type SummaryRow = RowDataPacket & MemberSummary;
+type SummaryRow = RowDataPacket & Record<string, number | string | null>;
 type ShareCapitalRow = RowDataPacket & {
   validatedTotal: string | number | null;
   pendingTotal: string | number | null;
@@ -78,6 +84,14 @@ type PosActivityRow = RowDataPacket & MemberPosActivity;
 type RentalActivityRow = RowDataPacket & MemberRentalActivity;
 type LatestIndicatorRow = RowDataPacket & MemberLatestIndicator;
 type UnifiedHistoryRow = RowDataPacket & UnifiedStatusHistoryEntry;
+type HistorySummaryRow = RowDataPacket & {
+  total: number;
+  application: number;
+  member: number;
+  account: number;
+  distinctSubjects: number;
+};
+type HistoryActorRow = RowDataPacket & { actorId: string | null; actor: string | null; total: number };
 
 const FULL_SHARE_CAPITAL = 3000;
 const MAX_SHARE_CAPITAL = 15000;
@@ -97,8 +111,10 @@ export interface MemberRepository {
   updateApproval(memberId: string, approvalStatus: ApprovalStatus, reason: string | null | undefined, auth: AuthContext): Promise<MemberProfile>;
   updateStatus(memberId: string, input: UpdateMemberStatusInput, auth: AuthContext): Promise<MemberProfile>;
   history(memberId: string): Promise<MemberStatusHistoryEntry[]>;
-  unifiedStatusHistory(query: { search?: string; sourceModule?: string; date?: string; page: number; pageSize: number }): Promise<{ entries: UnifiedStatusHistoryEntry[]; total: number; page: number; pageSize: number }>;
-  summary(): Promise<MemberSummary>;
+  unifiedStatusHistory(query: UnifiedStatusHistoryQuery): Promise<{ entries: UnifiedStatusHistoryEntry[]; total: number; page: number; pageSize: number }>;
+  unifiedStatusHistorySummary(filters?: UnifiedStatusHistoryFilters): Promise<UnifiedStatusHistorySummary>;
+  unifiedStatusHistoryActors(filters?: UnifiedStatusHistoryFilters): Promise<HistoryActorOptions>;
+  summary(filters?: MemberFilters): Promise<MemberSummary>;
   barangayDistribution(): Promise<BarangayDistribution[]>;
   shareCapitalProgress(memberId: string): Promise<ShareCapitalProgress>;
 }
@@ -140,6 +156,136 @@ function mapMember(row: MemberRow): MemberProfile {
 
 function dateOrNull(value: string | null | undefined) {
   return value ?? null;
+}
+
+/**
+ * One predicate builder for the directory list, its count and the KPI summary. The summary leaves out the
+ * approval, official-status and membership-type filters (`omitPartition`) because its cards are the
+ * breakdown of everything else by exactly those fields.
+ */
+export function memberFilterConditions(filters: MemberFilters, options: { omitPartition?: boolean } = {}): SqlFilter[] {
+  const conditions: SqlFilter[] = [];
+
+  if (filters.search) {
+    const search = likeTerm(filters.search);
+    conditions.push({ sql: "(m.full_name LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)", values: [search, search, search] });
+  }
+  if (!options.omitPartition) {
+    if (filters.approvalStatus) conditions.push({ sql: "m.approval_status = ?", values: [filters.approvalStatus] });
+    if (filters.officialMemberStatus) conditions.push({ sql: "m.official_member_status = ?", values: [filters.officialMemberStatus] });
+    if (filters.membershipType) conditions.push({ sql: "m.membership_type = ?", values: [filters.membershipType] });
+  }
+  if (filters.barangay) conditions.push(barangayFilter("m.barangay", filters.barangay));
+  if (filters.sector) {
+    conditions.push(
+      filters.sector.trim().toLowerCase() === "unspecified"
+        ? { sql: "(m.sector IS NULL OR TRIM(m.sector) = '')", values: [] }
+        : { sql: "m.sector = ?", values: [filters.sector.trim()] },
+    );
+  }
+  if (filters.accountLink === "linked") conditions.push({ sql: "m.user_id IS NOT NULL", values: [] });
+  if (filters.accountLink === "unlinked") conditions.push({ sql: "m.user_id IS NULL", values: [] });
+  conditions.push(...manilaDateRangeFilter("m.approved_at", filters.approvedFrom, filters.approvedTo));
+
+  return conditions;
+}
+
+/** Union of the three status-change sources. Every branch exposes the same columns. */
+const unifiedHistoryUnionSql = `
+        SELECT CONCAT('application-', h.membership_application_status_history_id) AS id,
+               'Application' AS sourceModule,
+               CAST(a.membership_application_id AS CHAR) AS subjectId,
+               a.application_code AS subjectCode,
+               TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) AS subjectName,
+               h.old_status AS oldStatus,
+               h.new_status AS newStatus,
+               COALESCE(h.internal_note, h.applicant_message) AS reason,
+               actor.display_name AS actor,
+               CAST(h.changed_by AS CHAR) AS actorId,
+               'application-status' AS changeType,
+               h.changed_at AS changedAt
+          FROM membership_application_status_history h
+          JOIN membership_applications a ON a.membership_application_id = h.membership_application_id
+          LEFT JOIN users actor ON actor.user_id = h.changed_by
+        UNION ALL
+        SELECT CONCAT('member-', h.member_status_history_id) AS id,
+               'Member' AS sourceModule,
+               CAST(m.member_id AS CHAR) AS subjectId,
+               m.member_code AS subjectCode,
+               m.full_name AS subjectName,
+               CONCAT_WS(' / ', h.old_membership_type, h.old_official_status) AS oldStatus,
+               CONCAT_WS(' / ', h.new_membership_type, h.new_official_status) AS newStatus,
+               h.reason,
+               actor.display_name AS actor,
+               CAST(h.changed_by AS CHAR) AS actorId,
+               CASE
+                 WHEN NOT (h.old_membership_type <=> h.new_membership_type)
+                  AND NOT (h.old_official_status <=> h.new_official_status) THEN 'member-status-and-type'
+                 WHEN NOT (h.old_membership_type <=> h.new_membership_type) THEN 'membership-type'
+                 ELSE 'member-status'
+               END AS changeType,
+               h.changed_at AS changedAt
+          FROM member_status_history h
+          JOIN member_profiles m ON m.member_id = h.member_id
+          LEFT JOIN users actor ON actor.user_id = h.changed_by
+        UNION ALL
+        SELECT CONCAT('account-', a.audit_log_id) AS id,
+               'Account' AS sourceModule,
+               CAST(m.member_id AS CHAR) AS subjectId,
+               m.member_code AS subjectCode,
+               m.full_name AS subjectName,
+               COALESCE(
+                 JSON_UNQUOTE(JSON_EXTRACT(a.old_values, '$.accountStatus')),
+                 JSON_UNQUOTE(JSON_EXTRACT(a.old_values, '$.role'))
+               ) AS oldStatus,
+               COALESCE(
+                 JSON_UNQUOTE(JSON_EXTRACT(a.new_values, '$.accountStatus')),
+                 JSON_UNQUOTE(JSON_EXTRACT(a.new_values, '$.role'))
+               ) AS newStatus,
+               a.description AS reason,
+               actor.display_name AS actor,
+               CAST(a.user_id AS CHAR) AS actorId,
+               CASE a.action WHEN 'user.role_changed' THEN 'account-role' ELSE 'account-status' END AS changeType,
+               a.action_time AS changedAt
+          FROM audit_logs a
+          JOIN member_profiles m ON m.user_id = a.record_id
+          LEFT JOIN users actor ON actor.user_id = a.user_id
+         WHERE a.entity_table = 'users'
+           AND a.action IN ('user.status_changed', 'user.role_changed')`;
+
+/** A member event can change the official status, the membership type, or both at once. */
+const historyChangeTypeMatches: Record<NonNullable<UnifiedStatusHistoryFilters["changeType"]>, string[]> = {
+  "application-status": ["application-status"],
+  "member-status": ["member-status", "member-status-and-type"],
+  "membership-type": ["membership-type", "member-status-and-type"],
+  "account-status": ["account-status"],
+  "account-role": ["account-role"],
+};
+
+/** Filters on the union's output columns. The summary and actor options omit the source / actor filters. */
+export function unifiedHistoryConditions(
+  filters: UnifiedStatusHistoryFilters,
+  options: { omitSource?: boolean; omitActor?: boolean } = {},
+): SqlFilter[] {
+  const conditions: SqlFilter[] = [];
+
+  if (filters.search) {
+    const search = likeTerm(filters.search);
+    conditions.push({
+      sql: "(subjectName LIKE ? OR subjectCode LIKE ? OR newStatus LIKE ? OR oldStatus LIKE ? OR actor LIKE ? OR reason LIKE ?)",
+      values: [search, search, search, search, search, search],
+    });
+  }
+  if (!options.omitSource && filters.sourceModule && filters.sourceModule !== "All") {
+    conditions.push({ sql: "sourceModule = ?", values: [filters.sourceModule] });
+  }
+  conditions.push(...manilaDateRangeFilter("changedAt", filters.date ?? filters.from, filters.date ?? filters.to));
+  if (!options.omitActor && filters.actorId) {
+    conditions.push(filters.actorId === "none" ? { sql: "actorId IS NULL", values: [] } : { sql: "actorId = ?", values: [filters.actorId] });
+  }
+  if (filters.changeType) conditions.push(inFilter("changeType", historyChangeTypeMatches[filters.changeType]));
+
+  return conditions;
 }
 
 export function createMemberRepository(pool?: Pool): MemberRepository {
@@ -247,32 +393,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
 
   return {
     async list(query) {
-      const where: string[] = [];
-      const values: Array<string | number> = [];
-
-      if (query.search) {
-        where.push("(m.full_name LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)");
-        const search = `%${query.search}%`;
-        values.push(search, search, search);
-      }
-      if (query.approvalStatus) {
-        where.push("m.approval_status = ?");
-        values.push(query.approvalStatus);
-      }
-      if (query.officialMemberStatus) {
-        where.push("m.official_member_status = ?");
-        values.push(query.officialMemberStatus);
-      }
-      if (query.membershipType) {
-        where.push("m.membership_type = ?");
-        values.push(query.membershipType);
-      }
-      if (query.barangay) {
-        where.push("m.barangay = ?");
-        values.push(query.barangay);
-      }
-
-      const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+      const { whereSql, values } = joinFilters(memberFilterConditions(query));
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const offset = (query.page - 1) * query.pageSize;
 
@@ -290,7 +411,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
 
       return {
         members: rows.map(mapMember),
-        total: countRows[0]?.total ?? 0,
+        total: Number(countRows[0]?.total ?? 0),
         page: query.page,
         pageSize: query.pageSize,
       };
@@ -570,121 +691,124 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
     },
 
     async unifiedStatusHistory(query) {
-      const filters: string[] = [];
-      const searchValues: string[] = [];
-
-      if (query.search) {
-        filters.push("(subjectName LIKE ? OR subjectCode LIKE ? OR newStatus LIKE ? OR oldStatus LIKE ? OR actor LIKE ? OR reason LIKE ?)");
-        const search = `%${query.search}%`;
-        searchValues.push(search, search, search, search, search, search);
-      }
-
-      if (query.sourceModule && query.sourceModule !== "All") {
-        filters.push("sourceModule = ?");
-        searchValues.push(query.sourceModule);
-      }
-
-      if (query.date) {
-        filters.push("DATE(changedAt) = ?");
-        searchValues.push(query.date);
-      }
-
-      const outerWhere = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
-      const unionSql = `
-        SELECT CONCAT('application-', h.membership_application_status_history_id) AS id,
-               'Application' AS sourceModule,
-               CAST(a.membership_application_id AS CHAR) AS subjectId,
-               a.application_code AS subjectCode,
-               TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) AS subjectName,
-               h.old_status AS oldStatus,
-               h.new_status AS newStatus,
-               COALESCE(h.internal_note, h.applicant_message) AS reason,
-               actor.display_name AS actor,
-               h.changed_at AS changedAt
-          FROM membership_application_status_history h
-          JOIN membership_applications a ON a.membership_application_id = h.membership_application_id
-          LEFT JOIN users actor ON actor.user_id = h.changed_by
-        UNION ALL
-        SELECT CONCAT('member-', h.member_status_history_id) AS id,
-               'Member' AS sourceModule,
-               CAST(m.member_id AS CHAR) AS subjectId,
-               m.member_code AS subjectCode,
-               m.full_name AS subjectName,
-               CONCAT_WS(' / ', h.old_membership_type, h.old_official_status) AS oldStatus,
-               CONCAT_WS(' / ', h.new_membership_type, h.new_official_status) AS newStatus,
-               h.reason,
-               actor.display_name AS actor,
-               h.changed_at AS changedAt
-          FROM member_status_history h
-          JOIN member_profiles m ON m.member_id = h.member_id
-          LEFT JOIN users actor ON actor.user_id = h.changed_by
-        UNION ALL
-        SELECT CONCAT('account-', a.audit_log_id) AS id,
-               'Account' AS sourceModule,
-               CAST(m.member_id AS CHAR) AS subjectId,
-               m.member_code AS subjectCode,
-               m.full_name AS subjectName,
-               COALESCE(
-                 JSON_UNQUOTE(JSON_EXTRACT(a.old_values, '$.accountStatus')),
-                 JSON_UNQUOTE(JSON_EXTRACT(a.old_values, '$.role'))
-               ) AS oldStatus,
-               COALESCE(
-                 JSON_UNQUOTE(JSON_EXTRACT(a.new_values, '$.accountStatus')),
-                 JSON_UNQUOTE(JSON_EXTRACT(a.new_values, '$.role'))
-               ) AS newStatus,
-               a.description AS reason,
-               actor.display_name AS actor,
-               a.action_time AS changedAt
-          FROM audit_logs a
-          JOIN member_profiles m ON m.user_id = a.record_id
-          LEFT JOIN users actor ON actor.user_id = a.user_id
-         WHERE a.entity_table = 'users'
-           AND a.action IN ('user.status_changed', 'user.role_changed')`;
+      const { whereSql, values } = joinFilters(unifiedHistoryConditions(query));
       const offset = (query.page - 1) * query.pageSize;
       const [rows] = await databasePool().execute<UnifiedHistoryRow[]>(
         `SELECT *
-           FROM (${unionSql}) history
-          ${outerWhere}
+           FROM (${unifiedHistoryUnionSql}) history
+          ${whereSql}
           ORDER BY changedAt DESC, id DESC
           ${limitOffsetSql(query.pageSize, offset)}`,
-        searchValues,
+        values,
       );
       const [countRows] = await databasePool().execute<CountRow[]>(
-        `SELECT COUNT(*) AS total FROM (${unionSql}) history ${outerWhere}`,
-        searchValues,
+        `SELECT COUNT(*) AS total FROM (${unifiedHistoryUnionSql}) history ${whereSql}`,
+        values,
       );
 
       return {
         entries: rows,
-        total: countRows[0]?.total ?? 0,
+        total: Number(countRows[0]?.total ?? 0),
         page: query.page,
         pageSize: query.pageSize,
       };
     },
 
-    async summary() {
-      const [rows] = await databasePool().execute<SummaryRow[]>(
-        `SELECT COUNT(*) AS total,
-                SUM(approval_status = 'Pending') AS pendingApproval,
-                SUM(approval_status = 'Approved') AS approved,
-                SUM(membership_type = 'Associate') AS associate,
-                SUM(membership_type = 'True Member') AS trueMember,
-                SUM(official_member_status = 'Active') AS active,
-                SUM(official_member_status = 'Inactive') AS inactive,
-                SUM(official_member_status = 'Suspended') AS suspended
-           FROM member_profiles`,
-      );
-
+    async unifiedStatusHistorySummary(filters = {}) {
+      const { whereSql, values } = joinFilters(unifiedHistoryConditions(filters, { omitSource: true }));
+      const [[rows], [overallRows]] = await Promise.all([
+        databasePool().execute<HistorySummaryRow[]>(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(sourceModule = 'Application'), 0) AS application,
+                  COALESCE(SUM(sourceModule = 'Member'), 0) AS member,
+                  COALESCE(SUM(sourceModule = 'Account'), 0) AS account,
+                  COUNT(DISTINCT CONCAT(sourceModule, ':', subjectId)) AS distinctSubjects
+             FROM (${unifiedHistoryUnionSql}) history ${whereSql}`,
+          values,
+        ),
+        databasePool().execute<CountRow[]>(`SELECT COUNT(*) AS total FROM (${unifiedHistoryUnionSql}) history`),
+      ]);
       const row = rows[0];
       return {
         total: Number(row?.total ?? 0),
-        pendingApproval: Number(row?.pendingApproval ?? 0),
-        approved: Number(row?.approved ?? 0),
-        associate: Number(row?.associate ?? 0),
-        trueMember: Number(row?.trueMember ?? 0),
-        active: Number(row?.active ?? 0),
-        inactive: Number(row?.inactive ?? 0),
-        suspended: Number(row?.suspended ?? 0),
+        application: Number(row?.application ?? 0),
+        member: Number(row?.member ?? 0),
+        account: Number(row?.account ?? 0),
+        distinctSubjects: Number(row?.distinctSubjects ?? 0),
+        overallTotal: Number(overallRows[0]?.total ?? 0),
+      };
+    },
+
+    async unifiedStatusHistoryActors(filters = {}) {
+      const { whereSql, values } = joinFilters(unifiedHistoryConditions(filters, { omitActor: true }));
+      const [rows] = await databasePool().execute<HistoryActorRow[]>(
+        `SELECT actorId, MAX(actor) AS actor, COUNT(*) AS total
+           FROM (${unifiedHistoryUnionSql}) history ${whereSql}
+          GROUP BY actorId`,
+        values,
+      );
+      return {
+        actors: rows
+          .filter((row) => row.actorId !== null)
+          .map((row) => ({ id: String(row.actorId), name: row.actor ?? `User ${row.actorId}`, total: Number(row.total) }))
+          .sort((first, second) => first.name.localeCompare(second.name, "en-PH", { sensitivity: "base" })),
+        withoutActor: rows.filter((row) => row.actorId === null).reduce((sum, row) => sum + Number(row.total), 0),
+      };
+    },
+
+    async summary(filters = {}) {
+      const { whereSql, values } = joinFilters(memberFilterConditions(filters, { omitPartition: true }));
+      const [[rows], [overallRows]] = await Promise.all([
+        databasePool().execute<SummaryRow[]>(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(m.approval_status = 'Pending'), 0) AS pendingApproval,
+                  COALESCE(SUM(m.approval_status = 'Needs Information'), 0) AS needsInformation,
+                  COALESCE(SUM(m.approval_status = 'Rejected'), 0) AS rejected,
+                  COALESCE(SUM(m.approval_status = 'Approved'), 0) AS approved,
+                  COALESCE(SUM(m.membership_type = 'Associate'), 0) AS associate,
+                  COALESCE(SUM(m.membership_type = 'True Member'), 0) AS trueMember,
+                  COALESCE(SUM(m.official_member_status = 'Active'), 0) AS active,
+                  COALESCE(SUM(m.official_member_status = 'Inactive'), 0) AS inactive,
+                  COALESCE(SUM(m.official_member_status = 'Suspended'), 0) AS suspended,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.official_member_status = 'Active'), 0) AS approvedActive,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.official_member_status = 'Inactive'), 0) AS approvedInactive,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.official_member_status = 'Suspended'), 0) AS approvedSuspended,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.official_member_status = 'Terminated'), 0) AS approvedTerminated,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.official_member_status = 'Pending'), 0) AS approvedPendingOfficial,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.membership_type = 'Associate'), 0) AS approvedAssociate,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.membership_type = 'True Member'), 0) AS approvedTrueMember,
+                  COALESCE(SUM(m.approval_status = 'Approved' AND m.user_id IS NULL), 0) AS approvedUnlinked
+             FROM member_profiles m${whereSql}`,
+          values,
+        ),
+        databasePool().execute<CountRow[]>("SELECT COUNT(*) AS total FROM member_profiles"),
+      ]);
+
+      const row = rows[0];
+      const count = (value: unknown) => Number(value ?? 0);
+      return {
+        total: count(row?.total),
+        pendingApproval: count(row?.pendingApproval),
+        needsInformation: count(row?.needsInformation),
+        rejected: count(row?.rejected),
+        approved: count(row?.approved),
+        associate: count(row?.associate),
+        trueMember: count(row?.trueMember),
+        active: count(row?.active),
+        inactive: count(row?.inactive),
+        suspended: count(row?.suspended),
+        approvedMembers: {
+          total: count(row?.approved),
+          active: count(row?.approvedActive),
+          inactive: count(row?.approvedInactive),
+          suspended: count(row?.approvedSuspended),
+          terminated: count(row?.approvedTerminated),
+          pendingOfficial: count(row?.approvedPendingOfficial),
+          associate: count(row?.approvedAssociate),
+          trueMember: count(row?.approvedTrueMember),
+          unlinked: count(row?.approvedUnlinked),
+        },
+        overallTotal: count(overallRows[0]?.total),
       };
     },
 
