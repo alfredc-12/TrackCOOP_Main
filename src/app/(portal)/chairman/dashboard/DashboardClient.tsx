@@ -15,7 +15,7 @@ import {
   Download, RefreshCw, X, ChevronDown, ChevronRight, Tractor,
   ShoppingCart, ArrowUpRight, ArrowDownRight, Minus,
   CheckCircle2, Filter, Search, BarChart3,
-  Calendar, Map, Settings2, Clock, Activity
+  Calendar, Settings2, Clock, Activity
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, AreaChart, Area, LineChart, Line,
@@ -371,7 +371,6 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
   // Filters
   const [period, setPeriod] = useState("year");
   const [barangay, setBarangay] = useState("");
-  const [mapBarangay, setMapBarangay] = useState("");
   const [memberStatus, setMemberStatus] = useState("");
   const [incomeSource, setIncomeSource] = useState("");
 
@@ -448,8 +447,6 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
   const memberHealth = { active: h.active ?? 0, needsMonitoring: h.needsMonitoring ?? 0, inactive: h.inactive ?? 0 };
   const revenueTrend = d.revenueTrend || [];
   const demographics = d.demographics || [];
-  const sectorColumns = Array.from(new Set(demographics.flatMap((item) => item.sectorCounts?.map((sector) => sector.sector) ?? [])));
-  const selectedMapBarangay = demographics.find((item) => item.barangay === mapBarangay);
   const actionItems = d.actionItems || [];
   const sp = d.shareCapitalProgress;
   const shareCapitalProgress = { reachedMinimum: sp.reachedMinimum ?? 0, belowMinimum: sp.belowMinimum ?? 0, contributingMembers: sp.contributingMembers ?? 0, reachedMaximum: sp.reachedMaximum ?? 0, totalMembers: sp.totalMembers ?? 0 };
@@ -921,63 +918,14 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
         {/* ── LEFT COLUMN (2/3 Width) ── */}
         <div className="min-w-0 flex flex-col">
 
-          {/* Barangay Map */}
-          <div className="rounded-2xl border border-[#CAD8CB] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md flex flex-col h-full">
+          {/* Barangay map: the supplied polygons carry all local member details. */}
+          <section className="min-w-0 rounded-xl border border-[#D5E0D5] bg-white p-4 shadow-[0_4px_12px_rgba(18,61,42,0.06)] sm:p-5">
             <SectionHeader title="Barangay Recruitment Analytics" />
-            <div className="flex-1 flex gap-6 mt-4">
-              <div className="w-[60%] flex flex-col relative bg-[#F7F8F3] rounded-lg border border-[#EEF2EC] overflow-hidden items-center justify-center">
-                <DemographicsMap demographics={demographics} selectedBarangay={mapBarangay} onSelectBarangay={setMapBarangay} />
-
-                <div className="absolute bottom-2 left-2 right-2 pointer-events-none z-10">
-                  <p className="text-sm font-bold text-[#123D2A] mb-1 drop-shadow-md bg-white/70 px-1 rounded inline-block">Member Density</p>
-                  <div className="flex items-center gap-1 bg-white/70 p-1 rounded backdrop-blur-sm">
-                    <span className="text-sm text-[#5D6D63] font-bold">Low</span>
-                    <div className="flex-1 h-1.5 bg-gradient-to-r from-[#22c55e] via-[#eab308] via-[#f97316] to-[#dc2626] rounded-full" />
-                    <span className="text-sm text-[#5D6D63] font-bold">High</span>
-                  </div>
-                </div>
-              </div>
-              <div className="w-[40%] flex flex-col justify-between">
-                <div>
-                  <p className="text-sm font-bold text-[#123D2A] mb-2">Top Barangays by Members</p>
-                  <div className="mb-4 overflow-x-auto rounded-lg border border-[#DDE8D8]">
-                    <table className="w-full min-w-[420px] text-[10px]">
-                      <thead className="bg-[#F7F8F3] text-left text-[#5D6D63]">
-                        <tr>
-                          <th className="sticky left-0 z-10 bg-[#F7F8F3] px-2 py-2 text-left font-bold">Barangay</th>
-                          {sectorColumns.map((sector) => <th key={sector} className="px-2 py-2 text-right font-bold">{sector}</th>)}
-                          <th className="px-2 py-2 text-right font-bold">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {demographics.slice(0, 10).map((d) => {
-                          const sectorCount = (sector: string) => d.sectorCounts?.find((item) => item.sector === sector)?.count ?? 0;
-                          return (
-                            <tr key={d.barangay} className={`border-t border-[#EEF2EC] ${mapBarangay === d.barangay ? 'bg-[#123D2A]/10' : ''}`}>
-                              <td className="sticky left-0 z-10 border-r border-[#EEF2EC] bg-white px-2 py-2 font-semibold text-[#365F4A]">{d.barangay}</td>
-                              {sectorColumns.map((sector) => <td key={sector} className="px-2 py-2 text-right">{sectorCount(sector)}</td>)}
-                              <td className="px-2 py-2 text-right font-bold text-[#123D2A]">{d.totalMembers}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  {selectedMapBarangay ? (
-                    <div className="mb-4 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] p-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-[#123D2A]">{selectedMapBarangay.barangay}</p>
-                        <button type="button" onClick={() => setMapBarangay("")} className="text-[10px] font-bold text-[#5D6D63] underline">Clear</button>
-                      </div>
-                      <p className="mt-1 text-[11px] text-[#5D6D63]">{selectedMapBarangay.totalMembers} total members</p>
-                      <div className="mt-2 space-y-0.5 text-[11px] text-[#365F4A]">
-                        {selectedMapBarangay.sectorCounts?.map((item) => (
-                          <div key={item.sector} className="flex justify-between"><span>{item.sector}</span><strong>{item.count}</strong></div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  <p className="text-sm font-bold text-[#123D2A] mb-2 pt-2 border-t border-[#EEF2EC]">Recruitment Insights</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--portal-muted)]">Recorded member counts by barangay.</p>
+            <div className="mt-4"><DemographicsMap demographics={demographics} /></div>
+            <details className="mt-4 rounded-lg bg-[var(--portal-field)] p-3 sm:p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--portal-forest)]">Recruitment insights</summary>
+              <div className="mt-3">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <div className="rounded-lg bg-[#F7F8F3] p-2">
                       <p className="text-[10px] font-bold uppercase tracking-wide text-[#6C7A70]">Referrals</p>
@@ -1023,13 +971,9 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                       </div>
                     ) : null}
                   </div>
-                </div>
-                <button className="mt-4 w-full flex items-center justify-center gap-1.5 rounded bg-[#EEF2EC] py-1.5 text-xs font-bold text-[#123D2A] hover:bg-[#CAD8CB]">
-                  <Map className="size-3" /> View Full Map Analysis
-                </button>
               </div>
-            </div>
-          </div>
+            </details>
+          </section>
         </div>
 
         {/* ── RIGHT COLUMN (1/3 Width) ── */}
