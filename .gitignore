@@ -60,3 +60,7 @@ docs/graphify.md
 # Disposable finance SQL integration-test data
 .finance-test-data/
 .finance-test-maria/
+
+# Disposable Financial Overview integration tests
+.overview-test-data/
+.taste-skill/

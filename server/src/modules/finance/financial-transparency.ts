@@ -1,3 +1,4 @@
+import { postedOperatingSql } from "./financial-posting-rules";
 import type { Pool, RowDataPacket } from "mysql2/promise";
 
 export type FinancialTransparencyQuery = {
@@ -113,12 +114,6 @@ function previousDateFilter(query: FinancialTransparencyQuery) {
   return null;
 }
 
-const postedOperatingIncome = `
-  fr.source_module <> 'Share Capital'
-  AND UPPER(COALESCE(fc.category_code, '')) <> 'SHARE_CAPITAL'
-  AND UPPER(COALESCE(fc.category_name, '')) NOT LIKE '%SHARE CAPITAL%'
-`;
-
 async function queryFinancialSummary(pool: Pool, filter: ReturnType<typeof dateFilter>) {
   const [breakdownRows] = await pool.query<BreakdownRow[]>(
     `SELECT fr.record_type AS recordType,
@@ -128,13 +123,8 @@ async function queryFinancialSummary(pool: Pool, filter: ReturnType<typeof dateF
        FROM financial_records fr
        LEFT JOIN financial_categories fc
          ON fc.financial_category_id = fr.financial_category_id
-      WHERE fr.record_status = 'Active'
-        AND fr.approved_by IS NOT NULL
-        AND fr.record_type IN ('Income', 'Expense')
-        AND (
-          fr.record_type = 'Expense'
-          OR (${postedOperatingIncome})
-        )
+      WHERE ${postedOperatingSql("fr", "fc")}
+        AND fr.record_date<=DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR)
         ${filter.clause}
       GROUP BY fr.record_type, COALESCE(NULLIF(fc.category_name, ''), 'Uncategorized')
       ORDER BY fr.record_type ASC, amount DESC`,
@@ -146,10 +136,8 @@ async function queryFinancialSummary(pool: Pool, filter: ReturnType<typeof dateF
        FROM financial_records fr
        LEFT JOIN financial_categories fc
          ON fc.financial_category_id = fr.financial_category_id
-      WHERE fr.record_status = 'Active'
-        AND fr.approved_by IS NOT NULL
-        AND fr.record_type = 'Income'
-        AND ${postedOperatingIncome}
+      WHERE ${postedOperatingSql("fr", "fc")} AND fr.record_type='Income'
+        AND fr.record_date<=DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR)
         ${filter.clause}
       GROUP BY fr.source_module
       ORDER BY amount DESC`,

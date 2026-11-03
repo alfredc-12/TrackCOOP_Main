@@ -1,5 +1,5 @@
-import { ExpenseOverviewClient } from "@/features/expense-overview/ExpenseOverviewClient";
+import { FinancialOverviewClient } from "@/features/financial-overview/FinancialOverviewClient";
 
 export default function ChairmanFinancePage() {
-  return <ExpenseOverviewClient />;
+  return <FinancialOverviewClient />;
 }
