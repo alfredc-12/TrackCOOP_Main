@@ -10,8 +10,10 @@ import {
   applicantDocumentRequirementTypes,
 } from "../membership-applications/membership-outbox";
 import { cashInstructionsMessage, loadPosOrderEmail, receiptMessage } from "../pos/pos-email";
+import { renderRentalEmail, rentalStatusUrl, type RentalEmailContent } from "../rental/rental-email";
 import type { EmailConfig } from "./email-config";
-import { decryptSecret, signReceiptToken } from "./email-crypto";
+import { decryptSecret, RENTAL_STATUS_LINK_DAYS, signReceiptToken, signRentalStatusToken } from "./email-crypto";
+import { renderEmailLayout } from "./email-layout";
 import type { OutboxRow } from "./email-outbox.repository";
 
 export type RenderedEmail = { subject: string; text: string; html?: string };
@@ -41,10 +43,6 @@ export function formatManilaDateTime(value: Date | string | number) {
 export function formatManilaDate(value: Date | string | number) {
   const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
   return new Intl.DateTimeFormat("en-PH", { dateStyle: "long", timeZone: "Asia/Manila" }).format(date);
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function readSecret(row: OutboxRow, config: EmailConfig): { activationUrl?: string } | null {
@@ -115,6 +113,19 @@ function activationText(url: string, expires: string) {
   return `Activate your member portal account here: ${url}\nThis link can be used once and expires on ${expires}.`;
 }
 
+function renderRentalRow(row: OutboxRow, config: EmailConfig, now: Date): RenderResult {
+  const payload = row.payload;
+  const content = payload.content as RentalEmailContent | undefined;
+  // Rows queued before the HTML version existed already hold a finished plain-text message.
+  if (!content || typeof content !== "object") return { ok: true, message: { subject: text(payload.subject), text: text(payload.text) } };
+  const reference = text(payload.reference);
+  // With a key, the link opens the status dialog and loads the booking itself; without one it only fills in the reference.
+  const token = config.secretKey && reference
+    ? signRentalStatusToken(reference, Math.floor(now.getTime() / 1000) + RENTAL_STATUS_LINK_DAYS * 86_400, config.secretKey)
+    : undefined;
+  return { ok: true, message: renderRentalEmail(content, rentalStatusUrl(config.frontendUrl, reference, token)) };
+}
+
 export async function renderOutboxEmail(row: OutboxRow, ctx: { pool: Pool; config: EmailConfig; now: Date }): Promise<RenderResult> {
   const { config, pool, now } = ctx;
   const payload = row.payload;
@@ -162,7 +173,15 @@ export async function renderOutboxEmail(row: OutboxRow, ctx: { pool: Pool; confi
       if (!secret?.activationUrl) return fail("fail", "secret_unavailable");
       const expires = expiresAt ? formatManilaDateTime(expiresAt) : "the date shown in your account";
       const body = `Hello ${name},\n\nWe received a request for a new TrackCOOP account activation link.\n${activationText(secret.activationUrl, expires)}\n\nIf you did not ask for this, you can ignore this email. Your account stays inactive until the link is used.`;
-      const html = `<!doctype html><html lang="en"><body style="margin:0;padding:24px;background:#F7F8F3;font-family:Arial,Helvetica,sans-serif;color:#123D2A;"><div style="max-width:560px;margin:auto;background:#FFFDF8;border:1px solid #DDE8D8;padding:28px;"><h1 style="margin:0 0 16px;font-size:22px;">Your new activation link</h1><p>Hello ${escapeHtml(name)},</p><p>We received a request for a new TrackCOOP account activation link.</p><p><a href="${escapeHtml(secret.activationUrl)}" style="display:inline-block;background:#0F7654;color:#FFFFFF;text-decoration:none;border-radius:8px;padding:12px 20px;font-weight:700;">Activate my account</a></p><p style="font-size:13px;color:#536A5B;">This link can be used once and expires on ${escapeHtml(expires)}. If the button does not work, copy this address: ${escapeHtml(secret.activationUrl)}</p><p style="font-size:13px;color:#536A5B;">If you did not ask for this, you can ignore this email. Your account stays inactive until the link is used.</p></div></body></html>`;
+      const html = renderEmailLayout({
+        eyebrow: "TrackCOOP Membership",
+        title: "Your new activation link",
+        preheader: "Activate your TrackCOOP member account",
+        greeting: `Hello ${name},`,
+        introHtml: "We received a request for a new TrackCOOP account activation link. Use the button below to activate your member portal account.",
+        button: { label: "Activate my account", url: secret.activationUrl },
+        note: `This link can be used once and expires on ${expires}. If you did not ask for this, you can ignore this email. Your account stays inactive until the link is used.`,
+      });
       return { ok: true, message: { subject: "Your new TrackCOOP activation link", text: body, html } };
     }
 
@@ -170,7 +189,7 @@ export async function renderOutboxEmail(row: OutboxRow, ctx: { pool: Pool; confi
     case "rental.status.updated":
     case "rental.schedule.updated":
     case "rental.payment.confirmed":
-      return { ok: true, message: { subject: text(payload.subject), text: text(payload.text) } };
+      return renderRentalRow(row, config, now);
 
     case "pos.cash.instructions": {
       const paymentReferenceId = text(payload.paymentReferenceId);

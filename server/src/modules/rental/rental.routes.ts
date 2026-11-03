@@ -23,6 +23,8 @@ import {
   triggerRentalStatusEmail,
   triggerRentalSubmittedEmail,
 } from "./rental-email";
+import { getEmailConfig } from "../email/email-config";
+import { verifyRentalStatusToken } from "../email/email-crypto";
 import { createPaymongoService } from "../paymongo/paymongo.service";
 import {
   MAX_RENTAL_ASSET_PHOTOS,
@@ -288,6 +290,16 @@ async function getRental(request: Request, response: Response) {
       if (!(await authorize(request, response, ["chairman"]))) return;
       const service = await rentalDatabase.getRentalServiceById(id);
       return service ? json(response, service) : notFound(response, "Rental asset was not found.");
+    }
+    if (resource === "inquiries" && id === "status-link") {
+      // The emailed link: a signed, expiring token proves it was issued for this booking, so no contact number is asked.
+      const reference = queryString(request, "reference") ?? "";
+      const token = queryString(request, "token") ?? "";
+      const key = getEmailConfig().secretKey;
+      if (!key || !verifyRentalStatusToken(token, reference, key, Math.floor(Date.now() / 1000))) {
+        return json(response, null);
+      }
+      return json(response, (await rentalDatabase.lookupRentalInquiryByReference(reference)) ?? null);
     }
     if (resource === "inquiries" && id === "status") {
       return json(

@@ -1,5 +1,6 @@
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
+import { escapeHtml, linesToHtml, renderEmailLayout } from "../email/email-layout";
 import { sendSystemEmail } from "../email/email.service";
 import type { RentalInquiry } from "./rental.types";
 import {
@@ -237,14 +238,34 @@ export async function triggerRentalStatusEmail(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Outbox messages (resend mode). Pure functions: no environment, no database. Built inside the business
-// transaction from the committed-to-be state, so the text is final before it is queued.
+// Outbox messages (resend mode). Pure functions: no environment, no database. The content is built inside the
+// business transaction from the committed-to-be state and stored without any link. The worker adds the status
+// link and renders the plain-text and HTML versions from this one model when it sends.
 // ---------------------------------------------------------------------------------------------------------------
 
-export type RentalMessage = { subject: string; text: string };
+export type RentalEmailContent = {
+  subject: string;
+  title: string;
+  preheader: string;
+  greeting: string;
+  /** Paragraphs shown before the details. */
+  intro: string[];
+  detailsTitle: string;
+  details: Array<{ label: string; value: string }>;
+  /** A block of the customer's own instructions, shown apart from the details. */
+  quote?: { title: string; text: string };
+  note?: string;
+};
 
-function linkTo(baseUrl: string) {
-  return `${baseUrl.replace(/\/$/, "")}/rental/inquiry/status`;
+export type RentalMessage = { subject: string; text: string; html: string };
+
+/**
+ * Opens the booking status dialog on the rental page. With a token the dialog loads the status by itself;
+ * without one (legacy sends) it opens with the reference filled in.
+ */
+export function rentalStatusUrl(baseUrl: string, reference: string, token?: string) {
+  const query = `booking=${encodeURIComponent(reference)}${token ? `&k=${encodeURIComponent(token)}` : ""}`;
+  return `${baseUrl.replace(/\/$/, "")}/rental?${query}`;
 }
 
 /** "08:00" -> "8:00 AM". Times are Philippine wall-clock values, never converted between zones. */
@@ -259,36 +280,40 @@ function scheduleMoment(date: string, time: string) {
   return `${formatRentalDate(date, true)}, ${formatClockTime(time)}`;
 }
 
-export function rentalSubmittedMessage(inquiry: RentalInquiry, baseUrl: string): RentalMessage {
+function lineDetails(lines: string[]) {
+  return lines.map((line) => {
+    const at = line.indexOf(": ");
+    return at < 0 ? { label: line, value: "" } : { label: line.slice(0, at), value: line.slice(at + 2) };
+  });
+}
+
+export function rentalSubmittedContent(inquiry: RentalInquiry): RentalEmailContent {
   return {
     subject: `Rental booking received: ${inquiry.inquiryId}`,
-    text: [
-      `Hello ${inquiry.requester.fullName},`,
-      "",
-      "We received your rental booking request. Here is your booking summary:",
-      "",
-      ...rentalSummaryLines(inquiry),
-      "",
-      "NFFAC will still review availability, schedule, pricing, and rental conditions before final confirmation.",
-      `Check status: ${linkTo(baseUrl)}`,
-    ].join("\n"),
+    title: "Rental booking received",
+    preheader: `We received your request for ${inquiry.equipmentName}`,
+    greeting: `Hello ${inquiry.requester.fullName},`,
+    intro: ["We received your rental booking request. Here is your booking summary:"],
+    detailsTitle: "Booking summary",
+    details: lineDetails(rentalSummaryLines(inquiry)),
+    note: "NFFAC will still review availability, schedule, pricing, and rental conditions before final confirmation.",
   };
 }
 
-export function rentalStatusMessage(inquiry: RentalInquiry, baseUrl: string): RentalMessage {
+export function rentalStatusContent(inquiry: RentalInquiry): RentalEmailContent {
   return {
     subject: `Rental request ${inquiry.inquiryId}: ${inquiry.status}`,
-    text: [
-      `Hello ${inquiry.requester.fullName},`,
-      "",
-      `Your rental request for ${inquiry.equipmentName} is now ${inquiry.status}.`,
-      inquiry.publicNote,
-      "",
-      `Preferred period: ${formatRentalDateRange(inquiry.preferredDate, inquiry.preferredEndDate, true)}`,
-      ...possibleFeeLines(inquiry),
-      `Reference: ${inquiry.inquiryId}`,
-      `Check status: ${linkTo(baseUrl)}`,
-    ].join("\n"),
+    title: `Rental request: ${inquiry.status}`,
+    preheader: `${inquiry.equipmentName} is now ${inquiry.status}`,
+    greeting: `Hello ${inquiry.requester.fullName},`,
+    intro: [`Your rental request for ${inquiry.equipmentName} is now ${inquiry.status}.`, inquiry.publicNote].filter(Boolean),
+    detailsTitle: "Request details",
+    details: [
+      { label: "Reference", value: inquiry.inquiryId },
+      { label: "Status", value: inquiry.status },
+      { label: "Preferred period", value: formatRentalDateRange(inquiry.preferredDate, inquiry.preferredEndDate, true) },
+      ...lineDetails(possibleFeeLines(inquiry)),
+    ],
   };
 }
 
@@ -308,29 +333,32 @@ export type RentalScheduleEmailInput = {
   customerInstructions?: string;
 };
 
-export function rentalScheduleMessage(input: RentalScheduleEmailInput, baseUrl: string): RentalMessage {
+export function rentalScheduleContent(input: RentalScheduleEmailInput): RentalEmailContent {
   const place = [input.serviceLocation, input.barangay].map((part) => part?.trim()).filter(Boolean).join(", ");
+  const instructions = input.customerInstructions?.trim();
   return {
     subject: input.confirmed
       ? `Rental schedule confirmed: ${input.reference}`
       : `Rental schedule proposed: ${input.reference}`,
-    text: [
-      `Hello ${input.requesterName},`,
-      "",
+    title: input.confirmed ? "Rental schedule confirmed" : "Rental schedule proposed",
+    preheader: `${input.equipmentName}: ${scheduleMoment(input.date, input.startTime)}`,
+    greeting: `Hello ${input.requesterName},`,
+    intro: [
       input.confirmed
         ? `The schedule for your ${input.equipmentName} rental is confirmed.`
         : `A schedule has been proposed for your ${input.equipmentName} rental. It is not final until it is confirmed.`,
-      "",
-      `Reference: ${input.reference}`,
-      `Start: ${scheduleMoment(input.date, input.startTime)}`,
-      `End: ${scheduleMoment(input.endDate, input.endTime)}`,
-      ...(place ? [`Location: ${place}`] : []),
-      ...(input.assignedOperator?.trim() ? [`Assigned operator: ${input.assignedOperator.trim()}`] : []),
-      ...(input.customerInstructions?.trim() ? ["", "Instructions for you:", input.customerInstructions.trim()] : []),
-      "",
-      "All times are Philippine time.",
-      `Check status: ${linkTo(baseUrl)}`,
-    ].join("\n"),
+    ],
+    detailsTitle: "Schedule",
+    details: [
+      { label: "Reference", value: input.reference },
+      { label: "Equipment", value: input.equipmentName },
+      { label: "Start", value: scheduleMoment(input.date, input.startTime) },
+      { label: "End", value: scheduleMoment(input.endDate, input.endTime) },
+      ...(place ? [{ label: "Location", value: place }] : []),
+      ...(input.assignedOperator?.trim() ? [{ label: "Assigned operator", value: input.assignedOperator.trim() }] : []),
+    ],
+    quote: instructions ? { title: "Instructions for you", text: instructions } : undefined,
+    note: "All times are Philippine time.",
   };
 }
 
@@ -345,22 +373,51 @@ export type RentalPaymentEmailInput = {
   paidOn?: string;
 };
 
-export function rentalPaymentMessage(input: RentalPaymentEmailInput, baseUrl: string): RentalMessage {
+export function rentalPaymentContent(input: RentalPaymentEmailInput): RentalEmailContent {
   return {
     subject: `Rental payment confirmed: ${input.reference}`,
-    text: [
-      `Hello ${input.requesterName},`,
-      "",
-      `We confirmed your payment for rental request ${input.reference} (${input.equipmentName}).`,
-      "",
-      `Amount paid: ${formatPeso(input.amount)}`,
-      ...(input.paymentMethod ? [`Payment method: ${input.paymentMethod}`] : []),
-      ...(input.paymentReference ? [`Payment reference: ${input.paymentReference}`] : []),
-      ...(input.receiptNumber ? [`Receipt number: ${input.receiptNumber}`] : []),
-      ...(input.paidOn ? [`Paid on: ${formatRentalDate(input.paidOn, true)}`] : []),
-      "",
-      "NFFAC will confirm your rental schedule separately.",
-      `Check status: ${linkTo(baseUrl)}`,
-    ].join("\n"),
+    title: "Rental payment confirmed",
+    preheader: `We confirmed ${formatPeso(input.amount)} for ${input.reference}`,
+    greeting: `Hello ${input.requesterName},`,
+    intro: [`We confirmed your payment for rental request ${input.reference} (${input.equipmentName}).`],
+    detailsTitle: "Payment details",
+    details: [
+      { label: "Amount paid", value: formatPeso(input.amount) },
+      ...(input.paymentMethod ? [{ label: "Payment method", value: input.paymentMethod }] : []),
+      ...(input.paymentReference ? [{ label: "Payment reference", value: input.paymentReference }] : []),
+      ...(input.receiptNumber ? [{ label: "Receipt number", value: input.receiptNumber }] : []),
+      ...(input.paidOn ? [{ label: "Paid on", value: formatRentalDate(input.paidOn, true) }] : []),
+      { label: "Reference", value: input.reference },
+    ],
+    note: "NFFAC will confirm your rental schedule separately.",
   };
+}
+
+/** The one place a rental email becomes text and HTML, so the two versions always say the same thing. */
+export function renderRentalEmail(content: RentalEmailContent, statusUrl: string): RentalMessage {
+  const text = [
+    content.greeting,
+    "",
+    ...content.intro.flatMap((paragraph) => [paragraph, ""]),
+    ...content.details.map((detail) => `${detail.label}: ${detail.value}`),
+    ...(content.quote ? ["", `${content.quote.title}:`, content.quote.text] : []),
+    ...(content.note ? ["", content.note] : []),
+    "",
+    `Check status: ${statusUrl}`,
+  ].join("\n");
+  const html = renderEmailLayout({
+    eyebrow: "TrackCOOP Equipment Rental",
+    title: content.title,
+    preheader: content.preheader,
+    greeting: content.greeting,
+    introHtml: content.intro.map((paragraph) => linesToHtml(paragraph)).join("<br><br>"),
+    detailsTitle: content.detailsTitle,
+    details: content.details,
+    extraHtml: content.quote
+      ? `<p style="margin:0 0 6px;color:#1F6B43;font-size:12px;line-height:1.2;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;">${escapeHtml(content.quote.title)}</p><div style="padding:12px 16px;background:#FFFBEF;border:1px solid #F0E2B6;border-radius:8px;color:#4B4020;font-size:14px;line-height:1.6;">${linesToHtml(content.quote.text)}</div>`
+      : undefined,
+    button: { label: "Check booking status", url: statusUrl },
+    note: content.note,
+  });
+  return { subject: content.subject, text, html };
 }

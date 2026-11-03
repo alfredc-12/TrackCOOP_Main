@@ -42,6 +42,36 @@ export function signReceiptToken(receiptId: string, expiresAtEpochSeconds: numbe
   return `${signed}.${base64Url(receiptSignature(master, signed))}`;
 }
 
+export const RENTAL_STATUS_LINK_DAYS = 60;
+
+const statusLinkSignature = (master: Buffer, signed: string) =>
+  createHmac("sha256", subKey(master, "rental-status-link")).update(signed).digest();
+
+const normalizeReference = (reference: string) => reference.trim().toUpperCase();
+
+/**
+ * Stateless, expiring link token for one rental booking's public status: `v1.<expiresEpoch>.<signature>`.
+ * The reference travels beside it in the link and is part of what is signed, so a token works for that booking only.
+ */
+export function signRentalStatusToken(reference: string, expiresAtEpochSeconds: number, master: Buffer) {
+  const signed = `v1.${normalizeReference(reference)}.${expiresAtEpochSeconds}`;
+  return `v1.${expiresAtEpochSeconds}.${base64Url(statusLinkSignature(master, signed))}`;
+}
+
+export function verifyRentalStatusToken(token: string, reference: string, master: Buffer, nowEpochSeconds: number) {
+  const parts = token.split(".");
+  if (parts.length !== 3 || parts[0] !== "v1" || !/^\d{1,12}$/.test(parts[1]) || !reference.trim()) return false;
+  const expected = statusLinkSignature(master, `v1.${normalizeReference(reference)}.${parts[1]}`);
+  let provided: Buffer;
+  try {
+    provided = Buffer.from(parts[2], "base64url");
+  } catch {
+    return false;
+  }
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return false;
+  return Number(parts[1]) > nowEpochSeconds;
+}
+
 export function verifyReceiptToken(token: string, master: Buffer, nowEpochSeconds: number) {
   const parts = token.split(".");
   if (parts.length !== 4 || parts[0] !== "v1" || !/^\d{1,20}$/.test(parts[1]) || !/^\d{1,12}$/.test(parts[2])) return null;
