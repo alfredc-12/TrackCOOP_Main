@@ -108,6 +108,8 @@ export type MemberShareCapitalProgress = {
 };
 
 export type ShareCapitalSummary = {
+  currentBalance: number;
+  capitalHolders: number;
   validatedTotal: number;
   pendingTotal: number;
   validatedPayments: number;

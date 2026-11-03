@@ -1,3 +1,4 @@
+import { manilaToday } from "../../utils/manila-calendar";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
@@ -172,7 +173,7 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
       const [rows] = await databasePool().execute<ShareRow[]>(
         `${shareSelect()}
          ${whereSql}
-         ORDER BY ${query.sortBy === "createdAt" ? "s.share_payment_id" : sortColumns[query.sortBy]} ${orderDirection}, s.share_payment_id DESC
+         ORDER BY ${sortColumns[query.sortBy]} ${orderDirection}, s.share_payment_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
         values,
       );
@@ -321,7 +322,7 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
             connection,
             memberId: existing.memberId,
             sharePaymentId: paymentId,
-            transactionDate: new Date().toISOString().slice(0, 10),
+            transactionDate: manilaToday(),
             createdBy: auth.user.id,
             reason: input.remarks ?? existing.remarks,
           });
@@ -377,8 +378,15 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
                 COUNT(DISTINCT CASE WHEN payment_status = 'Validated' THEN member_id END) AS membersWithValidatedCapital
            FROM share_capital_payments`,
       );
+      const [accounts] = await databasePool().execute<(RowDataPacket & { currentBalance: string; holders: number })[]>(
+        `SELECT COALESCE(SUM(current_balance), 0) AS currentBalance,
+                COUNT(DISTINCT CASE WHEN current_balance > 0 THEN member_id END) AS holders
+           FROM share_capital_accounts`,
+      );
       const row = rows[0];
       return {
+        currentBalance: Number(accounts[0]?.currentBalance ?? 0),
+        capitalHolders: Number(accounts[0]?.holders ?? 0),
         validatedTotal: Number(row?.validatedTotal ?? 0),
         pendingTotal: Number(row?.pendingTotal ?? 0),
         validatedPayments: Number(row?.validatedPayments ?? 0),

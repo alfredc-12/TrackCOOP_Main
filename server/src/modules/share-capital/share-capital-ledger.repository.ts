@@ -65,6 +65,7 @@ type AccountListRow = RowDataPacket & {
   totalDeductions: string | number;
   currentBalance: string | number;
   transactionCount: number;
+  postedBalance: string | number;
   updatedAt: Date;
 };
 
@@ -219,7 +220,7 @@ function mapAccount(row: AccountListRow): ShareCapitalAccountListItem {
     totalDeductions,
     currentBalance,
     transactionCount: Number(row.transactionCount),
-    reconciled: currentBalance === expectedBalance,
+    reconciled: currentBalance === expectedBalance && currentBalance === money(row.postedBalance),
     updatedAt: row.updatedAt,
   };
 }
@@ -764,6 +765,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
                 account.total_deductions AS totalDeductions,
                 account.current_balance AS currentBalance,
                 COUNT(transaction.share_capital_transaction_id) AS transactionCount,
+                COALESCE(SUM(CASE WHEN transaction.transaction_status = 'Posted' THEN IF(transaction.direction = 'Credit', transaction.amount, -transaction.amount) ELSE 0 END), 0) AS postedBalance,
                 account.updated_at AS updatedAt
            FROM share_capital_accounts account
            JOIN member_profiles member ON member.member_id = account.member_id

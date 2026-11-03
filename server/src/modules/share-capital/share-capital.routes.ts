@@ -37,7 +37,7 @@ export function createShareCapitalRouter(
   router.get("/dividends/withdrawals/history", ...bookkeeperOnly, controller.listDividendActionHistory);
   router.post("/dividends/withdrawals/:id/complete", ...bookkeeperOnly, controller.completeDividendWithdrawal);
   router.get("/share-capital", ...staff, controller.list);
-  router.post("/share-capital", ...staff, controller.create);
+  router.post("/share-capital", ...bookkeeperOnly, controller.create);
   router.get("/share-capital/summary", ...staff, controller.summary);
   router.get("/share-capital/accounts", ...staff, controller.listAccounts);
   router.get("/share-capital/transactions", ...staff, controller.listLedgerTransactions);

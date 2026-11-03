@@ -193,7 +193,7 @@ export type GatewayRetryResult = {
   receiptErrorCode: string | null;
 };
 export type ShareCapitalPayment = { id: string; memberCode: string; memberName: string; amount: number; paymentDate: string; paymentStatus: "Pending" | "Validated" | "Rejected" | "Reversed"; paymentChannel?: string | null; referenceNumber?: string | null };
-export type ShareCapitalSummary = { validatedTotal: number; pendingTotal: number; validatedPayments: number; membersWithValidatedCapital: number; initialRequirement: number; fullRequirement: number; maximumAllowed: number };
+export type ShareCapitalSummary = { currentBalance: number; capitalHolders: number; validatedTotal: number; pendingTotal: number; validatedPayments: number; membersWithValidatedCapital: number; initialRequirement: number; fullRequirement: number; maximumAllowed: number };
 export type ShareCapitalAccount = {
   accountId: string;
   memberId: string;
@@ -315,7 +315,7 @@ export const getPaymongoPaymentStatus = (id: string) => apiRequest<PaymongoPayme
 export const retryGatewaySettlement = (eventId: string, note: string) => apiRequest<GatewayRetryResult>(`/api/payment-gateway-events/${eventId}/retry`, { method: "POST", body: JSON.stringify({ note }) });
 export const retryPaymentReceipt = (id: string) => apiRequest<PaymentReceipt>(`/api/payment-references/${id}/receipt/retry`, { method: "POST", body: JSON.stringify({}) });
 export const paymentReferenceProofUrl = (id: string) => `${env.apiUrl}/api/payment-references/${id}/proof`;
-export function listShareCapital(search?: string, paymentStatus?: ShareCapitalPayment["paymentStatus"]) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); if (paymentStatus) params.set("paymentStatus", paymentStatus); return apiRequest<ShareCapitalPayment[]>(`/api/share-capital?${params}`); }
+export function listShareCapital(search?: string, paymentStatus?: ShareCapitalPayment["paymentStatus"], page = 1, pageSize = 5) { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); if (paymentStatus) params.set("paymentStatus", paymentStatus); return apiPaginatedRequest<ShareCapitalPayment[]>(`/api/share-capital?${params}`); }
 export const getShareCapitalSummary = () => apiRequest<ShareCapitalSummary>("/api/share-capital/summary");
 export function listShareCapitalAccounts(search?: string, page = 1, pageSize = 25) {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
