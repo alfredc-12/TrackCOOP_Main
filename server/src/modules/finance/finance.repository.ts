@@ -1,3 +1,4 @@
+import { postedOperatingSql, postedRecordSql } from "./financial-posting-rules";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
@@ -711,12 +712,11 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
 
     async summary() {
       const [rows] = await databasePool().execute<SummaryRow[]>(
-        `SELECT COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Income' AND source_module <> 'Share Capital' THEN amount ELSE 0 END), 0) AS incomeTotal,
-                COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Expense' THEN amount ELSE 0 END), 0) AS expenseTotal,
-                COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Adjustment' THEN amount ELSE 0 END), 0) AS adjustmentTotal,
-                SUM(record_status = 'Active') AS activeRecords,
-                SUM(record_status = 'Voided') AS voidedRecords
-           FROM financial_records`,
+        `SELECT COALESCE(SUM(CASE WHEN ${postedOperatingSql("fr", "fc")} AND fr.record_type='Income' THEN fr.amount ELSE 0 END),0) AS incomeTotal,
+                COALESCE(SUM(CASE WHEN ${postedOperatingSql("fr", "fc")} AND fr.record_type='Expense' THEN fr.amount ELSE 0 END),0) AS expenseTotal,
+                COALESCE(SUM(CASE WHEN ${postedRecordSql("fr")} AND fr.record_type='Adjustment' THEN fr.amount ELSE 0 END),0) AS adjustmentTotal,
+                SUM(fr.record_status='Active') AS activeRecords,SUM(fr.record_status='Voided') AS voidedRecords
+           FROM financial_records fr LEFT JOIN financial_categories fc ON fc.financial_category_id=fr.financial_category_id WHERE fr.record_date<=DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR)`,
       );
       const row = rows[0];
       const incomeTotal = Number(row?.incomeTotal ?? 0);
@@ -736,13 +736,12 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
 
     async trends() {
       const [rows] = await databasePool().execute<TrendRow[]>(
-        `SELECT DATE_FORMAT(record_date, '%Y-%m') AS month,
-                COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Income' AND source_module <> 'Share Capital' THEN amount ELSE 0 END), 0) AS incomeTotal,
-                COALESCE(SUM(CASE WHEN record_status = 'Active' AND record_type = 'Expense' THEN amount ELSE 0 END), 0) AS expenseTotal
-           FROM financial_records
-          WHERE record_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
-          GROUP BY DATE_FORMAT(record_date, '%Y-%m')
-          ORDER BY month ASC`,
+        `SELECT DATE_FORMAT(fr.record_date,'%Y-%m') AS month,
+                COALESCE(SUM(CASE WHEN fr.record_type='Income' THEN fr.amount ELSE 0 END),0) AS incomeTotal,
+                COALESCE(SUM(CASE WHEN fr.record_type='Expense' THEN fr.amount ELSE 0 END),0) AS expenseTotal
+           FROM financial_records fr LEFT JOIN financial_categories fc ON fc.financial_category_id=fr.financial_category_id
+          WHERE ${postedOperatingSql("fr", "fc")} AND fr.record_date>=DATE_SUB(DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR),INTERVAL 12 MONTH) AND fr.record_date<=DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR)
+          GROUP BY DATE_FORMAT(fr.record_date,'%Y-%m') ORDER BY month ASC`,
       );
       return rows.map((row) => {
         const incomeTotal = Number(row.incomeTotal ?? 0);

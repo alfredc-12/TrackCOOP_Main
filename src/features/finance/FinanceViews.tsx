@@ -525,12 +525,14 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
 
 export function FinancialLedgerView({
   title = "Financial Ledger",
+  initialSearch = "",
 }: {
   title?: string;
+  initialSearch?: string;
 } = {}) {
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [summary, setSummary] = useState<FinancialSummary>(emptyFinancialSummary);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);

@@ -1,0 +1,733 @@
+{
+  "source": "Disposable SQL fixture, not production data",
+  "report": {
+    "filters": {
+      "period": "custom",
+      "startDate": "2026-10-01",
+      "endDate": "2026-10-31",
+      "compare": "previous",
+      "view": "posted",
+      "source": "",
+      "search": "",
+      "posting": "",
+      "recordStatus": "",
+      "granularity": "month",
+      "sortBy": "date",
+      "sortDirection": "desc",
+      "page": 1,
+      "pageSize": 10,
+      "focusSource": "",
+      "reviewKind": ""
+    },
+    "period": {
+      "today": "2026-11-03",
+      "preset": "custom",
+      "label": "Custom range",
+      "selected": {
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-31"
+      },
+      "effective": {
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-31"
+      },
+      "previous": {
+        "startDate": "2026-08-31",
+        "endDate": "2026-09-30",
+        "days": 31
+      },
+      "partial": false,
+      "comparisonReason": null
+    },
+    "summary": {
+      "income": "1881.10",
+      "expense": "450.30",
+      "net": "1430.80",
+      "incomeRecords": 6,
+      "expenseRecords": 5
+    },
+    "previous": {
+      "income": "800.00",
+      "expense": "300.00",
+      "net": "500.00",
+      "incomeRecords": 1,
+      "expenseRecords": 1
+    },
+    "changes": {
+      "income": {
+        "amount": "1081.10",
+        "percent": 135.13
+      },
+      "expense": {
+        "amount": "150.30",
+        "percent": 50.1
+      },
+      "net": {
+        "amount": "930.80",
+        "percent": 186.16
+      }
+    },
+    "review": {
+      "records": 7,
+      "unpostedIncome": 1,
+      "unpostedExpense": 1,
+      "classification": 1,
+      "source": 4,
+      "relationships": 0,
+      "excluded": 12
+    },
+    "categories": {
+      "income": [
+        {
+          "id": "1",
+          "code": "POS_SALES",
+          "name": "Product sales",
+          "type": "Income",
+          "active": true,
+          "amount": "1180.00",
+          "records": 3,
+          "share": 62.72
+        },
+        {
+          "id": "2",
+          "code": "RENTAL_INCOME",
+          "name": "Rental services",
+          "type": "Income",
+          "active": true,
+          "amount": "500.00",
+          "records": 1,
+          "share": 26.58
+        },
+        {
+          "id": "3",
+          "code": "DONATIONS_GRANTS",
+          "name": "Donations and grants",
+          "type": "Income",
+          "active": true,
+          "amount": "201.10",
+          "records": 2,
+          "share": 10.69
+        }
+      ],
+      "expense": [
+        {
+          "id": "5",
+          "code": "PRODUCT_COST",
+          "name": "Product purchases",
+          "type": "Expense",
+          "active": true,
+          "amount": "200.00",
+          "records": 1,
+          "share": 44.41
+        },
+        {
+          "id": "6",
+          "code": "CUSTOM",
+          "name": "Custom category",
+          "type": "Expense",
+          "active": true,
+          "amount": "100.30",
+          "records": 2,
+          "share": 22.27
+        },
+        {
+          "id": "4",
+          "code": "UTILITIES",
+          "name": "Utilities",
+          "type": "Expense",
+          "active": true,
+          "amount": "100.00",
+          "records": 1,
+          "share": 22.2
+        },
+        {
+          "id": "9",
+          "code": "OFFICE_SUPPLIES",
+          "name": "Office supplies",
+          "type": "Expense",
+          "active": false,
+          "amount": "50.00",
+          "records": 1,
+          "share": 11.1
+        }
+      ]
+    },
+    "sources": [
+      {
+        "source": "POS",
+        "income": "1000.00",
+        "expense": "200.00",
+        "net": "800.00",
+        "records": 2
+      },
+      {
+        "source": "Rental",
+        "income": "500.00",
+        "expense": "100.00",
+        "net": "400.00",
+        "records": 2
+      },
+      {
+        "source": "Manual",
+        "income": "381.10",
+        "expense": "150.30",
+        "net": "230.80",
+        "records": 7
+      }
+    ],
+    "trend": [
+      {
+        "key": "2026-10-01",
+        "label": "Oct 2026",
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-31",
+        "income": "1881.10",
+        "expense": "450.30",
+        "net": "1430.80",
+        "records": 11
+      }
+    ],
+    "reconciliation": {
+      "incomeCategories": true,
+      "expenseCategories": true,
+      "incomeSources": true,
+      "expenseSources": true
+    },
+    "generatedAt": "2026-11-03T04:00:00.000Z"
+  },
+  "activity": {
+    "items": [
+      {
+        "id": "29",
+        "number": "FIN-29",
+        "date": "2026-10-10",
+        "type": "Expense",
+        "categoryId": "6",
+        "category": "Custom category",
+        "categoryCode": "CUSTOM",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "0.30",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "28",
+        "number": "FIN-28",
+        "date": "2026-10-10",
+        "type": "Income",
+        "categoryId": "3",
+        "category": "Donations and grants",
+        "categoryCode": "DONATIONS_GRANTS",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "1.10",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "25",
+        "number": "FIN-25",
+        "date": "2026-10-10",
+        "type": "Income",
+        "categoryId": "1",
+        "category": "Product sales",
+        "categoryCode": "POS_SALES",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "60.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": "24",
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "12",
+        "number": "FIN-12",
+        "date": "2026-10-10",
+        "type": "Income",
+        "categoryId": "1",
+        "category": "Product sales",
+        "categoryCode": "POS_SALES",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "120.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "=HYPERLINK(1)",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": "11",
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "7",
+        "number": "FIN-7",
+        "date": "2026-10-10",
+        "type": "Expense",
+        "categoryId": "9",
+        "category": "Office supplies",
+        "categoryCode": "OFFICE_SUPPLIES",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "50.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "6",
+        "number": "FIN-6",
+        "date": "2026-10-10",
+        "type": "Expense",
+        "categoryId": "6",
+        "category": "Custom category",
+        "categoryCode": "CUSTOM",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "100.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "5",
+        "number": "FIN-5",
+        "date": "2026-10-10",
+        "type": "Expense",
+        "categoryId": "5",
+        "category": "Product purchases",
+        "categoryCode": "PRODUCT_COST",
+        "source": "POS",
+        "sourceId": null,
+        "amount": "200.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "4",
+        "number": "FIN-4",
+        "date": "2026-10-10",
+        "type": "Expense",
+        "categoryId": "4",
+        "category": "Utilities",
+        "categoryCode": "UTILITIES",
+        "source": "Rental",
+        "sourceId": null,
+        "amount": "100.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "3",
+        "number": "FIN-3",
+        "date": "2026-10-10",
+        "type": "Income",
+        "categoryId": "3",
+        "category": "Donations and grants",
+        "categoryCode": "DONATIONS_GRANTS",
+        "source": "Manual",
+        "sourceId": null,
+        "amount": "200.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-10 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": null,
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      },
+      {
+        "id": "2",
+        "number": "FIN-2",
+        "date": "2026-10-07",
+        "type": "Income",
+        "categoryId": "2",
+        "category": "Rental services",
+        "categoryCode": "RENTAL_INCOME",
+        "source": "Rental",
+        "sourceId": "1",
+        "amount": "500.00",
+        "status": "Active",
+        "posted": true,
+        "eligible": true,
+        "review": false,
+        "description": "Recorded financial activity",
+        "recordedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "approvedBy": {
+          "id": "1",
+          "name": "Bookkeeper"
+        },
+        "season": {
+          "id": "1",
+          "name": "Harvest 2026"
+        },
+        "createdAt": "2026-10-07 02:00:00",
+        "correctionOfId": null,
+        "reversalOfId": null,
+        "paymentReferenceId": "2",
+        "classificationReview": false,
+        "sourceReview": false,
+        "relationshipReview": false
+      }
+    ],
+    "total": 11,
+    "page": 1,
+    "pageSize": 10,
+    "amount": "2331.40"
+  },
+  "detail": {
+    "id": "12",
+    "number": "FIN-12",
+    "date": "2026-10-10",
+    "type": "Income",
+    "categoryId": "1",
+    "category": "Product sales",
+    "categoryCode": "POS_SALES",
+    "source": "Manual",
+    "sourceId": null,
+    "amount": "120.00",
+    "status": "Active",
+    "posted": true,
+    "eligible": true,
+    "review": false,
+    "description": "=HYPERLINK(1)",
+    "recordedBy": {
+      "id": "1",
+      "name": "Bookkeeper"
+    },
+    "approvedBy": {
+      "id": "1",
+      "name": "Bookkeeper"
+    },
+    "season": {
+      "id": "1",
+      "name": "Harvest 2026"
+    },
+    "createdAt": "2026-10-10 02:00:00",
+    "correctionOfId": "11",
+    "reversalOfId": null,
+    "paymentReferenceId": null,
+    "classificationReview": false,
+    "sourceReview": false,
+    "relationshipReview": false,
+    "remarks": "=HYPERLINK(1)",
+    "related": [
+      {
+        "id": "11",
+        "number": "FIN-11",
+        "type": "Income",
+        "status": "Corrected",
+        "amount": "100.00"
+      }
+    ],
+    "history": [
+      {
+        "action": "financial_record.corrected",
+        "at": "2026-10-10 02:00:00",
+        "description": "Corrected entry",
+        "actor": "Bookkeeper"
+      }
+    ],
+    "documents": [
+      {
+        "id": "1",
+        "title": "Approved correction receipt",
+        "type": "Receipt"
+      }
+    ],
+    "documentAssociationsAvailable": true,
+    "payment": null,
+    "evidenceNote": "Use the source payment review for its authorized receipt and proof. A remark or uploaded filename does not prove cash settlement."
+  },
+  "options": {
+    "categories": [
+      {
+        "id": "7",
+        "code": "SHARE_CAPITAL",
+        "name": "Capital contributions",
+        "type": "Income",
+        "active": true
+      },
+      {
+        "id": "6",
+        "code": "CUSTOM",
+        "name": "Custom category",
+        "type": "Both",
+        "active": true
+      },
+      {
+        "id": "3",
+        "code": "DONATIONS_GRANTS",
+        "name": "Donations and grants",
+        "type": "Income",
+        "active": true
+      },
+      {
+        "id": "12",
+        "code": "EQUIPMENT_PURCHASE",
+        "name": "Equipment assets",
+        "type": "Expense",
+        "active": true
+      },
+      {
+        "id": "10",
+        "code": "INCOME_ONLY",
+        "name": "Income-only category",
+        "type": "Income",
+        "active": true
+      },
+      {
+        "id": "8",
+        "code": "TRANSFER",
+        "name": "Internal transfers",
+        "type": "Both",
+        "active": true
+      },
+      {
+        "id": "11",
+        "code": "LOAN_PRINCIPAL",
+        "name": "Loan principal",
+        "type": "Both",
+        "active": true
+      },
+      {
+        "id": "9",
+        "code": "OFFICE_SUPPLIES",
+        "name": "Office supplies",
+        "type": "Expense",
+        "active": false
+      },
+      {
+        "id": "5",
+        "code": "PRODUCT_COST",
+        "name": "Product purchases",
+        "type": "Expense",
+        "active": true
+      },
+      {
+        "id": "1",
+        "code": "POS_SALES",
+        "name": "Product sales",
+        "type": "Income",
+        "active": true
+      },
+      {
+        "id": "2",
+        "code": "RENTAL_INCOME",
+        "name": "Rental services",
+        "type": "Income",
+        "active": true
+      },
+      {
+        "id": "4",
+        "code": "UTILITIES",
+        "name": "Utilities",
+        "type": "Expense",
+        "active": true
+      }
+    ],
+    "actors": [
+      {
+        "id": "1",
+        "name": "Bookkeeper"
+      }
+    ],
+    "seasons": [
+      {
+        "id": "1",
+        "name": "Harvest 2026"
+      }
+    ],
+    "capabilities": {
+      "seasons": true
+    }
+  }
+}

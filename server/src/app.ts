@@ -1,3 +1,4 @@
+import { createFinancialOverviewRouter } from "./modules/financial-overview/overview.routes";
 import { createFinanceMonitoringRouter } from "./modules/finance-monitoring/finance-monitoring.routes";
 import cookieParser from "cookie-parser";
 import cors, { type CorsOptions } from "cors";
@@ -172,6 +173,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
   app.use("/api", createExpenseOverviewRouter(options.authService));
+  app.use("/api", createFinancialOverviewRouter(options.authService));
   app.use("/api", createBudgetRouter(options.authService));
   app.use("/api", createSeasonRouter(options.authService));
   app.use("/api", createInventoryRouter(options.authService));

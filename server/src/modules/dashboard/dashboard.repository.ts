@@ -1,3 +1,4 @@
+import { postedOperatingSql } from "../finance/financial-posting-rules";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import type {
@@ -183,19 +184,11 @@ export class DashboardRepository {
     );
 
     const [trendRows] = await pool.query<RowDataPacket[]>(
-      `SELECT DATE_FORMAT(fr.record_date, '%b %Y') AS month,
-              COALESCE(SUM(CASE WHEN fr.record_type = 'Income'
-                                  AND fr.source_module <> 'Share Capital'
-                                  AND UPPER(COALESCE(fc.category_code, '')) <> 'SHARE_CAPITAL'
-                                  AND UPPER(COALESCE(fc.category_name, '')) NOT LIKE '%SHARE CAPITAL%'
-                                THEN fr.amount ELSE 0 END), 0) AS income,
-              COALESCE(SUM(CASE WHEN fr.record_type = 'Expense' THEN fr.amount ELSE 0 END), 0) AS expenses
-         FROM financial_records fr
-         LEFT JOIN financial_categories fc
-           ON fc.financial_category_id = fr.financial_category_id
-        WHERE fr.record_status = 'Active'
-          AND fr.approved_by IS NOT NULL
-          AND fr.record_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
+      `SELECT DATE_FORMAT(fr.record_date,'%b %Y') AS month,
+              COALESCE(SUM(CASE WHEN fr.record_type='Income' THEN fr.amount ELSE 0 END),0) AS income,
+              COALESCE(SUM(CASE WHEN fr.record_type='Expense' THEN fr.amount ELSE 0 END),0) AS expenses
+         FROM financial_records fr LEFT JOIN financial_categories fc ON fc.financial_category_id=fr.financial_category_id
+        WHERE ${postedOperatingSql("fr", "fc")} AND fr.record_date>=DATE_SUB(DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR),INTERVAL 12 MONTH) AND fr.record_date<=DATE(UTC_TIMESTAMP()+INTERVAL 8 HOUR)
         GROUP BY YEAR(fr.record_date), MONTH(fr.record_date), DATE_FORMAT(fr.record_date, '%b %Y')
         ORDER BY YEAR(fr.record_date) DESC, MONTH(fr.record_date) DESC
         LIMIT 12`,

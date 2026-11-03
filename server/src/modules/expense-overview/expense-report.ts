@@ -11,6 +11,8 @@ export type ReportSection = { title: string; note?: string; columns: ReportColum
 export type ReportDocument = {
   title: string;
   cooperative: string;
+  banner?: string;
+  wrapRows?: boolean;
   meta: Array<[string, string]>;
   sections: ReportSection[];
 };
@@ -75,7 +77,7 @@ export function renderReportPdf(report: ReportDocument) {
 
   document.rect(0, 0, document.page.width, 62).fill("#123D2A");
   document.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(9).text(report.cooperative, left, 20, { width });
-  document.fillColor("#D8A011").fontSize(8).text("SYSTEM-GENERATED EXPENSE REPORT - NOT AN AUDITED FINANCIAL STATEMENT", left, 36, { width });
+  document.fillColor("#D8A011").fontSize(8).text(report.banner ?? "SYSTEM-GENERATED EXPENSE REPORT - NOT AN AUDITED FINANCIAL STATEMENT", left, 36, { width });
   document.y = 80;
   document.fillColor("#123D2A").font("Helvetica-Bold").fontSize(18).text(report.title, left, document.y, { width });
   document.moveDown(0.5);
@@ -115,7 +117,44 @@ export function renderReportPdf(report: ReportDocument) {
       continue;
     }
     for (const row of section.rows) {
-      if (document.y + 16 > bottom) {
+      if (report.wrapRows) {
+        document.font("Helvetica").fontSize(7.5);
+        const cells = section.columns.map((column, index) => {
+          const lines: string[] = [];
+          for (const paragraph of displayValue(column, row[column.key] ?? null).split(/\r?\n/)) {
+            let line = "";
+            for (const character of paragraph) {
+              if (line && document.widthOfString(line + character) > widths[index] - 8) {
+                lines.push(line);
+                line = "";
+              }
+              line += character;
+            }
+            lines.push(line);
+          }
+          return lines;
+        });
+        const lineCount = Math.max(...cells.map(lines => lines.length));
+        let offset = 0;
+        while (offset < lineCount) {
+          if (document.y + 17 > bottom) { document.addPage(); header(); }
+          const y = document.y;
+          const take = Math.min(lineCount - offset, Math.max(1, Math.floor((bottom - y - 6) / 10)));
+          let x = left;
+          section.columns.forEach((column, index) => {
+            const lines = cells[index].slice(offset, offset + take);
+            lines.forEach((line, lineIndex) => document.fillColor("#17211C").font("Helvetica").fontSize(7.5).text(line, x + 4, y + 3 + lineIndex * 10, { width: widths[index] - 8, lineBreak: false, align: column.kind === "text" ? "left" : "right" }));
+            x += widths[index];
+          });
+          const height = take * 10 + 6;
+          document.moveTo(left, y + height - 2).lineTo(left + width, y + height - 2).strokeColor("#E1E8E2").lineWidth(0.5).stroke();
+          document.y = y + height;
+          offset += take;
+        }
+        continue;
+      }
+      const rowHeight = 16;
+      if (document.y + rowHeight > bottom) {
         document.addPage();
         header();
       }
@@ -125,20 +164,24 @@ export function renderReportPdf(report: ReportDocument) {
         document.fillColor("#17211C").font("Helvetica").fontSize(7.5).text(displayValue(column, row[column.key] ?? null), x + 4, y + 3, { width: widths[index] - 8, lineBreak: false, ellipsis: true, align: column.kind === "text" ? "left" : "right" });
         x += widths[index];
       });
-      document.moveTo(left, y + 14).lineTo(left + width, y + 14).strokeColor("#E1E8E2").lineWidth(0.5).stroke();
-      document.y = y + 16;
+      document.moveTo(left, y + rowHeight - 2).lineTo(left + width, y + rowHeight - 2).strokeColor("#E1E8E2").lineWidth(0.5).stroke();
+      document.y = y + rowHeight;
     }
   }
 
   const pages = document.bufferedPageRange();
   for (let index = pages.start; index < pages.start + pages.count; index += 1) {
     document.switchToPage(index);
+    // Footer text is outside the normal content margin; avoid PDFKit adding a blank page.
+    const bottomMargin = document.page.margins.bottom;
+    if (report.wrapRows) document.page.margins.bottom = 0;
     document.font("Helvetica").fontSize(7).fillColor("#6C7A70").text(
       `Page ${index - pages.start + 1} of ${pages.count} | ${report.title} | TrackCOOP system-generated document`,
       left,
       document.page.height - 28,
       { width, align: "center", lineBreak: false },
     );
+    document.page.margins.bottom = bottomMargin;
   }
   document.end();
   return finished;
