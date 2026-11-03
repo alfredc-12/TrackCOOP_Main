@@ -212,3 +212,11 @@ export function activateMembershipAccount(token: string, password: string) {
     body: JSON.stringify({ token, password }),
   });
 }
+
+/** Asks for a fresh activation link. The answer is the same whether or not an eligible account exists. */
+export function requestActivationReplacement(email: string) {
+  return apiRequest<{ accepted: true }>("/api/public/membership/activation/request-replacement", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}

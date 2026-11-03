@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
@@ -55,6 +56,12 @@ export function createMembershipRouter(
     controller.payment,
   );
   router.post("/public/membership/activate", controller.activate);
+  // Few requests per address per hour; the service also enforces a ten-minute cooldown per account.
+  router.post(
+    "/public/membership/activation/request-replacement",
+    rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }),
+    controller.requestActivationReplacement,
+  );
 
   router.get("/membership/applications", ...chairmanOnly, controller.list);
   router.get(

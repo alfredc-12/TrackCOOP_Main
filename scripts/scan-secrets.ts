@@ -19,6 +19,7 @@ const patterns: Array<{ name: string; pattern: RegExp }> = [
   { name: "AWS access key", pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g },
   { name: "private key", pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g },
   { name: "GitHub token", pattern: /\bgh[opsu]_[A-Za-z0-9]{30,}\b/g },
+  { name: "Resend API key", pattern: /\bre_[A-Za-z0-9]{8}_[A-Za-z0-9]{20,}\b/g },
 ];
 
 function trackedFiles() {

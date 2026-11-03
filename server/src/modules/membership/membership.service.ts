@@ -1,3 +1,5 @@
+import { env } from "../../config/env";
+import { sendSystemEmail } from "../email/email.service";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import {
@@ -48,6 +50,7 @@ export interface MembershipService {
     auth: AuthContext,
   ): ReturnType<MembershipRepository["createAccount"]>;
   activateAccount(token: string, password: string): Promise<void>;
+  requestActivationReplacement(email: string): Promise<void>;
 }
 
 export function createMembershipService(
@@ -110,6 +113,22 @@ export function createMembershipService(
     },
     activateAccount(token, password) {
       return repository.activate(token, password);
+    },
+    async requestActivationReplacement(email) {
+      const issued = await repository.requestActivationReplacement(email);
+      // Resend mode queued the email inside the transaction. In smtp mode (legacy) send it directly instead.
+      if (issued && env.EMAIL_DELIVERY === "smtp") {
+        void sendSystemEmail({
+          to: { email: issued.email, name: issued.name },
+          subject: "Your new TrackCOOP activation link",
+          text: `Hello ${issued.name},
+
+Activate your member portal account here: ${issued.activationUrl}
+This link can be used once and expires on ${issued.expiresAt.toISOString()}.
+
+If you did not ask for this, you can ignore this email.`,
+        });
+      }
     },
   };
 }

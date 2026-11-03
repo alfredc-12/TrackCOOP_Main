@@ -7,6 +7,7 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { env } from "../../config/env";
+import { enqueueActivationReplacement } from "../membership-applications/membership-outbox";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { createCentralDocument } from "../../records/central-document";
@@ -275,6 +276,8 @@ export interface MembershipRepository {
     expiresAt: string;
   }>;
   activate(token: string, password: string): Promise<void>;
+  /** Issues a fresh 72-hour link to an eligible pending member account. Returns what a direct send needs, or null. */
+  requestActivationReplacement(email: string): Promise<{ email: string; name: string; activationUrl: string; expiresAt: Date } | null>;
 }
 
 export function createMembershipRepository(
@@ -1339,6 +1342,42 @@ export function createMembershipRepository(
       };
     },
 
+    async requestActivationReplacement(email) {
+      return withTransaction(async (connection) => {
+        const [users] = await connection.execute<(RowDataPacket & { userId: string; name: string; email: string })[]>(
+          `SELECT CAST(u.user_id AS CHAR) AS userId, u.display_name AS name, u.email AS email
+             FROM users u JOIN roles r ON r.role_id = u.role_id
+            WHERE u.email = ? AND u.account_status = 'Pending' AND r.role_slug = 'member'
+              AND (EXISTS (SELECT 1 FROM user_activation_tokens t WHERE t.user_id = u.user_id)
+                   OR EXISTS (SELECT 1 FROM membership_account_activations a WHERE a.user_id = u.user_id))
+              AND NOT EXISTS (SELECT 1 FROM user_activation_tokens t2
+                               WHERE t2.user_id = u.user_id AND t2.created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE))
+            LIMIT 1
+            FOR UPDATE`,
+          [email.trim().toLowerCase()],
+        );
+        const user = users[0];
+        if (!user) return null;
+        // Older links stop working the moment a new one exists.
+        await connection.execute("UPDATE user_activation_tokens SET expires_at = UTC_TIMESTAMP() WHERE user_id = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()", [user.userId]);
+        await connection.execute("UPDATE membership_account_activations SET expires_at = UTC_TIMESTAMP() WHERE user_id = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()", [user.userId]);
+        const rawToken = randomBytes(32).toString("base64url");
+        const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+        const [inserted] = await connection.execute<ResultSetHeader>(
+          "INSERT INTO user_activation_tokens (user_id, token_hash, expires_at, created_by) VALUES (?, ?, ?, NULL)",
+          [user.userId, createHash("sha256").update(rawToken).digest("hex"), expiresAt],
+        );
+        await connection.execute(
+          `INSERT INTO audit_logs (user_id, action, entity_table, record_id, description)
+           VALUES (NULL, 'membership.activation_replacement_requested', 'users', ?, 'A replacement activation link was issued on request.')`,
+          [user.userId],
+        );
+        const activationUrl = `${env.FRONTEND_URL.replace(/\/$/, "")}/membership/activate/${encodeURIComponent(rawToken)}`;
+        await enqueueActivationReplacement(connection, { userId: user.userId, tokenId: String(inserted.insertId), email: user.email, name: user.name, activationUrl, expiresAt });
+        return { email: user.email, name: user.name, activationUrl, expiresAt };
+      });
+    },
+
     async activate(token, password) {
       const tokenHash = createHash("sha256").update(token).digest("hex");
       const passwordHash = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
@@ -1352,7 +1391,7 @@ export function createMembershipRepository(
           `SELECT CAST(user_activation_token_id AS CHAR) AS id,
                   CAST(user_id AS CHAR) AS userId
              FROM user_activation_tokens
-            WHERE token_hash = ? AND used_at IS NULL
+            WHERE token_hash = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()
             FOR UPDATE`,
           [tokenHash],
         );
@@ -1399,14 +1438,14 @@ export function createMembershipRepository(
                   CAST(user_id AS CHAR) AS userId,
                   CAST(membership_application_id AS CHAR) AS applicationId
              FROM membership_account_activations
-            WHERE token_hash = ? AND used_at IS NULL
+            WHERE token_hash = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()
             FOR UPDATE`,
           [tokenHash],
         );
         const activation = activations[0];
         if (!activation) {
           throw new AppError(
-            "Activation link is invalid or has already been used",
+            "Activation link is invalid, has expired, or has already been used",
             410,
             "ACTIVATION_INVALID",
           );

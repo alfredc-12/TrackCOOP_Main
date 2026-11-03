@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { AppError } from "../utils/app-error";
 import { logger } from "../utils/logger";
+import { redactPath } from "../utils/redact-path";
 import { sendFailure } from "../utils/response";
 
 type ErrorDiagnostics = {
@@ -46,7 +47,7 @@ export const errorHandler: ErrorRequestHandler = (
   const logMeta = {
     requestId: request.requestId,
     method: request.method,
-    path: request.originalUrl,
+    path: redactPath(request.originalUrl),
     statusCode: appError.statusCode,
     errorName: error instanceof Error ? error.name : "UnknownError",
   };

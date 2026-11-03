@@ -75,3 +75,35 @@ test("cash payment confirmation responds before receipt email delivery finishes"
   assert.equal(emailStarted, true);
   assert.equal(result.paymentReferenceId, 41);
 });
+
+const bookkeeper = {
+  user: { id: "7", displayName: "Bookkeeper", email: "bookkeeper@example.com", username: null, role: "bookkeeper" },
+  sessionId: "session",
+  tokenHash: "token",
+} satisfies AuthContext;
+const confirmRepository = { async confirmOrder() { return { paymentReferenceId: 41, saleId: 17, receiptDocumentId: null }; } } as unknown as PosRepository;
+const noEmail = { async sendCashPaymentInstructions() { return "skipped" as const; }, async sendPosPaymentReceipt() { return "skipped" as const; } };
+
+test("confirming a cash payment creates the official receipt once and returns its document", async () => {
+  const processed: string[] = [];
+  const service = createPosService(confirmRepository, {} as PaymongoService, noEmail, {
+    async process(paymentReferenceId: string) {
+      processed.push(paymentReferenceId);
+      return { processingStatus: "Generated", documentId: "88" } as never;
+    },
+  });
+  const result = await service.confirmOrder("17", {}, bookkeeper);
+  assert.deepEqual(processed, ["41"]);
+  assert.equal(result.receiptDocumentId, 88);
+});
+
+test("a receipt that cannot be generated never undoes the confirmed payment", async () => {
+  const service = createPosService(confirmRepository, {} as PaymongoService, noEmail, {
+    async process() {
+      throw new Error("storage unavailable");
+    },
+  });
+  const result = await service.confirmOrder("17", {}, bookkeeper);
+  assert.equal(result.paymentReferenceId, 41);
+  assert.equal(result.receiptDocumentId, null);
+});
