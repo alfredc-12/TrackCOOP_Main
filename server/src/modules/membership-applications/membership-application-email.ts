@@ -36,14 +36,16 @@ function fullName(input: Pick<PublicMembershipApplicationInput, "firstName" | "m
     .join(" ");
 }
 
-export function membershipStatusUrl(applicationCode: string) {
-  const base = env.FRONTEND_URL.replace(/\/$/, "");
+export function membershipStatusUrl(applicationCode: string, baseUrl: string = env.FRONTEND_URL) {
+  const base = baseUrl.replace(/\/$/, "");
   return `${base}/membership/application-status?code=${encodeURIComponent(applicationCode)}`;
 }
 
 export async function triggerMembershipEmail(
   payload: MembershipEmailPayload | undefined,
 ): Promise<"sent" | "skipped" | "failed"> {
+  // The outbox owns delivery in resend mode; this direct path is the legacy fallback.
+  if (env.EMAIL_DELIVERY === "resend") return "skipped";
   if (env.EMAIL_DELIVERY === "smtp") {
     return sendSystemEmail(payload
       ? {
@@ -88,6 +90,34 @@ export async function triggerMembershipEmail(
   }
 }
 
+export type MembershipMessage = { subject: string; text: string; html: string };
+
+/** Pure renderer for the "application received" message. */
+export function renderSubmittedMessage(input: { name: string; applicationCode: string; baseUrl?: string }): MembershipMessage {
+  const statusUrl = membershipStatusUrl(input.applicationCode, input.baseUrl);
+  return {
+    subject: `Membership application received: ${input.applicationCode}`,
+    text: [
+      `Hello ${input.name},`,
+      "",
+      "We received your TrackCOOP membership application.",
+      `Application code: ${input.applicationCode}`,
+      `Check status: ${statusUrl}`,
+    ].join("\n"),
+    html: membershipApplicationEmailHtml({
+      title: "Membership Application Received",
+      name: input.name,
+      applicationCode: input.applicationCode,
+      statusUrl,
+      bodyHtml: [
+        "We received your TrackCOOP membership application.",
+        "Thank you for your interest in joining our cooperative community.",
+      ].join("<br>"),
+      note: "We will keep you updated as your application progresses.",
+    }),
+  };
+}
+
 export function buildSubmittedEmail(input: {
   application: PublicMembershipApplicationInput;
   applicationCode: string;
@@ -99,27 +129,7 @@ export function buildSubmittedEmail(input: {
   return {
     event: "membership.application.submitted" as const,
     to: { email, name },
-    message: {
-      subject: `Membership application received: ${input.applicationCode}`,
-      text: [
-        `Hello ${name},`,
-        "",
-        "We received your TrackCOOP membership application.",
-        `Application code: ${input.applicationCode}`,
-        `Check status: ${statusUrl}`,
-      ].join("\n"),
-      html: membershipApplicationEmailHtml({
-        title: "Membership Application Received",
-        name,
-        applicationCode: input.applicationCode,
-        statusUrl,
-        bodyHtml: [
-          "We received your TrackCOOP membership application.",
-          "Thank you for your interest in joining our cooperative community.",
-        ].join("<br>"),
-        note: "We will keep you updated as your application progresses.",
-      }),
-    },
+    message: renderSubmittedMessage({ name, applicationCode: input.applicationCode }),
     application: {
       code: input.applicationCode,
       status: "Submitted",
@@ -314,6 +324,39 @@ function membershipApplicationEmailHtml(input: {
 </html>`;
 }
 
+export type StatusMessageInput = {
+  event: Exclude<MembershipEmailEvent, "membership.application.submitted">;
+  name: string;
+  applicationCode: string;
+  status: string;
+  subject: string;
+  message: string;
+  baseUrl?: string;
+};
+
+/** Pure renderer for every status message (information required, payment, approval, rejection). */
+export function renderStatusMessage(input: StatusMessageInput): MembershipMessage {
+  const statusUrl = membershipStatusUrl(input.applicationCode, input.baseUrl);
+  return {
+    subject: input.subject,
+    text: [
+      `Hello ${input.name},`,
+      "",
+      input.message,
+      `Application code: ${input.applicationCode}`,
+      `Check status: ${statusUrl}`,
+    ].join("\n"),
+    html: membershipApplicationEmailHtml({
+      title: statusEmailTitle(input.event, input.status),
+      name: input.name,
+      applicationCode: input.applicationCode,
+      statusUrl,
+      bodyHtml: linesToHtml(input.message),
+      note: statusEmailNote(input.event),
+    }),
+  };
+}
+
 export function buildStatusEmail(input: {
   event: Exclude<MembershipEmailEvent, "membership.application.submitted">;
   email: string | null;
@@ -325,33 +368,14 @@ export function buildStatusEmail(input: {
 }) {
   const email = input.email?.trim();
   if (!email) return undefined;
-  const statusUrl = membershipStatusUrl(input.applicationCode);
-  const title = statusEmailTitle(input.event, input.status);
   return {
     event: input.event,
     to: { email, name: input.name },
-    message: {
-      subject: input.subject,
-      text: [
-        `Hello ${input.name},`,
-        "",
-        input.message,
-        `Application code: ${input.applicationCode}`,
-        `Check status: ${statusUrl}`,
-      ].join("\n"),
-      html: membershipApplicationEmailHtml({
-        title,
-        name: input.name,
-        applicationCode: input.applicationCode,
-        statusUrl,
-        bodyHtml: linesToHtml(input.message),
-        note: statusEmailNote(input.event),
-      }),
-    },
+    message: renderStatusMessage(input),
     application: {
       code: input.applicationCode,
       status: input.status,
-      statusUrl,
+      statusUrl: membershipStatusUrl(input.applicationCode),
     },
   };
 }

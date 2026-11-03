@@ -110,6 +110,14 @@ API / Express variables:
 | `PAYMONGO_PASS_ON_FEES` | No | No | No | PayMongo fee handling flag. |
 | `PAYMENT_SUCCESS_URL` | No | Yes when PayMongo enabled | No | Browser return URL after payment. |
 | `PAYMENT_CANCEL_URL` | No | Yes when PayMongo enabled | No | Browser return URL after cancellation. |
+| `RESEND_API_KEY` | No | Resend mode | Yes | Resend sending key (also in the cron worker env file). |
+| `RESEND_WEBHOOK_SECRET` | No | Resend mode | Yes | Resend webhook signing secret. API only. |
+| `EMAIL_SECRET_KEY` | No | Resend mode | Yes | 32 random bytes, base64; encrypts queued activation links and signs receipt links. Same value in API and worker file. |
+| `API_PUBLIC_URL` | No | Resend mode | No | Public API URL used in receipt links. |
+| `EMAIL_REPLY_TO` | No | No | No | Reply-To address for Resend emails. |
+| `EMAIL_RELEASE_STAGE` | No | Resend mode | No | `restricted` (allowlist only) or `general`. |
+| `EMAIL_RECIPIENT_ALLOWLIST` | No | While restricted | No | Comma-separated test recipients. |
+| `TRACKCOOP_WORKER_ENV_FILE` | No | Cron worker | No | Path to the mode-600 worker env file (see `docs/email-notifications.md`). |
 | `RENTAL_STATUS_EMAIL_WEBHOOK_URL` | No | Optional | Sensitive | Optional rental email automation webhook. |
 | `RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN` | No | Optional | Yes | Optional bearer token for the rental email webhook. |
 
@@ -134,6 +142,9 @@ Deployment matrix:
 | `PAYMONGO_WEBHOOK_SECRET` | No | API only, legacy fallback |
 | `S3_ACCESS_KEY_ID` | No | Yes |
 | `S3_SECRET_ACCESS_KEY` | No | Yes |
+| `RESEND_API_KEY` | No | Yes (and cron worker file) |
+| `RESEND_WEBHOOK_SECRET` | No | API only |
+| `EMAIL_SECRET_KEY` | No | Yes (and cron worker file) |
 | `RENTAL_STATUS_EMAIL_WEBHOOK_TOKEN` | No | Yes |
 
 Only `NEXT_PUBLIC_*` values are browser-visible. Never put database, PayMongo,

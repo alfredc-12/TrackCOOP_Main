@@ -92,6 +92,7 @@ function membershipService(
       throw new Error("not used");
     },
     async activateAccount() {},
+    async requestActivationReplacement() {},
     ...overrides,
   };
 }

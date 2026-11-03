@@ -1,4 +1,5 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { enqueueRentalPaymentConfirmed } from "../rental/rental-outbox";
 import { AppError } from "../../utils/app-error";
 import {
   settlementRecordDate,
@@ -178,6 +179,16 @@ export async function postRentalSettlement(input: {
       input.payment.id,
     ],
   );
+
+  // One email per payment reference, committed or rolled back with this settlement.
+  await enqueueRentalPaymentConfirmed(input.connection, {
+    bookingId: booking.id,
+    paymentReferenceId: input.payment.id,
+    amount: Number(input.payment.amount),
+    paymentMethod: input.payment.paymentChannel,
+    paymentReference: input.payment.referenceNumber,
+    paidOn: settlementRecordDate(input.gatewayDetails?.paidAt),
+  });
 
   return {
     financeCreated: financeResult.affectedRows > 0,

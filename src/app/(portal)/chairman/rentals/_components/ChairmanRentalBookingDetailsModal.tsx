@@ -65,6 +65,7 @@ type ScheduleDraft = {
   travelMinutes: number;
   bufferMinutes: number;
   specialInstructions: string;
+  customerInstructions: string;
   status: ScheduleStatus;
 };
 
@@ -249,6 +250,7 @@ export function ChairmanRentalBookingDetailsModal({
           nextSchedule?.specialInstructions ??
           nextInquiry.specialInstructions ??
           "",
+        customerInstructions: nextSchedule?.customerInstructions ?? "",
         status: nextSchedule?.status ?? "Awaiting Confirmation",
       });
     } catch (caught) {
@@ -390,6 +392,7 @@ export function ChairmanRentalBookingDetailsModal({
         travelMinutes: scheduleDraft.travelMinutes,
         bufferMinutes: scheduleDraft.bufferMinutes,
         specialInstructions: scheduleDraft.specialInstructions || undefined,
+        customerInstructions: scheduleDraft.customerInstructions || undefined,
       });
       setConflict(result);
       if (result.hasConflict) toast.error("A scheduling conflict was found.");
@@ -463,6 +466,7 @@ export function ChairmanRentalBookingDetailsModal({
         travelMinutes: scheduleDraft.travelMinutes,
         bufferMinutes: scheduleDraft.bufferMinutes,
         specialInstructions: scheduleDraft.specialInstructions || undefined,
+        customerInstructions: scheduleDraft.customerInstructions || undefined,
         status: scheduleDraft.status,
         paymentStatus: inquiry.paymentStatus,
       };
@@ -1092,7 +1096,22 @@ export function ChairmanRentalBookingDetailsModal({
               onChange={(barangay) => updateScheduleDraft("barangay", barangay)}
             />
             <div className="sm:col-span-2">
-              <FormField label="Internal schedule instructions">
+              <FormField label="Instructions for the customer">
+                <textarea
+                  rows={3}
+                  value={scheduleDraft.customerInstructions}
+                  maxLength={1000}
+                  aria-describedby="customer-instructions-hint"
+                  onChange={(event) => updateScheduleDraft("customerInstructions", event.target.value)}
+                  className="rounded-md border border-[#CAD8CB] p-3"
+                />
+              </FormField>
+              <p id="customer-instructions-hint" className="mt-1 text-xs text-[#5D6D63]">
+                The customer reads this in their schedule email. Anything internal belongs in the staff-only field below.
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <FormField label="Internal schedule instructions (staff only, never sent to the customer)">
                 <textarea
                   rows={3}
                   value={scheduleDraft.specialInstructions}

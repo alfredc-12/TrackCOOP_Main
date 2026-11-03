@@ -19,6 +19,8 @@ import {
 import { createAuthRouter } from "./modules/auth/auth.routes";
 import type { AuthService } from "./modules/auth/auth.service";
 import { createCommunicationRouter } from "./modules/communication/communication.routes";
+import { createResendWebhookRouter } from "./modules/email/email-webhook";
+import { createPublicReceiptRouter } from "./modules/email/public-receipt.routes";
 import { createExpenseOverviewRouter } from "./modules/expense-overview/expense-overview.routes";
 import { createFinanceRouter } from "./modules/finance/finance.routes";
 import { createInventoryRouter } from "./modules/inventory/inventory.routes";
@@ -100,6 +102,9 @@ export function createApp(options: CreateAppOptions = {}) {
     crossOriginResourcePolicy: { policy: "cross-origin" }
   }));
   app.use("/api/webhooks/paymongo", createPaymongoWebhookRouter(options.paymongoWebhookService));
+  // Resend delivery webhooks need the raw body, and receipt links are opened from email with no Origin header.
+  app.use("/api/webhooks/resend", createResendWebhookRouter());
+  app.use("/api/public/receipts", createPublicReceiptRouter());
   app.use(cors(createCorsOptions(allowedOrigins)));
   app.use(validateOrigin(allowedOrigins));
   app.use(

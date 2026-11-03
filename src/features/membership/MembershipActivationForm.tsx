@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ApiClientError } from "@/lib/api-client";
-import { activateMembershipAccount } from "./membership-api";
+import { activateMembershipAccount, requestActivationReplacement } from "./membership-api";
 
 export function MembershipActivationForm() {
   const params = useParams<{ token: string }>();
@@ -13,6 +13,10 @@ export function MembershipActivationForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [activated, setActivated] = useState(false);
+  // 410 means the link expired or was already used: offer a replacement instead of a dead end.
+  const [linkDead, setLinkDead] = useState(false);
+  const [replacementEmail, setReplacementEmail] = useState("");
+  const [replacement, setReplacement] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -29,6 +33,7 @@ export function MembershipActivationForm() {
       );
       setActivated(true);
     } catch (caught) {
+      setLinkDead(caught instanceof ApiClientError && caught.status === 410);
       setError(
         caught instanceof ApiClientError
           ? caught.message
@@ -36,6 +41,17 @@ export function MembershipActivationForm() {
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function requestReplacement(event: React.FormEvent) {
+    event.preventDefault();
+    setReplacement("sending");
+    try {
+      await requestActivationReplacement(replacementEmail);
+      setReplacement("sent");
+    } catch {
+      setReplacement("error");
     }
   }
 
@@ -102,6 +118,44 @@ export function MembershipActivationForm() {
       >
         {pending ? "Activating…" : "Activate Account"}
       </button>
+      {linkDead ? (
+        <section aria-labelledby="replacement-heading" className="mt-6 border-t border-[#CAD8CB] pt-5">
+          <h2 id="replacement-heading" className="text-sm font-black text-[#123D2A]">
+            Need a new activation link?
+          </h2>
+          <p className="mt-1 text-xs text-[#5D6D63]">
+            Enter the email address on your membership application. If it matches an account waiting to be activated, we will send a new link that works for 72 hours.
+          </p>
+          {replacement === "sent" ? (
+            <p role="status" className="mt-3 text-sm font-semibold text-[#1F6B43]">
+              If an eligible account exists, a new activation link is on its way. Check your inbox and spam folder.
+            </p>
+          ) : (
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <label className="sr-only" htmlFor="replacement-email">Email address</label>
+              <input
+                id="replacement-email"
+                type="email"
+                autoComplete="email"
+                value={replacementEmail}
+                onChange={(event) => setReplacementEmail(event.target.value)}
+                className="h-11 min-w-0 flex-1 rounded-md border border-[#CAD8CB] px-3"
+              />
+              <button
+                type="button"
+                onClick={requestReplacement}
+                disabled={replacement === "sending" || !replacementEmail.includes("@")}
+                className="min-h-11 rounded-md border border-[#123D2A] px-5 text-sm font-bold text-[#123D2A] disabled:opacity-60"
+              >
+                {replacement === "sending" ? "Sending…" : "Send a new link"}
+              </button>
+            </div>
+          )}
+          {replacement === "error" ? (
+            <p role="alert" className="mt-2 text-sm text-[#9A392A]">The request could not be sent. Please try again in a few minutes.</p>
+          ) : null}
+        </section>
+      ) : null}
     </form>
   );
 }

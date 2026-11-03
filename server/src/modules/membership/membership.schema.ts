@@ -114,3 +114,8 @@ export const activationSchema = z.object({
     .regex(/[A-Z]/, "Password must include an uppercase letter")
     .regex(/[0-9]/, "Password must include a number"),
 });
+
+/** Asking for a replacement link. The answer never reveals whether the address belongs to an account. */
+export const activationReplacementSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+});

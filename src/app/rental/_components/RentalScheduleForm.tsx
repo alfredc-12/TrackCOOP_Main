@@ -35,6 +35,7 @@ const blank: RentalSchedule = {
   travelMinutes: 30,
   bufferMinutes: 30,
   specialInstructions: "",
+  customerInstructions: "",
   status: "Proposed",
   paymentStatus: "Pending",
 };
@@ -82,6 +83,7 @@ function scheduleCandidate(
     travelMinutes: form.travelMinutes,
     bufferMinutes: form.bufferMinutes,
     specialInstructions: form.specialInstructions,
+    customerInstructions: form.customerInstructions,
   };
 }
 
@@ -305,7 +307,17 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
                 />
               </ScheduleField>
             ))}
-            <ScheduleField label="Special instructions" wide>
+            <ScheduleField label="Instructions for the customer (included in their schedule email)" wide>
+              <textarea
+                rows={3}
+                maxLength={1000}
+                value={form.customerInstructions ?? ""}
+                onChange={(event) =>
+                  update("customerInstructions", event.target.value)
+                }
+              />
+            </ScheduleField>
+            <ScheduleField label="Internal instructions (staff only, never sent to the customer)" wide>
               <textarea
                 rows={3}
                 value={form.specialInstructions ?? ""}

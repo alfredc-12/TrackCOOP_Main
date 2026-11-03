@@ -65,6 +65,12 @@ import {
   rentalTimePart,
   type RentalDatabaseDate,
 } from "./rental-db-date";
+import {
+  enqueueRentalPaymentConfirmed,
+  enqueueRentalSchedule,
+  enqueueRentalStatus,
+  enqueueRentalSubmitted,
+} from "./rental-outbox";
 
 const db = getPool();
 
@@ -425,6 +431,11 @@ function dateKeysBetween(startDate: string, endDate: string) {
     );
   }
   return dates;
+}
+
+/** A stable text form of a DATETIME value, used to tell one change of the same booking from the next. */
+function outboxVersion(value: unknown) {
+  return value instanceof Date ? String(value.getTime()) : String(value ?? "");
 }
 
 function toMysqlDateTime(date: string, time: string) {
@@ -825,7 +836,8 @@ function mapSchedule(row: BookingRow): RentalSchedule {
     preparationMinutes: Number(meta.preparationMinutes ?? 30),
     travelMinutes: Number(meta.travelMinutes ?? 30),
     bufferMinutes: Number(meta.bufferMinutes ?? 30),
-    specialInstructions: stringValue(meta, "specialInstructions") || undefined,
+    specialInstructions: stringValue(meta, "internalScheduleInstructions") || stringValue(meta, "specialInstructions") || undefined,
+    customerInstructions: stringValue(meta, "customerInstructions") || undefined,
     status: scheduleStatusFromBooking(row, meta),
     paymentStatus: paymentStatusFromBooking(row.payment_status, meta),
   };
@@ -1889,7 +1901,9 @@ export const rentalDatabase = {
         actor,
         connection,
       );
-      return mapBooking(booking);
+      const submitted = mapBooking(booking);
+      await enqueueRentalSubmitted(connection, submitted, booking.rental_booking_id);
+      return submitted;
       });
     } catch (error) {
       if (storedValidId) {
@@ -2027,7 +2041,10 @@ export const rentalDatabase = {
         connection,
       );
       const updated = await bookingByRentalId(inquiryId, connection);
-      return updated ? mapBooking(updated) : undefined;
+      if (!updated) return undefined;
+      const mapped = mapBooking(updated);
+      await enqueueRentalStatus(connection, mapped, row.rental_booking_id, outboxVersion(row.updated_at));
+      return mapped;
     });
   },
 
@@ -2215,7 +2232,10 @@ export const rentalDatabase = {
         );
       }
       const updated = await bookingByRentalId(inquiryId, connection);
-      return updated ? mapBooking(updated) : undefined;
+      if (!updated) return undefined;
+      const mapped = mapBooking(updated);
+      await enqueueRentalStatus(connection, mapped, row.rental_booking_id, outboxVersion(row.updated_at));
+      return mapped;
     });
   },
 
@@ -2346,7 +2366,10 @@ export const rentalDatabase = {
       meta.preparationMinutes = schedule.preparationMinutes;
       meta.travelMinutes = schedule.travelMinutes;
       meta.bufferMinutes = schedule.bufferMinutes;
-      meta.specialInstructions = schedule.specialInstructions ?? "";
+      // Internal notes get their own key. meta.specialInstructions is the customer's own request text, which
+      // member-facing responses return, so internal notes must never be written over it.
+      meta.internalScheduleInstructions = schedule.specialInstructions ?? "";
+      meta.customerInstructions = schedule.customerInstructions ?? "";
       meta.assignedReviewer = actor?.displayName ?? "NFFAC Chairman";
       meta.publicNote =
         schedule.status === "Confirmed"
@@ -2432,7 +2455,12 @@ export const rentalDatabase = {
       }
       const updated = await bookingByRentalId(schedule.rentalId, connection);
       if (!updated) throw new Error("Rental schedule was not created.");
-      return mapSchedule(updated);
+      const savedSchedule = mapSchedule(updated);
+      // Maintenance blocks are schedules too, but they have no customer to tell.
+      if (updated.booking_number.startsWith("RNT-")) {
+        await enqueueRentalSchedule(connection, mapBooking(updated), savedSchedule, updated.rental_booking_id);
+      }
+      return savedSchedule;
     });
   },
 
@@ -2464,6 +2492,7 @@ export const rentalDatabase = {
         travelMinutes: next.travelMinutes,
         bufferMinutes: next.bufferMinutes,
         specialInstructions: next.specialInstructions,
+        customerInstructions: next.customerInstructions,
         status: next.status,
         paymentStatus: next.paymentStatus,
       },
@@ -3271,6 +3300,15 @@ export const rentalDatabase = {
           `rental-notification:payment-confirmed:${row.payment_reference_id}`,
           connection,
         );
+        await enqueueRentalPaymentConfirmed(connection, {
+          bookingId: booking.rental_booking_id,
+          paymentReferenceId: row.payment_reference_id,
+          amount: updated.amount,
+          paymentMethod: updated.paymentMethod,
+          paymentReference: updated.gcashReference,
+          receiptNumber: receipt.receiptNumber,
+          paidOn: updated.paymentDate,
+        });
       }
       await addStatusHistory(
         booking.rental_booking_id,

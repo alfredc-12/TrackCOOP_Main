@@ -12,6 +12,7 @@ import {
 import { storageProvider } from "../../storage";
 import {
   accountCreationSchema,
+  activationReplacementSchema,
   activationSchema,
   additionalInformationSchema,
   applicationInputSchema,
@@ -307,6 +308,17 @@ export function createMembershipController(service: MembershipService) {
           request.auth,
         ),
         { statusCode: 201, message: "Pending member account created" },
+      );
+    }),
+
+    requestActivationReplacement: asyncHandler(async (request, response) => {
+      const input = parse(activationReplacementSchema, request.body);
+      await service.requestActivationReplacement(input.email);
+      // The same answer whether or not an account matched, so this cannot be used to look up who has one.
+      return sendSuccess(
+        response,
+        { accepted: true },
+        { statusCode: 202, message: "If an eligible account exists, a new activation link has been sent." },
       );
     }),
 

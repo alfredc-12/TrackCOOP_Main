@@ -260,7 +260,10 @@ export interface RentalSchedule {
   preparationMinutes: number;
   travelMinutes: number;
   bufferMinutes: number;
+  /** Internal schedule notes (staff only). */
   specialInstructions?: string;
+  /** What the customer is told about this schedule; included in the schedule email. */
+  customerInstructions?: string;
   status: ScheduleStatus;
   paymentStatus: PaymentStatus;
 }
