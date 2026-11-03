@@ -39,6 +39,7 @@ import {
   buildStatusEmail,
   triggerMembershipEmail,
 } from "./membership-application-email";
+import { APPROVED_WITH_ACTIVATION_MESSAGE, enqueueMembershipStatus } from "./membership-outbox";
 
 async function notifyReferralMember(
   connection: PoolConnection,
@@ -281,6 +282,26 @@ export function createMembershipApprovalConversionService(
               reconciledCapitalRows: reconciliation.insertedCapitalRows,
             }),
           ],
+        );
+
+        // Committed or rolled back together with the approval. The activation link is encrypted in the outbox,
+        // never stored as plain text, and the row is cancelled if the link expires before it is sent.
+        await enqueueMembershipStatus(
+          connection,
+          {
+            applicationId,
+            applicationCode: application.applicationCode,
+            email: application.email ?? approval.accountEmail ?? null,
+            name: application.fullName ?? application.applicationCode,
+          },
+          {
+            kind: "approved",
+            status: "Approved",
+            subject: `Membership approved: ${application.applicationCode}`,
+            message: activation ? APPROVED_WITH_ACTIVATION_MESSAGE : "Your membership was approved. Welcome to the cooperative.",
+            secret: activation ? { activationUrl: approvalActivationUrl(activation.rawToken) } : undefined,
+            secretExpiresAt: activation?.expiresAt,
+          },
         );
 
         return {

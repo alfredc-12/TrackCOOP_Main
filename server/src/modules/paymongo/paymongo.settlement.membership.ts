@@ -5,6 +5,7 @@ import {
   buildStatusEmail,
   triggerMembershipEmail,
 } from "../membership-applications/membership-application-email";
+import { enqueueMembershipStatus } from "../membership-applications/membership-outbox";
 import { insertSettlementFinanceRecord } from "./paymongo.settlement.finance";
 import {
   memberCapitalOutsideApplication,
@@ -219,6 +220,23 @@ async function maybeMarkApplicationPaymentConfirmed(input: {
       input.actorUserId,
     ],
   );
+  // Queued in this settlement's own transaction: it is sent only if the status change commits.
+  await enqueueMembershipStatus(
+    input.connection,
+    {
+      applicationId: input.application.id,
+      applicationCode: input.application.applicationCode,
+      email: input.application.email,
+      name: input.application.fullName,
+    },
+    {
+      kind: "payment_confirmed",
+      status: "Payment Confirmed",
+      subject: `Membership payment confirmed: ${input.application.applicationCode}`,
+      message: "Your membership payment was confirmed. The Chairman can now finalize your membership approval.",
+    },
+  );
+  // Legacy direct send (smtp/webhook modes only; inert in resend mode).
   void triggerMembershipEmail(buildStatusEmail({
     event: "membership.application.payment_confirmed",
     email: input.application.email,

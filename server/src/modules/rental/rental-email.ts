@@ -178,6 +178,8 @@ export function buildRentalStatusEmailPayload(
 async function triggerRentalEmail(
   payload: RentalEmailPayload | undefined,
 ): Promise<"sent" | "skipped" | "failed"> {
+  // The outbox owns delivery in resend mode; this direct path is the legacy fallback.
+  if (env.EMAIL_DELIVERY === "resend") return "skipped";
   if (env.EMAIL_DELIVERY === "smtp") {
     return sendSystemEmail(payload
       ? {
@@ -232,4 +234,133 @@ export async function triggerRentalStatusEmail(
   inquiry: RentalInquiry,
 ): Promise<"sent" | "skipped" | "failed"> {
   return triggerRentalEmail(buildRentalStatusEmailPayload(inquiry));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Outbox messages (resend mode). Pure functions: no environment, no database. Built inside the business
+// transaction from the committed-to-be state, so the text is final before it is queued.
+// ---------------------------------------------------------------------------------------------------------------
+
+export type RentalMessage = { subject: string; text: string };
+
+function linkTo(baseUrl: string) {
+  return `${baseUrl.replace(/\/$/, "")}/rental/inquiry/status`;
+}
+
+/** "08:00" -> "8:00 AM". Times are Philippine wall-clock values, never converted between zones. */
+export function formatClockTime(value: string) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value);
+  if (!match) return value;
+  const hour = Number(match[1]);
+  return `${hour % 12 === 0 ? 12 : hour % 12}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function scheduleMoment(date: string, time: string) {
+  return `${formatRentalDate(date, true)}, ${formatClockTime(time)}`;
+}
+
+export function rentalSubmittedMessage(inquiry: RentalInquiry, baseUrl: string): RentalMessage {
+  return {
+    subject: `Rental booking received: ${inquiry.inquiryId}`,
+    text: [
+      `Hello ${inquiry.requester.fullName},`,
+      "",
+      "We received your rental booking request. Here is your booking summary:",
+      "",
+      ...rentalSummaryLines(inquiry),
+      "",
+      "NFFAC will still review availability, schedule, pricing, and rental conditions before final confirmation.",
+      `Check status: ${linkTo(baseUrl)}`,
+    ].join("\n"),
+  };
+}
+
+export function rentalStatusMessage(inquiry: RentalInquiry, baseUrl: string): RentalMessage {
+  return {
+    subject: `Rental request ${inquiry.inquiryId}: ${inquiry.status}`,
+    text: [
+      `Hello ${inquiry.requester.fullName},`,
+      "",
+      `Your rental request for ${inquiry.equipmentName} is now ${inquiry.status}.`,
+      inquiry.publicNote,
+      "",
+      `Preferred period: ${formatRentalDateRange(inquiry.preferredDate, inquiry.preferredEndDate, true)}`,
+      ...possibleFeeLines(inquiry),
+      `Reference: ${inquiry.inquiryId}`,
+      `Check status: ${linkTo(baseUrl)}`,
+    ].join("\n"),
+  };
+}
+
+/** Customer-facing schedule details only. Internal schedule instructions and staff notes are never included. */
+export type RentalScheduleEmailInput = {
+  reference: string;
+  requesterName: string;
+  equipmentName: string;
+  confirmed: boolean;
+  date: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  assignedOperator?: string;
+  serviceLocation?: string;
+  barangay?: string;
+  customerInstructions?: string;
+};
+
+export function rentalScheduleMessage(input: RentalScheduleEmailInput, baseUrl: string): RentalMessage {
+  const place = [input.serviceLocation, input.barangay].map((part) => part?.trim()).filter(Boolean).join(", ");
+  return {
+    subject: input.confirmed
+      ? `Rental schedule confirmed: ${input.reference}`
+      : `Rental schedule proposed: ${input.reference}`,
+    text: [
+      `Hello ${input.requesterName},`,
+      "",
+      input.confirmed
+        ? `The schedule for your ${input.equipmentName} rental is confirmed.`
+        : `A schedule has been proposed for your ${input.equipmentName} rental. It is not final until it is confirmed.`,
+      "",
+      `Reference: ${input.reference}`,
+      `Start: ${scheduleMoment(input.date, input.startTime)}`,
+      `End: ${scheduleMoment(input.endDate, input.endTime)}`,
+      ...(place ? [`Location: ${place}`] : []),
+      ...(input.assignedOperator?.trim() ? [`Assigned operator: ${input.assignedOperator.trim()}`] : []),
+      ...(input.customerInstructions?.trim() ? ["", "Instructions for you:", input.customerInstructions.trim()] : []),
+      "",
+      "All times are Philippine time.",
+      `Check status: ${linkTo(baseUrl)}`,
+    ].join("\n"),
+  };
+}
+
+export type RentalPaymentEmailInput = {
+  reference: string;
+  requesterName: string;
+  equipmentName: string;
+  amount: number;
+  paymentMethod?: string;
+  paymentReference?: string;
+  receiptNumber?: string;
+  paidOn?: string;
+};
+
+export function rentalPaymentMessage(input: RentalPaymentEmailInput, baseUrl: string): RentalMessage {
+  return {
+    subject: `Rental payment confirmed: ${input.reference}`,
+    text: [
+      `Hello ${input.requesterName},`,
+      "",
+      `We confirmed your payment for rental request ${input.reference} (${input.equipmentName}).`,
+      "",
+      `Amount paid: ${formatPeso(input.amount)}`,
+      ...(input.paymentMethod ? [`Payment method: ${input.paymentMethod}`] : []),
+      ...(input.paymentReference ? [`Payment reference: ${input.paymentReference}`] : []),
+      ...(input.receiptNumber ? [`Receipt number: ${input.receiptNumber}`] : []),
+      ...(input.paidOn ? [`Paid on: ${formatRentalDate(input.paidOn, true)}`] : []),
+      "",
+      "NFFAC will confirm your rental schedule separately.",
+      `Check status: ${linkTo(baseUrl)}`,
+    ].join("\n"),
+  };
 }

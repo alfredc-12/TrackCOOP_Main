@@ -6,6 +6,7 @@ import { withTransaction } from "../../db/transaction";
 import { createCentralDocument } from "../../records/central-document";
 import { normalizeProtectedStoragePath } from "../../storage/protected-storage";
 import { storageProvider } from "../../storage";
+import { enqueuePosReceipt } from "../pos/pos-outbox";
 import type { PaymentValidationSource } from "./paymongo.settlement.types";
 
 export type ReceiptProcessingStatus = "Pending" | "Processing" | "Generated" | "Failed";
@@ -32,6 +33,8 @@ type ReceiptRow = RowDataPacket & PaymentReceiptStatus & {
   paymentDate: Date | null;
   validatedAt: Date | null;
   payerName: string | null;
+  payerEmail: string | null;
+  receiptId: string;
   paymentPurpose: string;
   trackcoopReference: string;
 };
@@ -100,7 +103,8 @@ async function selectReceipt(connection: Pool | PoolConnection, paymentReference
             r.validation_source AS validationSource,
             r.subject_reference AS subjectReference,
             r.payment_date AS paymentDate, r.validated_at AS validatedAt,
-            p.payer_name AS payerName, p.payment_purpose AS paymentPurpose,
+            p.payer_name AS payerName, p.payer_email AS payerEmail, CAST(r.payment_receipt_id AS CHAR) AS receiptId,
+            p.payment_purpose AS paymentPurpose,
             p.reference_number AS trackcoopReference
        FROM payment_receipts r
        JOIN payment_references p ON p.payment_reference_id = r.payment_reference_id
@@ -254,6 +258,26 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
                     last_error_message = NULL WHERE payment_reference_id = ?`,
             [documentId, paymentReferenceId],
           );
+          if (current.paymentPurpose === "POS/Product" && current.paymentChannel === "Cash" && current.memberId) {
+            await connection.execute(
+              `INSERT INTO notifications
+                 (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+               SELECT mp.user_id, 'Document', 'POS receipt available',
+                      CONCAT(?, ' is available in Documents.'), 'Document', ?
+                 FROM member_profiles mp
+                WHERE mp.member_id = ? AND mp.user_id IS NOT NULL`,
+              [current.receiptNumber, documentId, current.memberId],
+            );
+          }
+          // A receipt becomes Generated once, so the customer's email is queued once, and only for a receipt that exists.
+          if (current.paymentPurpose === "POS/Product" && !current.reversedAt) {
+            await enqueuePosReceipt(connection, {
+              paymentReferenceId,
+              receiptId: current.receiptId,
+              email: current.payerEmail,
+              name: current.payerName,
+            });
+          }
         }, databasePool());
       } catch (error) {
         const safe = safeError(error);
@@ -263,6 +287,23 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
             WHERE payment_reference_id = ?`,
           [safe.code, safe.message, paymentReferenceId],
         );
+        if (claimed.attemptCount + 1 >= 3) {
+          await databasePool().execute(
+            `INSERT INTO notifications
+               (user_id, notification_type, title, message, related_entity_type, related_entity_id)
+             SELECT u.user_id, 'Payment', 'Payment receipt could not be generated',
+                    CONCAT('Receipt ', ?, ' has not been generated after several attempts. Open the payment and use Retry receipt.'),
+                    'payment_references', ?
+               FROM users u JOIN roles r ON r.role_id = u.role_id
+              WHERE r.role_slug = 'bookkeeper' AND u.account_status = 'Active'
+                AND NOT EXISTS (
+                  SELECT 1 FROM notifications n
+                   WHERE n.user_id = u.user_id AND n.title = 'Payment receipt could not be generated'
+                     AND n.related_entity_type = 'payment_references' AND n.related_entity_id = ?
+                     AND n.created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY))`,
+            [claimed.receiptNumber, paymentReferenceId, paymentReferenceId],
+          ).catch(() => undefined);
+        }
       }
       return this.getStatus(paymentReferenceId);
     },

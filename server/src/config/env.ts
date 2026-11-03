@@ -148,9 +148,20 @@ const envSchema = z.object({
   PAYMONGO_PASS_ON_FEES: booleanString.default(false),
   PAYMENT_SUCCESS_URL: z.string().url().default("http://localhost:3000/payment/success"),
   PAYMENT_CANCEL_URL: z.string().url().default("http://localhost:3000/payment/cancelled"),
-  EMAIL_DELIVERY: z.enum(["disabled", "webhook", "smtp"]).default("disabled"),
+  // "smtp" and "webhook" are the legacy direct-send paths, kept only until the Resend migration is verified.
+  EMAIL_DELIVERY: z.enum(["disabled", "webhook", "smtp", "resend"]).default("disabled"),
   EMAIL_FROM_NAME: z.string().trim().min(1).default("TrackCOOP"),
   EMAIL_FROM_ADDRESS: optionalTrimmedString,
+  EMAIL_REPLY_TO: optionalTrimmedString,
+  RESEND_API_KEY: optionalTrimmedString,
+  RESEND_WEBHOOK_SECRET: optionalTrimmedString,
+  // 32 random bytes, base64. Protects queued secrets (activation links) and signs receipt links.
+  EMAIL_SECRET_KEY: optionalTrimmedString,
+  // Public base URL of this API, used in receipt links (for example https://api.nffac.trackcoop.online).
+  API_PUBLIC_URL: optionalTrimmedUrl,
+  // "restricted" sends only to EMAIL_RECIPIENT_ALLOWLIST; "general" sends to everyone.
+  EMAIL_RELEASE_STAGE: z.enum(["restricted", "general"]).default("restricted"),
+  EMAIL_RECIPIENT_ALLOWLIST: optionalTrimmedString,
   SMTP_HOST: optionalTrimmedString,
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
   SMTP_SECURE: booleanString.default(false),
@@ -218,6 +229,30 @@ const envSchema = z.object({
         code: "custom",
         path: ["SMTP_PASSWORD"],
         message: "SMTP_PASSWORD is required when EMAIL_DELIVERY is smtp",
+      });
+    }
+  }
+
+  if (value.EMAIL_DELIVERY === "resend") {
+    const required: Array<[keyof typeof value, string]> = [
+      ["RESEND_API_KEY", "RESEND_API_KEY"],
+      ["EMAIL_FROM_ADDRESS", "EMAIL_FROM_ADDRESS"],
+      ["EMAIL_SECRET_KEY", "EMAIL_SECRET_KEY"],
+      ["API_PUBLIC_URL", "API_PUBLIC_URL"],
+    ];
+    for (const [key, name] of required) {
+      if (!value[key]) {
+        context.addIssue({ code: "custom", path: [name], message: `${name} is required when EMAIL_DELIVERY is resend` });
+      }
+    }
+    if (value.EMAIL_SECRET_KEY && Buffer.from(value.EMAIL_SECRET_KEY, "base64").length !== 32) {
+      context.addIssue({ code: "custom", path: ["EMAIL_SECRET_KEY"], message: "EMAIL_SECRET_KEY must be 32 random bytes, base64 encoded" });
+    }
+    if (value.EMAIL_RELEASE_STAGE === "restricted" && !value.EMAIL_RECIPIENT_ALLOWLIST) {
+      context.addIssue({
+        code: "custom",
+        path: ["EMAIL_RECIPIENT_ALLOWLIST"],
+        message: "EMAIL_RECIPIENT_ALLOWLIST is required while EMAIL_RELEASE_STAGE is restricted",
       });
     }
   }

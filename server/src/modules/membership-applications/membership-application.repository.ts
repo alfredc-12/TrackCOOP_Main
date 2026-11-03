@@ -48,6 +48,12 @@ import {
   isPaymentRequirementType,
   prePaymentRequirementsCompleteSql,
 } from "./membership-application.requirements";
+import {
+  applicantDocumentRequirementTypes,
+  enqueueInformationRequest,
+  enqueueMembershipReceived,
+  enqueueMembershipStatus,
+} from "./membership-outbox";
 
 type SettingRow = RowDataPacket & {
   settingKey: string;
@@ -1054,6 +1060,15 @@ export function createMembershipApplicationRepository(
             nullable(input.context.userAgent),
           ],
         );
+        await enqueueMembershipReceived(connection, {
+          applicationId: membershipApplicationId,
+          applicationCode: code,
+          email: application.email?.trim() || null,
+          name: [application.firstName, application.middleName, application.lastName, application.suffix]
+            .map((part) => part?.trim())
+            .filter(Boolean)
+            .join(" "),
+        });
 
         const [createdRows] = await connection.execute<PublicApplicationRow[]>(
           `SELECT submitted_at AS submittedAt
@@ -1823,6 +1838,12 @@ export function createMembershipApplicationRepository(
                    'A membership application requirement was added.', ?)`,
           [auth.user.id, String(result.insertId), JSON.stringify({ applicationId, requirementType: input.requirementType })],
         );
+        if (applicantDocumentRequirementTypes.has(input.requirementType) && (input.requirementStatus ?? "Pending") === "Pending") {
+          const detail = await selectApplicationDetail(connection, applicationId);
+          if (detail) {
+            await enqueueInformationRequest(connection, { applicationId, applicationCode: detail.applicationCode, email: detail.email, name: detail.fullName });
+          }
+        }
         const requirements = await selectRequirements(connection, applicationId);
         return requirements.find((requirement) => requirement.id === String(result.insertId))!;
       }, databasePool());
@@ -1944,6 +1965,12 @@ export function createMembershipApplicationRepository(
             }),
           ],
         );
+        if (input.requirementStatus === "Rejected" && applicantDocumentRequirementTypes.has(existing.requirementType)) {
+          const detail = await selectApplicationDetail(connection, existing.applicationId);
+          if (detail) {
+            await enqueueInformationRequest(connection, { applicationId: existing.applicationId, applicationCode: detail.applicationCode, email: detail.email, name: detail.fullName });
+          }
+        }
         const requirements = await selectRequirements(connection, existing.applicationId);
         return requirements.find((requirement) => requirement.id === requirementId)!;
       }, databasePool());
@@ -2083,7 +2110,7 @@ export function createMembershipApplicationRepository(
             );
           }
         }
-        await connection.execute(
+        const [historyResult] = await connection.execute<ResultSetHeader>(
           `INSERT INTO membership_application_status_history
              (membership_application_id, old_status, new_status, internal_note, applicant_message, changed_by)
            VALUES (?, ?, ?, ?, ?, ?)`,
@@ -2109,6 +2136,26 @@ export function createMembershipApplicationRepository(
 
         const detail = await selectApplicationDetail(connection, applicationId);
         if (!detail) throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
+        const applicant = { applicationId, applicationCode: detail.applicationCode, email: detail.email, name: detail.fullName };
+        if (nextStatus === "Needs Information") {
+          await enqueueInformationRequest(connection, applicant);
+        } else if (nextStatus === "Payment Required") {
+          await enqueueMembershipStatus(connection, applicant, {
+            kind: "ready_for_payment",
+            status: detail.applicationStatus,
+            subject: `Membership payment is ready: ${detail.applicationCode}`,
+            message: "Your membership application was approved for payment. Please complete the required payment from your application status page.",
+            occurrence: `hist:${historyResult.insertId}`,
+          });
+        } else if (nextStatus === "Rejected") {
+          await enqueueMembershipStatus(connection, applicant, {
+            kind: "rejected",
+            status: detail.applicationStatus,
+            subject: `Membership application update: ${detail.applicationCode}`,
+            message: input.applicantMessage ?? "Your membership application was reviewed and was not approved at this time.",
+            occurrence: `hist:${historyResult.insertId}`,
+          });
+        }
         return detail;
       }, databasePool());
     },

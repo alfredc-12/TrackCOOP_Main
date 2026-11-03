@@ -2,7 +2,8 @@ import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql
 import { randomInt } from "node:crypto";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
-import { createGeneratedPdfDocument } from "../../records/generated-pdf-document";
+import { queuePaymentReceipt } from "../paymongo/paymongo.settlement.receipt";
+import { enqueuePosCashInstructions } from "./pos-outbox";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import type { CheckoutPayload, CompleteOrderInput, ConfirmOrderInput, PosReasonInput } from "./pos.types";
@@ -343,6 +344,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
           [memberId, submittedBy, customerName, customerEmail, customerContact, provider, channel, referenceNumber, saleId, totalAmount],
         );
         const paymentReferenceId = refResult.insertId;
+        if (paymentMethod === "Cash") {
+          await enqueuePosCashInstructions(connection, { paymentReferenceId, email: customerEmail, name: customerName });
+        }
 
         await connection.query("UPDATE pos_sales SET payment_reference_id = ? WHERE pos_sale_id = ?", [
           paymentReferenceId,
@@ -516,53 +520,24 @@ export function createPosRepository(pool?: Pool): PosRepository {
           );
         }
 
-        const receiptNumber = `POS-RCP-${new Date().getUTCFullYear()}-${orderId.padStart(6, "0")}`;
-        let generatedReceipt: Awaited<ReturnType<typeof createGeneratedPdfDocument>> | null = null;
-        try {
-          generatedReceipt = await createGeneratedPdfDocument(connection, {
-            uploadedBy: userId,
-            uploaderRole: auth.user.role,
-            memberId: sale.member_id,
-            title: `POS Receipt ${receiptNumber}`,
-            description: "System-generated receipt for a confirmed TrackCOOP POS sale.",
-            category: "RECEIPT",
-            documentType: "Receipt",
-            accessLevel: sale.member_id ? "Member-only" : "Bookkeeper-only",
-            relatedModule: "POS_SALE",
-            relatedRecordId: orderId,
-            relatedRecordReference: sale.sale_number,
-            relationshipType: "SYSTEM_RECEIPT",
-            fileBaseName: receiptNumber,
-            heading: "Point-of-Sale Receipt",
-            lines: [
-              { label: "Receipt number", value: receiptNumber },
-              { label: "Sale number", value: sale.sale_number },
-              { label: "Customer", value: sale.customer_name ?? "Walk-in" },
-              { label: "Sale date", value: sale.sale_date },
-              { label: "Subtotal", value: `PHP ${subtotalAmount.toFixed(2)}` },
-              ...(discountAmount > 0 ? [{ label: "Discount", value: `PHP -${discountAmount.toFixed(2)}` }] : []),
-              { label: "Amount paid", value: `PHP ${newTotalAmount.toFixed(2)}` },
-              { label: "Payment status", value: "Paid" },
-            ],
-          });
-        } catch (pdfErr) {
-          console.error("PDF generation failed in POS confirmation:", pdfErr);
-        }
-
-        if (generatedReceipt && sale.member_id) {
-          await connection.query(
-            `INSERT INTO notifications
-               (user_id, notification_type, title, message, related_entity_type, related_entity_id)
-             SELECT mp.user_id, 'Document', 'POS receipt available',
-                    CONCAT(?, ' is available in Documents.'), 'Document', ?
-               FROM member_profiles mp
-              WHERE mp.member_id = ? AND mp.user_id IS NOT NULL`,
-            [receiptNumber, generatedReceipt.documentId, sale.member_id],
-          );
-        }
+        // The official receipt uses the shared payment-receipt mechanism: one row per payment reference, generated
+        // after this transaction commits and retried safely if generation fails. Historical POS-RCP receipts
+        // stay as they are; new receipts are numbered PAY-RCPT-.
+        await queuePaymentReceipt(connection, {
+          paymentReferenceId: String(paymentRefId),
+          memberId: sale.member_id ? String(sale.member_id) : null,
+          actorUserId: String(userId),
+          amount: newTotalAmount,
+          paymentChannel: "Cash",
+          provider: "Cash",
+          validationSource: "Manual Bookkeeper",
+          subjectReference: sale.sale_number,
+          paymentDate: new Date(),
+          validatedAt: new Date(),
+        });
 
         return {
-          receiptDocumentId: generatedReceipt?.documentId ?? null,
+          receiptDocumentId: null,
           paymentReferenceId: paymentRefId,
         };
       }, databasePool());

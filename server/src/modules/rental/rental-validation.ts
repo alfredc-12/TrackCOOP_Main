@@ -252,6 +252,7 @@ export const rentalScheduleSchema = z
     barangay: z.string().trim().min(2, "Enter the barangay.").max(100),
     assignedOperator: z.string().trim().max(190).optional(),
     specialInstructions: z.string().trim().max(1000).optional(),
+    customerInstructions: z.string().trim().max(1000).optional(),
   })
   .refine((value) => value.endDate >= value.date, {
     message: "Schedule end date cannot be before the start date.",
