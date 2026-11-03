@@ -1,7 +1,7 @@
 "use client";
 
 import { SearchCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   formatRentalDate,
   formatRentalDateRange,
@@ -31,14 +31,55 @@ const publicStatusLabels: Record<RentalStatus, string> = {
   "On Hold": "On Hold",
 };
 
-export function RentalStatusLookup() {
-  const [reference, setReference] = useState("");
+export type RentalStatusLinkParams = { reference: string; token?: string };
+
+export function RentalStatusLookup({ initial }: { initial?: RentalStatusLinkParams }) {
+  const [reference, setReference] = useState(initial?.reference ?? "");
+  // Opened from an emailed link: the status loads by itself, and the booking's contact number is asked for only to pay.
+  const [linkLoading, setLinkLoading] = useState(Boolean(initial?.token));
+  const [linked, setLinked] = useState(false);
+  const [linkInvalid, setLinkInvalid] = useState(false);
   const [contact, setContact] = useState("");
   const [result, setResult] = useState<PublicRentalInquiryStatus>();
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [contactError, setContactError] = useState("");
   const [paymentStarting, setPaymentStarting] = useState<"QRPH" | "Cash" | null>(null);
+
+  useEffect(() => {
+    if (!initial?.token) return;
+    let cancelled = false;
+    rentalRepository
+      .lookupRentalInquiryByLink(initial.reference, initial.token)
+      .then((found) => {
+        if (cancelled) return;
+        if (found) {
+          setResult(found);
+          setLinked(true);
+          setSearched(true);
+        } else {
+          setLinkInvalid(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLinkInvalid(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLinkLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initial?.reference, initial?.token]);
+
+  function checkAnother() {
+    setLinked(false);
+    setLinkInvalid(false);
+    setResult(undefined);
+    setSearched(false);
+    setContact("");
+    setContactError("");
+  }
 
   async function lookup(event: React.FormEvent) {
     event.preventDefault();
@@ -62,6 +103,10 @@ export function RentalStatusLookup() {
 
   async function startPayment(method: "QRPH" | "Cash") {
     if (!result) return;
+    if (linked && !PHILIPPINE_MOBILE_PATTERN.test(normalizePhilippineMobile(`+63${contact}`))) {
+      setContactError("Enter the 10-digit mobile number after +63.");
+      return;
+    }
     setPaymentStarting(method);
     try {
       const payment = await rentalRepository.startRentalPayment(result.inquiryId, method, contact);
@@ -77,6 +122,18 @@ export function RentalStatusLookup() {
 
   return (
     <div className="w-full">
+      {linkLoading ? (
+        <p role="status" aria-live="polite" className="rounded-2xl border border-[#d8e4d3] bg-[#f8fbf5] p-5 text-sm font-semibold text-[#365f4a]">
+          Loading your booking status…
+        </p>
+      ) : null}
+      {linkInvalid ? (
+        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
+          This link has expired or is no longer valid.{" "}
+          <span className="font-normal text-amber-800">Enter your booking reference and mobile number to check your status.</span>
+        </div>
+      ) : null}
+      {!linked && !linkLoading ? (
       <form
         onSubmit={lookup}
         className="rounded-3xl border border-[#d8e4d3] bg-[#f8fbf5] p-6 shadow-sm"
@@ -130,15 +187,23 @@ export function RentalStatusLookup() {
           {loading ? "Checking…" : "Check Status"}
         </button>
       </form>
+      ) : null}
       {searched ? (
         result ? (
           <section
             aria-live="polite"
             className="mt-6 rounded-3xl border border-[#cfe0ca] bg-[#f8fbf5] p-6"
           >
-            <h2 className="text-xl font-bold text-[#123d2a]">
-              Booking status
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xl font-bold text-[#123d2a]">
+                Booking status
+              </h2>
+              {linked ? (
+                <button type="button" onClick={checkAnother} className="text-sm font-bold text-[#1f6b43] underline underline-offset-2">
+                  Check another booking
+                </button>
+              ) : null}
+            </div>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
               <StatusDetail term="Booking reference" value={result.inquiryId} />
               <StatusDetail
@@ -182,6 +247,30 @@ export function RentalStatusLookup() {
             </dl>
             {result.canStartPayment && result.payableAmount && result.payableAmount > 0 ? (
               <div className="mt-5 rounded-2xl border border-[#d8e4d3] bg-white p-4">
+                {linked ? (
+                  <label className="mb-4 grid gap-2 text-sm font-bold text-[#365f4a]">
+                    Mobile number used for this booking
+                    <div className={`flex h-11 overflow-hidden rounded-xl border bg-white focus-within:border-[#1f6b43] ${contactError ? "border-red-400" : "border-[#d5e1d0]"}`}>
+                      <span className="flex min-w-[4.5rem] items-center justify-center border-r border-[#d5e1d0] bg-[#f7f3e8] px-3 text-sm font-bold text-[#365f4a]">+63</span>
+                      <input
+                        inputMode="tel"
+                        autoComplete="tel"
+                        value={contact}
+                        onChange={(event) => {
+                          setContact(event.target.value.replace(/\D/g, "").replace(/^63/, "").replace(/^0/, "").slice(0, 10));
+                          if (contactError) setContactError("");
+                        }}
+                        placeholder="9171234567"
+                        maxLength={10}
+                        aria-invalid={Boolean(contactError)}
+                        className="min-w-0 flex-1 border-0 px-3 font-normal outline-none"
+                      />
+                    </div>
+                    <span className={`text-xs font-semibold ${contactError ? "text-red-700" : "font-normal text-[#66756c]"}`}>
+                      {contactError || "We ask for this once more to protect your payment."}
+                    </span>
+                  </label>
+                ) : null}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-[#78857d]">Amount due</p>

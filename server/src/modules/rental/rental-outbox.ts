@@ -3,10 +3,11 @@ import type { RowDataPacket } from "mysql2/promise";
 import { getEmailConfig, isResendMode, type EmailConfig } from "../email/email-config";
 import { enqueueEmail, type SqlExecutor } from "../email/email-outbox.repository";
 import {
-  rentalPaymentMessage,
-  rentalScheduleMessage,
-  rentalStatusMessage,
-  rentalSubmittedMessage,
+  rentalPaymentContent,
+  rentalScheduleContent,
+  rentalStatusContent,
+  rentalSubmittedContent,
+  type RentalEmailContent,
 } from "./rental-email";
 import type { RentalInquiry, RentalSchedule } from "./rental.types";
 
@@ -15,6 +16,11 @@ import type { RentalInquiry, RentalSchedule } from "./rental.types";
  * Recipients are the requester only; the Chairman and Bookkeeper keep their in-app notifications.
  * All of these are no-ops unless EMAIL_DELIVERY is resend.
  */
+
+/** What is stored: the message content and the booking reference. The worker adds the status link when it sends. */
+function stored(reference: string, content: RentalEmailContent) {
+  return { reference, content };
+}
 
 function requester(inquiry: Pick<RentalInquiry, "requester">) {
   return { email: inquiry.requester.email, name: inquiry.requester.fullName };
@@ -26,7 +32,7 @@ export async function enqueueRentalSubmitted(executor: SqlExecutor, inquiry: Ren
     eventKey: "rental.booking.submitted",
     dedupeKey: `rental.submitted:booking:${bookingId}`,
     to: requester(inquiry),
-    payload: { ...rentalSubmittedMessage(inquiry, config.frontendUrl) },
+    payload: stored(inquiry.inquiryId, rentalSubmittedContent(inquiry)),
     related: { type: "rental_bookings", id: String(bookingId) },
   }, config);
 }
@@ -38,7 +44,7 @@ export async function enqueueRentalStatus(executor: SqlExecutor, inquiry: Rental
     eventKey: "rental.status.updated",
     dedupeKey: `rental.status:${bookingId}:${inquiry.status}:${version}`,
     to: requester(inquiry),
-    payload: { ...rentalStatusMessage(inquiry, config.frontendUrl) },
+    payload: stored(inquiry.inquiryId, rentalStatusContent(inquiry)),
     related: { type: "rental_bookings", id: String(bookingId) },
   }, config);
 }
@@ -60,7 +66,7 @@ export async function enqueueRentalSchedule(
   config: EmailConfig = getEmailConfig(),
 ) {
   if (!isResendMode(config)) return;
-  const message = rentalScheduleMessage({
+  const content = rentalScheduleContent({
     reference: schedule.rentalId,
     requesterName: inquiry.requester.fullName,
     equipmentName: schedule.equipmentName,
@@ -74,12 +80,12 @@ export async function enqueueRentalSchedule(
     barangay: schedule.barangay,
     // Only the customer-facing field. schedule.specialInstructions is internal and is never read here.
     customerInstructions: schedule.customerInstructions,
-  }, config.frontendUrl);
+  });
   await enqueueEmail(executor, {
     eventKey: "rental.schedule.updated",
     dedupeKey: `rental.schedule:${bookingId}:${scheduleVersion(schedule)}`,
     to: requester(inquiry),
-    payload: { ...message },
+    payload: stored(schedule.rentalId, content),
     related: { type: "rental_bookings", id: String(bookingId) },
   }, config);
 }
@@ -120,7 +126,7 @@ export async function enqueueRentalPaymentConfirmed(executor: SqlExecutor, payme
   }
   const email = typeof meta.email === "string" && meta.email.trim() ? meta.email : (row.memberEmail as string | null);
   const name = String(row.requesterName ?? row.memberName ?? "Rental requester");
-  const message = rentalPaymentMessage({
+  const content = rentalPaymentContent({
     reference: String(row.reference),
     requesterName: name,
     equipmentName: String(row.equipmentName),
@@ -129,12 +135,12 @@ export async function enqueueRentalPaymentConfirmed(executor: SqlExecutor, payme
     paymentReference: payment.paymentReference,
     receiptNumber: payment.receiptNumber,
     paidOn: payment.paidOn,
-  }, config.frontendUrl);
+  });
   await enqueueEmail(executor, {
     eventKey: "rental.payment.confirmed",
     dedupeKey: `rental.payment:payref:${payment.paymentReferenceId}`,
     to: { email, name },
-    payload: { ...message },
+    payload: stored(String(row.reference), content),
     related: { type: "payment_references", id: String(payment.paymentReferenceId) },
   }, config);
 }

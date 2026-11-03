@@ -2073,6 +2073,19 @@ export const rentalDatabase = {
           lookupContact,
     );
     if (!inquiry) return undefined;
+    return this.buildPublicInquiryStatus(inquiry);
+  },
+
+  /**
+   * The same public status, found by reference alone. Only call it after the emailed link's signature has been
+   * verified: the signed link stands in for the contact number.
+   */
+  async lookupRentalInquiryByReference(reference: string) {
+    const row = await bookingByRentalId(reference.trim().toUpperCase());
+    return row ? this.buildPublicInquiryStatus(mapBooking(row)) : undefined;
+  },
+
+  async buildPublicInquiryStatus(inquiry: RentalInquiry) {
     const schedule = (await this.getRentalSchedules()).find(
       (item) => item.rentalId === inquiry.rentalId,
     );

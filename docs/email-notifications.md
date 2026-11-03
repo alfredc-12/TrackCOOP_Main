@@ -49,8 +49,28 @@ Sending never happens inside a request, so a Resend outage cannot slow or fail a
 | 11 | `pos.cash.instructions` | Cash order placed; dropped if the order is no longer Pending Payment | Customer |
 | 12 | `pos.payment.receipt` | Only after payment is confirmed **and** the official receipt is Generated; contains a secure link to the receipt PDF | Customer |
 
+Every email has a designed HTML version and a plain-text version, both built from the same content (`email-layout.ts` is the one frame for membership, rental, store and activation emails).
 Internal notes never appear in customer emails. The Chairman rental schedule form has two separate fields:
 **Instructions for the customer** (emailed) and **Internal schedule instructions** (staff only).
+
+## Booking status link (rental emails)
+
+The button in every rental email opens the **Check Booking Status** dialog on the rental page and loads the status by itself:
+
+```
+<FRONTEND_URL>/rental?booking=RNT-2026-0025&k=<signed token>
+```
+
+* The token is an HMAC (key derived from `EMAIL_SECRET_KEY`) over the booking reference and an expiry, valid for **60 days**.
+  It only works for that booking, is checked by `GET /api/rental/inquiries/status-link`, and gives the same read-only status as
+  the reference + mobile number lookup. It is created when the email is sent, so the queued row never stores a link.
+* Opening a booking's status from the link never reveals the contact number. **Paying still asks the customer to confirm the
+  mobile number** used for the booking, exactly as before.
+* An expired or invalid link falls back to the normal form with the reference filled in. Without `EMAIL_SECRET_KEY` the link
+  only fills in the reference.
+* Closing the dialog removes the parameters from the address bar. The old `/rental/inquiry/status` page now redirects to the
+  dialog (`/rental?check=1`, or with the booking and token if present), so earlier emails and the "Check Booking Status"
+  button after submitting a request keep working.
 
 ## Receipts
 

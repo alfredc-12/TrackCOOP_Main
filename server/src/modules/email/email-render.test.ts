@@ -4,10 +4,10 @@ import test from "node:test";
 import type { Pool } from "mysql2/promise";
 import { APPROVED_WITH_ACTIVATION_MESSAGE } from "../membership-applications/membership-outbox";
 import { enqueueRentalPaymentConfirmed, enqueueRentalSchedule, scheduleVersion } from "../rental/rental-outbox";
-import { rentalPaymentMessage, rentalScheduleMessage, rentalStatusMessage, rentalSubmittedMessage, formatClockTime } from "../rental/rental-email";
+import { formatClockTime, rentalPaymentContent, rentalScheduleContent, rentalStatusContent, rentalSubmittedContent, renderRentalEmail, type RentalEmailContent } from "../rental/rental-email";
 import type { RentalInquiry, RentalSchedule } from "../rental/rental.types";
 import type { EmailConfig } from "./email-config";
-import { encryptSecret, verifyReceiptToken } from "./email-crypto";
+import { encryptSecret, signRentalStatusToken, verifyReceiptToken, verifyRentalStatusToken } from "./email-crypto";
 import type { OutboxRow, SqlExecutor } from "./email-outbox.repository";
 import { renderOutboxEmail } from "./email-render";
 
@@ -129,6 +129,9 @@ test("5. a replacement activation email carries only the new link and says it ca
 
 // ------------------------------------------------------------------------------------------------ rental 7-10
 
+const STATUS_URL = "https://app.example.test/rental?booking=RNT-0042&k=TESTTOKEN";
+const rentalMessage = (content: RentalEmailContent) => renderRentalEmail(content, STATUS_URL);
+
 const inquiry = {
   inquiryId: "RNT-0042", rentalId: "RNT-0042", requester: { fullName: "Juan Dela Cruz", email: "juan@example.test", requesterType: "Public or Non-member" },
   equipmentName: "Hand Tractor", preferredDate: "2026-11-01", preferredEndDate: "2026-11-01", preferredStartTime: "08:00", preferredEndTime: "17:00",
@@ -136,14 +139,14 @@ const inquiry = {
 } as unknown as RentalInquiry;
 
 test("7. rental request received summarises the booking and links to status", () => {
-  const message = rentalSubmittedMessage(inquiry, "https://app.example.test");
+  const message = rentalMessage(rentalSubmittedContent(inquiry));
   assert.equal(message.subject, "Rental booking received: RNT-0042");
   assert.match(message.text, /Equipment: Hand Tractor/);
-  assert.match(message.text, /https:\/\/app\.example\.test\/rental\/inquiry\/status/);
+  assert.match(message.text, /https:\/\/app\.example\.test\/rental\?booking=RNT-0042&k=TESTTOKEN/);
 });
 
 test("8. a status update says what the status now is", () => {
-  const message = rentalStatusMessage(inquiry, "https://app.example.test");
+  const message = rentalMessage(rentalStatusContent(inquiry));
   assert.equal(message.subject, "Rental request RNT-0042: Approved for Scheduling");
   assert.match(message.text, /is now Approved for Scheduling/);
 });
@@ -157,18 +160,18 @@ const schedule: RentalSchedule = {
 };
 
 test("9. the schedule email shows the confirmed dates and times, not the preferred ones", () => {
-  const message = rentalScheduleMessage({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true }, "https://app.example.test");
+  const message = rentalMessage(rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true }));
   assert.equal(message.subject, "Rental schedule confirmed: RNT-0042");
   assert.match(message.text, /Start: November 5, 2026, 8:30 AM/);
   assert.match(message.text, /End: November 6, 2026, 4:45 PM/);
   assert.equal(message.text.includes("November 1, 2026"), false, "the preferred date must not appear");
-  for (const expected of ["Location: Sitio Uno farm, Wawa", "Assigned operator: Pedro Santos", "Please have the field cleared", "Reference: RNT-0042", "Hand Tractor", "Philippine time", "/rental/inquiry/status"]) {
+  for (const expected of ["Location: Sitio Uno farm, Wawa", "Assigned operator: Pedro Santos", "Please have the field cleared", "Reference: RNT-0042", "Hand Tractor", "Philippine time", "/rental?booking=RNT-0042"]) {
     assert.ok(message.text.includes(expected), expected);
   }
 });
 
 test("9. a proposed schedule is labelled as not final, and a schedule without an operator or instructions leaves those lines out", () => {
-  const message = rentalScheduleMessage({ reference: "RNT-0042", requesterName: "Juan", equipmentName: "Hand Tractor", confirmed: false, date: "2026-11-05", endDate: "2026-11-05", startTime: "08:00", endTime: "12:00" }, "https://app.example.test");
+  const message = rentalMessage(rentalScheduleContent({ reference: "RNT-0042", requesterName: "Juan", equipmentName: "Hand Tractor", confirmed: false, date: "2026-11-05", endDate: "2026-11-05", startTime: "08:00", endTime: "12:00" }));
   assert.equal(message.subject, "Rental schedule proposed: RNT-0042");
   assert.match(message.text, /not final until it is confirmed/);
   assert.equal(message.text.includes("Assigned operator"), false);
@@ -200,7 +203,7 @@ test("9. clock times are shown as Philippine wall-clock values", () => {
 });
 
 test("10. the payment email states the amount, method, reference and receipt number", () => {
-  const message = rentalPaymentMessage({ reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", amount: 1500, paymentMethod: "QRPH", paymentReference: "RNT-PAY-42", receiptNumber: "PAY-RCPT-2026-000042", paidOn: "2026-11-03" }, "https://app.example.test");
+  const message = rentalMessage(rentalPaymentContent({ reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", amount: 1500, paymentMethod: "QRPH", paymentReference: "RNT-PAY-42", receiptNumber: "PAY-RCPT-2026-000042", paidOn: "2026-11-03" }));
   assert.equal(message.subject, "Rental payment confirmed: RNT-0042");
   for (const expected of ["₱1,500.00", "Payment method: QRPH", "Payment reference: RNT-PAY-42", "Receipt number: PAY-RCPT-2026-000042", "November 3, 2026"]) assert.ok(message.text.includes(expected), expected);
 });
@@ -220,11 +223,80 @@ test("10. one rental payment queues one email whichever path confirmed it", asyn
   assert.deepEqual(keys, ["rental.payment:payref:77", "rental.payment:payref:77"], "identical keys, so the unique index keeps only one row");
 });
 
-test("7-10. rental rows render the finished text that was queued", async () => {
-  for (const eventKey of ["rental.booking.submitted", "rental.status.updated", "rental.schedule.updated", "rental.payment.confirmed"]) {
-    const message = await ok(renderOutboxEmail(row({ eventKey, payload: { subject: `Subject for ${eventKey}`, text: "Body" } }), ctx()));
-    assert.deepEqual(message, { subject: `Subject for ${eventKey}`, text: "Body" });
+const rentalRow = (eventKey: string, content: RentalEmailContent, reference = "RNT-0042") => row({ eventKey, payload: { reference, content } });
+
+test("7-10. a queued rental email renders as both text and HTML, with a status link that signs in by itself", async () => {
+  const cases: Array<[string, RentalEmailContent]> = [
+    ["rental.booking.submitted", rentalSubmittedContent(inquiry)],
+    ["rental.status.updated", rentalStatusContent(inquiry)],
+    ["rental.schedule.updated", rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true })],
+    ["rental.payment.confirmed", rentalPaymentContent({ reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", amount: 1500 })],
+  ];
+  for (const [eventKey, content] of cases) {
+    const message = await ok(renderOutboxEmail(rentalRow(eventKey, content), ctx()));
+    assert.equal(message.subject, content.subject, eventKey);
+    assert.ok(message.html && message.html.startsWith("<!doctype html>"), `${eventKey} has an HTML version`);
+    assert.ok(message.html.includes(content.title), eventKey);
+    const link = /https:\/\/app\.example\.test\/rental\?booking=RNT-0042&k=(\S+)/.exec(message.text);
+    assert.ok(link, `${eventKey} links to the status dialog`);
+    assert.equal(verifyRentalStatusToken(decodeURIComponent(link![1]), "RNT-0042", secretKey, Math.floor(now.getTime() / 1000)), true);
+    assert.ok(message.html.includes("Check booking status"), eventKey);
   }
+});
+
+test("7-10. the status link is bound to its booking and expires", async () => {
+  const message = await ok(renderOutboxEmail(rentalRow("rental.status.updated", rentalStatusContent(inquiry)), ctx()));
+  const token = decodeURIComponent(/&k=(\S+)/.exec(message.text)![1]);
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  assert.equal(verifyRentalStatusToken(token, "RNT-0042", secretKey, nowSeconds), true);
+  assert.equal(verifyRentalStatusToken(token, "rnt-0042", secretKey, nowSeconds), true, "reference case does not matter");
+  assert.equal(verifyRentalStatusToken(token, "RNT-0043", secretKey, nowSeconds), false, "another booking");
+  assert.equal(verifyRentalStatusToken(token, "RNT-0042", randomBytes(32), nowSeconds), false, "another key");
+  assert.equal(verifyRentalStatusToken(token, "RNT-0042", secretKey, nowSeconds + 61 * 86_400), false, "after 60 days");
+  assert.equal(verifyRentalStatusToken(`${token}x`, "RNT-0042", secretKey, nowSeconds), false, "altered");
+  assert.equal(verifyRentalStatusToken("garbage", "RNT-0042", secretKey, nowSeconds), false);
+  assert.equal(verifyRentalStatusToken(signRentalStatusToken("RNT-0042", nowSeconds - 1, secretKey), "RNT-0042", secretKey, nowSeconds), false, "already expired");
+});
+
+test("7-10. without a key the link still opens the dialog, just without signing in", async () => {
+  const message = await ok(renderOutboxEmail(rentalRow("rental.status.updated", rentalStatusContent(inquiry)), { pool: fakePool(), config: { ...config, secretKey: undefined }, now }));
+  assert.match(message.text, /https:\/\/app\.example\.test\/rental\?booking=RNT-0042(\s|$)/);
+  assert.equal(message.text.includes("&k="), false);
+});
+
+test("7-10. rows queued before the HTML version existed still send their finished text", async () => {
+  const message = await ok(renderOutboxEmail(row({ eventKey: "rental.status.updated", payload: { subject: "Old subject", text: "Old body" } }), ctx()));
+  assert.deepEqual(message, { subject: "Old subject", text: "Old body" });
+});
+
+test("9. the schedule HTML shows the confirmed times, the customer instructions, and nothing internal", async () => {
+  const content = rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true });
+  const message = rentalMessage(content);
+  for (const expected of ["Rental schedule confirmed", "November 5, 2026, 8:30 AM", "November 6, 2026, 4:45 PM", "Pedro Santos", "Sitio Uno farm, Wawa", "Please have the field cleared"]) {
+    assert.ok(message.html.includes(expected), expected);
+  }
+  assert.equal(message.html.includes("INTERNAL"), false);
+  assert.equal(message.html.includes("past balance"), false);
+});
+
+test("rental HTML escapes whatever a customer or staff member typed", () => {
+  const content = rentalScheduleContent({
+    ...schedule, reference: "RNT-0042", requesterName: "<b>Juan</b>", equipmentName: "Tractor \"X\" & Co", confirmed: true,
+    customerInstructions: "<script>alert(1)</script>\nBring ID",
+  });
+  const { html } = rentalMessage(content);
+  assert.equal(html.includes("<script>"), false);
+  assert.equal(html.includes("<b>Juan</b>"), false);
+  assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;<br>Bring ID"));
+  assert.ok(html.includes("Tractor &quot;X&quot; &amp; Co"));
+});
+
+test("the email layout is email-safe: no external resources, a solid button, and a plain link fallback", () => {
+  const { html } = rentalMessage(rentalStatusContent(inquiry));
+  assert.equal(/<script|<link |@import|url\(|<img /i.test(html), false);
+  assert.match(html, /<meta name="viewport"/);
+  assert.match(html, /<a href="https:\/\/app\.example\.test\/rental\?booking=RNT-0042&amp;k=TESTTOKEN"/);
+  assert.ok((html.match(/https:\/\/app\.example\.test\/rental\?booking=RNT-0042&amp;k=TESTTOKEN/g) ?? []).length >= 2, "button and copy-and-paste fallback");
 });
 
 // -------------------------------------------------------------------------------------------------- POS 11-12

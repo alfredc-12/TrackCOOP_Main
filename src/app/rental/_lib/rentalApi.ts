@@ -131,6 +131,8 @@ export const rentalApiRepository = {
   getRentalStatusHistory: (inquiryId: string) =>
     request<RentalStatusHistoryEntry[]>(`/inquiries/${inquiryId}/history`),
   lookupRentalInquiry: (reference: string, contact: string) => request<PublicRentalInquiryStatus>(`/inquiries/status?reference=${encodeURIComponent(reference)}&contact=${encodeURIComponent(contact)}`),
+  /** The emailed link: a signed token stands in for the contact number. Resolves to null when it is invalid or expired. */
+  lookupRentalInquiryByLink: (reference: string, token: string) => request<PublicRentalInquiryStatus | null>(`/inquiries/status-link?reference=${encodeURIComponent(reference)}&token=${encodeURIComponent(token)}`),
   reviewRentalInquiry: (inquiryId: string, decision: RentalStatus, publicNote: string, internalNote?: string) => request<RentalInquiry>(`/inquiries/${inquiryId}/review`, { method: "POST", body: JSON.stringify({ decision, publicNote, internalNote }) }),
   updateRentalStatus: (inquiryId: string, status: RentalStatus, reason?: string) => request<RentalInquiry>(`/inquiries/${inquiryId}/status`, { method: "PATCH", body: JSON.stringify({ status, reason }) }),
   getRentalSchedules: () => request<RentalSchedule[]>("/schedules"),
