@@ -82,7 +82,7 @@ The original checkout contains substantial pre-existing staged/unstaged/untracke
 
 Runtime prerequisite: existing financial tables and previously established posting/correction migrations. Optional season/document support is detected. No mandatory new schema or new environment variable is required. The optional SQL proposals must not be applied automatically. Query performance should be profiled at production scale before deciding whether the optional index is justified.
 
-The task branch/worktree remain for review; merge and cleanup require the user's separate exact trigger. Main's local changes and unrelated work must be preserved during that later integration.
+The implementation handoff retained the task branch/worktree for review. Subsequent authorized integration and combined checks are recorded in [integration.md](integration.md); original local work is preserved.
 
 ## Reproduction settings
 

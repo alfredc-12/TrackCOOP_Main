@@ -43,3 +43,7 @@ See [database-review.md](database-review.md) for mandatory/optional schema revie
 ## Design review
 
 Uses original-checkout TrackCOOP design references, Impeccable, Taste application-screen guidance and their applicable companion guidance. The existing forest shell, less-beige background, shared white KPI/control cards and right drawers are retained. No new font, icon library, visualization library or global theme is introduced. Taste direction `achromatic-ledger`, seed `1917342096`, was selected after a consumer/pastel draw (`198871509`) conflicted with the financial-workspace brief. Brand and portal consistency take precedence over a generic palette recommendation. Desktop/tablet/phone screenshots were reviewed at 1440/768/390 pixels; dates, phone KPI alignment and bucket bar width were adjusted in the bounded review pass.
+
+## Subsequent integration
+
+The user authorized integration into the original main checkout after the isolated implementation. See [integration.md](integration.md) for merge identity, preserved work, conflict resolutions and combined verification.

@@ -76,7 +76,7 @@ export function postedRecordSql(r = "fr") {
   return `${r}.record_status = 'Active' AND ${r}.approved_by IS NOT NULL`;
 }
 export function capitalMovementSql(r = "fr", c = "fc") {
-  return `(${r}.source_module='Share Capital' OR UPPER(COALESCE(${c}.category_code,'')) IN (${excludedOperatingCodes.map((x) => `'${x}'`).join(",")}) OR UPPER(COALESCE(${c}.category_name,'')) LIKE '%SHARE CAPITAL%' OR EXISTS(SELECT 1 FROM payment_references cap_ref WHERE cap_ref.payment_reference_id=${r}.payment_reference_id AND cap_ref.payment_purpose='Share Capital'))`;
+  return `(${r}.source_module = 'Share Capital' OR UPPER(COALESCE(${c}.category_code,'')) IN (${excludedOperatingCodes.map((x) => `'${x}'`).join(",")}) OR UPPER(COALESCE(${c}.category_name,'')) LIKE '%SHARE CAPITAL%' OR EXISTS(SELECT 1 FROM payment_references cap_ref WHERE cap_ref.payment_reference_id=${r}.payment_reference_id AND cap_ref.payment_purpose='Share Capital'))`;
 }
 export function supersededSql(r = "fr") {
   return `(${r}.reversal_of_record_id IS NOT NULL OR EXISTS(SELECT 1 FROM financial_records child WHERE child.record_status='Active' AND child.approved_by IS NOT NULL AND (child.correction_of_record_id=${r}.financial_record_id OR child.reversal_of_record_id=${r}.financial_record_id)))`;
@@ -97,5 +97,5 @@ export function brokenOperationalSourceSql(r = "fr") {
   return `(${r}.record_type='Income' AND ((${r}.source_module='POS' AND ${r}.source_record_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM pos_sales ps WHERE ps.pos_sale_id=${r}.source_record_id)) OR (${r}.source_module='Rental' AND ${r}.source_record_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM rental_bookings rb WHERE rb.rental_booking_id=${r}.source_record_id))))`;
 }
 export function postedOperatingSql(r = "fr", c = "fc") {
-  return `(${postedRecordSql(r)} AND ${r}.record_type IN ('Income','Expense') AND ${r}.amount>0 AND ${compatibleCategorySql(r, c)} AND NOT ${capitalMovementSql(r, c)} AND NOT ${supersededSql(r)} AND NOT ${duplicatePostingSql(r)} AND NOT ${sourceMismatchSql(r)} AND NOT ${relationshipIssueSql(r)} AND NOT ${brokenOperationalSourceSql(r)})`;
+  return `(${postedRecordSql(r)} AND ${r}.record_type IN ('Income', 'Expense') AND ${r}.amount>0 AND ${compatibleCategorySql(r, c)} AND NOT ${capitalMovementSql(r, c)} AND NOT ${supersededSql(r)} AND NOT ${duplicatePostingSql(r)} AND NOT ${sourceMismatchSql(r)} AND NOT ${relationshipIssueSql(r)} AND NOT ${brokenOperationalSourceSql(r)})`;
 }
