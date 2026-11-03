@@ -56,3 +56,7 @@ graphify-out/
 .cursor/
 docs/graphify.md
 .gitattributes
+
+# Disposable finance SQL integration-test data
+.finance-test-data/
+.finance-test-maria/

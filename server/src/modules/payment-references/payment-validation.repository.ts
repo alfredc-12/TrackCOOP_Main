@@ -72,7 +72,7 @@ function money(value: string | number | null) {
   return value === null ? null : Number(value);
 }
 
-function paymentColumns() {
+export function paymentColumns() {
   return `CAST(p.payment_reference_id AS CHAR) AS id,
           CAST(p.member_id AS CHAR) AS memberId,
           CAST(p.submitted_by AS CHAR) AS submittedBy,
@@ -107,7 +107,7 @@ function paymentColumns() {
           p.updated_at AS updatedAt`;
 }
 
-function identityJoins() {
+export function identityJoins() {
   return `LEFT JOIN member_profiles m ON m.member_id = p.member_id
           LEFT JOIN membership_applications a
             ON p.related_entity_type = 'membership_application'
@@ -120,7 +120,7 @@ function identityJoins() {
             ON rental_asset.rental_asset_id = rental.rental_asset_id`;
 }
 
-function rentalColumns() {
+export function rentalColumns() {
   return `rental.booking_number AS rentalNumber,
           rental_asset.asset_name AS rentalEquipmentName,
           rental.start_datetime AS rentalStartAt,
@@ -133,7 +133,7 @@ function rentalColumns() {
             ELSE NULL END AS rentalUnit`;
 }
 
-function posColumns() {
+export function posColumns() {
   return `CASE WHEN p.payment_purpose = 'POS/Product' THEN (
             SELECT COALESCE(SUM(pos_item.quantity), 0)
               FROM pos_sale_items pos_item

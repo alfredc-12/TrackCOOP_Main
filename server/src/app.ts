@@ -1,3 +1,4 @@
+import { createFinanceMonitoringRouter } from "./modules/finance-monitoring/finance-monitoring.routes";
 import cookieParser from "cookie-parser";
 import cors, { type CorsOptions } from "cors";
 import express from "express";
@@ -166,6 +167,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createMemberSelfRouter(options.authService));
   app.use("/api", createPaymongoRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
+  app.use("/api", createFinanceMonitoringRouter(options.authService));
   app.use("/api", createPatronageRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));

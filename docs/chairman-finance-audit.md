@@ -1,5 +1,7 @@
 # Chairman payments and share capital: initial audit
 
+> Historical baseline findings. The implemented definitions, corrections and verification are documented in [Chairman finance metrics](chairman-finance-metrics.md).
+
 This is an initial audit of local main at c5926fa, not a completed metric contract. No live database or migration state was inspected.
 
 ## Confirmed source behavior

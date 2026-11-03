@@ -28,7 +28,9 @@ import {
 } from "@/components/portal/PortalPrimitives";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
 import { toast } from "sonner";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { PaymentValidationView } from "./PaymentValidationView";
+import { ChairmanCapitalView } from "@/features/finance-monitoring/ChairmanCapitalView";
 import { DividendManagementPanel } from "./DividendManagementPanelWithPreview";
 import { ShareCapitalLedgerPanel } from "./ShareCapitalLedgerPanel";
 import {
@@ -47,6 +49,8 @@ import {
 } from "./finance-api";
 
 const emptyShareSummary: ShareCapitalSummary = {
+  currentBalance: 0,
+  capitalHolders: 0,
   validatedTotal: 0,
   pendingTotal: 0,
   validatedPayments: 0,
@@ -155,7 +159,12 @@ export function PaymentReferencesView({ role }: { role: "chairman" | "bookkeeper
 }
 
 export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) {
+  return role === "chairman" ? <ChairmanCapitalView /> : <BookkeeperShareCapitalView role={role} />;
+}
+
+function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) {
   const [payments, setPayments] = useState<ShareCapitalPayment[]>([]);
+  const [paymentTotal, setPaymentTotal] = useState(0);
   const [summary, setSummary] = useState<ShareCapitalSummary>(emptyShareSummary);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ShareCapitalPayment["paymentStatus"] | "">("");
@@ -163,7 +172,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const refreshInFlight = useRef(false);
+  const refreshVersion = useRef(0);
 
   // Add Share Capital modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -185,27 +194,27 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   const [detailsCorrect, setDetailsCorrect] = useState(false);
 
   const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (refreshInFlight.current) return;
-    refreshInFlight.current = true;
+    const requestVersion = ++refreshVersion.current;
     if (!silent) {
       setIsLoading(true);
       setError("");
     }
     try {
-      const [nextPayments, nextSummary] = await Promise.all([listShareCapital(search, statusFilter || undefined), getShareCapitalSummary()]);
-      setPayments(nextPayments);
+      const [nextPayments, nextSummary] = await Promise.all([listShareCapital(search, statusFilter || undefined, page, pageSize), getShareCapitalSummary()]);
+      if (requestVersion !== refreshVersion.current) return;
+      setPayments(nextPayments.items);
+      setPaymentTotal(Number(nextPayments.meta.total ?? 0));
       setSummary(nextSummary);
       setError("");
     } catch (caught) {
-      if (!silent) setError(caught instanceof ApiClientError ? caught.message : "Share capital records could not be loaded.");
+      if (!silent && requestVersion === refreshVersion.current) setError(caught instanceof ApiClientError ? caught.message : "Share capital records could not be loaded.");
     } finally {
-      refreshInFlight.current = false;
-      if (!silent) setIsLoading(false);
+      if (requestVersion === refreshVersion.current) setIsLoading(false);
     }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, page, pageSize]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => void load(), 0);
+    const timeoutId = window.setTimeout(() => void load(), 250);
     const refreshTimer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load({ silent: true });
     }, 15_000);
@@ -275,8 +284,8 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
   };
 
   const selectedMember = members.find(m => m.id === form.memberId);
-  const pageCount = Math.max(1, Math.ceil(payments.length / pageSize));
-  const visiblePayments = payments.slice((page - 1) * pageSize, page * pageSize);
+  const pageCount = Math.max(1, Math.ceil(paymentTotal / pageSize));
+  const visiblePayments = payments;
 
   return (
     <div className="grid gap-4">
@@ -294,11 +303,12 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
         </div>
       } />
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Validated Capital" value={money(summary.validatedTotal)} icon={WalletCards} />
-        <StatCard label="Pending Capital" value={money(summary.pendingTotal)} icon={ListChecks} />
-        <StatCard label="Validated Payments" value={String(summary.validatedPayments)} icon={BadgeCheck} />
-        <StatCard label="Member Count" value={String(summary.membersWithValidatedCapital)} icon={Banknote} />
+        <StatCard label="Current Share Capital" value={isLoading ? "…" : error ? "—" : money(summary.currentBalance)} icon={WalletCards} />
+        <StatCard label="Pending Capital" value={isLoading ? "…" : error ? "—" : money(summary.pendingTotal)} icon={ListChecks} />
+        <StatCard label="Validated Payments" value={isLoading ? "…" : error ? "—" : String(summary.validatedPayments)} icon={BadgeCheck} />
+        <StatCard label="Members Holding Capital" value={isLoading ? "…" : error ? "—" : String(summary.capitalHolders)} icon={Banknote} />
       </div>
+      <p className="text-xs text-[#5D6D63]">Totals cover all accounts and payments; filters apply to the list.</p>
       <Toolbar
         search={search}
         onSearch={(value) => { setSearch(value); setPage(1); }}
@@ -308,36 +318,16 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
         rightContent={(
           <div className="flex items-center gap-3">
             <label className="sr-only" htmlFor="share-capital-status-filter">Filter Share Capital status</label>
-            <Select.Root
-              value={statusFilter || "all"}
-              onValueChange={(value) => {
-                setStatusFilter(value === "all" ? "" : value as ShareCapitalPayment["paymentStatus"]);
+            <StyledSelect
+              id="share-capital-status-filter"
+              aria-label="Filter Share Capital status"
+              value={statusFilter || "All statuses"}
+              options={["All statuses", "Pending", "Validated", "Rejected", "Reversed"]}
+              onChange={(value) => {
+                setStatusFilter(value === "All statuses" ? "" : value as ShareCapitalPayment["paymentStatus"]);
                 setPage(1);
               }}
-            >
-              <Select.Trigger id="share-capital-status-filter" aria-label="Filter Share Capital status" className="flex h-10 w-40 items-center justify-between rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
-                <Select.Value />
-                <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
-              </Select.Trigger>
-              <Select.Portal>
-                <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
-                  <Select.Viewport>
-                    {[
-                      { value: "all", label: "All statuses" },
-                      { value: "Pending", label: "Pending" },
-                      { value: "Validated", label: "Validated" },
-                      { value: "Rejected", label: "Rejected" },
-                      { value: "Reversed", label: "Reversed" },
-                    ].map((option) => (
-                      <Select.Item key={option.value} value={option.value} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
-                        <Select.ItemText>{option.label}</Select.ItemText>
-                        <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
-                      </Select.Item>
-                    ))}
-                  </Select.Viewport>
-                </Select.Content>
-              </Select.Portal>
-            </Select.Root>
+            />
             <RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
           </div>
         )}
@@ -367,7 +357,7 @@ export function ShareCapitalView({ role }: { role: "chairman" | "bookkeeper" }) 
             </tbody>
           </table>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
-            <span className="font-semibold text-[#6C7A70]">Showing {payments.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, payments.length)} of {payments.length} payments</span>
+            <span className="font-semibold text-[#6C7A70]">Showing {payments.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, paymentTotal)} of {paymentTotal} payments</span>
             <div className="flex gap-2">
               <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
               <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>

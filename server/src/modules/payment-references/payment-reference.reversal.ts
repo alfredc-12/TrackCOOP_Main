@@ -1,3 +1,5 @@
+import { manilaToday } from "../../utils/manila-calendar";
+import { reverseShareCapitalPaymentInLedger } from "../share-capital/share-capital-ledger.repository";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -78,6 +80,17 @@ export function createPaymentReferenceReversalService(pool?: Pool): PaymentRefer
               AND reversal_of_record_id IS NULL`,
           [`\nReversed payment reference: ${reason}`, input.paymentReferenceId],
         );
+        if (payment.paymentPurpose === "Share Capital") {
+        const [capitalPayments] = await connection.execute<(RowDataPacket & { id: string; memberId: string })[]>(
+          `SELECT CAST(share_payment_id AS CHAR) AS id, CAST(member_id AS CHAR) AS memberId
+             FROM share_capital_payments WHERE payment_reference_id = ? AND payment_status = 'Validated' FOR UPDATE`,
+          [input.paymentReferenceId],
+        );
+        for (const capital of capitalPayments) {
+          await reverseShareCapitalPaymentInLedger({ connection, memberId: capital.memberId, sharePaymentId: capital.id,
+            transactionDate: manilaToday(), createdBy: input.auth.user.id, reason });
+        }
+        }
         await connection.execute(
           `UPDATE share_capital_payments SET payment_status = 'Reversed',
                   remarks = CONCAT(COALESCE(remarks, ''), ?), updated_at = UTC_TIMESTAMP()

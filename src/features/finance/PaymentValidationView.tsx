@@ -35,7 +35,11 @@ import {
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
-import { ApiClientError } from "@/lib/api-client";
+import { ApiClientError, apiRequest } from "@/lib/api-client";
+import Link from "next/link";
+import type { PaymentDiagnostics } from "../../../server/src/modules/finance-monitoring/payment-monitoring";
+import { useFinanceMonitor, type PaymentMonitor } from "@/features/finance-monitoring/monitor-client";
+import { PaymentMonitorPanel } from "@/features/finance-monitoring/PaymentMonitorPanel";
 import {
   getPaymentReferenceDetail,
   getPaymentReferenceSummary,
@@ -153,7 +157,7 @@ function paymentForLabel(payment: Pick<PaymentReferenceListItem, "memberCode" | 
 }
 function paidThroughLabel(payment: Pick<PaymentReferenceListItem, "paymentChannel" | "gatewayPaymentMethod" | "gatewayEnvironment">) {
   if (payment.paymentChannel === "PayMongo") {
-    return payment.gatewayPaymentMethod ? `PayMongo - ${payment.gatewayPaymentMethod}` : "PayMongo";
+    return "QRPH";
   }
   return payment.paymentChannel;
 }
@@ -306,23 +310,28 @@ function ActionConfirmationDialog({
 }
 
 export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper" }) {
-  const [payments, setPayments] = useState<PaymentReferenceListItem[]>([]);
+  const monitoring = useFinanceMonitor<PaymentMonitor>("payments", role === "chairman");
+  const [legacyPayments, setPayments] = useState<PaymentReferenceListItem[]>([]);
   const [summary, setSummary] = useState(emptySummary);
   const [filters, setFilters] = useState<PaymentReferenceFilters>({ page: 1, pageSize: 5, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" });
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<PaymentReferenceDetail | null>(null);
+  const [diagnostics,setDiagnostics] = useState<PaymentDiagnostics|null>(null);
+  const [diagnosticsError,setDiagnosticsError] = useState("");
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [dialog, setDialog] = useState(initialPaymentActionDialogState);
   const [editReference, setEditReference] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [legacyLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSecondarySubmitting, setIsSecondarySubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [legacyError, setError] = useState("");
   const mutationLock = useRef(false);
+  const detailVersion = useRef(0);
   const refreshInFlight = useRef(false);
 
   const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (role === "chairman") return;
     if (refreshInFlight.current) return;
     refreshInFlight.current = true;
     if (!silent) { setIsLoading(true); setError(""); }
@@ -337,34 +346,53 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
       refreshInFlight.current = false;
       if (!silent) setIsLoading(false);
     }
-  }, [filters]);
+  }, [filters, role]);
 
   useEffect(() => {
+    if (role === "chairman") return;
     const timeout = window.setTimeout(() => void load(), 180);
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") void load({ silent: true });
     }, 15_000);
     return () => { window.clearTimeout(timeout); window.clearInterval(interval); };
-  }, [load]);
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 5;
-  const pages = totalPaymentPages(total, pageSize);
+  }, [load, role]);
+  const payments = role === "chairman" ? monitoring.data?.items ?? [] : legacyPayments;
+  const isLoading = role === "chairman" ? monitoring.loading : legacyLoading;
+  const error = role === "chairman" ? monitoring.error : legacyError;
+  const resultTotal = role === "chairman" ? monitoring.data?.total ?? 0 : total;
+  const page = role === "chairman" ? monitoring.data?.page ?? Number(monitoring.query.page) : filters.page ?? 1;
+  const pageSize = role === "chairman" ? Number(monitoring.query.pageSize) : filters.pageSize ?? 5;
+  const pages = totalPaymentPages(resultTotal, pageSize);
   const canMutate = canUsePaymentMutationControls(role);
   const selectedEvent = useMemo(() => selected?.gatewayEvents.find((event) => event.id === dialog.gatewayEventId) ?? null, [dialog.gatewayEventId, selected]);
 
   const setFilter = (key: keyof PaymentReferenceFilters, value: string | boolean | number | undefined) => {
+    if (role === "chairman") { monitoring.patch({ [key]: String(value ?? "") }); return; }
     if (key === "dateFrom" && value && filters.dateTo && String(value) > filters.dateTo) { toast.error("From date cannot be later than To date."); return; }
     if (key === "dateTo" && value && filters.dateFrom && String(value) < filters.dateFrom) { toast.error("To date cannot be earlier than From date."); return; }
     setFilters((current) => ({ ...current, [key]: value === "" ? undefined : value, page: key === "page" ? Number(value) : 1 }));
   };
   const openDetail = useCallback(async (id: string) => {
+    const version = ++detailVersion.current;
     setIsDetailLoading(true);
     try {
       const detail = await getPaymentReferenceDetail(id);
+      if (version !== detailVersion.current) return;
       setSelected(detail); setEditReference(detail.referenceNumber); setEditAmount(String(detail.amount)); setShowTechnicalDetails(false);
+      if (role === "chairman") {
+        setDiagnostics(null); setDiagnosticsError("");
+        void apiRequest<PaymentDiagnostics>(`/api/finance-monitoring/payment/${encodeURIComponent(id)}`).then(result => { if (version === detailVersion.current) setDiagnostics(result); }).catch(() => { if (version === detailVersion.current) setDiagnosticsError("Posting diagnostics could not be loaded. Existing payment details remain available."); });
+      }
     } catch (caught) { toast.error(caught instanceof ApiClientError ? caught.message : "Payment details could not be loaded."); }
     finally { setIsDetailLoading(false); }
-  }, []);
+  }, [role]);
+  useEffect(() => {
+    if (role !== "chairman") return;
+    const id = new URLSearchParams(monitoring.location).get("paymentId");
+    if (!id || !/^\d+$/.test(id)) return;
+    const timer = window.setTimeout(() => { void openDetail(id); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [role, monitoring.location, openDetail]);
   const reloadSelected = useCallback(async () => {
     if (!selected) return;
     const detail = await getPaymentReferenceDetail(selected.id);
@@ -425,7 +453,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
   };
 
   return <div className="grid gap-6">
-    <PageHeader eyebrow="Payments" title={role === "bookkeeper" ? "Payments to Check" : "Payments"}
+    <PageHeader eyebrow={role === "bookkeeper" ? "Payments" : ""} title={role === "bookkeeper" ? "Payments to Check" : "Payments"}
       description={role === "bookkeeper" ? "Check payment details and approve only when everything matches." : "View payment status, posting history, and receipts."}
       actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper" : "View only"}</StatusBadge>} />
 
@@ -433,11 +461,12 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
       <span className="font-bold text-[#123D2A]">Check the payment slip:</span> payer, item or rent, count, amount, payment method, and status. Approve only when the proof and saved details match.
     </div> : null}
 
+    {role === "chairman" ? <PaymentMonitorPanel monitor={monitoring} /> : <>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Pending payments" value={String(summary.pendingTotal)} icon={Clock3} />
-      <StatCard label="Needs correction" value={String(summary.needsClarification)} icon={Send} />
-      <StatCard label="Approved today" value={String(summary.validatedToday)} icon={BadgeCheck} />
-      <StatCard label="Approved amount" value={money(summary.validatedAmount)} icon={Banknote} />
+      <StatCard label="Pending manual review" value={String(summary.pendingManual)} icon={Clock3} />
+      <StatCard label="Needs clarification" value={String(summary.needsClarification)} icon={Send} />
+      <StatCard label="Validated today (Manila)" value={String(summary.validatedToday)} icon={BadgeCheck} />
+      <StatCard label="All-time validated (includes test)" value={money(summary.validatedAmount)} icon={Banknote} />
     </div>
 
     <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
@@ -453,15 +482,16 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
       </div>
     </div>
 
-    {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+    </>}
+    {role === "bookkeeper" && error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
     {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? <EmptyState icon={ReceiptText} title="No payment references found" description="No saved TrackCOOP payments match the selected filters." /> : <DataTable>
       <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
         <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]"><tr>
-          <th className="whitespace-nowrap px-5 py-4">Payer</th><th className="whitespace-nowrap px-5 py-4">Payment for</th><th className="whitespace-nowrap px-5 py-4">Quantity / count</th><th className="whitespace-nowrap px-5 py-4">Amount</th><th className="whitespace-nowrap px-5 py-4">Payment method</th><th className="whitespace-nowrap px-5 py-4">Validation status</th><th className="whitespace-nowrap px-5 py-4"><span className="sr-only">Action</span></th>
+          <th className="whitespace-nowrap px-5 py-4">Payer</th><th className="whitespace-nowrap px-5 py-4">Payment for</th><th className="whitespace-nowrap px-5 py-4">Quantity / count</th><th className="whitespace-nowrap px-5 py-4">Amount</th><th className="whitespace-nowrap px-5 py-4">Payment method</th><th className="whitespace-nowrap px-5 py-4">Validation status</th><th className="whitespace-nowrap px-5 py-4" aria-label="Actions" />
         </tr></thead>
         <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">{payments.map((payment) => <tr key={payment.id} className="hover:bg-[#F7F8F3]">
           <td className="px-5 py-4"><p className="font-semibold text-[#123D2A]">{safe(payment.payerName)}</p><p className="mt-1 text-xs text-[#6C7A70]">{paymentForLabel(payment)}</p></td>
-          <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{rentedItemLabel(payment)}</p><p className="mt-1 text-xs text-[#6C7A70]">{rentedItemSubLabel(payment)}</p><div className="mt-1 flex flex-wrap gap-1">{payment.gatewayEnvironment === "Test" ? <StatusBadge tone="warning">Test Mode</StatusBadge> : null}{payment.failedGatewayEvents ? <StatusBadge tone="danger">{payment.failedGatewayEvents} failed event</StatusBadge> : null}</div></td>
+          <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{rentedItemLabel(payment)}</p><p className="mt-1 text-xs text-[#6C7A70]">{rentedItemSubLabel(payment)}</p><div className="mt-1 flex flex-wrap gap-1">{payment.gatewayEnvironment === "Test" ? <StatusBadge tone="warning">Test Mode</StatusBadge> : null}{"exception" in payment && typeof payment.exception === "number" && payment.exception > 0 ? <span title="Processing or posting requires review"><StatusBadge tone="warning"><AlertTriangle className="mr-1 size-3" aria-hidden="true" />Review needed</StatusBadge></span> : null}{payment.failedGatewayEvents ? <StatusBadge tone="danger">{payment.failedGatewayEvents} failed event</StatusBadge> : null}</div></td>
           <td className="px-5 py-4 font-semibold">{paymentCountLabel(payment)}</td>
           <td className="px-5 py-4"><CurrencyDisplay value={payment.amount} /></td>
           <td className="px-5 py-4"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{paidThroughLabel(payment)}</StatusBadge></td>
@@ -472,13 +502,18 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
     </DataTable>}
 
     <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-semibold text-[#5D6D63]">Page {page} of {pages} · {total} payment references</p>
+      <p className="text-sm font-semibold text-[#5D6D63]">Page {page} of {pages} · {resultTotal} payment references</p>
       <div className="flex gap-2"><button type="button" disabled={page <= 1 || isLoading} onClick={() => setFilter("page", page - 1)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold disabled:opacity-50"><ChevronLeft className="size-4" />Previous</button>
         <button type="button" disabled={page >= pages || isLoading} onClick={() => setFilter("page", page + 1)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold disabled:opacity-50">Next<ChevronRight className="size-4" /></button></div>
     </div>
 
     <FormDialog open={Boolean(selected) && !dialog.open} onOpenChange={(open: boolean) => { if (!open && !dialog.open) setSelected(null); }} title={selected?.referenceNumber ?? "Payment reference"}
       description={selected ? `${selected.paymentPurpose} / ${selected.paymentChannel}` : undefined} contentClassName="w-[min(74rem,calc(100vw-2rem))]">
+      {role === "chairman" && selected && <div className="mb-4 grid gap-2">
+        {diagnosticsError && <p role="status" className="rounded-md bg-[#FFF4D7] p-3 text-sm text-[#8A6200]">{diagnosticsError}</p>}
+        {diagnostics?.warnings.map(warning=><p key={warning} className="rounded-md bg-[#FFF4D7] p-3 text-sm text-[#8A6200]">{warning}</p>)}
+        {diagnostics?.memberId && selected.paymentPurpose === "Share Capital" && <Link className="inline-flex items-center gap-2 text-sm font-semibold text-[#123D2A] underline underline-offset-4" href={`/portal/chairman/share-capital?memberId=${diagnostics.memberId}&period=all`}><WalletCards className="size-4" aria-hidden="true" />View linked capital account{diagnostics.capitalTransactionId ? ` · transaction ${diagnostics.capitalTransactionId}` : ""}</Link>}
+      </div>}
       {isDetailLoading || !selected ? <LoadingSkeleton /> : <div className="grid gap-5 pt-3">
         <div className={showTechnicalDetails ? "hidden" : "grid gap-5"}>
         {selected.posting.warnings.length ? <div className="rounded-lg border border-[#F3D08A] bg-[#FFF8E8] p-4 text-sm text-[#775200]"><p className="flex items-center gap-2 font-bold"><AlertTriangle className="size-4" />Warnings</p><ul className="mt-2 list-disc pl-5">{selected.posting.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div> : null}
