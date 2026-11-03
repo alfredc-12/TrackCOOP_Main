@@ -83,7 +83,7 @@ export function createResendWebhookRouter(deps: { store?: OutboxStore; secret?: 
       const result = await handleResendWebhook({
         rawBody: request.body,
         headers: { id: request.get("svix-id"), timestamp: request.get("svix-timestamp"), signature: request.get("svix-signature") },
-        secret: deps.secret ?? env.RESEND_WEBHOOK_SECRET,
+        secret: "secret" in deps ? deps.secret : env.RESEND_WEBHOOK_SECRET,
         store: deps.store ?? createOutboxStore(getPool()),
         nowSeconds: Math.floor((deps.now ?? Date.now)() / 1000),
       });
