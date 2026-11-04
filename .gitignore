@@ -64,3 +64,6 @@ docs/graphify.md
 # Disposable Financial Overview integration tests
 .overview-test-data/
 .taste-skill/
+
+# Disposable Settings/Activity SQL and browser verification
+.system-admin-test-data/

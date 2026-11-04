@@ -1,5 +1,5 @@
-import { LandingSettingsView } from "@/features/landing-admin/LandingAdminViews";
+import { ActivityHistoryClient } from "@/features/audit-logs/ActivityHistoryClient";
 
-export default function ChairmanAuditLogsPage() {
-  return <LandingSettingsView />;
+export default function Page() {
+  return <ActivityHistoryClient />;
 }
