@@ -181,6 +181,8 @@ function membershipApplicationEmailHtml(input: {
   bodyHtml: string;
   note: string;
   buttonLabel?: string;
+  /** Where the button goes. Defaults to the application status page. */
+  buttonUrl?: string;
 }) {
   return renderEmailLayout({
     eyebrow: "TrackCOOP Membership",
@@ -190,7 +192,7 @@ function membershipApplicationEmailHtml(input: {
     introHtml: input.bodyHtml,
     detailsTitle: "Application details",
     details: [{ label: "Application code", value: input.applicationCode }],
-    button: { label: input.buttonLabel ?? "Check Application Status", url: input.statusUrl },
+    button: { label: input.buttonLabel ?? "Check Application Status", url: input.buttonUrl ?? input.statusUrl },
     note: input.note,
   });
 }
@@ -203,6 +205,11 @@ export type StatusMessageInput = {
   subject: string;
   message: string;
   baseUrl?: string;
+  /**
+   * An approval that carries an activation link. The text version keeps the link in `message`; the HTML version
+   * shows `htmlMessage` (the same words without the long address) and makes activation the main button.
+   */
+  activation?: { url: string; htmlMessage: string };
 };
 
 /** Pure renderer for every status message (information required, payment, approval, rejection). */
@@ -222,8 +229,11 @@ export function renderStatusMessage(input: StatusMessageInput): MembershipMessag
       name: input.name,
       applicationCode: input.applicationCode,
       statusUrl,
-      bodyHtml: linesToHtml(input.message),
-      note: statusEmailNote(input.event),
+      bodyHtml: linesToHtml(input.activation ? input.activation.htmlMessage : input.message),
+      note: input.activation
+        ? "You can also follow your application on the status page using your application code."
+        : statusEmailNote(input.event),
+      ...(input.activation ? { buttonLabel: "Activate my account", buttonUrl: input.activation.url } : {}),
     }),
   };
 }

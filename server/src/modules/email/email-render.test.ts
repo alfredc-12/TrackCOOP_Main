@@ -103,6 +103,21 @@ test("5. the approval email puts the activation link and its expiry in, from the
   assert.equal(message.text.includes("{{"), false);
 });
 
+test("5. the approval HTML makes activation the main button instead of printing the address in the paragraph", async () => {
+  const link = "https://app.example.test/membership/activate/TOKEN-abc123";
+  const message = await ok(renderOutboxEmail(approved({ activationUrl: link }), ctx()));
+  const html = message.html ?? "";
+  assert.match(html, /Activate my account/);
+  assert.equal(html.includes("Check Application Status"), false, "activation is the one button");
+  assert.match(html, /<a href="https:\/\/app\.example\.test\/membership\/activate\/TOKEN-abc123"/, "the button goes to the activation link");
+  assert.match(html, /Use the button below to activate your member portal account\./);
+  assert.match(html, /can be used once and expires on/);
+  assert.equal(html.includes("here: https://"), false, "no raw address in the sentence");
+  assert.ok(message.text.includes(link), "the plain-text version still carries the link");
+  assert.equal(message.text.includes("{{"), false);
+  assert.equal(html.includes("{{"), false);
+});
+
 test("5. an approval without an account to activate is a plain welcome with no link", async () => {
   const message = await ok(renderOutboxEmail(approved(null, null, "Your membership was approved. Welcome to the cooperative."), ctx()));
   assert.match(message.text, /Welcome to the cooperative/);

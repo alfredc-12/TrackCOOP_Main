@@ -140,14 +140,22 @@ export async function renderOutboxEmail(row: OutboxRow, ctx: { pool: Pool; confi
     case "membership.application.rejected":
     case "membership.application.approved": {
       let message = text(payload.message);
+      let activation: { url: string; htmlMessage: string } | undefined;
       if (message.includes(ACTIVATION_URL_PLACEHOLDER)) {
         const expiresAt = text(payload.activationExpiresAt);
         if (expiresAt && new Date(expiresAt).getTime() <= now.getTime()) return fail("cancel", "activation_expired");
         const secret = readSecret(row, config);
         if (!secret?.activationUrl) return fail("fail", "secret_unavailable");
+        const expires = expiresAt ? formatManilaDateTime(expiresAt) : "the date shown in your account";
+        // The HTML version points to a button instead of printing the address; the text version keeps the link.
+        const htmlMessage = message
+          .replace(/Activate your member portal account here:\s*\{\{ACTIVATION_URL\}\}/, "Use the button below to activate your member portal account.")
+          .replaceAll(ACTIVATION_URL_PLACEHOLDER, secret.activationUrl)
+          .replaceAll(ACTIVATION_EXPIRES_PLACEHOLDER, expires);
+        activation = { url: secret.activationUrl, htmlMessage };
         message = message
           .replaceAll(ACTIVATION_URL_PLACEHOLDER, secret.activationUrl)
-          .replaceAll(ACTIVATION_EXPIRES_PLACEHOLDER, expiresAt ? formatManilaDateTime(expiresAt) : "the date shown in your account");
+          .replaceAll(ACTIVATION_EXPIRES_PLACEHOLDER, expires);
       }
       return {
         ok: true,
@@ -159,6 +167,7 @@ export async function renderOutboxEmail(row: OutboxRow, ctx: { pool: Pool; confi
           subject: text(payload.subject),
           message,
           baseUrl: config.frontendUrl,
+          activation,
         }),
       };
     }
