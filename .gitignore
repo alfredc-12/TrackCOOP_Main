@@ -67,3 +67,6 @@ docs/graphify.md
 
 # Disposable Settings/Activity SQL and browser verification
 .system-admin-test-data/
+
+# Disposable Gallery placement verification
+.gallery-verification/

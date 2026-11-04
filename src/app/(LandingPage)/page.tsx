@@ -1,4 +1,5 @@
 "use client";
+import {RecentPhotosSection} from "@/features/landing-public/RecentPhotosSection";
 
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -32,33 +33,13 @@ import SiteHeader from "@/components/layout/SiteHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import {
   mapPublishedCertifications,
-  mapPublishedGallery,
   usePublishedLandingContent,
 } from "@/features/landing-public/usePublishedLandingContent";
 
 const cooperativeName =
   "Nasugbu Farmers and Fisherfolks Agriculture Cooperative";
 
-const photos = {
-  hero:
-    "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2400&q=85",
-  about:
-    "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1400&q=85",
-  rice:
-    "https://images.unsplash.com/photo-1471193945509-9ad0617afabf?auto=format&fit=crop&w=1100&q=85",
-  nursery:
-    "https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&w=1100&q=85",
-  fisheries:
-    "https://images.unsplash.com/photo-1534766555764-ce878a5e3a2b?auto=format&fit=crop&w=1100&q=85",
-  farm:
-    "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1100&q=85",
-  processing:
-    "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1100&q=85",
-  equipment:
-    "https://images.unsplash.com/photo-1492496913980-501348b61469?auto=format&fit=crop&w=1100&q=85",
-  documents:
-    "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1100&q=85",
-};
+
 
 const stats = [
   { label: "Farmer members", value: "1,240+", icon: UsersRound },
@@ -125,59 +106,6 @@ const services = [
   },
 ];
 
-const projects = [
-  {
-    title: "Rice Production Support",
-    description: "Seed, field monitoring, and harvest coordination for member farms.",
-    image: photos.rice,
-    area: "rice",
-    areaClass: "lg:[grid-area:rice]",
-  },
-  {
-    title: "Seedling Nursery",
-    description: "Shared growing support for resilient crop cycles.",
-    image: photos.nursery,
-    area: "seedling",
-    areaClass: "lg:[grid-area:seedling]",
-  },
-  {
-    title: "Product Processing",
-    description: "Preparing harvests for sorting, packaging, and market readiness.",
-    image: photos.processing,
-    area: "processing",
-    areaClass: "lg:[grid-area:processing]",
-  },
-  {
-    title: "Farm Equipment Sharing",
-    description: "Common equipment access for improved field operations.",
-    image: photos.equipment,
-    area: "farm",
-    areaClass: "lg:[grid-area:farm]",
-  },
-  {
-    title: "Organic Farming Support",
-    description: "Soil care, crop diversity, and sustainable production practices.",
-    image: photos.farm,
-    area: "organic",
-    areaClass: "lg:[grid-area:organic]",
-  },
-  {
-    title: "Community Training",
-    description: "Practical learning sessions for stronger cooperative operations.",
-    image: photos.about,
-    area: "side",
-    areaClass: "lg:[grid-area:side]",
-  },
-  {
-    title: "Cooperative Documents",
-    description: "Transparent records and resources for cooperative members.",
-    image: photos.documents,
-    area: "documents",
-    areaClass: "lg:[grid-area:documents]",
-  },
-];
-
-const projectAreaClasses = projects.map((project) => project.areaClass);
 
 const certifications = [
   {
@@ -219,7 +147,6 @@ const fadeUp = {
 
 export default function Home() {
   const published = usePublishedLandingContent();
-  const publishedGallery = mapPublishedGallery(published.gallery, projectAreaClasses);
   const publishedCertifications = mapPublishedCertifications(published.partners);
 
   return (
@@ -229,7 +156,7 @@ export default function Home() {
       <ServicesSection items={services} />
       <AboutSection />
       <StatsParallaxSection />
-      <ProjectsSection items={publishedGallery.length ? publishedGallery : projects} />
+      <ProjectsSection photos={published.landingPhotos} isLoading={published.isLoading} loadError={published.loadError} onRetry={published.retry} />
       <CertificationsSection slides={publishedCertifications.length ? publishedCertifications : certifications} />
       <ContactSection />
       <SiteFooter />
@@ -906,96 +833,12 @@ function AboutSection() {
   );
 }
 
-function ProjectsSection({ items }: { items: Project[] }) {
-  return (
-    <section
-      id="projects"
-      className="relative overflow-hidden bg-[#eaf3e8] py-12 text-[#073f2b] lg:py-16"
-    >
-      <SectionBlend className="top-0 h-20 bg-gradient-to-b from-[#F8F1E5] via-[#eaf3e8]/82 to-transparent" />
-      <SectionBlend className="bottom-0 h-24 bg-gradient-to-b from-transparent via-[#eaf3e8]/70 to-[#F8F1E5]" />
-      <div className="relative z-10 mx-auto max-w-[1680px] px-6 lg:px-20">
-        <motion.div {...fadeUp}>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-            Gallery
-          </p>
-          <h2 className="max-w-6xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl lg:text-8xl">
-            Work moving through the field.
-          </h2>
-        </motion.div>
-      </div>
-
-      <div className="relative left-1/2 z-10 mt-10 w-screen -translate-x-1/2 overflow-hidden px-6 lg:mt-12 lg:px-8">
-        <div className="projects-mosaic grid h-auto grid-cols-1 gap-4 md:grid-cols-2 lg:h-[720px] lg:grid-cols-12 lg:grid-rows-6 lg:gap-4">
-          {items.map((project, index) => (
-            <ProjectCard
-              key={project.title}
-              project={project}
-              index={index}
-            />
-          ))}
-        </div>
-      </div>
-
-      <style>{`
-        @media (min-width: 1024px) {
-          .projects-mosaic {
-            grid-template-areas:
-              "rice rice rice rice seedling seedling seedling seedling seedling seedling side side"
-              "rice rice rice rice seedling seedling seedling seedling seedling seedling side side"
-              "rice rice rice rice processing processing processing processing organic organic side side"
-              "farm farm farm farm processing processing processing processing organic organic side side"
-              "farm farm farm farm documents documents documents documents organic organic side side"
-              "farm farm farm farm documents documents documents documents organic organic side side";
-          }
-        }
-      `}</style>
-    </section>
-  );
+function ProjectsSection(props:React.ComponentProps<typeof RecentPhotosSection>) {
+  return <RecentPhotosSection {...props}/>;
 }
 
-type Project = {
-  title: string;
-  description: string;
-  image: string;
-  area: string;
-  areaClass: string;
-};
 
-function ProjectCard({
-  project,
-  index,
-}: {
-  project: Project;
-  index: number;
-}) {
-  return (
-    <motion.article
-      {...fadeUp}
-      transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
-      whileHover={{ y: -4, scale: 1.01 }}
-      className={`group relative h-[260px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-white shadow-none lg:h-auto ${project.areaClass}`}
-    >
-      <>
-        {/* eslint-disable-next-line @next/next/no-img-element -- Landing media may be served from Railway /uploads paths. */}
-        <img
-          src={project.image}
-          alt={project.title}
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-        />
-      </>
-      <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/85 via-[#03291d]/25 to-transparent" />
-      <div className="absolute bottom-5 left-5 right-5 z-10">
-        <h3 className="text-xl font-black leading-tight text-white lg:text-3xl">
-          {project.title}
-        </h3>
-        <p className="mt-2 max-w-md text-sm leading-relaxed text-white/90 lg:text-base">
-          {project.description}
-        </p>
-      </div>
-    </motion.article>
-  );
-}
+
 
 function CertificationsSection({ slides }: { slides: CertificationSlide[] }) {
   return (

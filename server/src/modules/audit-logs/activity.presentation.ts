@@ -84,6 +84,7 @@ export const activityAreas = [
       "gallery_groups",
       "gallery_images",
       "gallery_landing_slots",
+      "gallery_landing_state",
       "partners_certifications",
     ],
     prefixes: ["landing."],
@@ -101,6 +102,7 @@ const explicit: Record<string, string> = {
   "landing.gallery.created": "Created a gallery",
   "landing.gallery.updated": "Updated a gallery",
   "landing.gallery_slot.updated": "Changed a gallery placement",
+  "landing.gallery_placement.published": "Published homepage photos",
   "user.password_reset": "Reset a user password",
   "user.activation_link_issued": "Issued an account activation link",
   "membership_application.approved": "Approved a membership application",
@@ -249,6 +251,16 @@ export function safeAuditValues(
 ): Record<string, string | number | boolean | null> | null {
   const value = object(raw);
   if (!value) return null;
+  if (Array.isArray(value.placements) && value.placements.length === 7 && /^\d{1,20}$/.test(String(value.revision))) {
+    const fields:Record<string,string>={Revision:String(value.revision)};
+    for(const rawSlot of value.placements){
+      const slot=object(rawSlot);if(!slot||!Number.isInteger(slot.position)||Number(slot.position)<1||Number(slot.position)>7)continue;
+      const key=`Photo ${slot.position}`;
+      if(slot.photoId===null)fields[key]="Empty";
+      else if(["gallery","announcement"].includes(String(slot.source))&&/^[1-9]\d{0,19}$/.test(String(slot.photoId)))fields[key]=`${slot.source === "gallery" ? "Gallery" : "Announcement"} photo #${slot.photoId}`;
+    }
+    return fields;
+  }
   if (typeof value.settingKey === "string") {
     const d = byKey.get(value.settingKey);
     if (!d) return null;

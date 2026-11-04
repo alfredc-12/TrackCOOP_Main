@@ -1,4 +1,8 @@
 "use client";
+import { apiRequest } from "@/lib/api-client";
+import { GalleryWorkspace } from "@/features/gallery-placement/GalleryWorkspace";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+
 
 import {
   Check,
@@ -9,9 +13,6 @@ import {
   EyeOff,
   FileText,
   GripVertical,
-  ImageIcon,
-  Images,
-  LayoutGrid,
   Layers,
   MapPin,
   Palette,
@@ -36,7 +37,6 @@ import {
   listSystemSettings,
   saveSystemSetting,
   updateLandingRecord,
-  saveGalleryLandingSlot,
   uploadGalleryImages,
   uploadPartnerCertificationFile,
   type LandingCollection,
@@ -753,15 +753,6 @@ function PartnersCertificationsManager({
   );
 }
 
-const GALLERY_SLOTS = [
-  { key: "gallery-feature-1", label: "Feature 1" },
-  { key: "gallery-feature-2", label: "Feature 2" },
-  { key: "gallery-feature-3", label: "Feature 3" },
-  { key: "gallery-feature-4", label: "Feature 4" },
-  { key: "gallery-feature-5", label: "Feature 5" },
-  { key: "gallery-feature-6", label: "Feature 6" },
-];
-
 const GROUP_BORDER_COLORS = ["#D8B04C", "#1F6B43", "#7A9E7E", "#B85C38", "#476C9B", "#8A6F42"];
 
 type GalleryImageRecord = LandingRecord & {
@@ -787,10 +778,6 @@ function getGalleryImages(record: LandingRecord): GalleryImageRecord[] {
   return Array.isArray(record.images) ? record.images as GalleryImageRecord[] : [];
 }
 
-function getGallerySlots(record: LandingRecord) {
-  return Array.isArray(record.landingSlots) ? record.landingSlots as LandingRecord[] : [];
-}
-
 function imageNameFromPath(path: string) {
   const clean = decodeURIComponent(path.split("?")[0] ?? path);
   return fileNameWithoutExtension(clean.split("/").pop() ?? "Gallery photo") || "Gallery photo";
@@ -803,83 +790,16 @@ function formatGalleryDate(value: unknown) {
   return new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
-function getGroupDate(record: LandingRecord) {
-  return new Date(String(record.activityDate || record.createdAt || Date.now()));
-}
-
-function getDateSection(date: Date) {
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const days = Math.floor((startToday - target) / 86400000);
-  if (days <= 0) return "Today";
-  if (days < 7) return "This week";
-  if (days < 31) return "This month";
-  return "Older";
-}
-
-function GalleryDeckPreview({
-  images,
-  title,
-  borderColor,
-  compact = false,
-}: {
-  images: GalleryImageRecord[];
-  title: string;
-  borderColor: string;
-  compact?: boolean;
-}) {
-  const visibleImages = images.slice(0, compact ? 3 : 5);
-  if (!visibleImages.length) {
-    return (
-      <div className="grid h-full min-h-40 place-items-center rounded-lg border border-dashed border-[#B8CAB9] bg-[#F7F8F3] text-[#1F6B43]">
-        <ImageIcon className="size-8" aria-hidden="true" />
-      </div>
-    );
-  }
-
-  return (
-    <div className={`relative ${compact ? "h-32" : "h-52 sm:h-60"} min-w-0`}>
-      {visibleImages.map((image, index) => (
-        <div
-          key={String(image.id ?? image.imagePath ?? index)}
-          className="absolute top-0 overflow-hidden rounded-lg bg-white shadow-[0_14px_28px_rgba(18,61,42,0.16)] transition duration-300 ease-out group-hover/gallery:-translate-y-2"
-          style={{
-            left: `${index * (compact ? 22 : 30)}px`,
-            zIndex: index + 1,
-            width: compact ? "7.8rem" : "min(15rem, calc(100% - 8rem))",
-            height: compact ? "8rem" : "100%",
-            border: `2px solid ${borderColor}`,
-            transform: `rotate(${(index - 1) * 2}deg)`,
-            transitionDelay: `${index * 24}ms`,
-          }}
-        >
-          <img
-            src={resolveUploadPath(asString(image.imagePath))}
-            alt={asString(image.altText, title)}
-            className="h-full w-full object-cover"
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function GalleryAdminManager({
-  eyebrow,
   title,
   description,
 }: Pick<LandingAdminCollectionViewProps, "eyebrow" | "title" | "description">) {
   const [records, setRecords] = useState<LandingRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<LandingRecord | null>(null);
   const [previewRecord, setPreviewRecord] = useState<LandingRecord | null>(null);
-  const [slotKey, setSlotKey] = useState<string | null>(null);
-  const [slotGroupId, setSlotGroupId] = useState("");
-  const [slotImageId, setSlotImageId] = useState("");
   const [titleValue, setTitleValue] = useState("");
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState("Community");
@@ -895,47 +815,12 @@ function GalleryAdminManager({
   const [isDropActive, setIsDropActive] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sortedRecords = useMemo(
-    () => [...records].sort((a, b) => asNumber(a.displayOrder) - asNumber(b.displayOrder) || Number(b.id) - Number(a.id)),
-    [records],
-  );
-
-  const slotsByKey = useMemo(() => {
-    const map = new Map<string, LandingRecord & { group: LandingRecord; image?: GalleryImageRecord }>();
-    for (const record of sortedRecords) {
-      const images = getGalleryImages(record);
-      for (const slot of getGallerySlots(record)) {
-        const key = asString(slot.slotKey || slot.id);
-        const image = images.find((item) => String(item.id) === String(slot.galleryImageId));
-        if (key) map.set(key, { ...slot, group: record, image });
-      }
-    }
-    return map;
-  }, [sortedRecords]);
-
-  const groupedRecords = useMemo(() => {
-    const sections = new Map<string, LandingRecord[]>([
-      ["Today", []],
-      ["This week", []],
-      ["This month", []],
-      ["Older", []],
-    ]);
-    for (const record of sortedRecords) {
-      const section = getDateSection(getGroupDate(record));
-      sections.get(section)?.push(record);
-    }
-    return [...sections.entries()].filter(([, items]) => items.length > 0);
-  }, [sortedRecords]);
-
   const load = useCallback(async () => {
-    setIsLoading(true);
     setError("");
     try {
       setRecords(await listLandingRecords("gallery"));
     } catch (caught) {
       setError(caught instanceof ApiClientError ? caught.message : "Gallery records could not be loaded.");
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -1102,7 +987,7 @@ function GalleryAdminManager({
         borderColor,
         publicVisibility,
         galleryStatus,
-        displayOrder: editingRecord ? asNumber(editingRecord.displayOrder) : sortedRecords.length,
+        displayOrder: editingRecord ? asNumber(editingRecord.displayOrder) : records.length,
         images,
       };
 
@@ -1137,40 +1022,12 @@ function GalleryAdminManager({
     }
   }
 
-  function openSlotEditor(key: string) {
-    const assigned = slotsByKey.get(key);
-    setSlotKey(key);
-    setSlotGroupId(asString(assigned?.galleryGroupId || assigned?.group?.id));
-    setSlotImageId(asString(assigned?.galleryImageId || assigned?.image?.id));
-  }
-
-  async function saveSlot() {
-    if (!slotKey) return;
-    setIsSaving(true);
-    setError("");
-    try {
-      const slotIndex = Math.max(0, GALLERY_SLOTS.findIndex((slot) => slot.key === slotKey));
-      await saveGalleryLandingSlot(slotKey, {
-        galleryGroupId: slotGroupId || null,
-        galleryImageId: slotImageId || null,
-        displayOrder: slotIndex + 1,
-      });
-      setSlotKey(null);
-      await load();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Landing placement could not be saved.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  const selectedSlotGroup = sortedRecords.find((record) => record.id === slotGroupId) ?? null;
   const activeDraft = photoDrafts[activePhotoIndex] ?? null;
 
   return (
     <div className="grid gap-6">
       <PageHeader
-        eyebrow={eyebrow}
+        eyebrow=""
         title={title}
         description={description}
         actions={
@@ -1182,112 +1039,11 @@ function GalleryAdminManager({
       />
       {error ? <ErrorState message={error} /> : null}
 
-      <section className="rounded-lg border border-[#CAD8CB] bg-[#F8F1E5] p-4 shadow-[0_14px_32px_rgba(18,61,42,0.07)]">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-black text-[#123D2A]">Landing placement</h2>
-            <p className="text-sm text-[#5D6D63]">Choose the exact gallery photos shown on the public landing page.</p>
-          </div>
-          <StatusBadge tone="warning">{GALLERY_SLOTS.length} slots</StatusBadge>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {GALLERY_SLOTS.map((slot) => {
-            const assigned = slotsByKey.get(slot.key);
-            const imagePath = asString(assigned?.image?.imagePath || assigned?.group?.imagePath);
-            return (
-              <button
-                key={slot.key}
-                type="button"
-                onClick={() => openSlotEditor(slot.key)}
-                className="group/slot min-h-36 overflow-hidden rounded-lg border border-[#CAD8CB] bg-white text-left shadow-[0_10px_24px_rgba(18,61,42,0.06)] transition hover:-translate-y-1 hover:border-[#D8B04C]"
-              >
-                {imagePath ? (
-                  <div className="relative h-24 overflow-hidden">
-                    <img src={resolveUploadPath(imagePath)} alt={asString(assigned?.group?.title, slot.label)} className="h-full w-full object-cover transition duration-500 group-hover/slot:scale-105" />
-                    <span className="absolute left-2 top-2 rounded-full bg-[#123D2A]/86 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white">{slot.label}</span>
-                  </div>
-                ) : (
-                  <div className="grid h-24 place-items-center bg-[#EEF6EC] text-[#1F6B43]">
-                    <LayoutGrid className="size-6" aria-hidden="true" />
-                  </div>
-                )}
-                <div className="p-3">
-                  <p className="line-clamp-1 text-sm font-black text-[#123D2A]">{assigned ? asString(assigned.group.title, "Gallery group") : "Choose photo"}</p>
-                  <p className="mt-1 text-xs text-[#5D6D63]">{assigned ? "Click to change placement" : "Empty landing slot"}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {isLoading ? <LoadingSkeleton /> : sortedRecords.length === 0 ? (
-        <EmptyState icon={Images} title="No gallery groups yet" description="Upload a group of photos to start building the public gallery." />
-      ) : (
-        <div className="grid gap-8">
-          {groupedRecords.map(([section, items]) => (
-            <section key={section} className="grid gap-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-black text-[#123D2A]">{section}</h2>
-                <span className="h-px flex-1 bg-[#CAD8CB]" />
-                <span className="text-xs font-black uppercase tracking-[0.12em] text-[#6C7A70]">{items.length} groups</span>
-              </div>
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {items.map((record) => {
-                  const images = getGalleryImages(record);
-                  const color = asString(record.borderColor, GROUP_BORDER_COLORS[0]);
-                  const visible = asBoolean(record.publicVisibility, true);
-                  return (
-                    <article
-                      key={record.id}
-                      onClick={() => setPreviewRecord(record)}
-                      className="group/gallery cursor-pointer rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_12px_32px_rgba(18,61,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_44px_rgba(18,61,42,0.14)]"
-                    >
-                      <GalleryDeckPreview images={images} title={asString(record.title, "Gallery group")} borderColor={color} />
-                      <div className="mt-4 flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="line-clamp-2 text-lg font-black leading-tight text-[#123D2A]">{asString(record.title, "Gallery group")}</h3>
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-[#5D6D63]">
-                            <span className="inline-flex items-center gap-1"><Images className="size-3.5" />{images.length} photos</span>
-                            <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" />{formatGalleryDate(record.activityDate || record.createdAt)}</span>
-                          </div>
-                        </div>
-                        <StatusBadge tone={visible && record.galleryStatus === "Published" ? "success" : "neutral"}>{visible ? asString(record.galleryStatus, "Draft") : "Hidden"}</StatusBadge>
-                      </div>
-                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#5D6D63]">{asString(record.caption, "No caption yet.")}</p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openEdit(record);
-                          }}
-                          className="inline-flex h-9 items-center gap-2 rounded-md border border-[#CAD8CB] px-3 text-xs font-black text-[#123D2A] transition hover:bg-[#EEF2EC]"
-                        >
-                          <Pencil className="size-3.5" aria-hidden="true" />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isSaving}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void toggleVisibility(record);
-                          }}
-                          className="inline-flex h-9 items-center gap-2 rounded-md border border-[#CAD8CB] px-3 text-xs font-black text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:opacity-60"
-                        >
-                          {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                          {visible ? "Hide" : "Show"}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+      <GalleryWorkspace refreshKey={records}
+        onEditGallery={(id) => { void apiRequest<LandingRecord>(`/api/landing/gallery/${id}`).then(openEdit).catch(caught => setError(caught instanceof Error ? caught.message : "Could not open gallery group.")); }}
+        onPreviewGallery={(id) => { void apiRequest<LandingRecord>(`/api/landing/gallery/${id}`).then(setPreviewRecord).catch(caught => setError(caught instanceof Error ? caught.message : "Could not preview gallery group.")); }}
+        onToggleGallery={(id) => { void apiRequest<LandingRecord>(`/api/landing/gallery/${id}`).then(toggleVisibility).catch(caught => setError(caught instanceof Error ? caught.message : "Could not change visibility.")); }}
+      />
 
       <FormDialog
         open={modalOpen}
@@ -1442,17 +1198,10 @@ function GalleryAdminManager({
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-black text-[#123D2A]">Status
-                  <select value={galleryStatus} onChange={(event) => setGalleryStatus(event.target.value as "Draft" | "Published" | "Archived")} className="h-11 rounded-md border border-[#CAD8CB] px-3 outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-                    <option>Published</option>
-                    <option>Draft</option>
-                    <option>Archived</option>
-                  </select>
+                  <StyledSelect value={galleryStatus} options={["Published","Draft","Archived"]} onChange={value=>setGalleryStatus(value as "Draft"|"Published"|"Archived")} aria-label="Gallery publication status"/>
                 </label>
                 <label className="grid gap-2 text-sm font-black text-[#123D2A]">Visibility
-                  <select value={publicVisibility ? "visible" : "hidden"} onChange={(event) => setPublicVisibility(event.target.value === "visible")} className="h-11 rounded-md border border-[#CAD8CB] px-3 outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-                    <option value="visible">Visible</option>
-                    <option value="hidden">Hidden</option>
-                  </select>
+                  <StyledSelect value={publicVisibility?"Visible":"Hidden"} options={["Visible","Hidden"]} onChange={value=>setPublicVisibility(value==="Visible")} aria-label="Gallery visibility"/>
                 </label>
               </div>
               <div className="grid gap-2">
@@ -1506,30 +1255,7 @@ function GalleryAdminManager({
         }}
       />
 
-      <FormDialog open={Boolean(slotKey)} onOpenChange={(open) => !open && setSlotKey(null)} title="Choose landing photo" description="Pick which gallery photo appears in this landing page slot.">
-        <div className="mt-4 grid gap-4">
-          <label className="grid gap-2 text-sm font-black text-[#123D2A]">Gallery group
-            <select value={slotGroupId} onChange={(event) => { setSlotGroupId(event.target.value); setSlotImageId(""); }} className="h-11 rounded-md border border-[#CAD8CB] px-3 outline-none focus:border-[#1F6B43]">
-              <option value="">Empty slot</option>
-              {sortedRecords.map((record) => <option key={record.id} value={record.id}>{asString(record.title, "Gallery group")}</option>)}
-            </select>
-          </label>
-          {selectedSlotGroup ? (
-            <div className="grid max-h-80 gap-3 overflow-y-auto pr-1 custom-scrollbar sm:grid-cols-2">
-              {getGalleryImages(selectedSlotGroup).map((image) => (
-                <button key={String(image.id)} type="button" onClick={() => setSlotImageId(String(image.id))} className={`overflow-hidden rounded-lg border-2 bg-white text-left transition ${slotImageId === String(image.id) ? "border-[#D8B04C]" : "border-[#CAD8CB] hover:border-[#1F6B43]"}`}>
-                  <img src={resolveUploadPath(asString(image.imagePath))} alt={asString(image.altText, "Gallery photo")} className="h-28 w-full object-cover" />
-                  <p className="p-2 text-xs font-black text-[#123D2A]">{asString(image.altText, imageNameFromPath(asString(image.imagePath)))}</p>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setSlotKey(null)} className="h-11 rounded-md border border-[#CAD8CB] px-4 text-sm font-black text-[#294B39] hover:bg-[#EEF2EC]">Cancel</button>
-            <button type="button" onClick={() => void saveSlot()} disabled={isSaving || Boolean(slotGroupId && !slotImageId)} className="h-11 rounded-md bg-[#123D2A] px-5 text-sm font-black text-white hover:bg-[#1F6B43] disabled:opacity-60">Save</button>
-          </div>
-        </div>
-      </FormDialog>
+
 
       <FormDialog open={Boolean(previewRecord)} onOpenChange={(open) => !open && setPreviewRecord(null)} title={asString(previewRecord?.title, "Gallery group")} description={asString(previewRecord?.caption, "Gallery photos") } contentClassName="w-[min(62rem,calc(100vw-2rem))]">
         {previewRecord ? (
