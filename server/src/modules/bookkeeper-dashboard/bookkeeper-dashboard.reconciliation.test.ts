@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
   compareFinancialBases,
   proposedManilaSettlementRecordDate,
+  READ_ONLY_RECONCILIATION_QUERIES,
   resolveStrictSettlementCategoryCodes,
   type ReconcilableFinancialRow,
 } from "./bookkeeper-dashboard.reconciliation";
@@ -108,5 +111,87 @@ test("proposed Manila settlement date converts UTC 16:00–23:59 to the next Phi
   assert.equal(proposedManilaSettlementRecordDate(paidAt), "2026-11-01");
   // 2026-10-31 15:59 UTC is 2026-10-31 23:59 in Asia/Manila
   assert.equal(proposedManilaSettlementRecordDate(new Date("2026-10-31T15:59:00Z")), "2026-10-31");
+});
+
+test("all five read-only reconciliation SQL queries match the actual TrackCOOP database schema", () => {
+  const dbDir = path.resolve(__dirname, "../../../database");
+  const sqlSources = [
+    readFileSync(path.join(dbDir, "TrackCOOP_MAIN_Database.sql"), "utf8"),
+    readFileSync(path.join(dbDir, "migrations/20260727_payment_receipt_processing_and_reversal.sql"), "utf8"),
+    readFileSync(path.join(dbDir, "migrations/20260926_patronage_refunds.sql"), "utf8"),
+    readFileSync(path.join(dbDir, "migrations/20261007_share_capital_ledger_and_dividends.sql"), "utf8"),
+    readFileSync(path.join(dbDir, "migrations/20261027_seasons_and_budget_controls.sql"), "utf8"),
+  ].join("\n");
+
+  const expectedTableColumns: Record<string, string[]> = {
+    financial_records: [
+      "financial_record_id",
+      "record_number",
+      "payment_reference_id",
+      "financial_category_id",
+      "approved_by",
+      "record_type",
+      "source_module",
+      "amount",
+      "record_date",
+      "record_status",
+      "reversal_of_record_id",
+      "season_id",
+    ],
+    financial_categories: ["financial_category_id", "category_code", "category_name"],
+    payment_references: [
+      "payment_reference_id",
+      "reference_number",
+      "payment_channel",
+      "gateway_environment",
+      "payment_purpose",
+      "related_entity_type",
+      "amount",
+      "validation_status",
+      "validation_source",
+      "validated_at",
+      "paid_at",
+      "updated_at",
+    ],
+    payment_receipts: ["payment_reference_id", "reversed_at"],
+    share_capital_payments: ["share_payment_id", "payment_reference_id", "payment_status"],
+    share_capital_transactions: [
+      "share_capital_transaction_id",
+      "direction",
+      "amount",
+      "source_type",
+      "source_id",
+      "transaction_status",
+    ],
+    patronage_periods: ["patronage_period_id", "period_name", "period_start", "period_end", "period_status"],
+    dividend_declarations: [
+      "dividend_declaration_id",
+      "declaration_name",
+      "coverage_start",
+      "coverage_end",
+      "declaration_status",
+    ],
+    budgets: ["budget_id", "budget_name", "coverage_start", "coverage_end", "budget_status"],
+    budget_lines: ["budget_id", "financial_category_id", "season_id"],
+  };
+
+  for (const [table, columns] of Object.entries(expectedTableColumns)) {
+    assert.match(sqlSources, new RegExp(`CREATE TABLE(?: IF NOT EXISTS)?\\s+\`?${table}\`?`, "i"), `Missing table ${table}`);
+    for (const column of columns) {
+      assert.match(sqlSources, new RegExp(`\\b${column}\\b`), `Missing column ${table}.${column}`);
+    }
+  }
+
+  for (const [name, sql] of Object.entries(READ_ONLY_RECONCILIATION_QUERIES)) {
+    assert.match(sql, /^SELECT\b/i, `${name} must be a read-only SELECT query`);
+    assert.doesNotMatch(sql, /\b(INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE)\b/i);
+    // Guard against non-existent columns from earlier draft
+    assert.doesNotMatch(sql, /\bdeleted_at\b/i, `${name} must not reference non-existent deleted_at`);
+    assert.doesNotMatch(sql, /\b(fr|orig|fc|pr|sp|sct|pp|dd|b|bl)\.id\b/, `${name} must use explicit *_id primary keys`);
+    assert.doesNotMatch(sql, /\bfr\.category_id\b/, `${name} must use fr.financial_category_id`);
+    assert.doesNotMatch(sql, /\bfr\.reversal_of_id\b/, `${name} must use fr.reversal_of_record_id`);
+    assert.doesNotMatch(sql, /\bpp\.(start_date|end_date)\b/, `${name} must use pp.period_start / pp.period_end`);
+    assert.doesNotMatch(sql, /\bCONVERT_TZ\b/i, `${name} must use timezone-table-independent DATE_ADD(..., INTERVAL 8 HOUR)`);
+  }
 });
 

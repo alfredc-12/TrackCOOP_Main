@@ -277,3 +277,209 @@ export function proposedManilaSettlementRecordDate(paidAt: Date | null | undefin
   return new Date(reference.getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
 }
 
+/**
+ * Schema-verified read-only SQL reconciliation queries for production verification.
+ * Verified against TrackCOOP_MAIN_Database.sql and server/database/migrations/*.sql.
+ * Do NOT execute against production without separate cooperative authorization.
+ */
+export const READ_ONLY_RECONCILIATION_QUERIES = {
+  patronageReversalDoubleCount: `SELECT
+  YEAR(fr.record_date) AS reversal_year,
+  pp.patronage_period_id,
+  pp.period_name,
+  pp.period_status,
+  COUNT(fr.financial_record_id) AS reversal_adjustment_count,
+  CAST(COALESCE(SUM(fr.amount), 0.00) AS DECIMAL(18, 2)) AS total_double_counted_delta_php,
+  CAST(COALESCE(SUM(CASE WHEN orig.record_status = 'Reversed' THEN orig.amount ELSE 0.00 END), 0.00) AS DECIMAL(18, 2)) AS excluded_original_income_php
+FROM financial_records fr
+INNER JOIN financial_records orig
+  ON orig.financial_record_id = fr.reversal_of_record_id
+LEFT JOIN patronage_periods pp
+  ON fr.record_date >= pp.period_start
+ AND fr.record_date < DATE_ADD(pp.period_end, INTERVAL 1 DAY)
+WHERE fr.record_status = 'Active'
+  AND fr.approved_by IS NOT NULL
+  AND fr.record_type = 'Adjustment'
+  AND fr.reversal_of_record_id IS NOT NULL
+  AND orig.source_module IN ('POS', 'Rental')
+  AND orig.record_type = 'Income'
+GROUP BY
+  YEAR(fr.record_date),
+  pp.patronage_period_id,
+  pp.period_name,
+  pp.period_status
+ORDER BY reversal_year DESC, pp.patronage_period_id DESC`,
+
+  membershipShareCapitalInDividendBasis: `SELECT
+  fr.financial_record_id,
+  fr.record_number,
+  DATE_FORMAT(fr.record_date, '%Y-%m-%d') AS record_date,
+  fr.source_module,
+  fc.financial_category_id,
+  fc.category_code,
+  fc.category_name,
+  pr.payment_reference_id,
+  pr.reference_number AS payment_reference_number,
+  pr.payment_purpose,
+  pr.related_entity_type,
+  sp.share_payment_id,
+  sp.payment_status AS share_payment_status,
+  dd.dividend_declaration_id,
+  dd.declaration_name,
+  dd.declaration_status,
+  CAST(fr.amount AS DECIMAL(18, 2)) AS leaked_capital_amount_php
+FROM financial_records fr
+INNER JOIN financial_categories fc
+  ON fc.financial_category_id = fr.financial_category_id
+LEFT JOIN payment_references pr
+  ON pr.payment_reference_id = fr.payment_reference_id
+LEFT JOIN share_capital_payments sp
+  ON sp.payment_reference_id = fr.payment_reference_id
+LEFT JOIN dividend_declarations dd
+  ON fr.record_date >= dd.coverage_start
+ AND fr.record_date < DATE_ADD(dd.coverage_end, INTERVAL 1 DAY)
+ AND dd.declaration_status <> 'Cancelled'
+WHERE fr.record_status = 'Active'
+  AND fr.approved_by IS NOT NULL
+  AND fr.record_type = 'Income'
+  AND fr.source_module <> 'Share Capital'
+  AND (
+    UPPER(COALESCE(fc.category_code, '')) = 'SHARE_CAPITAL'
+    OR UPPER(COALESCE(fc.category_name, '')) LIKE '%SHARE CAPITAL%'
+    OR pr.payment_purpose = 'Share Capital'
+    OR sp.share_payment_id IS NOT NULL
+  )
+ORDER BY fr.record_date DESC, fr.financial_record_id DESC`,
+
+  paymongoTestPaymentsInLiveTables: `SELECT
+  pr.gateway_environment,
+  pr.payment_purpose,
+  pr.validation_status,
+  COUNT(pr.payment_reference_id) AS test_payment_ref_count,
+  CAST(COALESCE(SUM(pr.amount), 0.00) AS DECIMAL(18, 2)) AS test_payment_ref_amount_php,
+  COALESCE(SUM(fin.active_record_count), 0) AS active_financial_record_count,
+  CAST(COALESCE(SUM(fin.active_record_amount), 0.00) AS DECIMAL(18, 2)) AS active_financial_amount_php,
+  COALESCE(SUM(cap.validated_payment_count), 0) AS validated_share_payment_count,
+  COALESCE(SUM(cap.posted_ledger_count), 0) AS posted_capital_ledger_count,
+  CAST(COALESCE(SUM(cap.posted_ledger_amount), 0.00) AS DECIMAL(18, 2)) AS posted_capital_ledger_amount_php
+FROM payment_references pr
+LEFT JOIN (
+  SELECT
+    fr.payment_reference_id,
+    COUNT(fr.financial_record_id) AS active_record_count,
+    SUM(fr.amount) AS active_record_amount
+  FROM financial_records fr
+  WHERE fr.record_status = 'Active'
+    AND fr.approved_by IS NOT NULL
+  GROUP BY fr.payment_reference_id
+) fin ON fin.payment_reference_id = pr.payment_reference_id
+LEFT JOIN (
+  SELECT
+    sp.payment_reference_id,
+    COUNT(DISTINCT sp.share_payment_id) AS validated_payment_count,
+    COUNT(DISTINCT sct.share_capital_transaction_id) AS posted_ledger_count,
+    SUM(CASE WHEN sct.direction = 'Credit' THEN sct.amount WHEN sct.direction = 'Debit' THEN -sct.amount ELSE 0.00 END) AS posted_ledger_amount
+  FROM share_capital_payments sp
+  LEFT JOIN share_capital_transactions sct
+    ON sct.source_type IN ('share_capital_payment', 'share_capital_payment_reversal')
+   AND sct.source_id = CAST(sp.share_payment_id AS CHAR)
+   AND sct.transaction_status = 'Posted'
+  WHERE sp.payment_status IN ('Validated', 'Reversed')
+  GROUP BY sp.payment_reference_id
+) cap ON cap.payment_reference_id = pr.payment_reference_id
+WHERE pr.payment_channel = 'PayMongo'
+  AND pr.gateway_environment = 'Test'
+GROUP BY
+  pr.gateway_environment,
+  pr.payment_purpose,
+  pr.validation_status
+ORDER BY pr.payment_purpose ASC, pr.validation_status ASC`,
+
+  unpostedExpensesInBudgetCalculations: `SELECT
+  YEAR(fr.record_date) AS expense_year,
+  fc.financial_category_id,
+  fc.category_code,
+  fc.category_name,
+  fr.season_id,
+  b.budget_id,
+  b.budget_name,
+  b.budget_status,
+  COUNT(fr.financial_record_id) AS unposted_active_expense_count,
+  CAST(COALESCE(SUM(fr.amount), 0.00) AS DECIMAL(18, 2)) AS unposted_expense_amount_php
+FROM financial_records fr
+INNER JOIN financial_categories fc
+  ON fc.financial_category_id = fr.financial_category_id
+LEFT JOIN budget_lines bl
+  ON bl.financial_category_id = fr.financial_category_id
+ AND (
+   (bl.season_id IS NULL AND fr.season_id IS NULL)
+   OR (bl.season_id IS NOT NULL AND fr.season_id = bl.season_id)
+ )
+LEFT JOIN budgets b
+  ON b.budget_id = bl.budget_id
+ AND fr.record_date BETWEEN b.coverage_start AND b.coverage_end
+WHERE fr.record_type = 'Expense'
+  AND fr.record_status = 'Active'
+  AND fr.approved_by IS NULL
+GROUP BY
+  YEAR(fr.record_date),
+  fc.financial_category_id,
+  fc.category_code,
+  fc.category_name,
+  fr.season_id,
+  b.budget_id,
+  b.budget_name,
+  b.budget_status
+ORDER BY expense_year DESC, unposted_expense_amount_php DESC`,
+
+  utcVsManilaSettlementRecordDates: `SELECT
+  scoped.financial_record_id,
+  scoped.record_number,
+  scoped.source_module,
+  scoped.record_type,
+  scoped.record_status,
+  scoped.payment_reference_id,
+  scoped.reference_number,
+  scoped.validation_source,
+  scoped.event_kind,
+  DATE_FORMAT(scoped.record_date, '%Y-%m-%d') AS recorded_utc_date,
+  DATE_FORMAT(DATE(DATE_ADD(scoped.utc_event_at, INTERVAL 8 HOUR)), '%Y-%m-%d') AS manila_calendar_date,
+  DATE_FORMAT(scoped.utc_event_at, '%Y-%m-%d %H:%i:%s') AS utc_event_timestamp,
+  DATE_FORMAT(DATE_ADD(scoped.utc_event_at, INTERVAL 8 HOUR), '%Y-%m-%d %H:%i:%s') AS manila_event_timestamp,
+  CAST(scoped.amount AS DECIMAL(18, 2)) AS amount_php
+FROM (
+  SELECT
+    fr.financial_record_id,
+    fr.record_number,
+    fr.source_module,
+    fr.record_type,
+    fr.record_status,
+    fr.record_date,
+    fr.amount,
+    pr.payment_reference_id,
+    pr.reference_number,
+    pr.validation_source,
+    CASE
+      WHEN fr.reversal_of_record_id IS NOT NULL THEN 'payment_reversal'
+      ELSE 'payment_settlement'
+    END AS event_kind,
+    CASE
+      WHEN fr.reversal_of_record_id IS NOT NULL THEN COALESCE(rec.reversed_at, pr.updated_at)
+      WHEN pr.validation_source = 'PayMongo Webhook' THEN COALESCE(pr.paid_at, pr.validated_at)
+      ELSE COALESCE(pr.validated_at, pr.paid_at)
+    END AS utc_event_at
+  FROM financial_records fr
+  INNER JOIN payment_references pr
+    ON pr.payment_reference_id = fr.payment_reference_id
+  LEFT JOIN (
+    SELECT payment_reference_id, MAX(reversed_at) AS reversed_at
+    FROM payment_receipts
+    GROUP BY payment_reference_id
+  ) rec ON rec.payment_reference_id = pr.payment_reference_id
+) scoped
+WHERE scoped.utc_event_at IS NOT NULL
+  AND scoped.record_date = DATE(scoped.utc_event_at)
+  AND scoped.record_date <> DATE(DATE_ADD(scoped.utc_event_at, INTERVAL 8 HOUR))
+ORDER BY scoped.financial_record_id DESC`,
+} as const;
+
