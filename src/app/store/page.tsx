@@ -2,7 +2,8 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { StorePublicHeader } from "./_components/StorePublicHeader";
+import SiteHeader from "@/components/layout/SiteHeader";
+import SiteFooter from "@/components/layout/SiteFooter";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 
 function StoreCheckoutClient() {
@@ -29,15 +30,14 @@ function StoreCheckoutClient() {
 
 export default function CooperativeStorePage() {
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8F6EF] font-sans">
-      <StorePublicHeader />
-      <main className="flex-1 py-8">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 [&>div]:rounded-2xl [&>div]:border [&>div]:border-gray-200 [&>div]:shadow-sm">
-          <Suspense fallback={<MemberPosClient isPublicView />}>
+    <div className="public-store flex min-h-screen flex-col bg-[var(--public-canvas)] text-[#123D2A]">
+      <SiteHeader initialActive="services" />
+      <main className="min-w-0 flex-1 pt-16">
+          <Suspense fallback={<div role="status" className="px-5 py-16 text-center text-[#365F4A]">Loading cooperative store...</div>}>
             <StoreCheckoutClient />
           </Suspense>
-        </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

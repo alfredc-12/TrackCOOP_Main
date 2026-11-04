@@ -36,15 +36,28 @@ export const updateFinancialCategorySchema = financialCategorySchema.partial().r
   { message: "At least one category field is required" },
 );
 
+const pipeList = <T extends z.ZodType>(item: T) => z.preprocess(
+  (value) => (typeof value === "string" ? value.split("|").filter(Boolean) : value),
+  z.array(item).max(50),
+).optional();
+
 export const listFinancialRecordsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   search: z.string().trim().min(1).max(190).optional(),
   recordType: z.enum(financialRecordTypes).optional(),
   recordStatus: z.enum(financialRecordStatuses).optional(),
+  startDate: z.iso.date().optional(),
+  endDate: z.iso.date().optional(),
+  financialCategoryIds: pipeList(z.string().regex(/^\d{1,10}$/)),
+  sourceModules: pipeList(z.enum(financialSourceModules)),
+  posting: z.enum(["posted", "unposted"]).optional(),
   sortBy: z.enum(["recordDate", "amount", "recordNumber", "createdAt"]).default("recordDate"),
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
-});
+}).refine(
+  (value) => !value.startDate || !value.endDate || value.endDate >= value.startDate,
+  { message: "End date must be on or after the start date", path: ["endDate"] },
+);
 
 export const financialRecordSchema = z.object({
   recordNumber: z.string().trim().min(2).max(60),

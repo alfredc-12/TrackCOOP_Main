@@ -347,7 +347,23 @@ export const completeDividendAction = (id: string, input: { referenceNumber?: st
 export const listDividendWithdrawalRequests = listDividendActionRequests;
 export const completeDividendWithdrawal = completeDividendAction;
 export const listFinancialCategories = () => apiRequest<FinancialCategory[]>("/api/financial-categories");
-export function listFinancialRecords(search?: string) { const params = new URLSearchParams({ pageSize: "50", sortBy: "createdAt", sortDirection: "desc" }); if (search?.trim()) params.set("search", search.trim()); return apiRequest<FinancialRecord[]>(`/api/financial-records?${params}`); }
+import type { LedgerFilters } from "./ledger-filters";
+export { parseLedgerFilters } from "./ledger-filters";
+export type { LedgerFilters } from "./ledger-filters";
+export const hasLedgerFilters = (filters: LedgerFilters) => Object.keys(filters).some(key => key !== "search");
+export function listFinancialRecords(search?: string, filters: LedgerFilters = {}) {
+  const filtered = hasLedgerFilters(filters);
+  const params = new URLSearchParams({ pageSize: filtered ? "100" : "50", sortBy: filtered ? "recordDate" : "createdAt", sortDirection: "desc" });
+  if (search?.trim()) params.set("search", search.trim());
+  if (filters.startDate) params.set("startDate", filters.startDate);
+  if (filters.endDate) params.set("endDate", filters.endDate);
+  if (filters.financialCategoryIds?.length) params.set("financialCategoryIds", filters.financialCategoryIds.join("|"));
+  if (filters.sourceModules?.length) params.set("sourceModules", filters.sourceModules.join("|"));
+  if (filters.recordType) params.set("recordType", filters.recordType);
+  if (filters.recordStatus) params.set("recordStatus", filters.recordStatus);
+  if (filters.posting) params.set("posting", filters.posting);
+  return apiRequest<FinancialRecord[]>(`/api/financial-records?${params}`);
+}
 export const getFinancialSummary = () => apiRequest<FinancialSummary>("/api/financial-records/summary");
 function operatingExpenseQuery(filters: OperatingExpenseFilters = {}) {
   const params = new URLSearchParams();

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function AnnouncementsPage() {
   return (
-    <main className="min-h-screen bg-white text-[#123D2A]">
+    <main className="public-announcements flex min-h-screen flex-col overflow-x-clip bg-[var(--public-canvas)] text-[#123D2A]">
       <SiteHeader initialActive="announcements" />
       <AnnouncementsArchiveSection />
       <SiteFooter />

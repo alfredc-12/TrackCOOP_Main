@@ -27,6 +27,8 @@ import { createBookkeeperDashboardRouter } from "./modules/bookkeeper-dashboard/
 import { createInventoryRouter } from "./modules/inventory/inventory.routes";
 import { createLandingRouter } from "./modules/landing/landing.routes";
 import { createDashboardRouter } from "./modules/dashboard/dashboard.routes";
+import { createMemberAnalyticsRouter } from "./modules/member-analytics/member-analytics.routes";
+import { createFinancialAnalyticsRouter } from "./modules/financial-analytics/financial-analytics.routes";
 import { createMemberIndicatorRouter } from "./modules/member-indicators/member-indicator.routes";
 import { createMemberSelfRouter } from "./modules/member-self/member-self.routes";
 import { createMemberRouter } from "./modules/members/member.routes";
@@ -190,6 +192,8 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createCommunicationRouter(options.authService));
   app.use("/api", createLandingRouter(options.authService));
   app.use("/api", createDashboardRouter(options.authService));
+  app.use("/api", createMemberAnalyticsRouter(options.authService));
+  app.use("/api", createFinancialAnalyticsRouter(options.authService));
   app.use("/api", createRealtimeRouter(options.authService));
 
   app.use(notFound);

@@ -1,17 +1,25 @@
 @import "tailwindcss";
+@import "./design-tokens.css";
+@import "./design-system.css";
 
 :root {
-  --background: #f7f8f3;
-  --foreground: #17211c;
-  --portal-cream: #f8f1e5;
-  --portal-surface: #ffffff;
-  --portal-field: #f7f8f3;
-  --portal-forest: #123d2a;
-  --portal-green: #1f6b43;
-  --portal-muted: #5d6d63;
-  --portal-border: #cad8cb;
-  --portal-accent: #82e6a7;
-  --portal-harvest: #d8a011;
+  --background: var(--coop-workspace);
+  --foreground: var(--coop-ink);
+  --public-canvas: var(--coop-canvas);
+  --public-section-border: var(--coop-section-border);
+  --public-card-border: var(--coop-card-border);
+  --public-card-shadow: var(--coop-shadow-card);
+  --public-card-shadow-hover: var(--coop-shadow-hover);
+  --public-motion-ease: var(--coop-ease);
+  --portal-cream: var(--coop-legacy-cream);
+  --portal-surface: var(--coop-surface);
+  --portal-field: var(--coop-field);
+  --portal-forest: var(--coop-forest);
+  --portal-green: var(--coop-green);
+  --portal-muted: var(--coop-muted);
+  --portal-border: var(--coop-border);
+  --portal-accent: var(--coop-mint);
+  --portal-harvest: var(--coop-harvest);
 }
 
 @theme inline {
@@ -33,11 +41,315 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--coop-font-body);
+}
+
+.public-landing > section:not(#home),
+.public-about > section + section {
+  border-top: 1px solid var(--public-section-border);
+}
+
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card {
+  border: 1px solid var(--public-card-border);
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: var(--public-card-shadow);
+  transition: translate 280ms var(--public-motion-ease), border-color 220ms ease, box-shadow 280ms ease;
+}
+
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action {
+  transition: translate 220ms var(--public-motion-ease), scale 150ms ease, box-shadow 220ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) :is(.public-action, .public-card-link) :is(.lucide-arrow-right, .lucide-arrow-up-right),
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-service-icon,
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-media > img,
+.public-about .public-hero-media,
+.public-landing :is(.public-stat, .public-stat-icon, .public-stat-value, .public-photo-caption, .public-preview-indicator) {
+  transition: translate 280ms var(--public-motion-ease), scale 400ms var(--public-motion-ease), rotate 280ms ease, color 220ms ease, opacity 220ms ease;
+}
+
+.public-landing .recent-photo {
+  transition: box-shadow 240ms ease, border-color 180ms ease;
+}
+
+.public-landing .public-certificate {
+  transition-property: transform, opacity, border-color, box-shadow;
+  transition-duration: 700ms, 300ms, 180ms, 240ms;
+}
+
+/* Keep the existing expanding hero action alongside the shared hover feedback. */
+.public-landing #home .public-action {
+  transition: width 500ms var(--public-motion-ease), translate 220ms var(--public-motion-ease), scale 150ms ease, box-shadow 220ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.public-landing .public-preview-indicator {
+  opacity: 0;
+  translate: 0 5px;
+}
+
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card:focus-within,
+.public-landing :is(.recent-photo, .public-certificate):focus-visible {
+  border-color: #7fa48a;
+  box-shadow: var(--public-card-shadow-hover);
+}
+
+.public-landing .public-certificate:focus-visible .public-preview-indicator {
+  opacity: 1;
+  translate: 0 0;
+}
+
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action:focus-visible {
+  box-shadow: 0 7px 16px rgba(18, 61, 42, 0.15);
+}
+
+:is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action:focus-visible .lucide-arrow-right {
+  translate: 4px 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card:hover {
+    translate: 0 -5px;
+    border-color: #7fa48a;
+    box-shadow: var(--public-card-shadow-hover);
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card-link:hover {
+    translate: 0 -7px;
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action:hover {
+    translate: 0 -2px;
+    box-shadow: 0 7px 16px rgba(18, 61, 42, 0.15);
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) :is(.public-action, .public-card-link):hover .lucide-arrow-right,
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) :is(.public-action, .public-card-link):focus-within .lucide-arrow-right {
+    translate: 4px 0;
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action:hover .lucide-arrow-up-right {
+    translate: 2px -2px;
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card-link:hover .public-service-icon {
+    rotate: -7deg;
+    scale: 1.08;
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card:hover .public-media > img {
+    scale: 1.045;
+  }
+
+  .public-about > section:first-of-type:hover .public-hero-media {
+    scale: 1.025;
+  }
+
+  .public-landing .public-stat:hover {
+    translate: 0 -5px;
+  }
+
+  .public-landing .public-stat:hover .public-stat-icon {
+    rotate: -7deg;
+    scale: 1.08;
+  }
+
+  .public-landing .public-stat:hover .public-stat-value {
+    color: #f2c94c;
+  }
+
+  .public-landing :is(.recent-photo, .public-certificate):hover {
+    border-color: #7fa48a;
+    box-shadow: 0 18px 40px rgba(18, 61, 42, 0.22);
+  }
+
+  .public-landing .recent-photo:hover .public-photo-caption {
+    translate: 0 -4px;
+  }
+
+  .public-landing .public-certificate:hover .public-preview-indicator {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action:active {
+    translate: 0 0;
+    scale: 0.98;
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card-link:has(a:active) {
+    translate: 0 -2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.public-landing, .public-about) {
+    scroll-behavior: auto;
+  }
+
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) :is(.public-card, .public-action, .public-service-icon),
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-action svg,
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-card-link svg,
+  :is(.public-landing, .public-about, .public-announcements, .public-gallery) .public-media > img,
+  .public-about .public-hero-media,
+  .public-landing :is(.public-stat, .public-stat-icon, .public-stat-value, .public-photo-caption, .public-preview-indicator) {
+    transition: none !important;
+    translate: none !important;
+    scale: 1 !important;
+    rotate: none !important;
+  }
+
+  .public-landing .public-certificate {
+    transition-duration: 0ms;
+  }
+}
+
+@media (hover: none) {
+  .public-landing .public-preview-indicator {
+    opacity: 1;
+    translate: none;
+  }
 }
 
 a {
   text-decoration: none;
+}
+
+/* Application surfaces share the public palette without inheriting card lift. */
+.public-apply .public-apply-card {
+  min-width: 0;
+  border: 1px solid var(--public-card-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--public-card-shadow);
+}
+
+.public-apply .application-stepper,
+.public-apply .application-summary {
+  min-width: 0;
+  border: 1px solid var(--public-card-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--public-card-shadow);
+}
+
+@media (min-width: 1024px) {
+  .public-apply .application-sidebar {
+    border: 1px solid var(--public-card-border);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: var(--public-card-shadow);
+  }
+
+  .public-apply .application-sidebar :is(.application-stepper, .application-summary) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .public-apply .application-sidebar .application-summary {
+    border-top: 1px solid var(--public-card-border);
+  }
+}
+
+.public-apply form :is(button, select, textarea),
+.public-apply .public-apply-action {
+  border-radius: 6px;
+}
+
+.public-apply .public-apply-action {
+  transition: translate 180ms var(--public-motion-ease), box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.public-apply .public-apply-action svg {
+  transition: translate 180ms var(--public-motion-ease);
+}
+
+.public-apply .public-apply-action:focus-visible {
+  outline: 2px solid #1f6b43;
+  outline-offset: 3px;
+}
+
+.public-apply input::placeholder,
+.public-apply textarea::placeholder {
+  color: #627468;
+  opacity: 1;
+}
+
+.public-apply input::file-selector-button {
+  border-radius: 6px;
+}
+
+.public-status .status-panel .status-panel {
+  box-shadow: none;
+}
+
+.public-status :is(.status-highlight, .status-requirement) {
+  transition: border-color 180ms ease, box-shadow 220ms ease, background-color 180ms ease;
+}
+
+.public-status .status-icon {
+  transition: rotate 240ms var(--public-motion-ease), scale 240ms var(--public-motion-ease);
+}
+
+.public-status :is(button, input:not([type="file"]), select) {
+  border-radius: 6px;
+}
+
+.public-status .public-apply-action {
+  min-height: 44px;
+  font-size: 0.875rem;
+}
+
+.public-status .status-panel:focus-within {
+  border-color: #9ab59f;
+}
+
+.public-status .status-requirement:focus-within {
+  background: #f4f8f2;
+  border-color: #9ab59f;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .public-status :is(.status-highlight, .status-requirement):hover {
+    border-color: #9ab59f;
+    box-shadow: 0 5px 14px rgba(18, 61, 42, 0.08);
+    background-color: #f4f8f2;
+  }
+
+  .public-status .status-panel:hover > div > .status-icon {
+    rotate: -5deg;
+    scale: 1.06;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .public-apply .public-apply-action:not(:disabled):not([aria-disabled="true"]):hover {
+    translate: 0 -1px;
+    box-shadow: 0 5px 14px rgba(18, 61, 42, 0.12);
+  }
+
+  .public-apply .public-apply-action:not(:disabled):hover .lucide-arrow-right {
+    translate: 3px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-apply .public-apply-action,
+  .public-apply .public-apply-action svg {
+    transition: none;
+    translate: none !important;
+    scale: 1 !important;
+  }
+
+  .public-status :is(.status-highlight, .status-requirement, .status-icon) {
+    transition: none;
+    rotate: none !important;
+    scale: 1 !important;
+  }
 }
 
 /* Shared native dropdown baseline across portal, admin, member, and public forms. */

@@ -1,4 +1,4 @@
-﻿import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import type { AuthContext } from "../auth/auth.types";
 import { defaultRfmFilters, manilaToday } from "./member-indicator.policy";

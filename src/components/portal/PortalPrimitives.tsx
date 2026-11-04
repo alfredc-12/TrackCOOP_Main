@@ -36,14 +36,14 @@ export function StatCard({
 }) {
   if (variant === "compact") {
     return (
-      <article className={cn("min-w-0 rounded-lg border border-[#D9E2D8] bg-white p-4 shadow-[0_12px_28px_rgba(18,61,42,0.05)]", className)}>
+      <article className={cn("coop-panel p-4", className)}>
         <div className="flex items-center gap-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EEF6EC] text-[#1F6B43]">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EEF6EC] text-coop-green">
             <Icon className="size-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-[#6C7A70]">{label}</p>
-            <p className="text-2xl font-black leading-none text-[#123D2A]">{value}</p>
+            <p className="text-sm font-medium leading-5 text-coop-muted">{label}</p>
+            <p className="mt-1 break-words text-2xl font-bold leading-tight tabular-nums text-coop-forest">{value}</p>
           </div>
         </div>
       </article>
@@ -51,13 +51,13 @@ export function StatCard({
   }
 
   return (
-    <div className={cn("min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]", className)}>
+    <div className={cn("coop-panel p-4", className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7A70] line-clamp-2">{label}</p>
-          <p className={cn("mt-1 text-2xl font-black text-[#123D2A]", valueClassName ?? "truncate")}>{value}</p>
+          <p className="text-sm font-medium leading-5 text-coop-muted">{label}</p>
+          <p className={cn("mt-1 text-2xl font-bold tabular-nums text-coop-forest", valueClassName ?? "break-words")}>{value}</p>
         </div>
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43] relative">
+        <span className="shrink-0 text-coop-green">
           <Icon className="size-5" aria-hidden="true" />
         </span>
       </div>
@@ -67,8 +67,8 @@ export function StatCard({
 
 export function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-      <h2 className="text-sm font-bold text-[#123D2A]">{title}</h2>
+    <section className="coop-panel p-5">
+      <h2 className="text-base font-semibold text-coop-forest">{title}</h2>
       <div className="mt-5">{children}</div>
     </section>
   );
@@ -84,10 +84,10 @@ export function StatusBadge({
   className?: string;
 }) {
   const tones = {
-    neutral: "bg-[#EEF2EC] text-[#365F4A]",
-    success: "bg-[#E3F7E7] text-[#1F6B43]",
-    warning: "bg-[#FFF4D7] text-[#8A6200]",
-    danger: "bg-[#FFE6E0] text-[#9A392A]",
+    neutral: "bg-coop-subtle text-coop-secondary",
+    success: "bg-coop-success-bg text-coop-green",
+    warning: "bg-coop-warning-bg text-coop-warning",
+    danger: "bg-coop-danger-bg text-coop-danger",
   };
 
   return (
@@ -99,12 +99,13 @@ export function StatusBadge({
 
 export function SearchAndFilters({ children }: { children?: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-lg border border-coop-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
       <label className="relative block w-full max-w-md">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
         <input
-          className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
+          className="h-11 w-full rounded-md border border-coop-border bg-coop-workspace pl-10 pr-4 text-sm outline-none transition focus:border-coop-green focus:ring-4 focus:ring-[#82E6A7]/20"
           placeholder="Search"
+          aria-label="Search records"
           type="search"
         />
       </label>
@@ -115,8 +116,8 @@ export function SearchAndFilters({ children }: { children?: ReactNode }) {
 
 export function DataTable({ children }: { children: ReactNode }) {
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-      <div className="w-full min-w-0 max-w-full overflow-x-auto">
+    <div className="coop-panel w-full max-w-full overflow-hidden">
+      <div role="region" aria-label="Data table, scroll horizontally for more columns" tabIndex={0} className="coop-table w-full min-w-0 max-w-full overflow-x-auto">
         {children}
       </div>
     </div>
@@ -137,14 +138,14 @@ export function FormField({
   error?: string;
 }) {
   return (
-    <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
+    <label className="grid gap-2 text-sm font-semibold text-coop-body">
       <span className="flex items-center gap-1">
         {label}
-        {required ? <span className="text-[#9A392A]">*</span> : null}
+        {required ? <span className="text-coop-danger">*</span> : null}
       </span>
       {children}
       {error ? (
-        <span className="text-xs text-[#FF4D4F]">{error}</span>
+        <span className="text-sm font-normal text-coop-danger">{error}</span>
       ) : hint ? (
         <span className="text-xs font-normal text-[#6C7A70]">{hint}</span>
       ) : null}
@@ -181,20 +182,20 @@ export function FormDialog({
             <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
             <div
               className={cn(
-                "relative z-10 w-[min(38rem,calc(100vw-2rem))] rounded-lg border border-[#CAD8CB] bg-white p-4 sm:p-5 shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
+                "relative z-10 w-[min(38rem,calc(100vw-2rem))] rounded-lg border border-coop-border bg-white p-4 sm:p-5 shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
                 contentClassName,
               )}
             >
               <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-start justify-between gap-4 bg-white px-4 pb-3 pt-4 sm:-mx-5 sm:-mt-5 sm:px-5 sm:pt-5">
                 <div className="min-w-0 flex-1">
-                  <Dialog.Title className="break-words text-xl font-black text-[#123D2A]">{title}</Dialog.Title>
+                  <Dialog.Title className="break-words text-xl font-black text-coop-forest">{title}</Dialog.Title>
                   {description ? (
-                    <Dialog.Description className="mt-2 text-sm leading-6 text-[#5D6D63]">
+                    <Dialog.Description className="mt-2 text-sm leading-6 text-coop-muted">
                       {description}
                     </Dialog.Description>
                   ) : null}
                 </div>
-                <Dialog.Close className="grid size-9 shrink-0 place-items-center rounded-md border border-[#CAD8CB] text-[#123D2A] transition hover:bg-[#EEF2EC]">
+                <Dialog.Close aria-label="Close dialog" className="coop-icon-button grid size-11 shrink-0 place-items-center rounded-coop-control border border-coop-border text-coop-forest transition hover:bg-coop-subtle">
                   <X className="size-4" aria-hidden="true" />
                 </Dialog.Close>
               </div>
@@ -246,7 +247,7 @@ export function ConfirmDialog({
             <div
               className={cn(
                 "relative z-10 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border bg-white text-center shadow-[0_24px_70px_rgba(18,61,42,0.22)]",
-                isDanger ? "border-[#E7B8A8]" : "border-[#CAD8CB]",
+                isDanger ? "border-[#E7B8A8]" : "border-coop-border",
               )}
             >
               <div
@@ -263,21 +264,21 @@ export function ConfirmDialog({
                 className={cn(
                   "mx-auto grid size-14 place-items-center rounded-2xl border shadow-[0_12px_30px_rgba(18,61,42,0.10)]",
                   isDanger
-                    ? "border-[#E7B8A8] bg-[#FFF4EC] text-[#9A392A]"
-                    : "border-[#F2D89A] bg-[#FFF4D7] text-[#8A6200]",
+                    ? "border-[#E7B8A8] bg-[#FFF4EC] text-coop-danger"
+                    : "border-[#F2D89A] bg-coop-warning-bg text-coop-warning",
                 )}
               >
                 <Icon className="size-6" aria-hidden="true" />
               </span>
-              <Dialog.Title className="mx-auto mt-5 max-w-[18rem] text-balance text-2xl font-black leading-tight text-[#123D2A]">
+              <Dialog.Title className="mx-auto mt-5 max-w-[18rem] text-balance text-2xl font-black leading-tight text-coop-forest">
                 {title}
               </Dialog.Title>
-              <Dialog.Description className="mx-auto mt-3 max-w-[22rem] text-sm leading-6 text-[#5D6D63]">
+              <Dialog.Description className="mx-auto mt-3 max-w-[22rem] text-sm leading-6 text-coop-muted">
                 {description}
               </Dialog.Description>
               {children ? <div className="mt-4 text-left">{children}</div> : null}
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <Dialog.Close disabled={loading} className="min-h-12 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2.5 text-sm font-black text-[#294B39] transition hover:border-[#9FB7A4] hover:bg-[#EEF2EC] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20 disabled:cursor-not-allowed disabled:opacity-50">
+                <Dialog.Close disabled={loading} className="min-h-12 rounded-lg border border-coop-border bg-white px-4 py-2.5 text-sm font-black text-coop-body transition hover:border-[#9FB7A4] hover:bg-coop-subtle focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20 disabled:cursor-not-allowed disabled:opacity-50">
                   {cancelLabel}
                 </Dialog.Close>
                 <button
@@ -288,7 +289,7 @@ export function ConfirmDialog({
                     "min-h-12 rounded-lg px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_24px_rgba(18,61,42,0.18)] transition focus:outline-none focus:ring-2",
                     isDanger
                       ? "bg-[#8F2F25] hover:bg-[#73251D] focus:ring-[#E7B8A8]"
-                      : "bg-[#123D2A] hover:bg-[#1F6B43] focus:ring-[#1F6B43]/25",
+                      : "bg-coop-forest hover:bg-coop-green focus:ring-[#1F6B43]/25",
                   )}
                 >
                   {loading ? "Processing..." : confirmLabel}
@@ -313,13 +314,13 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <div className="grid min-h-[18rem] place-items-center rounded-lg border border-dashed border-[#B9CABD] bg-white/65 p-8 text-center">
+    <div className="coop-panel grid min-h-40 place-items-center p-6 text-center">
       <div>
-        <span className="mx-auto grid size-12 place-items-center rounded-lg bg-[#E7F2E4] text-[#1F6B43]">
+        <span className="mx-auto block w-fit text-coop-green">
           <Icon className="size-6" aria-hidden="true" />
         </span>
-        <h2 className="mt-4 text-xl font-black text-[#123D2A]">{title}</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-[#5D6D63]">{description}</p>
+        <h2 className="mt-4 text-xl font-black text-coop-forest">{title}</h2>
+        <p className="mt-2 max-w-md text-sm leading-6 text-coop-muted">{description}</p>
       </div>
     </div>
   );
@@ -329,7 +330,7 @@ export function LoadingSkeleton() {
   return (
     <div className="grid gap-4" aria-busy="true" aria-live="polite" aria-label="Loading content">
       <div className="h-28 animate-pulse rounded-lg bg-[#E7F2E4]" />
-      <div className="h-52 animate-pulse rounded-lg bg-[#EEF2EC]" />
+      <div className="h-52 animate-pulse rounded-lg bg-coop-subtle" />
     </div>
   );
 }
@@ -347,8 +348,8 @@ export function FileUploader() {
   return (
     <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-[#B9CABD] bg-white p-6 text-center">
       <div>
-        <FileUp className="mx-auto size-6 text-[#1F6B43]" aria-hidden="true" />
-        <p className="mt-2 text-sm font-semibold text-[#123D2A]">Upload file</p>
+        <FileUp className="mx-auto size-6 text-coop-green" aria-hidden="true" />
+        <p className="mt-2 text-sm font-semibold text-coop-forest">Upload file</p>
       </div>
     </div>
   );
@@ -356,7 +357,7 @@ export function FileUploader() {
 
 export function DateRangeFilter() {
   return (
-    <button className="inline-flex h-11 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-semibold text-[#294B39] transition hover:bg-[#F7F8F3]">
+    <button className="inline-flex h-11 items-center gap-2 rounded-md border border-coop-border bg-white px-4 text-sm font-semibold text-coop-body transition hover:bg-coop-workspace">
       <CalendarDays className="size-4" aria-hidden="true" />
       Date range
       <ChevronDown className="size-4" aria-hidden="true" />
@@ -366,7 +367,7 @@ export function DateRangeFilter() {
 
 export function CurrencyDisplay({ value }: { value: number }) {
   return (
-    <span className="font-bold tabular-nums text-[#123D2A]">
+    <span className="font-bold tabular-nums text-coop-forest">
       {new Intl.NumberFormat("en-PH", {
         style: "currency",
         currency: "PHP",
@@ -378,7 +379,7 @@ export function CurrencyDisplay({ value }: { value: number }) {
 
 export function LoadingAccess() {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#F7F8F3] text-[#123D2A]">
+    <main className="grid min-h-screen place-items-center bg-coop-workspace text-coop-forest">
       <div className="flex items-center gap-3 text-sm font-semibold">
         <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
         Verifying access...
@@ -401,44 +402,52 @@ export function PaginationControls({
   onPageChange: (page: number) => void;
 }) {
   return (
-    <div className="mt-6 flex items-center justify-center gap-5">
+    <nav aria-label="Table pagination" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
       <div className="flex items-center gap-2">
         <button
+          type="button"
+          aria-label="First page"
           disabled={currentPage === 1}
           onClick={() => onPageChange(1)}
-          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+          className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
           <ChevronsLeft className="size-4" />
         </button>
         <button
+          type="button"
+          aria-label="Previous page"
           disabled={currentPage === 1}
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+          className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
           <ChevronLeft className="size-4" />
         </button>
       </div>
       
-      <p className="text-sm font-bold text-[#003840]">
+      <p className="text-center text-sm font-medium tabular-nums text-coop-secondary">
         Page {currentPage} of {totalPages || 1} <span className="mx-2 text-[#9CA3AF]">•</span> {totalItems} {itemName}
       </p>
 
       <div className="flex items-center gap-2">
         <button
+          type="button"
+          aria-label="Next page"
           disabled={currentPage >= totalPages || totalPages === 0}
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+          className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
           <ChevronRight className="size-4" />
         </button>
         <button
+          type="button"
+          aria-label="Last page"
           disabled={currentPage >= totalPages || totalPages === 0}
           onClick={() => onPageChange(totalPages)}
-          className="flex size-9 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white text-[#6B7280] transition hover:bg-gray-50 disabled:opacity-50 shadow-sm"
+          className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
           <ChevronsRight className="size-4" />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

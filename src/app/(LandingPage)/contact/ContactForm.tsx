@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Send, Loader2 } from "lucide-react";
 import { createPublicRequest } from "@/features/communication/communication-api";
 import type { RequestType, RequestPriority } from "@/features/communication/communication-types";
 import { Button } from "@/components/ui/Button";
@@ -137,7 +136,7 @@ export function ContactForm() {
         message: "",
       });
       setErrors({});
-    } catch (error) {
+    } catch {
       toast.error("Failed to submit inquiry. Please try again later.");
     } finally {
       setIsSubmitting(false);
@@ -145,46 +144,46 @@ export function ContactForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid gap-4 lg:flex-1 lg:grid-rows-[auto_auto_minmax(0,1fr)_auto]">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="relative pb-5"><label className="grid gap-1.5 text-sm font-bold text-[#123D2A]"><span>Priority</span><StyledSelect value={formData.priority} options={["Low", "Normal", "High", "Urgent"]} onChange={(value) => setFormData((current) => ({ ...current, priority: value as RequestPriority }))} disabled={isSubmitting} prefix="Priority" /></label><p className="mt-1 text-xs text-[#789181]">Choose Urgent only when immediate attention is needed.</p></div>
-
-        <div className="relative pb-5">
-          <div className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+        <div className="min-w-0">
+          <div className="grid gap-1.5 text-sm font-bold text-coop-forest">
             <span>Full Name <span className="text-red-500">*</span></span>
             <Input
               name="requesterName"
+              aria-label="Full Name"
               value={formData.requesterName}
               onChange={handleChange}
               placeholder="Juan Dela Cruz"
               disabled={isSubmitting}
-              className={`h-11 bg-[#F7F8F3] ${errors.requesterName ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+              className={`h-11 w-full min-w-0 bg-coop-workspace text-base ${errors.requesterName ? "border-red-500 focus-visible:ring-red-500" : ""}`}
             />
           </div>
-          {errors.requesterName && <p className="absolute bottom-0 left-0 text-[11px] text-red-500">{errors.requesterName}</p>}
+          {errors.requesterName && <p className="mt-1 text-sm text-red-600">{errors.requesterName}</p>}
         </div>
         
-        <div className="relative pb-5">
-          <div className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+        <div className="min-w-0">
+          <div className="grid gap-1.5 text-sm font-bold text-coop-forest">
             <span>Email Address <span className="text-red-500">*</span></span>
             <Input
               type="email"
               name="requesterEmail"
+              aria-label="Email Address"
               value={formData.requesterEmail}
               onChange={handleChange}
               placeholder="juan@gmail.com"
               disabled={isSubmitting}
-              className={`h-11 bg-[#F7F8F3] ${errors.requesterEmail ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+              className={`h-11 w-full min-w-0 bg-coop-workspace text-base ${errors.requesterEmail ? "border-red-500 focus-visible:ring-red-500" : ""}`}
             />
           </div>
-          {errors.requesterEmail && <p className="absolute bottom-0 left-0 text-[11px] text-red-500">{errors.requesterEmail}</p>}
+          {errors.requesterEmail && <p className="mt-1 text-sm text-red-600">{errors.requesterEmail}</p>}
         </div>
         
-        <div className="relative pb-5">
-          <label className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+        <div className="min-w-0">
+          <label className="grid gap-1.5 text-sm font-bold text-coop-forest">
             <span>Phone Number <span className="text-red-500">*</span></span>
-            <div className={`flex h-11 items-center overflow-hidden rounded-md border bg-[#F7F8F3] transition focus-within:ring-4 focus-within:ring-[#82E6A7]/20 ${errors.requesterPhone ? "border-red-500 focus-within:border-red-500 focus-within:ring-red-500/20" : "border-[#CAD8CB] focus-within:border-[#1F6B43]"}`}>
-              <span className="flex h-full items-center justify-center border-r border-[#CAD8CB] bg-[#EEF2EC] px-3.5 text-sm font-medium text-[#365F4A]">
+            <div className={`flex h-11 items-center overflow-hidden rounded-md border bg-coop-workspace transition focus-within:ring-4 focus-within:ring-[#82E6A7]/20 ${errors.requesterPhone ? "border-red-500 focus-within:border-red-500 focus-within:ring-red-500/20" : "border-coop-border focus-within:border-coop-green"}`}>
+              <span className="flex h-full items-center justify-center border-r border-coop-border bg-coop-subtle px-3.5 text-sm font-medium text-coop-secondary">
                 +63
               </span>
               <input
@@ -194,18 +193,18 @@ export function ContactForm() {
                 onChange={handleChange}
                 placeholder="9000000000"
                 disabled={isSubmitting}
-                className="h-full w-full bg-transparent px-3 text-sm outline-none placeholder:text-black/40 disabled:opacity-50"
+                className="h-full min-w-0 flex-1 bg-transparent px-3 text-base outline-none placeholder:text-[#627468] disabled:opacity-50"
               />
             </div>
           </label>
-          {errors.requesterPhone && <p className="absolute bottom-0 left-0 text-[11px] text-red-500">{errors.requesterPhone}</p>}
+          {errors.requesterPhone && <p className="mt-1 text-sm text-red-600">{errors.requesterPhone}</p>}
         </div>
         
-        <div className="relative pb-5">
-          <label className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+        <div className="min-w-0">
+          <label className="grid gap-1.5 text-sm font-bold text-coop-forest">
             <span>Barangay <span className="text-red-500">*</span></span>
-            <div className={`flex h-11 items-center overflow-hidden rounded-md border bg-[#F7F8F3] transition focus-within:ring-4 focus-within:ring-[#82E6A7]/20 ${errors.requesterBarangay ? "border-red-500 focus-within:border-red-500 focus-within:ring-red-500/20" : "border-[#CAD8CB] focus-within:border-[#1F6B43]"}`}>
-              <span className="flex h-full items-center justify-center border-r border-[#CAD8CB] bg-[#EEF2EC] px-3.5 text-sm font-medium text-[#365F4A]">
+            <div className={`flex h-11 items-center overflow-hidden rounded-md border bg-coop-workspace transition focus-within:ring-4 focus-within:ring-[#82E6A7]/20 ${errors.requesterBarangay ? "border-red-500 focus-within:border-red-500 focus-within:ring-red-500/20" : "border-coop-border focus-within:border-coop-green"}`}>
+              <span className="flex h-full items-center justify-center border-r border-coop-border bg-coop-subtle px-3.5 text-sm font-medium text-coop-secondary">
                 Brgy.
               </span>
               <input
@@ -214,17 +213,19 @@ export function ContactForm() {
                 onChange={handleChange}
                 placeholder="1"
                 disabled={isSubmitting}
-                className="h-full w-full bg-transparent px-3 text-sm outline-none placeholder:text-black/40 disabled:opacity-50"
+                className="h-full min-w-0 flex-1 bg-transparent px-3 text-base outline-none placeholder:text-[#627468] disabled:opacity-50"
               />
             </div>
           </label>
-          {errors.requesterBarangay && <p className="absolute bottom-0 left-0 text-[11px] text-red-500">{errors.requesterBarangay}</p>}
+          {errors.requesterBarangay && <p className="mt-1 text-sm text-red-600">{errors.requesterBarangay}</p>}
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="relative pb-5">
-          <label className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+        <div className="min-w-0"><label className="grid gap-1.5 text-sm font-bold text-coop-forest"><span>Priority</span><StyledSelect value={formData.priority} options={["Low", "Normal", "High", "Urgent"]} onChange={(value) => setFormData((current) => ({ ...current, priority: value as RequestPriority }))} disabled={isSubmitting} prefix="Priority" /></label><p className="mt-1 text-xs text-[#526B59]">Choose Urgent only when immediate attention is needed.</p></div>
+
+        <div className="min-w-0">
+          <label className="grid gap-1.5 text-sm font-bold text-coop-forest">
             <span>Category <span className="text-red-500">*</span></span>
             <StyledSelect
               value={formData.requestType}
@@ -236,24 +237,25 @@ export function ContactForm() {
           </label>
         </div>
 
-        <div className="relative pb-5">
-          <div className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+        <div className="min-w-0 sm:col-span-2">
+          <div className="grid gap-1.5 text-sm font-bold text-coop-forest">
             <span>Subject <span className="text-red-500">*</span></span>
             <Input
               name="subject"
+              aria-label="Subject"
               value={formData.subject}
               onChange={handleChange}
               placeholder="What is this regarding?"
               disabled={isSubmitting}
-              className={`h-11 bg-[#F7F8F3] ${errors.subject ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+              className={`h-11 w-full min-w-0 bg-coop-workspace text-base ${errors.subject ? "border-red-500 focus-visible:ring-red-500" : ""}`}
             />
           </div>
-          {errors.subject && <p className="absolute bottom-0 left-0 text-[11px] text-red-500">{errors.subject}</p>}
+          {errors.subject && <p className="mt-1 text-sm text-red-600">{errors.subject}</p>}
         </div>
       </div>
 
-      <div className="relative pb-5">
-        <label className="grid gap-1.5 text-sm font-bold text-[#123D2A]">
+      <div className="min-w-0 lg:flex lg:flex-col">
+        <label className="grid gap-1.5 text-sm font-bold text-coop-forest lg:flex-1 lg:grid-rows-[auto_minmax(0,1fr)]">
           <span>Message <span className="text-red-500">*</span></span>
           <textarea
             name="message"
@@ -262,10 +264,10 @@ export function ContactForm() {
             placeholder="Type your inquiry here..."
             rows={4}
             disabled={isSubmitting}
-            className={`w-full resize-none rounded-md border px-3 py-2.5 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20 disabled:opacity-50 ${errors.message ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-[#CAD8CB] bg-[#F7F8F3]"}`}
+            className={`w-full resize-none rounded-md border px-3 py-2.5 text-base outline-none transition focus:border-coop-green focus:ring-4 focus:ring-[#82E6A7]/20 disabled:opacity-50 ${errors.message ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-coop-border bg-coop-workspace"}`}
           />
         </label>
-        {errors.message && <p className="absolute bottom-0 left-0 text-[11px] text-red-500">{errors.message}</p>}
+        {errors.message && <p className="mt-1 text-sm text-red-600">{errors.message}</p>}
       </div>
 
       <Button type="submit" disabled={isSubmitting} className="mt-2 h-12 w-full text-base sm:w-auto sm:place-self-end sm:px-8">
@@ -290,10 +292,10 @@ export function ContactForm() {
         }}
       >
         {createdRequestCode && (
-          <div className="mt-4 rounded-lg bg-[#E3F7E7] p-4 text-center border border-[#82E6A7]">
-            <p className="text-sm font-semibold text-[#1F6B43]">Your Tracking Code:</p>
-            <p className="mt-1 text-2xl font-black text-[#123D2A] tracking-wider select-all">{createdRequestCode}</p>
-            <p className="mt-2 text-xs text-[#294B39]">Please save this code. You can use it to check the status of your inquiry on our Track page.</p>
+          <div className="mt-4 rounded-lg bg-coop-success-bg p-4 text-center border border-coop-mint">
+            <p className="text-sm font-semibold text-coop-green">Your Tracking Code:</p>
+            <p className="mt-1 text-2xl font-black text-coop-forest tracking-wider select-all">{createdRequestCode}</p>
+            <p className="mt-2 text-xs text-coop-body">Please save this code. You can use it to check the status of your inquiry on our Track page.</p>
           </div>
         )}
         <div className="flex justify-end pt-4 gap-3">

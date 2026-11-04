@@ -86,13 +86,15 @@
 }
 .kpi {
   display: grid;
+  align-content: start;
   gap: 6px;
   min-width: 0;
   text-align: left;
-  padding: 16px;
+  padding: 12px;
   background: var(--coop-surface, white);
   border: 1px solid var(--rfm-border);
-  border-radius: 12px;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgb(18 61 42 / 0.05);
   transition:
     border-color 160ms,
     background 160ms;
@@ -103,19 +105,27 @@
   background: var(--rfm-sage);
 }
 .kpi > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   font-weight: 600;
   color: var(--rfm-muted);
 }
+.kpi > span:first-child svg { box-sizing: content-box; padding: 8px; border-radius: 8px; flex-shrink: 0; color: var(--signal-ink, var(--coop-success, #1f6b43)); background: var(--signal-bg, #eef7ed); }
+.kpi[data-tone="good"] { --signal-ink: var(--coop-success, #1f6b43); --signal-bg: var(--coop-success-bg, #e3f7e7); }
+.kpi[data-tone="warning"] { --signal-ink: var(--coop-warning, #8a6200); --signal-bg: var(--coop-warning-bg, #fff4d7); }
+.kpi[data-tone="danger"] { --signal-ink: var(--coop-danger, #9a392a); --signal-bg: var(--coop-danger-bg, #ffe6e0); }
 .kpi strong {
-  font-size: 28px;
-  line-height: 1.2;
-  font-weight: 600;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
   color: var(--rfm-forest);
 }
 .kpi small {
   font-size: 12px;
   color: var(--rfm-muted);
+  line-height: 1.4;
 }
 .panel {
   background: var(--coop-surface, white);
@@ -264,20 +274,24 @@
 }
 .rowActions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-width: 120px;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-width: max-content;
 }
 .rowActions button,
 .rowActions a {
-  min-height: 32px;
-  padding: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-height: 36px;
+  padding: 6px;
   border-radius: 4px;
   color: var(--rfm-forest);
-  font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
+.rowActions > :not(:first-child) { border-left: 1px solid var(--rfm-border); border-radius: 0; }
+.rowActions :is(button, a):hover { background: var(--rfm-sage); }
 .pagination {
   display: flex;
   gap: 12px;
@@ -504,7 +518,7 @@
     gap: 12px;
   }
   .mobileCard .rowActions {
-    gap: 8px;
+    gap: 0;
   }
   .mobileCard .definition {
     grid-template-columns: 80px minmax(0, 1fr);
@@ -516,6 +530,7 @@
   .rowActions button,
   .rowActions a {
     min-height: 44px;
+    width: 44px;
   }
   .drawer {
     width: 100%;

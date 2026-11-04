@@ -4,15 +4,15 @@ import { cn } from "@/lib/utils";
 import { LoadingSpinner } from "./LoadingStates";
 
 const buttonVariants = cva(
-  "inline-flex h-11 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "coop-button inline-flex h-11 items-center justify-center gap-2 rounded-coop-control px-5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         primary:
-          "bg-[#123D2A] text-white shadow-sm hover:bg-[#0d2c1e] focus-visible:outline-[#123D2A]",
+          "bg-coop-forest text-white shadow-coop-soft hover:bg-coop-primary-hover focus-visible:outline-coop-forest",
         secondary:
-          "border border-black/10 bg-white text-[#17211c] hover:bg-[#edf3e7] focus-visible:outline-[#4d8f5b]",
-        ghost: "text-[#17211c] hover:bg-black/5 focus-visible:outline-[#4d8f5b]",
+          "border border-coop-border bg-coop-surface text-coop-forest hover:bg-coop-subtle focus-visible:outline-coop-green",
+        ghost: "text-coop-forest hover:bg-coop-subtle focus-visible:outline-coop-green",
       },
       size: {
         sm: "h-9 px-4",

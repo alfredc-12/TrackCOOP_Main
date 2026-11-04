@@ -33,6 +33,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type PointerEvent,
@@ -630,38 +631,6 @@ export function MembershipApplicationForm() {
       aria-busy={isSubmittingApplication}
       className="grid gap-6"
     >
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div>
-            <p className="text-sm font-black text-[#D8A011]">Membership Application</p>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.h2
-                key={currentStep}
-                ref={stepHeadingRef}
-                tabIndex={-1}
-                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                transition={viewTransition}
-                className="mt-2 scroll-mt-28 text-3xl font-black leading-tight tracking-normal text-[#123D2A] outline-none"
-              >
-                {applicationStepTitle(currentStep)}
-              </motion.h2>
-            </AnimatePresence>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">
-              Complete the current section. Payment is not required until NFFAC approves the application for payment.
-            </p>
-          </div>
-          <motion.div
-            layout
-            transition={viewTransition}
-            className="rounded-2xl border border-[#DDE8D8] bg-[#F8F1E5] px-4 py-3 text-sm font-bold text-[#365F4A]"
-          >
-            Step {currentStep + 1} of 5
-          </motion.div>
-        </div>
-      </section>
-
       <AnimatePresence initial={false}>
         {!isOnline ? (
           <motion.div
@@ -672,7 +641,7 @@ export function MembershipApplicationForm() {
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
             transition={exitTransition}
-            className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900"
+            className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900"
           >
             <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
             You are offline. Your draft is saved, but submission will work after your connection returns.
@@ -680,140 +649,153 @@ export function MembershipApplicationForm() {
         ) : null}
       </AnimatePresence>
 
-      <ApplicationProgress currentStep={currentStep} />
-
-      <motion.div layout className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
-        <motion.div
-          layout
-          transition={viewTransition}
-          className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-7"
-        >
-          <AnimatePresence mode="wait" custom={stepDirection} initial={false}>
-            <motion.div
-              key={currentStep}
-              custom={stepDirection}
-              initial={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : {
-                      opacity: 0,
-                      x: stepDirection > 0 ? 10 : -10,
-                      y: stepDirection > 0 ? 6 : 0,
-                      filter: "blur(2px)",
-                    }
-              }
-              animate={{ opacity: 1, x: 0, y: 0, filter: "blur(0px)" }}
-              exit={
-                prefersReducedMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: -6, filter: "blur(1px)" }
-              }
-              transition={viewTransition}
-            >
-              {stepContent}
-            </motion.div>
-          </AnimatePresence>
-        </motion.div>
-
-        <motion.div layout transition={viewTransition}>
+      <motion.div layout className="grid gap-5 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start lg:gap-7">
+        <aside aria-label="Application steps and summary" className="application-sidebar grid min-w-0 gap-4 lg:sticky lg:top-24 lg:gap-0">
+          <ApplicationProgress currentStep={currentStep} />
           <ApplicationSummaryRail
             values={draftValues}
             currentStep={currentStep}
             uploads={uploads}
             signatureFile={signatureFile}
           />
+        </aside>
+        <motion.div
+          layout
+          transition={viewTransition}
+          className="public-apply-card"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-lg border-b border-[var(--public-card-border)] bg-[var(--public-canvas)] px-5 py-4 sm:px-7">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.h2
+                key={currentStep}
+                ref={stepHeadingRef}
+                tabIndex={-1}
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                transition={viewTransition}
+                className="scroll-mt-28 text-xl font-bold leading-tight text-[#123D2A] outline-none sm:text-2xl"
+              >
+                {applicationStepTitle(currentStep)}
+              </motion.h2>
+            </AnimatePresence>
+            <span className="hidden shrink-0 text-sm font-semibold text-[#365F4A] sm:block">Step {currentStep + 1} of 5</span>
+          </div>
+          <div className="p-5 sm:p-7">
+            <AnimatePresence mode="wait" custom={stepDirection} initial={false}>
+              <motion.div
+                key={currentStep}
+                custom={stepDirection}
+                initial={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: stepDirection > 0 ? 10 : -10 }
+                }
+                animate={{ opacity: 1, x: 0 }}
+                exit={
+                  prefersReducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: stepDirection > 0 ? -8 : 8 }
+                }
+                transition={viewTransition}
+              >
+                {stepContent}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <AnimatePresence initial={false}>
+            {submitError ? (
+              <motion.div
+                key="submit-error"
+                role="alert"
+                aria-live="assertive"
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                transition={exitTransition}
+                className="mx-5 mb-5 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"
+              >
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <div><p>{submitError}</p><p className="mt-1 font-semibold">Your entries are still here. Review the message, then try submitting again.</p></div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <div className="flex flex-col-reverse gap-3 rounded-b-lg border-t border-[var(--public-card-border)] bg-[var(--public-canvas)] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <Button
+              type="button"
+              onClick={goBack}
+              disabled={currentStep === 0 || isSubmittingApplication}
+              className="public-apply-action h-11 w-full rounded-md border border-[var(--public-card-border)] bg-white px-5 text-[#123D2A] hover:bg-[#EAF3E8] sm:w-auto"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </Button>
+
+            <AnimatePresence mode="wait" initial={false}>
+              {currentStep < stepFields.length - 1 ? (
+                <motion.div
+                  key="continue"
+                  className="w-full sm:w-auto"
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                  transition={exitTransition}
+                >
+                  <Button
+                    type="button"
+                    onClick={advanceStep}
+                    className="public-apply-action min-h-11 w-full rounded-md bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43] active:scale-[0.98] sm:w-auto"
+                  >
+                    Continue
+                    <ArrowRight className="size-4" />
+                  </Button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="submit"
+                  className="w-full sm:w-auto"
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                  transition={exitTransition}
+                >
+                  <Button
+                    type="submit"
+                    disabled={isSubmittingApplication || !isOnline}
+                    className="public-apply-action h-auto min-h-11 w-full rounded-md bg-[#123D2A] px-5 py-3 text-white shadow-sm hover:bg-[#1F6B43] active:scale-[0.98] sm:w-auto"
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      {isSubmittingApplication ? (
+                        <motion.span
+                          key="loader"
+                          initial={{ opacity: 0, scale: 0.92 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.92 }}
+                          transition={{ duration: prefersReducedMotion ? 0.05 : 0.12 }}
+                        >
+                          <Loader2 className="size-4 animate-spin" />
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="send"
+                          initial={{ opacity: 0, scale: 0.92 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.92 }}
+                          transition={{ duration: prefersReducedMotion ? 0.05 : 0.12 }}
+                        >
+                          <Send className="size-4" />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {isSubmittingApplication ? "Submitting..." : "Submit Membership Application"}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
       </motion.div>
-
-      <AnimatePresence initial={false}>
-        {submitError ? (
-          <motion.div
-            key="submit-error"
-            role="alert"
-            aria-live="assertive"
-            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-            transition={exitTransition}
-            className="mt-6 flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"
-          >
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <div><p>{submitError}</p><p className="mt-1 font-semibold">Your entries are still here. Review the message, then try submitting again.</p></div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <div className="flex flex-col-reverse gap-3 rounded-[1.5rem] border border-[#DDE8D8] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <Button
-          type="button"
-          onClick={goBack}
-          disabled={currentStep === 0 || isSubmittingApplication}
-          className="h-11 rounded-full border border-[#DDE8D8] bg-white px-5 text-[#123D2A] hover:bg-[#EAF3E8]"
-        >
-          <ArrowLeft className="size-4" />
-          Back
-        </Button>
-
-        <AnimatePresence mode="wait" initial={false}>
-          {currentStep < stepFields.length - 1 ? (
-            <motion.div
-              key="continue"
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-              transition={exitTransition}
-            >
-              <Button
-                type="button"
-                onClick={advanceStep}
-                className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43] active:scale-[0.98]"
-              >
-                Continue
-                <ArrowRight className="size-4" />
-              </Button>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="submit"
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-              transition={exitTransition}
-            >
-              <Button
-                type="submit"
-                disabled={isSubmittingApplication || !isOnline}
-                className="h-11 rounded-full bg-[#123D2A] px-5 text-white shadow-sm hover:bg-[#1F6B43] active:scale-[0.98]"
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  {isSubmittingApplication ? (
-                    <motion.span
-                      key="loader"
-                      initial={{ opacity: 0, scale: 0.92 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.92 }}
-                      transition={{ duration: prefersReducedMotion ? 0.05 : 0.12 }}
-                    >
-                      <Loader2 className="size-4 animate-spin" />
-                    </motion.span>
-                  ) : (
-                    <motion.span
-                      key="send"
-                      initial={{ opacity: 0, scale: 0.92 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.92 }}
-                      transition={{ duration: prefersReducedMotion ? 0.05 : 0.12 }}
-                    >
-                      <Send className="size-4" />
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {isSubmittingApplication ? "Submitting..." : "Submit Membership Application"}
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
     </form>
   );
 }
@@ -840,35 +822,48 @@ function ApplicationSummaryRail({
   const membershipPath = values.requestedMembershipType ?? "Associate";
   const completed = currentStep + 1;
   const namedApplicant = [values.firstName, values.lastName].filter(Boolean).join(" ");
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const summaryId = useId();
 
   return (
-    <aside className="sticky top-24 grid gap-4 self-start">
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-[0_18px_42px_rgba(18,61,42,0.08)]">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f4b62a]">
-          Your Application
-        </p>
-        <h3 className="mt-3 text-xl font-black text-[#123D2A]">
+    <div className="application-summary self-start lg:p-5">
+      <button
+        type="button"
+        aria-expanded={isSummaryOpen}
+        aria-controls={summaryId}
+        onClick={() => setIsSummaryOpen((open) => !open)}
+        className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-bold text-[#123D2A] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#1F6B43] lg:hidden"
+      >
+        <span>Application summary</span>
+        <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-[#365F4A]">
+          <span className="truncate">{membershipPath}</span>
+          <ChevronDown aria-hidden="true" className={`size-4 shrink-0 transition-transform motion-reduce:transition-none ${isSummaryOpen ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+      <section id={summaryId} className={`${isSummaryOpen ? "block" : "hidden"} border-t border-[var(--public-card-border)] p-4 lg:block lg:border-0 lg:p-0`}>
+        <h3 className="hidden text-base font-bold text-[#123D2A] lg:block">Application summary</h3>
+        <p className="mt-1 break-words text-sm font-semibold text-[#365F4A] lg:mt-3">
           {namedApplicant || "New applicant"}
-        </h3>
-        <dl className="mt-5 grid gap-4 text-sm">
+        </p>
+        <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 text-sm lg:grid-cols-1">
           <SummaryMetric label="Membership Path" value={membershipPath} />
           <SummaryMetric label="Membership Fee" value={membershipPath === "Associate" ? "PHP 200" : "Not required"} />
           <SummaryMetric label="Share Capital" value={membershipPath === "True Member" ? "PHP 1,500 initial / PHP 3,000 target" : "Not required for Associate"} />
           <SummaryMetric label="Payment" value="Not required yet" />
-          <SummaryMetric label="Progress" value={`${completed} of 5 sections active`} />
+          <SummaryMetric label="Current step" value={`Step ${completed} of 5`} />
           <SummaryMetric label="Documents" value={`${uploads.filter((upload) => upload.file).length} ready`} />
           <SummaryMetric label="Signature" value={signatureFile ? "Ready" : "Needed"} />
         </dl>
       </section>
-    </aside>
+    </div>
   );
 }
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-[#EEF2EC] pb-3 last:border-b-0 last:pb-0">
+    <div className="min-w-0 border-b border-[#EEF2EC] pb-3 last:border-b-0 last:pb-0 lg:flex lg:items-start lg:justify-between lg:gap-4">
       <dt className="text-[#5D6D63]">{label}</dt>
-      <dd className="text-right font-black text-[#123D2A]">{value}</dd>
+      <dd className="mt-1 break-words font-semibold text-[#123D2A] lg:mt-0 lg:max-w-[60%] lg:text-right">{value}</dd>
     </div>
   );
 }
@@ -883,9 +878,9 @@ function ApplicationFieldGroup({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#FFFAF2] p-4 sm:p-5">
+    <section className="border-t border-[var(--public-card-border)] pt-6 first:border-t-0 first:pt-0">
       <div className="mb-4 flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-full bg-white text-[#1F6B43] shadow-sm">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[#EAF3E8] text-[#1F6B43]">
           <Icon className="size-4" />
         </span>
         <h3 className="text-base font-black text-[#123D2A]">{title}</h3>
@@ -953,7 +948,7 @@ function PersonalInfoStep({
   return (
     <div className="grid gap-5">
       <div className="flex items-start gap-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+        <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#EAF3E8] text-[#1F6B43]">
           <UserRound className="size-6" />
         </span>
         <div>
@@ -1076,7 +1071,7 @@ function FamilyStep({
   return (
     <div className="grid gap-5">
       <div className="flex items-start gap-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+        <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#EAF3E8] text-[#1F6B43]">
           <Home className="size-6" />
         </span>
         <div>
@@ -1105,13 +1100,13 @@ function FamilyStep({
         {civilStatus === "Married" ? (
           <TextField label="Spouse name" error={errors.spouseName?.message} inputProps={register("spouseName")} className="md:col-span-2" />
         ) : (
-          <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#5D6D63] md:col-span-2">
+          <div className="rounded-lg border border-[var(--public-card-border)] bg-white p-4 text-sm font-semibold leading-6 text-[#5D6D63] md:col-span-2">
             Spouse information appears when civil status is set to Married.
           </div>
         )}
       </ApplicationFieldGroup>
 
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-4 sm:p-5">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-black text-[#123D2A]">Beneficiaries</h3>
@@ -1146,7 +1141,7 @@ function MembershipStep({
   return (
     <div className="grid gap-5">
       <div className="flex items-start gap-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+        <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#EAF3E8] text-[#1F6B43]">
           <WalletCards className="size-6" />
         </span>
         <div>
@@ -1159,7 +1154,7 @@ function MembershipStep({
         </div>
       </div>
 
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
         <StyledOptionSelect
           label="Primary sector"
           required
@@ -1171,7 +1166,7 @@ function MembershipStep({
         <p className="mt-2 text-xs leading-5 text-[#6C7A70]">Select the member&apos;s primary cooperative sector. Multiple active sectors are not currently supported.</p>
       </section>
 
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
         <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
           {requestedMembershipTypes.map((type) => (
             <option key={type} value={type}>
@@ -1217,9 +1212,9 @@ function DocumentsSignatureStep({
 }) {
   return (
     <div className="grid gap-6">
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5 shadow-sm">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-[var(--public-canvas)] p-5 shadow-sm">
         <div className="flex items-start gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+          <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#EAF3E8] text-[#1F6B43]">
             <FileUp className="size-6" />
           </span>
           <div>
@@ -1264,7 +1259,7 @@ function DocumentsSignatureStep({
         />
       </section>
 
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-bold text-[#123D2A]">Optional uploads</h3>
@@ -1275,7 +1270,7 @@ function DocumentsSignatureStep({
           <Button
             type="button"
             onClick={addUpload}
-            className="h-10 rounded-full bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
+            className="public-apply-action h-10 rounded-md bg-[#123D2A] px-4 text-white hover:bg-[#1F6B43]"
           >
             <FileUp className="size-4" />
             Add Upload
@@ -1325,7 +1320,7 @@ function FinalReviewStep({
   return (
     <div className="grid gap-5">
       <div className="flex items-start gap-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+        <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#EAF3E8] text-[#1F6B43]">
           <ClipboardCheck className="size-6" />
         </span>
         <div>
@@ -1338,7 +1333,7 @@ function FinalReviewStep({
         </div>
       </div>
 
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-black text-[#1F6B43]">
@@ -1401,7 +1396,7 @@ function FinalReviewStep({
               {beneficiaries.slice(0, 3).map((beneficiary, index) => (
                 <div
                   key={`${beneficiary.fullName}-${index}`}
-                  className="flex items-center justify-between gap-3 border-b border-[#DDE8D8] pb-3 last:border-b-0 last:pb-0"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--public-card-border)] pb-3 last:border-b-0 last:pb-0"
                 >
                   <span className="min-w-0 truncate font-black text-[#123D2A]">
                     {beneficiary.fullName}
@@ -1440,7 +1435,7 @@ function FinalReviewStep({
         </ReviewPanel>
       </div>
 
-      <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-[#F8F1E5] p-5 shadow-sm">
+      <section className="rounded-lg border border-[var(--public-card-border)] bg-[var(--public-canvas)] p-5 shadow-sm">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center">
           <div>
             <h3 className="text-lg font-black text-[#123D2A]">Ready to submit?</h3>
@@ -1448,7 +1443,7 @@ function FinalReviewStep({
               NFFAC will review the application and email you if payment becomes available.
             </p>
           </div>
-          <label className="flex gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
+          <label className="flex gap-3 rounded-lg border border-[var(--public-card-border)] bg-white p-4 text-sm font-semibold leading-6 text-[#123D2A]">
             <input
               type="checkbox"
               className="mt-1 size-4 accent-[#1F6B43]"
@@ -1481,10 +1476,10 @@ function ReviewPanel({
   onEdit: () => void;
 }) {
   return (
-    <section className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <h3 className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
-          <span className="grid size-8 place-items-center rounded-2xl bg-[#EAF3E8] text-[#1F6B43]">
+          <span className="grid size-8 place-items-center rounded-lg bg-[#EAF3E8] text-[#1F6B43]">
             {icon}
           </span>
           {title}
@@ -1527,7 +1522,7 @@ function ReviewEditButton({ onEdit }: { onEdit: () => void }) {
     <button
       type="button"
       onClick={onEdit}
-      className="rounded-full border border-[#DDE8D8] px-3 py-1 text-xs font-black text-[#1F6B43] transition duration-150 hover:-translate-y-0.5 hover:bg-[#EAF3E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43]/25"
+      className="rounded-md border border-[var(--public-card-border)] px-3 py-1 text-xs font-black text-[#1F6B43] transition duration-150 hover:-translate-y-0.5 hover:bg-[#EAF3E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43]/25"
     >
       Edit
     </button>
@@ -1631,7 +1626,7 @@ function SignatureInput({
   }
 
   return (
-    <div className="mt-5 rounded-[1.25rem] border border-[#DDE8D8] bg-white p-4">
+    <div className="mt-5 rounded-lg border border-[var(--public-card-border)] bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.16em] text-[#5D6D63]">
@@ -1641,7 +1636,7 @@ function SignatureInput({
             Draw your signature or upload a saved signature file.
           </p>
         </div>
-        <div className="grid grid-cols-2 rounded-full bg-[#F8F1E5] p-1">
+        <div className="grid grid-cols-2 rounded-full bg-[var(--public-canvas)] p-1">
           <button
             type="button"
             onClick={() => onModeChange("draw")}
@@ -1670,7 +1665,7 @@ function SignatureInput({
       </div>
 
       {mode === "draw" ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-[#B9D1B6] bg-[#FFFAF2] p-4">
+        <div className="mt-4 rounded-lg border border-dashed border-[#B9D1B6] bg-[var(--public-canvas)] p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
@@ -1691,7 +1686,7 @@ function SignatureInput({
                 onChange(file, null);
                 setIsSignaturePadOpen(true);
               }}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#123D2A] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#1F6B43]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#1F6B43]"
             >
               <PenLine className="size-4" />
               {file && mode === "draw" ? "Replace signature" : "Open signature pad"}
@@ -1703,7 +1698,7 @@ function SignatureInput({
               <Dialog.Overlay className="fixed inset-0 z-[80] bg-[#061B11]/55 backdrop-blur-sm" />
               <Dialog.Content className="fixed inset-0 z-[90] overflow-y-auto p-3 focus:outline-none sm:p-6">
                 <div className="flex min-h-full items-center justify-center">
-                  <div className="relative w-full max-w-5xl rounded-[2rem] border border-[#DDE8D8] bg-white p-5 shadow-[0_28px_90px_rgba(6,27,17,0.28)] sm:p-7">
+                  <div className="relative w-full max-w-5xl rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-[0_28px_90px_rgba(6,27,17,0.28)] sm:p-7">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <Dialog.Title className="text-2xl font-black tracking-normal text-[#123D2A]">
@@ -1713,7 +1708,7 @@ function SignatureInput({
                           Use your mouse, trackpad, or finger in the signature area.
                         </Dialog.Description>
                       </div>
-                      <Dialog.Close className="absolute right-4 top-4 grid size-10 place-items-center rounded-full border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#EAF3E8] sm:static">
+                      <Dialog.Close className="absolute right-4 top-4 grid size-10 place-items-center rounded-full border border-[var(--public-card-border)] bg-white text-[#123D2A] transition hover:bg-[#EAF3E8] sm:static">
                         <X className="size-5" />
                         <span className="sr-only">Close signature pad</span>
                       </Dialog.Close>
@@ -1729,7 +1724,7 @@ function SignatureInput({
                       onPointerCancel={() => {
                         isDrawingRef.current = false;
                       }}
-                      className="mt-6 h-[min(48vh,26rem)] min-h-72 w-full touch-none rounded-[1.5rem] border border-dashed border-[#9FBEA2] bg-white shadow-inner"
+                      className="mt-6 h-[min(48vh,26rem)] min-h-72 w-full touch-none rounded-lg border border-dashed border-[#9FBEA2] bg-white shadow-inner"
                       aria-label="Draw applicant signature"
                     />
 
@@ -1737,7 +1732,7 @@ function SignatureInput({
                       <button
                         type="button"
                         onClick={resetDrawnSignature}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#DDE8D8] bg-white px-5 text-sm font-black text-[#123D2A] transition hover:bg-[#EAF3E8]"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[var(--public-card-border)] bg-white px-5 text-sm font-black text-[#123D2A] transition hover:bg-[#EAF3E8]"
                       >
                         <RotateCcw className="size-4" />
                         Clear signature
@@ -1746,14 +1741,14 @@ function SignatureInput({
                         <button
                           type="button"
                           onClick={() => setIsSignaturePadOpen(false)}
-                          className="inline-flex h-11 items-center justify-center rounded-full border border-[#DDE8D8] bg-white px-5 text-sm font-black text-[#123D2A] transition hover:bg-[#EAF3E8]"
+                          className="inline-flex h-11 items-center justify-center rounded-md border border-[var(--public-card-border)] bg-white px-5 text-sm font-black text-[#123D2A] transition hover:bg-[#EAF3E8]"
                         >
                           Cancel
                         </button>
                         <button
                           type="button"
                           onClick={applyDrawnSignature}
-                          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#123D2A] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#1F6B43]"
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#1F6B43]"
                         >
                           <Check className="size-4" />
                           Use signature
@@ -1767,7 +1762,7 @@ function SignatureInput({
           </Dialog.Root>
         </div>
       ) : (
-        <label className="mt-4 block rounded-2xl border border-dashed border-[#B9D1B6] bg-[#FFFAF2] p-4 text-sm font-semibold text-[#365F4A]">
+        <label className="mt-4 block rounded-lg border border-dashed border-[#B9D1B6] bg-[var(--public-canvas)] p-4 text-sm font-semibold text-[#365F4A]">
           Upload signature
           <input
             type="file"
@@ -1786,7 +1781,7 @@ function SignatureInput({
       )}
 
       {file ? (
-        <div className="mt-3 rounded-2xl border border-[#DDE8D8] bg-[#EAF3E8] px-4 py-3 text-sm font-bold text-[#123D2A]">
+        <div className="mt-3 rounded-lg border border-[var(--public-card-border)] bg-[#EAF3E8] px-4 py-3 text-sm font-bold text-[#123D2A]">
           {file.name} is ready to submit.
         </div>
       ) : null}
@@ -1806,7 +1801,7 @@ function UploadRow({
   onChange: (patch: Partial<DocumentUploadDraft>) => void;
 }) {
   return (
-    <div className="grid gap-3 rounded-2xl border border-[#DDE8D8] bg-[#F8F1E5] p-4 md:grid-cols-[220px_1fr_auto]">
+    <div className="grid gap-3 rounded-lg border border-[var(--public-card-border)] bg-[var(--public-canvas)] p-4 md:grid-cols-[220px_1fr_auto]">
       <label className="block text-sm font-semibold text-[#365F4A]">
         Document type
         <select
@@ -1816,7 +1811,7 @@ function UploadRow({
               documentType: event.target.value as DocumentUploadDraft["documentType"],
             })
           }
-          className="mt-2 h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
+          className="mt-2 h-11 w-full rounded-lg border border-[var(--public-card-border)] bg-white px-3 text-[#123D2A] outline-none focus:border-[#1F6B43]"
         >
           {publicApplicationDocumentTypes.map((type) => (
             <option key={type} value={type}>
@@ -1843,7 +1838,7 @@ function UploadRow({
       <Button
         type="button"
         onClick={onRemove}
-        className="h-11 self-end rounded-full border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50"
+        className="public-apply-action h-11 self-end rounded-md border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50"
       >
         Remove
       </Button>
@@ -1876,11 +1871,13 @@ function TextField({
   type?: string;
   className?: string;
 }) {
+  const errorId = useId();
+
   return (
     <label className={`block text-sm font-semibold text-[#365F4A] ${className}`}>
       {label}{required ? <span className="text-red-700"> *</span> : null}
-      <span className="mt-2 flex h-12 overflow-hidden rounded-2xl border border-[#DDE8D8] bg-white transition focus-within:border-[#1F6B43] focus-within:ring-2 focus-within:ring-[#1F6B43]/20">
-        {prefix ? <span className="inline-flex items-center border-r border-[#DDE8D8] bg-[#F8F1E5] px-3 text-sm font-bold text-[#365F4A]">{prefix}</span> : null}
+      <span className={`mt-2 flex h-12 overflow-hidden rounded-lg border bg-white transition ${error ? "border-red-500 focus-within:border-red-600 focus-within:ring-2 focus-within:ring-red-500/20" : "border-[var(--public-card-border)] hover:border-[#9AB59F] focus-within:border-[#1F6B43] focus-within:ring-2 focus-within:ring-[#1F6B43]/20"}`}>
+        {prefix ? <span className="inline-flex items-center border-r border-[var(--public-card-border)] bg-[var(--public-canvas)] px-3 text-sm font-bold text-[#365F4A]">{prefix}</span> : null}
         <input
           type={type}
           inputMode={inputMode}
@@ -1889,6 +1886,7 @@ function TextField({
           list={suggestions?.length ? `${label.toLowerCase().replace(/\s+/g, "-")}-suggestions` : undefined}
           className="min-w-0 flex-1 bg-transparent px-4 text-base text-[#123D2A] outline-none"
           aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           {...inputProps}
         />
       </span>
@@ -1897,7 +1895,7 @@ function TextField({
           {suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
         </datalist>
       ) : null}
-      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
+      {error ? <span id={errorId} className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>
   );
 }
@@ -1944,10 +1942,10 @@ function PlaceOfBirthField({
         aria-controls="place-of-birth-suggestions"
         aria-expanded={open && matches.length > 0}
         aria-invalid={Boolean(error)}
-        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        className="mt-2 h-12 w-full rounded-lg border border-[var(--public-card-border)] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
       />
       {open && matches.length > 0 ? (
-        <div id="place-of-birth-suggestions" role="listbox" className="absolute inset-x-0 top-[4.5rem] z-50 max-h-64 overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+        <div id="place-of-birth-suggestions" role="listbox" className="absolute inset-x-0 top-[4.5rem] z-50 max-h-64 overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
           {matches.map((suggestion) => (
             <button key={suggestion} type="button" role="option" aria-selected={suggestion === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(suggestion); setOpen(false); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#365F4A] hover:bg-[#EAF3E8] hover:text-[#123D2A]">
               {suggestion}
@@ -1979,12 +1977,12 @@ function StyledOptionSelect({
     <label className="block text-sm font-semibold text-[#365F4A]">
       {label}{required ? <span className="ml-1 text-[#B42318]" aria-hidden="true">*</span> : null}
       <Select.Root value={value || undefined} onValueChange={onChange}>
-        <Select.Trigger aria-label={label} aria-required={required} aria-invalid={Boolean(error)} className={`mt-2 flex h-12 w-full items-center justify-between rounded-2xl border bg-white px-4 text-left text-base outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70] ${error ? "border-[#D92D20] bg-[#FFF6F5] text-[#B42318] focus:border-[#D92D20] focus:ring-[#D92D20]/20" : "border-[#DDE8D8] text-[#123D2A]"}`}>
+        <Select.Trigger aria-label={label} aria-required={required} aria-invalid={Boolean(error)} className={`mt-2 flex h-12 w-full items-center justify-between rounded-lg border bg-white px-4 text-left text-base outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70] ${error ? "border-[#D92D20] bg-[#FFF6F5] text-[#B42318] focus:border-[#D92D20] focus:ring-[#D92D20]/20" : "border-[var(--public-card-border)] text-[#123D2A]"}`}>
           <Select.Value placeholder={`Select ${label.toLowerCase()}`} />
           <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Content position="popper" sideOffset={6} className="z-[100] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-xl border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
+          <Select.Content position="popper" sideOffset={6} className="z-[100] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.16)]">
             <Select.Viewport>
               {options.map((option) => <Select.Item key={option} value={option} className="relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]"><Select.ItemText>{option}</Select.ItemText><Select.ItemIndicator className="absolute right-3"><SelectCheck className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator></Select.Item>)}
             </Select.Viewport>
@@ -2015,7 +2013,7 @@ function SelectField({
     <label className="block text-sm font-semibold text-[#365F4A]">
       {label}
       <select
-        className="mt-2 h-12 w-full rounded-2xl border border-[#DDE8D8] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+        className="mt-2 h-12 w-full rounded-lg border border-[var(--public-card-border)] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
         aria-invalid={Boolean(error)}
         {...inputProps}
         value={value}

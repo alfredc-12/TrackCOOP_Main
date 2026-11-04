@@ -14,7 +14,7 @@ export function MembershipPublicShell({
   children: ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#F8F1E5] text-[#1E1E1E]">
+    <main className="min-h-screen bg-[var(--public-canvas)] text-[#1E1E1E]">
       <SiteHeader />
       <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-24 sm:px-6 sm:pt-28">
         <Link

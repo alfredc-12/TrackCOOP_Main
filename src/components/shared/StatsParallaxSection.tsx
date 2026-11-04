@@ -5,6 +5,7 @@ import {
   motion,
   useInView,
   useMotionValue,
+  useReducedMotion,
 } from "motion/react";
 import {
   CalendarCheck,
@@ -41,16 +42,17 @@ function AnimatedNumber({
 }) {
   const ref   = useRef<HTMLSpanElement>(null);
   const count = useMotionValue(0);
+  const reducedMotion = useReducedMotion();
 
   // Drive the count-up once the section is in view
   useEffect(() => {
     if (!isActive) return;
     const controls = animate(count, target, {
-      duration: 2.4,
+      duration: reducedMotion ? 0 : 2.4,
       ease: [0.16, 1, 0.3, 1], // expo-out — fast start, slow finish
     });
     return controls.stop;
-  }, [isActive, count, target]);
+  }, [isActive, count, target, reducedMotion]);
 
   // Write directly to the DOM span to avoid re-renders on every frame
   useEffect(() => {
@@ -80,20 +82,21 @@ function StatItem({
   isActive: boolean;
 }) {
   const Icon = stat.icon;
+  const reducedMotion = useReducedMotion();
   return (
     <motion.div
       initial={{ opacity: 0, y: 28 }}
       animate={isActive ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.65, delay: index * 0.12, ease: "easeOut" }}
-      className="flex flex-col items-center gap-4 text-center"
+      transition={{ duration: reducedMotion ? 0 : 0.65, delay: reducedMotion ? 0 : index * 0.12, ease: "easeOut" }}
+      className="public-stat flex flex-col items-center gap-4 text-center"
     >
       {/* Glass icon ring */}
-      <div className="grid size-16 place-items-center rounded-full border border-white/25 bg-white/12 shadow-[inset_0_1px_1px_rgba(255,255,255,0.18)] backdrop-blur-md">
+      <div className="public-stat-icon grid size-16 place-items-center rounded-full border border-white/25 bg-white/12 shadow-[inset_0_1px_1px_rgba(255,255,255,0.18)] backdrop-blur-md">
         <Icon className="size-7 text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]" />
       </div>
 
       {/* Animated number */}
-      <p className="font-black leading-none tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] [font-size:clamp(2.8rem,5vw,4.5rem)]">
+      <p className="public-stat-value font-black leading-none tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] [font-size:clamp(2.8rem,5vw,4.5rem)]">
         <AnimatedNumber
           target={stat.value}
           suffix={stat.suffix}
@@ -120,6 +123,7 @@ function Divider() {
 export default function StatsParallaxSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const isInView   = useInView(sectionRef, { once: true, amount: 0.25 });
+  const reducedMotion = useReducedMotion();
 
   return (
     <section
@@ -152,7 +156,7 @@ export default function StatsParallaxSection() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={{ duration: reducedMotion ? 0 : 0.6, ease: "easeOut" }}
           className="text-center"
         >
           <p className="text-xs font-bold uppercase tracking-[0.45em] text-[#F2C94C] drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]">

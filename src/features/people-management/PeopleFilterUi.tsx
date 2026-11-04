@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { Check, ChevronDown, Filter, Info, Search, SlidersHorizontal, X } from "lucide-react";
+import { Check, ChevronDown, Filter, Info, Search, X } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { useDebouncedText } from "./people-hooks";
@@ -24,7 +24,7 @@ const toneStyles: Record<KpiTone, string> = {
   danger: "bg-[#FBE7E4] text-[#A13226]",
 };
 
-function KpiInfo({ label, detail }: { label: string; detail: KpiDetail }) {
+function KpiInfo({ label, detail, children }: { label: string; detail: KpiDetail; children?: ReactNode }) {
   const id = useId();
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -65,6 +65,7 @@ function KpiInfo({ label, detail }: { label: string; detail: KpiDetail }) {
           <p className="mt-1">{detail.definition}</p>
           <p className="mt-2"><span className="font-bold text-[#123D2A]">Counted from: </span>{detail.population}</p>
           {detail.basis ? <p className="mt-2"><span className="font-bold text-[#123D2A]">Calculation: </span>{detail.basis}</p> : null}
+          {children}
         </div>
       ) : null}
     </div>
@@ -102,7 +103,7 @@ export function KpiCard<Query>({
           </span>
         ) : null}
       </span>
-      <span className="text-xs leading-4 text-[#5D6D63]">{loading ? "Loading…" : spec.caption}</span>
+      <span className="block w-full truncate text-xs leading-4 text-[#5D6D63]" title={spec.caption}>{loading ? "Loading…" : spec.caption}</span>
     </>
   );
   const frame = `relative min-w-0 rounded-lg border bg-white shadow-[0_10px_24px_rgba(18,61,42,0.05)] transition ${
@@ -124,8 +125,10 @@ export function KpiCard<Query>({
       ) : (
         <div className="flex min-w-0 flex-col gap-1.5 p-3">{body}</div>
       )}
+      <KpiInfo label={spec.label} detail={spec.detail}>
+      {!loading && <p className="mt-2">{spec.caption}</p>}
       {spec.breakdown?.length ? (
-        <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label={`${spec.label} filters`}>
           {spec.breakdown.map((part) => (
             <button
               key={part.key}
@@ -143,7 +146,7 @@ export function KpiCard<Query>({
           ))}
         </div>
       ) : null}
-      <KpiInfo label={spec.label} detail={spec.detail} />
+      </KpiInfo>
     </article>
   );
 }
@@ -180,9 +183,9 @@ export function KpiGrid<Query>({
           {onRetry ? <button type="button" onClick={onRetry} className="font-bold underline underline-offset-4">Retry</button> : null}
         </div>
       ) : null}
-      {scopeNote || selected ? (
+      {scopeNote ? <p className="sr-only">{scopeNote}</p> : null}
+      {selected ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5D6D63]">
-          <p>{scopeNote}</p>
           {selected ? (
             <button type="button" onClick={() => onClear(selected.clear)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 font-bold text-[#123D2A] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-[#1F6B43]">
               <X className="size-3.5" aria-hidden="true" />Clear card selection
@@ -190,7 +193,7 @@ export function KpiGrid<Query>({
           ) : null}
         </div>
       ) : null}
-      <div className={`grid gap-3 ${columns}`}>
+      <div className={`grid items-start gap-3 ${columns}`}>
         {specs.map((spec) => (
           <KpiCard key={spec.key} spec={spec} icon={icons[spec.key] ?? Filter} onSelect={onSelect} loading={loading && !error} />
         ))}
@@ -234,7 +237,7 @@ export function FilterPanel<Query>({ children, chips, onRemoveChip, onClearAll }
   onClearAll: () => void;
 }) {
   return (
-    <section aria-label="Filters" className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
+    <section aria-label="Filters" className="relative grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_10px_24px_rgba(18,61,42,0.04)] sm:p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-black text-[#123D2A]">
           <Filter className="size-4" aria-hidden="true" />
@@ -440,16 +443,15 @@ export function MoreFilters({ activeCount, children }: { activeCount: number; ch
   const id = useId();
   const [open, setOpen] = useState(activeCount > 0);
   return (
-    <div className="grid gap-3">
+    <div className={open ? "grid gap-3" : "contents"}>
       <button
         type="button"
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-bold text-[#123D2A] outline-none transition hover:bg-[#EEF2EC] focus-visible:ring-2 focus-visible:ring-[#1F6B43]/40 sm:w-auto sm:justify-self-start"
+        className="absolute left-20 top-1 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-semibold text-[#123D2A] outline-none transition hover:bg-[#EEF2EC] focus-visible:ring-2 focus-visible:ring-[#1F6B43]/40 sm:top-2"
       >
-        <SlidersHorizontal className="size-4" aria-hidden="true" />
-        More filters
+        <span className="sr-only">More filters</span>
         {activeCount ? <span className="grid min-w-5 place-items-center rounded-full bg-[#123D2A] px-1.5 text-[0.7rem] font-black text-white">{activeCount}<span className="sr-only"> active</span></span> : null}
         <ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>

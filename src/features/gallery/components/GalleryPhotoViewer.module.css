@@ -1,0 +1,14 @@
+.overlay[data-state="open"] { animation: overlay-in 180ms ease-out; }
+.overlay[data-state="closed"] { animation: overlay-out 140ms ease-in; }
+.viewer[data-state="open"] { animation: viewer-in 240ms var(--public-motion-ease); }
+.viewer[data-state="closed"] { animation: viewer-out 140ms ease-in; }
+
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlay-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes viewer-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes viewer-out { from { opacity: 1; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer[data-state] { animation: none; }
+  .overlay[data-state] { animation-duration: 100ms; }
+}

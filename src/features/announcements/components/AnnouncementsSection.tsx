@@ -3,33 +3,17 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
-  Copy,
   ExternalLink,
   Megaphone,
-  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { expressFetch } from "@/lib/express-api";
 import { resolveUploadUrl } from "@/lib/upload-url";
+import type { PublicAnnouncement } from "../types";
+import { AnnouncementPostModal } from "./AnnouncementPostModal";
 
 const PHOTO_PROGRESS_DURATION_MS = 5500;
-
-type PublicAnnouncement = {
-  id: string | number;
-  title?: string;
-  message?: string;
-  content?: string;
-  createdAt?: string;
-  postedAt?: string;
-  featuredImagePath?: string | null;
-  images?: string[];
-  sourceUrl?: string | null;
-  audienceType?: string;
-  announcementStatus?: string;
-};
 
 function formatDate(date?: string) {
   if (!date) return "Recent";
@@ -77,7 +61,6 @@ export default function AnnouncementsSection() {
   const [progressReplayKey, setProgressReplayKey] = useState(0);
   const [readMoreOpen, setReadMoreOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -108,16 +91,6 @@ export default function AnnouncementsSection() {
     return () => window.clearTimeout(timer);
   }, [loadAnnouncements]);
 
-  useEffect(() => {
-    if (!readMoreOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [readMoreOpen]);
 
   const announcement = announcements[currentAnnouncement];
   const content = getAnnouncementContent(announcement);
@@ -200,7 +173,7 @@ export default function AnnouncementsSection() {
   return (
     <section className="relative h-full overflow-hidden bg-[#123D2A] text-white">
       <div className="relative h-full min-h-0">
-        <div className="absolute left-3 right-3 top-3 z-20 flex min-h-10 items-center justify-between gap-3 rounded-full border border-white/70 bg-[#FFFAF2]/92 px-2 py-2 text-[#123D2A] shadow-[0_18px_42px_rgba(3,41,29,0.22)] backdrop-blur-md sm:left-4 sm:right-4 sm:top-4 sm:px-2.5 [@media(max-height:430px)]:left-2.5 [@media(max-height:430px)]:right-2.5 [@media(max-height:430px)]:top-2.5 [@media(max-height:430px)]:py-1.5">
+        <div className="absolute left-3 right-3 top-3 z-20 flex min-h-10 items-center justify-between gap-3 rounded-full border border-white/70 bg-[var(--public-canvas)]/92 px-2 py-2 text-[#123D2A] shadow-[0_18px_42px_rgba(3,41,29,0.22)] backdrop-blur-md sm:left-4 sm:right-4 sm:top-4 sm:px-2.5 [@media(max-height:430px)]:left-2.5 [@media(max-height:430px)]:right-2.5 [@media(max-height:430px)]:top-2.5 [@media(max-height:430px)]:py-1.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] shadow-[0_8px_20px_rgba(31,107,67,0.10)] ring-1 ring-[#1F6B43]/15 sm:size-9 md:size-10 [@media(max-height:430px)]:size-8">
               <Megaphone className="size-4 md:size-5 [@media(max-height:430px)]:size-4" />
@@ -230,7 +203,16 @@ export default function AnnouncementsSection() {
         </div>
 
         <article
-          className="group absolute inset-0 cursor-pointer overflow-hidden bg-[#123D2A] shadow-[0_28px_76px_rgba(18,61,42,0.24)]"
+          className="group absolute inset-0 cursor-pointer overflow-hidden bg-[#123D2A] shadow-[0_28px_76px_rgba(18,61,42,0.24)] focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[#F2C94C]"
+          role="button"
+          tabIndex={0}
+          aria-label={`Read announcement: ${announcement.title ?? "Cooperative announcement"}`}
+          onKeyDown={(event) => {
+            if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              setReadMoreOpen(true);
+            }
+          }}
           onClick={() => setReadMoreOpen(true)}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -341,104 +323,7 @@ export default function AnnouncementsSection() {
         </article>
       </div>
 
-      {typeof document !== "undefined"
-        ? createPortal(
-            <AnimatePresence>
-              {readMoreOpen ? (
-                <motion.div
-                  key="announcement-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Full announcement"
-                  className="fixed inset-0 z-[9999] overflow-y-auto bg-black/35 p-4 text-[#123D2A] backdrop-blur-2xl sm:p-6"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
-                  onClick={() => setReadMoreOpen(false)}
-                >
-                  <div className="flex min-h-full items-center justify-center py-10">
-                    <motion.article
-                      className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-[#DDE8D8] bg-[#FFFAF2] shadow-[0_20px_60px_rgba(0,0,0,0.22)]"
-                      initial={{ opacity: 0, y: 24, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 14, scale: 0.97 }}
-                      transition={{ duration: 0.26, ease: "easeOut" }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-                        <button
-                          type="button"
-                          aria-label="Copy announcement text"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void navigator.clipboard.writeText(stripHtml(content));
-                            setIsCopied(true);
-                            window.setTimeout(() => setIsCopied(false), 2000);
-                          }}
-                          className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
-                        >
-                          {isCopied ? (
-                            <Check className="size-5 text-green-400" />
-                          ) : (
-                            <Copy className="size-5" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Close announcement"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setReadMoreOpen(false);
-                          }}
-                          className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
-                        >
-                          <X className="size-5" />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-col">
-                        <div className="relative h-64 shrink-0 bg-[#123D2A] sm:h-80">
-                          {hasImages ? (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element -- Announcement media can be served from Railway /uploads paths. */}
-                            <img
-                              src={images[currentImage]}
-                              alt={announcement.title ?? "Announcement photo"}
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                          </>
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#EAF3E8,#FFFAF2)]">
-                              <Megaphone className="size-20 text-[#1F6B43]/20" />
-                            </div>
-                          )}
-                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#03291d]/90 via-[#03291d]/40 to-transparent" />
-                          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-6 p-6 sm:p-8">
-                            <h2 className="line-clamp-3 text-2xl font-black leading-tight text-white drop-shadow-md sm:text-3xl">
-                              {announcement.title ?? "Announcement"}
-                            </h2>
-                            <p className="shrink-0 text-right text-xs font-bold uppercase tracking-[0.24em] text-[#F2C94C] drop-shadow-md">
-                              {formatDate(getAnnouncementDate(announcement))}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="max-h-[60vh] overflow-y-auto p-6 sm:p-8">
-                          <div
-                            className="quill-content whitespace-pre-line text-base leading-relaxed text-[#123D2A]"
-                            dangerouslySetInnerHTML={{ __html: content }}
-                          />
-                        </div>
-                      </div>
-                    </motion.article>
-                  </div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>,
-            document.body,
-          )
-        : null}
+      {readMoreOpen ? <AnnouncementPostModal key={announcement.id} post={announcement} initialImage={currentImage} onClose={() => setReadMoreOpen(false)} /> : null}
     </section>
   );
 }

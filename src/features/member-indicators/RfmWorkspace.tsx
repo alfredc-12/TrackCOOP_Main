@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Download, Filter, RefreshCcw, X } from "lucide-react";
+import { Activity, AlertTriangle, BookOpen, CheckCircle2, ChevronDown, CircleHelp, Download, Eye, Filter, History, LayoutGrid, Printer, RefreshCcw, UserRound, UsersRound, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import {
@@ -265,20 +265,24 @@ export function RfmWorkspace() {
       <div className={styles.rowActions}>
         <button
           type="button"
+          aria-label="Inspect RFM"
+          title="Inspect RFM"
           onClick={() => open({ kind: "member", row, tab: "overview" })}
         >
-          Inspect RFM
+          <Eye size={17} aria-hidden="true" />
         </button>
         <button
           type="button"
+          aria-label="History"
+          title="History"
           onClick={() => open({ kind: "member", row, tab: "history" })}
         >
-          History
+          <History size={17} aria-hidden="true" />
         </button>
-        <button type="button" onClick={() => recalculate(row)}>
-          Recalculate
+        <button type="button" aria-label="Recalculate" title="Recalculate" onClick={() => recalculate(row)}>
+          <RefreshCcw size={17} aria-hidden="true" />
         </button>
-        <Link href={memberLink(row, filters)}>View Profile</Link>
+        <Link href={memberLink(row, filters)} aria-label="View Profile" title="View Profile"><UserRound size={17} aria-hidden="true" /></Link>
       </div>
     );
   }
@@ -311,6 +315,7 @@ export function RfmWorkspace() {
               Export Excel
             </Button>
             <Button variant="secondary" onClick={() => open({ kind: "guide" })}>
+              <BookOpen size={16} aria-hidden="true" />
               Scoring Guide
             </Button>
             <div ref={recalculationTrigger}>
@@ -343,6 +348,7 @@ export function RfmWorkspace() {
                       setPanel(null);
                     }}
                   >
+                    <RefreshCcw size={16} aria-hidden="true" />
                     Recalculate Indicators
                   </Button>
                 }
@@ -376,10 +382,12 @@ export function RfmWorkspace() {
           {data?.settings.formulaVersion ?? "Loading…"}
         </span>
         {s && (
-          <span>
-            <strong>Coverage:</strong> {s.scored} / {s.eligible} (
-            {percent(s.coverage)}) · {s.notScored} without a valid selected
-            score
+          <span className={styles.actions}>
+            <span><strong>Coverage:</strong> {s.scored} / {s.eligible} (
+              {percent(s.coverage)}) · {s.notScored} without a valid selected score</span>
+            <Button variant="ghost" size="sm" onClick={() => open({ kind: "quality" })}>
+              <CircleHelp size={16} aria-hidden="true" /> Coverage &amp; Data Quality
+            </Button>
           </span>
         )}
       </div>
@@ -388,7 +396,7 @@ export function RfmWorkspace() {
           <div className={styles.kpis} aria-label="Filtered RFM summary">
             <button
               type="button"
-              className={styles.kpi}
+              className={styles.kpi} data-tone="neutral"
               aria-pressed={filters.minScore === 3 && !filters.classification}
               onClick={() =>
                 update({
@@ -398,7 +406,7 @@ export function RfmWorkspace() {
                 })
               }
             >
-              <span>Scored Members</span>
+              <span><UsersRound size={17} aria-hidden="true" /> Scored Members</span>
               <strong>{number(s!.scored, 0)}</strong>
               <small>
                 {percent(s!.coverage)} of {s!.eligible} eligible filtered
@@ -407,7 +415,7 @@ export function RfmWorkspace() {
             </button>
             <button
               type="button"
-              className={styles.kpi}
+              className={styles.kpi} data-tone="good"
               aria-pressed={filters.classification === "Active"}
               onClick={() =>
                 update({
@@ -417,13 +425,13 @@ export function RfmWorkspace() {
                 })
               }
             >
-              <span>Active</span>
+              <span><CheckCircle2 size={17} aria-hidden="true" /> Active</span>
               <strong>{number(s!.active, 0)}</strong>
               <small>{scoredPercentage(s!.active)} of scored members</small>
             </button>
             <button
               type="button"
-              className={styles.kpi}
+              className={styles.kpi} data-tone="warning"
               aria-pressed={filters.classification === "Needs Monitoring"}
               onClick={() =>
                 update({
@@ -433,7 +441,7 @@ export function RfmWorkspace() {
                 })
               }
             >
-              <span>Needs Monitoring</span>
+              <span><Activity size={17} aria-hidden="true" /> Needs Monitoring</span>
               <strong>{number(s!.needsMonitoring, 0)}</strong>
               <small>
                 {scoredPercentage(s!.needsMonitoring)} of scored members
@@ -441,7 +449,7 @@ export function RfmWorkspace() {
             </button>
             <button
               type="button"
-              className={styles.kpi}
+              className={styles.kpi} data-tone="danger"
               aria-pressed={filters.classification === "Inactive"}
               onClick={() =>
                 update({
@@ -451,7 +459,7 @@ export function RfmWorkspace() {
                 })
               }
             >
-              <span>Inactive</span>
+              <span><AlertTriangle size={17} aria-hidden="true" /> Inactive</span>
               <strong>{number(s!.inactive, 0)}</strong>
               <small>
                 {scoredPercentage(s!.inactive)} of scored members · advisory
@@ -459,7 +467,7 @@ export function RfmWorkspace() {
             </button>
             <button
               type="button"
-              className={styles.kpi}
+              className={styles.kpi} data-tone="neutral"
               aria-pressed={filters.classification === "Not Yet Scored"}
               onClick={() =>
                 update({
@@ -472,24 +480,21 @@ export function RfmWorkspace() {
                 })
               }
             >
-              <span>Not Yet Scored</span>
+              <span><CircleHelp size={17} aria-hidden="true" /> Not Yet Scored</span>
               <strong>{number(s!.notScored, 0)}</strong>
               <small>Eligible members without a valid selected snapshot</small>
             </button>
           </div>
-          <div className={styles.toolbar}>
-            <p className={styles.muted}>
-              All measures follow the active filters. Eligible: approved members
-              with official status Active or Inactive. RFM never changes
-              official status.
-            </p>
-            <Button variant="ghost" onClick={() => open({ kind: "quality" })}>
-              Coverage & Data Quality
-            </Button>
-          </div>
         </>
       )}
       <section className={styles.panel} aria-label="RFM filters">
+        <div className={`${styles.toolbar} mb-3`}>
+          <div className={styles.actions}>
+            <h2><Filter size={16} aria-hidden="true" className="inline-block mr-2" />Filters</h2>
+            <button type="button" aria-label="More filters" aria-haspopup="dialog" disabled={!data} onClick={() => open({ kind: "filters" })} className="grid size-10 place-items-center rounded-md hover:bg-coop-subtle focus-visible:outline focus-visible:outline-2"><ChevronDown size={16} aria-hidden="true" /></button>
+          </div>
+          <Button variant="ghost" onClick={() => { setFilters(defaultFilters()); setSearch(""); }}><X size={16} aria-hidden="true" />Reset all filters</Button>
+        </div>
         <div className={styles.filters}>
           <Input
             name="rfm-search"
@@ -590,40 +595,6 @@ export function RfmWorkspace() {
             }}
           />
         </div>
-        <div className={`${styles.toolbar} mt-4`}>
-          <div className={styles.actions}>
-            <Button
-              variant="secondary"
-              disabled={!data}
-              onClick={() => open({ kind: "filters" })}
-            >
-              <Filter size={16} aria-hidden="true" />
-              More Filters
-            </Button>
-            {search && (
-              <Button
-                variant="ghost"
-                onClick={() => update({ search: undefined })}
-              >
-                Clear search
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setFilters(defaultFilters());
-                setSearch("");
-              }}
-            >
-              Reset all filters
-            </Button>
-          </div>
-          <p className={styles.muted}>
-            {filters.context === "current"
-              ? "Latest saved basis per member; mixed periods are disclosed below."
-              : "Browsing saved results only. Changing this context does not recalculate."}
-          </p>
-        </div>
         {activeFilters.length > 0 && (
           <div className={styles.chips} aria-label="Active filters">
             {activeFilters.map(([key, value]) => (
@@ -719,15 +690,18 @@ export function RfmWorkspace() {
               </div>
               <div className={styles.actions}>
                 <Button variant="ghost" onClick={() => open({ kind: "runs" })}>
+                  <History size={16} aria-hidden="true" />
                   Calculation History
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => open({ kind: "columns" })}
                 >
+                  <LayoutGrid size={16} aria-hidden="true" />
                   Columns
                 </Button>
                 <Button variant="ghost" onClick={() => window.print()}>
+                  <Printer size={16} aria-hidden="true" />
                   Print Summary
                 </Button>
               </div>

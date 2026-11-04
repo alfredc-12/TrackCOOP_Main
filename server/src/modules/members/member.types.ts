@@ -37,6 +37,8 @@ export type MemberProfile = {
 
 /** Filters shared by the directory list and its KPI summary. */
 export type MemberFilters = {
+  /** Internal analytics selection; public filter schemas never accept member IDs. */
+  memberIds?: string[];
   search?: string;
   approvalStatus?: ApprovalStatus;
   officialMemberStatus?: OfficialMemberStatus;

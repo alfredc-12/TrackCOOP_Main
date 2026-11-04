@@ -586,7 +586,7 @@ test("debounced search, filters, matrix selection, sort, pagination and URL stat
   await expect(
     page.getByRole("button", { name: /Scored Members/ }),
   ).toContainText("22");
-  await page.getByRole("button", { name: "More Filters" }).click();
+  await page.getByRole("button", { name: "More filters" }).click();
   await select(page, "Barangay", "Wawa");
   await page
     .getByRole("button", { name: "Apply filters", exact: true })

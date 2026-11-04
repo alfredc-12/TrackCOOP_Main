@@ -22,7 +22,7 @@ export default function PortalRedirectPage() {
   }, [router]);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#F8F1E5] text-[#123D2A]">
+    <main className="grid min-h-screen place-items-center bg-[var(--public-canvas)] text-[#123D2A]">
       <div className="flex items-center gap-3 text-sm font-semibold">
         <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
         Opening your portal...

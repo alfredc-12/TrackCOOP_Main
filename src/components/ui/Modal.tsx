@@ -24,11 +24,11 @@ export function Modal({ title, description, trigger, children, maxWidth = "max-w
         <Dialog.Content className="fixed inset-0 z-[60] bg-transparent focus:outline-none">
           <div className="relative flex h-full items-center justify-center p-4 sm:p-6">
             <Dialog.Close className="absolute inset-0 block h-full w-full cursor-default border-none bg-transparent" aria-label="Close modal" />
-            <div className={`relative z-10 flex max-h-full flex-col w-[calc(100vw-2rem)] ${maxWidth} rounded-lg border border-black/10 bg-white p-6 shadow-2xl`}>
+            <div className={`relative z-10 flex max-h-full min-w-0 flex-col w-[calc(100vw-2rem)] ${maxWidth} rounded-coop-dialog border border-coop-border bg-coop-surface p-6 shadow-coop-floating`}>
               {title ? (
                 <div className="flex shrink-0 items-start justify-between gap-4 mb-5">
                   <div>
-                    <Dialog.Title className="text-xl font-semibold text-[#17211c]">
+                    <Dialog.Title className="text-xl font-semibold text-coop-ink">
                       {title}
                     </Dialog.Title>
                     {description ? (
@@ -53,7 +53,7 @@ export function Modal({ title, description, trigger, children, maxWidth = "max-w
                   </Dialog.Close>
                 </>
               )}
-              <div className="overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] -mx-6 px-6 -mb-6 pb-6 pt-1">
+              <div className="min-h-0 overflow-y-auto -mx-6 px-6 -mb-6 pb-6 pt-1">
                 {children}
               </div>
             </div>

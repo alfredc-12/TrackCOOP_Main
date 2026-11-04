@@ -1,6 +1,9 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { getAnalyticsMembers } from "@/features/member-analytics/analytics-client";
 import {
   Building2,
   CalendarDays,
@@ -307,8 +310,18 @@ function confirmationCopy(action: ConfirmAction | null) {
 }
 
 export function MembersClient() {
+  const params = useSearchParams();
+  const identity = new URLSearchParams(params.toString());
+  for (const key of [...identity.keys()]) if (key === "tab" || /^(a_|d_|h_)/.test(key)) identity.delete(key);
+  return <MembersWorkspace key={identity.toString()} context={params.toString()} initialTab={params.get("tab") === "directory" ? "directory" : params.get("tab") === "history" ? "history" : "applications"} />;
+}
+
+function MembersWorkspace({ context, initialTab }: { context: string; initialTab: TabKey }) {
+  const contextParams = new URLSearchParams(context);
+  const analyticsContext = contextParams.get("analytics") === "1" ? context : "";
+  const analyticsLabel = [contextParams.get("start"), contextParams.get("end"), contextParams.get("asOf") ? `as of ${contextParams.get("asOf")}` : null, contextParams.get("barangays"), contextParams.get("sectors"), contextParams.get("membershipType"), contextParams.get("engagement"), contextParams.get("officialStatus"), contextParams.get("capitalStage"), contextParams.get("source"), contextParams.get("selection"), contextParams.get("value"), contextParams.get("cellSector")].filter(Boolean).join(" ? ");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("applications");
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [summary, setSummary] = useState<ChairmanApplicationSummary | null>(null);
   const [summaryError, setSummaryError] = useState("");
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -548,7 +561,9 @@ export function MembersClient() {
     setMemberError("");
 
     try {
-      const list = await listMembersPaginated(memberQuery, { signal: request.signal });
+      const list = analyticsContext
+        ? await getAnalyticsMembers(analyticsContext, memberQuery)
+        : await listMembersPaginated(memberQuery, { signal: request.signal });
       if (!request.isCurrent()) return;
       const lastPage = Math.max(1, Math.ceil(list.total / (memberQuery.pageSize ?? 10)));
       if ((memberQuery.page ?? 1) > lastPage) {
@@ -563,7 +578,7 @@ export function MembersClient() {
     } finally {
       if (request.isCurrent()) setIsMemberLoading(false);
     }
-  }, [memberQuery, beginDirectoryList]);
+  }, [memberQuery, beginDirectoryList, analyticsContext]);
 
   const loadDirectorySummary = useCallback(async () => {
     const request = beginDirectorySummary();
@@ -956,6 +971,8 @@ export function MembersClient() {
           )}
         </>
       ) : activeTab === "directory" ? (
+        <>
+        {analyticsContext && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-coop-border bg-coop-sage p-4 text-sm"><div className="min-w-0"><p>Member analytics selection applied. Directory filters further refine current member fields; summary cards show overall membership.</p><p className="mt-1 break-words text-xs">{analyticsLabel}</p></div><Link className="font-semibold underline underline-offset-4" href="/portal/chairman/members?tab=directory">Clear analytics selection</Link></div>}
         <MemberDirectorySection
           summary={memberSummary}
           summaryError={memberSummaryError}
@@ -978,6 +995,7 @@ export function MembersClient() {
             }
           }}
         />
+        </>
       ) : (
         <UnifiedHistorySection
           entries={historyEntries}

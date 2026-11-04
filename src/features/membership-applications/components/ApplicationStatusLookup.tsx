@@ -139,7 +139,7 @@ export function ApplicationStatusLookup() {
         </Button>
       </form>
 
-      <section className="rounded-[2rem] border border-[#DDE8D8] bg-[#F8F1E5] p-6 shadow-sm sm:p-8">
+      <section className="rounded-[2rem] border border-[#DDE8D8] bg-[var(--public-canvas)] p-6 shadow-sm sm:p-8">
         {status ? (
           <div>
             <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#B9D1B6] bg-[#EAF3E8] px-4 py-3 text-sm font-semibold text-[#1F6B43]" role="status" aria-live="polite">
@@ -291,7 +291,7 @@ function PaymentPanel({
         ) : null}
 
         {status.requestedMembershipType === "True Member" && capital ? (
-          <div className="rounded-xl border border-[#DDE8D8] bg-[#F8F1E5] p-3">
+          <div className="rounded-xl border border-[#DDE8D8] bg-[var(--public-canvas)] p-3">
             <PaymentRequirementSummary requirement={capital} label="Initial share capital" />
             {capital.paymentStatus !== "Confirmed" ? (
               <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -353,7 +353,7 @@ function PaymentRequirementRow({
   onClick: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-[#DDE8D8] bg-[#F8F1E5] p-3">
+    <div className="rounded-xl border border-[#DDE8D8] bg-[var(--public-canvas)] p-3">
       <PaymentRequirementSummary requirement={requirement} label={label} />
       {requirement.paymentStatus !== "Confirmed" ? (
         <Button

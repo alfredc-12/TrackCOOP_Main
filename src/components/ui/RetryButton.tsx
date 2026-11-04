@@ -22,7 +22,7 @@ export function RetryButton({ onRetry }: { onRetry: () => void | Promise<void> }
       onClick={handleRetry}
       disabled={retrying}
       aria-busy={retrying}
-      className="mt-3 rounded-md bg-[#8F2F25] px-4 py-2 font-bold text-white hover:bg-[#73251D] disabled:cursor-wait disabled:opacity-60"
+      className="coop-button mt-3 min-h-11 rounded-coop-control bg-coop-forest px-4 py-2 font-semibold text-white hover:bg-coop-primary-hover disabled:cursor-wait disabled:opacity-60"
     >
       {retrying ? (
         <span className="inline-flex items-center gap-2" role="status" aria-live="polite">

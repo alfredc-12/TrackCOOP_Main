@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { calendarDateInMonth } from "@/lib/calendar-date";
 
 type DatePickerProps = {
   label: string;
@@ -112,6 +113,8 @@ export function DatePicker({
     selectedDate?.getFullYear() ?? maxDate.getFullYear(),
   );
   const [pendingDateKey, setPendingDateKey] = useState(value);
+  const draftSourceValue = useRef(value);
+  const preferredDay = useRef(selectedDate?.getDate() ?? null);
   const [openSelector, setOpenSelector] = useState<"month" | "year" | null>(null);
   const [pickerPosition, setPickerPosition] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
 
@@ -217,12 +220,19 @@ export function DatePicker({
     });
   }, [max, min, pendingDateKey, viewMonth, viewYear]);
 
+  function resetDraft() {
+    const anchorDate = selectedDate ?? maxDate;
+    setViewMonth(anchorDate.getMonth());
+    setViewYear(anchorDate.getFullYear());
+    setPendingDateKey(value);
+    preferredDay.current = selectedDate?.getDate() ?? null;
+    draftSourceValue.current = value;
+  }
+
   function togglePicker() {
     if (!isOpen) {
-      const anchorDate = selectedDate ?? maxDate;
-      setViewMonth(anchorDate.getMonth());
-      setViewYear(anchorDate.getFullYear());
-      setPendingDateKey(value);
+      // Dismissal keeps the draft; a change made by the parent replaces it.
+      if (draftSourceValue.current !== value) resetDraft();
       setPickerPosition(null);
     }
 
@@ -232,7 +242,21 @@ export function DatePicker({
 
   function selectDate(dateKey: string) {
     if (isOutsideRange(dateKey, min, max)) return;
+    const date = parseDateKey(dateKey)!;
+    preferredDay.current = date.getDate();
+    setViewMonth(date.getMonth());
+    setViewYear(date.getFullYear());
     setPendingDateKey(dateKey);
+  }
+
+  function changeMonth(year: number, month: number) {
+    const anchor = parseDateKey(calendarDateInMonth(year, month, 1, min, max))!;
+    setViewMonth(anchor.getMonth());
+    setViewYear(anchor.getFullYear());
+    if (preferredDay.current !== null) {
+      setPendingDateKey(calendarDateInMonth(year, month, preferredDay.current, min, max));
+    }
+    setOpenSelector(null);
   }
 
   const displayValue = formatDate(value);
@@ -242,7 +266,7 @@ export function DatePicker({
       <label
         id={labelId}
         className={cn(
-          "block text-sm font-bold text-[#365F4A]",
+          "block text-sm font-bold text-coop-secondary",
           hideLabel && "sr-only",
         )}
       >
@@ -257,7 +281,7 @@ export function DatePicker({
         aria-expanded={isOpen}
         onClick={togglePicker}
         className={cn(
-          "mt-2 flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20",
+          "mt-2 flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-coop-forest outline-none transition hover:border-[#B9D1B6] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20",
           hideLabel && "mt-0",
           triggerClassName,
         )}
@@ -270,7 +294,7 @@ export function DatePicker({
         >
           {displayValue || placeholder}
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-[#1F6B43]">
+        <span className="flex shrink-0 items-center gap-2 text-coop-green">
           <CalendarDays className="size-4" />
           <ChevronDown
             className={cn(
@@ -291,7 +315,7 @@ export function DatePicker({
             left: pickerPosition.left,
             ...(pickerPosition.top !== undefined ? { top: pickerPosition.top } : { bottom: pickerPosition.bottom }),
           }}
-          className="fixed z-[100] w-[20rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-[#CAD8CB] bg-white p-4 shadow-[0_20px_50px_rgba(18,61,42,0.18)] ring-1 ring-[#F8F1E5]"
+          className="fixed z-[100] w-[20rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-coop-border bg-white p-4 shadow-[0_20px_50px_rgba(18,61,42,0.18)] ring-1 ring-[#F8F1E5]"
         >
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
@@ -301,10 +325,10 @@ export function DatePicker({
                 aria-haspopup="listbox"
                 aria-expanded={openSelector === "month"}
                 onClick={() => setOpenSelector((current) => current === "month" ? null : "month")}
-                className="flex h-9 w-full items-center justify-between gap-1 rounded-xl border border-[#DDE8D8] bg-[#FBFBFA] px-3 text-left text-[0.72rem] font-black text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
+                className="flex h-9 w-full items-center justify-between gap-1 rounded-xl border border-[#DDE8D8] bg-[#FBFBFA] px-3 text-left text-[0.72rem] font-black text-coop-forest outline-none transition hover:border-[#B9D1B6] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/15"
               >
                 <span className="truncate">{monthNames[viewMonth]}</span>
-                <ChevronDown className={cn("size-3.5 shrink-0 text-[#1F6B43] transition-transform", openSelector === "month" && "rotate-180")} />
+                <ChevronDown className={cn("size-3.5 shrink-0 text-coop-green transition-transform", openSelector === "month" && "rotate-180")} />
               </button>
               {openSelector === "month" ? (
                 <div role="listbox" aria-label="Month options" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#DDE8D8] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
@@ -314,8 +338,8 @@ export function DatePicker({
                       type="button"
                       role="option"
                       aria-selected={viewMonth === index}
-                      onClick={() => { setViewMonth(index); setOpenSelector(null); }}
-                      className={cn("flex min-h-8 w-full items-center rounded-lg px-2.5 text-left text-[0.72rem] font-bold text-[#365F4A] transition hover:bg-[#EAF3E8]", viewMonth === index && "bg-[#1F6B43] text-white hover:bg-[#1F6B43]")}
+                      onClick={() => changeMonth(viewYear, index)}
+                      className={cn("flex min-h-8 w-full items-center rounded-lg px-2.5 text-left text-[0.72rem] font-bold text-coop-secondary transition hover:bg-coop-sage", viewMonth === index && "bg-coop-green text-white hover:bg-coop-green")}
                     >
                       {month}
                     </button>
@@ -331,10 +355,10 @@ export function DatePicker({
                 aria-haspopup="listbox"
                 aria-expanded={openSelector === "year"}
                 onClick={() => setOpenSelector((current) => current === "year" ? null : "year")}
-                className="flex h-9 w-full items-center justify-between gap-1 rounded-xl border border-[#DDE8D8] bg-[#FBFBFA] px-3 text-left text-[0.72rem] font-black text-[#123D2A] outline-none transition hover:border-[#B9D1B6] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/15"
+                className="flex h-9 w-full items-center justify-between gap-1 rounded-xl border border-[#DDE8D8] bg-[#FBFBFA] px-3 text-left text-[0.72rem] font-black text-coop-forest outline-none transition hover:border-[#B9D1B6] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/15"
               >
                 <span>{viewYear}</span>
-                <ChevronDown className={cn("size-3.5 shrink-0 text-[#1F6B43] transition-transform", openSelector === "year" && "rotate-180")} />
+                <ChevronDown className={cn("size-3.5 shrink-0 text-coop-green transition-transform", openSelector === "year" && "rotate-180")} />
               </button>
               {openSelector === "year" ? (
                 <div role="listbox" aria-label="Year options" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#DDE8D8] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
@@ -344,8 +368,8 @@ export function DatePicker({
                       type="button"
                       role="option"
                       aria-selected={viewYear === year}
-                      onClick={() => { setViewYear(year); setOpenSelector(null); }}
-                      className={cn("flex min-h-8 w-full items-center rounded-lg px-2.5 text-left text-[0.72rem] font-bold text-[#365F4A] transition hover:bg-[#EAF3E8]", viewYear === year && "bg-[#1F6B43] text-white hover:bg-[#1F6B43]")}
+                      onClick={() => changeMonth(year, viewMonth)}
+                      className={cn("flex min-h-8 w-full items-center rounded-lg px-2.5 text-left text-[0.72rem] font-bold text-coop-secondary transition hover:bg-coop-sage", viewYear === year && "bg-coop-green text-white hover:bg-coop-green")}
                     >
                       {year}
                     </button>
@@ -355,7 +379,7 @@ export function DatePicker({
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[0.65rem] font-black uppercase tracking-[0.05em] text-[#5D6D63]">
+          <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[0.65rem] font-black uppercase tracking-[0.05em] text-coop-muted">
             {weekdayNames.map((weekday) => (
               <div key={weekday}>{weekday.slice(0, 1)}</div>
             ))}
@@ -367,12 +391,13 @@ export function DatePicker({
                 key={day.dateKey}
                 type="button"
                 disabled={day.isDisabled}
+                aria-pressed={day.isSelected}
                 onClick={() => selectDate(day.dateKey)}
                 className={cn(
                   "mx-auto grid size-8 place-items-center rounded-lg text-[0.72rem] font-black leading-none outline-none transition focus:ring-2 focus:ring-[#1F6B43]/25",
                   day.isSelected
-                    ? "bg-[#1F6B43] text-white shadow-sm"
-                    : "text-[#28372F] hover:bg-[#EAF3E8]",
+                    ? "bg-coop-green text-white shadow-sm"
+                    : "text-[#28372F] hover:bg-coop-sage",
                   !day.isCurrentMonth && "text-[#AAB6AD]",
                   day.isToday &&
                     !day.isSelected &&
@@ -392,11 +417,13 @@ export function DatePicker({
                 type="button"
                 onClick={() => {
                   setPendingDateKey("");
+                  preferredDay.current = null;
+                  draftSourceValue.current = "";
                   onChange("");
                   setIsOpen(false);
                 }}
-                disabled={!value}
-                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#1F6B43] transition hover:text-[#123D2A] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:text-[#AAB6AD] disabled:opacity-60"
+                disabled={!value && !pendingDateKey}
+                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-coop-green transition hover:text-coop-forest focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:text-[#AAB6AD] disabled:opacity-60"
               >
                 {clearLabel}
               </button>
@@ -407,10 +434,10 @@ export function DatePicker({
               <button
                 type="button"
                 onClick={() => {
-                  setPendingDateKey(value);
+                  resetDraft();
                   setIsOpen(false);
                 }}
-                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#9AAC9F] transition hover:text-[#5D6D63] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15"
+                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#9AAC9F] transition hover:text-coop-muted focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15"
               >
                 Cancel
               </button>
@@ -418,12 +445,13 @@ export function DatePicker({
                 type="button"
                 onClick={() => {
                   if (pendingDateKey && !isOutsideRange(pendingDateKey, min, max)) {
+                    draftSourceValue.current = pendingDateKey;
                     onChange(pendingDateKey);
                   }
                   setIsOpen(false);
                 }}
                 disabled={!pendingDateKey || isOutsideRange(pendingDateKey, min, max)}
-                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-[#1F6B43] transition hover:text-[#123D2A] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:opacity-50"
+                className="h-7 rounded-full px-2 text-[0.68rem] font-black text-coop-green transition hover:text-coop-forest focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:opacity-50"
               >
                 Confirm
               </button>

@@ -24,6 +24,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
+import { calendarDateInMonth } from "@/lib/calendar-date";
 import {
   DataTable,
   EmptyState,
@@ -822,6 +823,23 @@ function ReportFilterField({
 function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
   const pickerId = useId();
+  const selection = useRef({ value, day: value ? Number(value.slice(8, 10)) : null });
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
   useEffect(() => {
     const closeOtherPickers = (event: Event) => {
       if ((event as CustomEvent<string>).detail !== pickerId) setOpen(false);
@@ -847,25 +865,47 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
   const selectedDate = value ? new Date(`${value}T00:00:00`) : null;
   const label = selectedDate && !Number.isNaN(selectedDate.getTime()) ? selectedDate.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "Select date";
   const today = new Date();
+  function moveMonth(offset: number) {
+    const next = new Date(month.getFullYear(), month.getMonth() + offset, 1);
+    setMonth(next);
+    const day = selection.current.value === value ? selection.current.day : value ? Number(value.slice(8, 10)) : null;
+    if (day !== null) {
+      const nextValue = calendarDateInMonth(next.getFullYear(), next.getMonth(), day);
+      selection.current = { value: nextValue, day };
+      onChange(nextValue);
+    }
+  }
   return (
-    <div className="relative">
-      <button type="button" onClick={() => { const nextOpen = !open; if (nextOpen) { document.dispatchEvent(new CustomEvent("date-picker-open", { detail: pickerId })); document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId })); } setOpen(nextOpen); }} className={`${fieldClass} flex w-full items-center justify-between gap-2 text-left font-semibold`}>
+    <div ref={rootRef} className="relative">
+      <button type="button" aria-expanded={open} onClick={() => {
+        const nextOpen = !open;
+        if (nextOpen) {
+          if (selection.current.value !== value) {
+            const date = value ? new Date(`${value}T00:00:00`) : new Date();
+            setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+            selection.current = { value, day: value ? date.getDate() : null };
+          }
+          document.dispatchEvent(new CustomEvent("date-picker-open", { detail: pickerId }));
+          document.dispatchEvent(new CustomEvent("custom-picker-open", { detail: pickerId }));
+        }
+        setOpen(nextOpen);
+      }} className={`${fieldClass} flex w-full items-center justify-between gap-2 text-left font-semibold`}>
         <span>{label}</span><Calendar className="size-4 text-[#365F4A]" aria-hidden="true" />
       </button>
       {open ? <div className="absolute bottom-full z-50 mb-2 w-72 rounded-lg border border-[#CAD8CB] bg-white p-3 shadow-[0_18px_45px_rgba(18,61,42,0.18)]">
         <div className="flex items-center justify-between">
-          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="rounded p-2 text-[#123D2A] hover:bg-[#EEF6EF]"><ChevronLeft className="size-4" /></button>
+          <button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)} className="rounded p-2 text-[#123D2A] hover:bg-[#EEF6EF]"><ChevronLeft className="size-4" /></button>
           <span className="text-sm font-bold text-[#123D2A]">{month.toLocaleDateString("en-PH", { month: "long", year: "numeric" })}</span>
-          <button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="rounded p-2 text-[#123D2A] hover:bg-[#EEF6EF]"><ChevronRight className="size-4" /></button>
+          <button type="button" aria-label="Next month" onClick={() => moveMonth(1)} className="rounded p-2 text-[#123D2A] hover:bg-[#EEF6EF]"><ChevronRight className="size-4" /></button>
         </div>
         <div className="mt-2 grid grid-cols-7 text-center text-xs font-bold text-[#6C7A70]">{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => <span key={day} className="py-2">{day}</span>)}</div>
         <div className="grid grid-cols-7 gap-1 text-center text-sm">{cells.map((day, index) => {
           if (!day) return <span key={`empty-${index}`} />;
           const dateValue = format(month.getFullYear(), month.getMonth(), day);
           const selected = dateValue === value;
-          return <button key={dateValue} type="button" onClick={() => { onChange(dateValue); setOpen(false); }} className={`rounded-md py-2 ${selected ? "bg-[#123D2A] font-bold text-white" : "text-[#294B39] hover:bg-[#EEF6EF]"}`}>{day}</button>;
+          return <button key={dateValue} type="button" aria-pressed={selected} onClick={() => { selection.current = { value: dateValue, day }; onChange(dateValue); setOpen(false); }} className={`rounded-md py-2 ${selected ? "bg-[#123D2A] font-bold text-white" : "text-[#294B39] hover:bg-[#EEF6EF]"}`}>{day}</button>;
         })}</div>
-        <div className="mt-2 flex justify-between border-t border-[#E1E9E2] pt-2 text-xs font-semibold"><button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-[#2F7D50] hover:underline">Clear</button><button type="button" onClick={() => { const todayValue = format(today.getFullYear(), today.getMonth(), today.getDate()); onChange(todayValue); setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); setOpen(false); }} className="text-[#2F7D50] hover:underline">Today</button></div>
+        <div className="mt-2 flex justify-between border-t border-[#E1E9E2] pt-2 text-xs font-semibold"><button type="button" onClick={() => { selection.current = { value: "", day: null }; onChange(""); setOpen(false); }} className="text-[#2F7D50] hover:underline">Clear</button><button type="button" onClick={() => { const todayValue = format(today.getFullYear(), today.getMonth(), today.getDate()); selection.current = { value: todayValue, day: today.getDate() }; onChange(todayValue); setMonth(new Date(today.getFullYear(), today.getMonth(), 1)); setOpen(false); }} className="text-[#2F7D50] hover:underline">Today</button></div>
       </div> : null}
     </div>
   );

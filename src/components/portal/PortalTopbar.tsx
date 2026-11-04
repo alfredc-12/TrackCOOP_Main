@@ -11,15 +11,16 @@ type PortalTopbarProps = {
   user: AuthUser;
   onMenuClick: () => void;
   onLogout: () => void;
+  isNavigationOpen?: boolean;
 };
 
-export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps) {
+export function PortalTopbar({ user, onMenuClick, onLogout, isNavigationOpen = false }: PortalTopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const current = findPortalNavItem(pathname);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[#CAD8CB] bg-[#F7F8F3]/92 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-coop-border bg-[#F7F8F3]/92 backdrop-blur">
       <div className="flex min-h-20 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
@@ -27,15 +28,19 @@ export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps)
               type="button"
               onClick={onMenuClick}
               aria-label="Open navigation"
-              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] lg:hidden"
+              id="portal-navigation-trigger"
+              aria-controls="portal-mobile-navigation"
+              aria-haspopup="dialog"
+              aria-expanded={isNavigationOpen}
+              className="grid size-10 place-items-center rounded-md border border-coop-border bg-white text-coop-forest transition hover:bg-coop-subtle lg:hidden"
             >
               <Menu className="size-5" aria-hidden="true" />
             </button>
             <div className="min-w-0">
               <Breadcrumbs />
-              <h1 className="mt-1 truncate text-xl font-black text-[#123D2A]">
+              <p className="mt-1 truncate text-lg font-semibold text-coop-forest">
                 {current?.label ?? "Portal"}
-              </h1>
+              </p>
             </div>
           </div>
         </div>
@@ -46,7 +51,7 @@ export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps)
               type="button"
               aria-label="Notifications"
               onClick={() => router.push(user.role === "chairman" ? "/portal/chairman/announcements" : "/portal/member/announcements")}
-              className="grid size-10 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC]"
+              className="grid size-10 place-items-center rounded-md border border-coop-border bg-white text-coop-forest transition hover:bg-coop-subtle"
             >
               <Bell className="size-4" aria-hidden="true" />
             </button>
@@ -56,7 +61,8 @@ export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps)
             <DropdownMenu.Trigger asChild>
               <button
                 type="button"
-                className="flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-bold text-[#123D2A] transition hover:bg-[#EEF2EC]"
+                aria-label="Open account menu"
+                className="flex h-10 items-center gap-2 rounded-md border border-coop-border bg-white px-3 text-sm font-bold text-coop-forest transition hover:bg-coop-subtle"
               >
                 <span className="grid size-6 place-items-center rounded-full bg-[#E7F2E4]">
                   <UserRound className="size-3.5" aria-hidden="true" />
@@ -68,18 +74,18 @@ export function PortalTopbar({ user, onMenuClick, onLogout }: PortalTopbarProps)
               <DropdownMenu.Content
                 align="end"
                 sideOffset={8}
-                className="z-50 min-w-60 rounded-lg border border-[#CAD8CB] bg-white p-2 text-[#17211C] shadow-[0_18px_45px_rgba(18,61,42,0.16)]"
+                className="z-50 min-w-60 rounded-lg border border-coop-border bg-white p-2 text-coop-ink shadow-[0_18px_45px_rgba(18,61,42,0.16)]"
               >
-                <div className="border-b border-[#EEF2EC] px-3 py-2">
-                  <p className="truncate text-sm font-black text-[#123D2A]">{user.displayName}</p>
-                  <p className="truncate text-xs text-[#5D6D63]">{user.email}</p>
-                  <p className="mt-1 text-[0.68rem] font-black uppercase tracking-[0.18em] text-[#D8A011]">
+                <div className="border-b border-coop-subtle px-3 py-2">
+                  <p className="truncate text-sm font-black text-coop-forest">{user.displayName}</p>
+                  <p className="truncate text-xs text-coop-muted">{user.email}</p>
+                  <p className="mt-1 text-sm font-medium text-coop-muted">
                     {user.role}
                   </p>
                 </div>
                 <DropdownMenu.Item
                   onSelect={onLogout}
-                  className="mt-2 flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-bold text-[#9A392A] outline-none transition hover:bg-[#FFF4EC]"
+                  className="mt-2 flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-bold text-coop-danger outline-none transition hover:bg-[#FFF4EC]"
                 >
                   <LogOut className="size-4" aria-hidden="true" />
                   Sign out

@@ -138,6 +138,11 @@ export type FinancialRecordListQuery = {
   search?: string;
   recordType?: FinancialRecordType;
   recordStatus?: FinancialRecordStatus;
+  startDate?: string;
+  endDate?: string;
+  financialCategoryIds?: string[];
+  sourceModules?: FinancialSourceModule[];
+  posting?: "posted" | "unposted";
   sortBy: "recordDate" | "amount" | "recordNumber" | "createdAt";
   sortDirection: "asc" | "desc";
 };

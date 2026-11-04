@@ -37,6 +37,7 @@ export type MemberIndicatorRawMetrics = {
 
 export type MemberIndicatorBasisSummary = {
   formulaVersion: string;
+  configurationFingerprint?: string;
   advisoryOnly: true;
   officialStatusUnchanged: true;
   rawMetrics: MemberIndicatorRawMetrics;

@@ -3,7 +3,7 @@ const cooperativeName =
 
 export default function SiteFooter() {
   return (
-    <footer className="border-t border-[#1F6B43]/20 bg-[#123D2A] px-5 py-10 text-white sm:px-8">
+    <footer className="border-t border-[#1F6B43]/20 bg-coop-forest px-5 py-10 text-white sm:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="font-bold uppercase tracking-[0.16em]">

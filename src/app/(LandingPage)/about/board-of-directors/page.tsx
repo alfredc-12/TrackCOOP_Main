@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
+import { BoardMemberPortrait } from "@/features/landing-public/BoardMemberPortrait";
 
 export const metadata: Metadata = {
   title: "Board of Directors | TrackCOOP",
@@ -68,27 +71,16 @@ function BoardCard({
 }) {
   return (
     <article
-      className={`group w-full overflow-hidden rounded-md border border-[#DDE8D8] bg-white shadow-[0_18px_44px_rgba(18,61,42,0.1)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(18,61,42,0.16)] ${
-        featured ? "max-w-[260px]" : "max-w-[220px]"
+      className={`public-card group min-w-0 overflow-hidden ${
+        featured ? "w-full max-w-[290px]" : "w-[calc(50%_-_0.75rem)] max-w-[250px] sm:w-[calc((100%_-_3rem)/3)] lg:w-[calc((100%_-_4.5rem)/4)]"
       }`}
     >
-      <div className="relative aspect-[4/5] overflow-hidden bg-[#E8F0E3]">
-        <Image
-          src={member.image}
-          alt={`${member.name}, ${member.role}`}
-          fill
-          unoptimized
-          sizes={featured ? "260px" : "220px"}
-          className="h-full w-full object-cover object-center transition duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-x-0 bottom-0 bg-[#073F2B]/95 px-3 py-3 text-center">
-          <p className="truncate text-[11px] font-black uppercase tracking-[0.18em] text-white">
-            {member.name}
-          </p>
-          <p className="mx-auto mt-2 w-fit rounded-sm bg-[#F2C94C] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#073F2B]">
-            {member.role}
-          </p>
-        </div>
+      <div className="public-media relative aspect-[4/5] overflow-hidden bg-[#EAF3E8]">
+        <BoardMemberPortrait name={member.name} role={member.role} image={member.image} featured={featured} />
+      </div>
+      <div className="px-4 py-4 text-center sm:px-5 sm:py-5">
+        <h3 className="break-words text-base font-bold leading-6 text-[#123D2A] sm:text-lg">{member.name}</h3>
+        <p className="mt-1 text-sm font-semibold leading-6 text-[#1F6B43]">{member.role}</p>
       </div>
     </article>
   );
@@ -98,10 +90,10 @@ export default function BoardOfDirectorsPage() {
   const [chairperson, viceChairperson, ...directors] = boardMembers;
 
   return (
-    <main className="min-h-screen overflow-hidden bg-white text-[#123D2A]">
+    <main className="public-about min-h-screen overflow-hidden bg-[var(--public-canvas)] text-[#123D2A]">
       <SiteHeader initialActive="about" />
 
-      <section className="relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-10 pt-24 text-white sm:px-8 lg:min-h-[26rem] lg:pb-12 lg:pt-28">
+      <section className="relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-12 pt-28 text-white sm:px-8 lg:pb-14 lg:pt-32">
         <Image
           src="/images/Other%20Landing%20Page/About.jpg"
           alt="Cooperative members gathered together"
@@ -109,69 +101,75 @@ export default function BoardOfDirectorsPage() {
           priority
           unoptimized
           sizes="100vw"
-          className="object-cover object-center opacity-45"
+          className="public-hero-media object-cover object-[center_42%] opacity-70"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#052F22]/95 via-[#052F22]/82 to-[#052F22]/45" />
+        <div className="absolute inset-0 bg-[#052F22]/70" />
         <div className="relative z-10 mx-auto max-w-7xl">
-          <p className="mb-6 text-xs font-black uppercase tracking-[0.48em] text-[#F2C94C]">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.35em] text-[#F2C94C]">
             About
           </p>
-          <h1 className="max-w-6xl text-5xl font-black leading-[0.95] tracking-normal md:text-7xl lg:text-8xl">
+          <h1 className="max-w-5xl text-4xl font-black leading-[1.05] sm:text-6xl lg:text-7xl">
             Board of Directors
           </h1>
-          <p className="mt-7 max-w-3xl text-lg leading-8 text-white/88 md:text-xl md:leading-9">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/90 sm:text-lg sm:leading-8">
             Meet the cooperative leaders responsible for member representation,
             governance oversight, and steady stewardship of TrackCOOP records.
           </p>
         </div>
       </section>
 
-      <section className="bg-[#F8F1E5] px-5 py-16 sm:px-8 lg:py-20">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1fr] lg:items-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.48em] text-[#F2B705]">
+      <section className="bg-white px-5 py-16 sm:px-8 lg:py-20">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#9A6400]">
               Governance
             </p>
-            <h2 className="mt-5 max-w-4xl text-4xl font-black leading-[0.98] tracking-normal text-[#073F2B] md:text-6xl lg:text-7xl">
+            <h2 className="mt-3 max-w-4xl text-3xl font-black leading-[1.1] text-[#073F2B] sm:text-4xl lg:text-5xl">
               Leadership in service of members.
             </h2>
-            <p className="mt-7 max-w-3xl text-lg leading-8 text-[#4B5563]">
+            <p className="mt-6 max-w-3xl text-base leading-8 text-[#365F4A]">
               The board directory gives members a clear view of official
               leadership roles while keeping cooperative records organized for
               meetings, terms, and future governance updates.
             </p>
+            <Link href="#board-directory" className="public-action mt-7 inline-flex min-h-11 items-center gap-3 rounded-md bg-[#123D2A] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#1F6B43] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1F6B43]">View the directory<ArrowRight aria-hidden="true" className="size-4" /></Link>
           </div>
 
-          <div className="relative min-h-[18rem] overflow-hidden rounded-md border border-[#DDE8D8] bg-[#E8F0E3] shadow-[0_28px_80px_rgba(18,61,42,0.2)] sm:min-h-[24rem]">
-            <Image
-              src="/images/Hero%20Page/Main%20Photo%204.jpg"
-              alt="TrackCOOP cooperative gathering"
-              fill
-              unoptimized
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              className="object-cover object-center"
-            />
+          <div className="public-card min-w-0 overflow-hidden p-2.5">
+            <div className="public-media relative aspect-[4/3] overflow-hidden rounded-md bg-[#EAF3E8]">
+              <Image
+                src="/images/Hero%20Page/Main%20Photo%204.jpg"
+                alt="TrackCOOP cooperative gathering"
+                fill
+                unoptimized
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover object-center"
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="border-t border-[#E0EADC] bg-[#FFFDF8] px-5 py-16 sm:px-8 lg:py-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-10 text-center">
-            <p className="text-xs font-black uppercase tracking-[0.48em] text-[#F2B705]">
-              Directory
-            </p>
-            <h2 className="mt-4 text-4xl font-black leading-none text-[#073F2B] md:text-5xl">
-              Current officers and directors
-            </h2>
+      <section id="board-directory" className="scroll-mt-20 bg-[var(--public-canvas)] px-5 py-16 sm:px-8 lg:py-20">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#9A6400]">
+                Directory
+              </p>
+              <h2 className="mt-3 max-w-3xl text-2xl font-black leading-tight text-[#073F2B] sm:text-4xl lg:text-5xl">
+                Current officers and directors
+              </h2>
+            </div>
+            <Link href="/about/our-cooperative" className="public-action inline-flex min-h-11 shrink-0 items-center gap-3 rounded-md text-sm font-semibold text-[#123D2A] hover:text-[#1F6B43] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1F6B43]">Our Cooperative<ArrowRight aria-hidden="true" className="size-4" /></Link>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-6 sm:gap-8">
+          <div className="mx-auto grid max-w-[604px] grid-cols-2 justify-items-center gap-6">
             <BoardCard member={chairperson} featured />
             <BoardCard member={viceChairperson} featured />
           </div>
 
-          <div className="mx-auto mt-8 grid max-w-[760px] grid-cols-1 justify-items-center gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto mt-8 flex max-w-[1100px] flex-wrap justify-center gap-6">
             {directors.map((member) => (
               <BoardCard key={member.name} member={member} />
             ))}

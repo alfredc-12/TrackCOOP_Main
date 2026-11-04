@@ -70,7 +70,7 @@ export default function ForceChangePasswordPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F8F1E5] flex items-center justify-center p-4">
+    <main className="min-h-screen bg-[var(--public-canvas)] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-xl">
         <div className="flex flex-col items-center text-center mb-8">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-4">
@@ -84,21 +84,23 @@ export default function ForceChangePasswordPage() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">
+            <label htmlFor="currentPassword" className="mb-1 block text-sm font-bold text-[#4b6b5a]">
               Current Password (Track_coop123)
             </label>
             <input
               required
               type="password"
               name="currentPassword"
-              className="w-full rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] px-4 py-3 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-1 focus:ring-[#1F6B43]"
+              id="currentPassword"
+              autoComplete="current-password"
+              className="w-full rounded-xl border border-[#DDE8D8] bg-[var(--public-canvas)] px-4 py-3 text-sm outline-none transition focus:border-coop-green focus:ring-1 focus:ring-coop-green"
               value={password.currentPassword}
               onChange={handlePasswordChange}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">
+            <label htmlFor="newPassword" className="mb-1 block text-sm font-bold text-[#4b6b5a]">
               New Password
             </label>
             <input
@@ -106,14 +108,16 @@ export default function ForceChangePasswordPage() {
               minLength={3}
               type="password"
               name="newPassword"
-              className="w-full rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] px-4 py-3 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-1 focus:ring-[#1F6B43]"
+              id="newPassword"
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-[#DDE8D8] bg-[var(--public-canvas)] px-4 py-3 text-sm outline-none transition focus:border-coop-green focus:ring-1 focus:ring-coop-green"
               value={password.newPassword}
               onChange={handlePasswordChange}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#4b6b5a]">
+            <label htmlFor="confirmPassword" className="mb-1 block text-sm font-bold text-[#4b6b5a]">
               Confirm New Password
             </label>
             <input
@@ -121,7 +125,9 @@ export default function ForceChangePasswordPage() {
               minLength={3}
               type="password"
               name="confirmPassword"
-              className="w-full rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] px-4 py-3 text-sm outline-none transition focus:border-[#1F6B43] focus:ring-1 focus:ring-[#1F6B43]"
+              id="confirmPassword"
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-[#DDE8D8] bg-[var(--public-canvas)] px-4 py-3 text-sm outline-none transition focus:border-coop-green focus:ring-1 focus:ring-coop-green"
               value={password.confirmPassword}
               onChange={handlePasswordChange}
             />
@@ -131,7 +137,7 @@ export default function ForceChangePasswordPage() {
             <button
               type="submit"
               disabled={isSaving}
-              className="w-full flex items-center justify-center rounded-xl bg-[#123D2A] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-[#1B4D37] disabled:opacity-70"
+              className="w-full flex items-center justify-center rounded-xl bg-coop-forest px-4 py-3.5 text-sm font-bold text-white transition hover:bg-[#1B4D37] disabled:opacity-70"
             >
               {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Update Password & Continue"}
             </button>

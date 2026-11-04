@@ -8,7 +8,7 @@ import PaymentStatusPoller from "./payment-status-poller";
 
 export default function PaymentSuccessPage() {
   return (
-    <main className="min-h-screen bg-[#F8F1E5] text-[#123D2A]">
+    <main className="min-h-screen bg-[var(--public-canvas)] text-[#123D2A]">
       <SiteHeader initialActive="membership" />
       <section className="px-5 pb-12 pt-28 sm:px-8 lg:pb-16">
         <div className="mx-auto max-w-4xl rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_24px_70px_rgba(18,61,42,0.10)] ring-1 ring-[#DDE8D8] sm:p-10">

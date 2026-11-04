@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
 import { MemberStorePhoto, MemberStoreProductCard } from "./MemberStoreProductCard";
 import { StorePaymentReturnPanel } from "./StorePaymentReturnPanel";
+import { PublicStorefront } from "./PublicStorefront";
 
 type InventoryItem = {
     id: number;
@@ -461,7 +462,24 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
     };
 
     return (
-        <div className={isPublicView ? "-mx-4 -my-6 min-h-screen flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative" : "relative animate-in fade-in slide-in-from-bottom-4 duration-500"}>
+        <div className={isPublicView ? "public-storefront" : "relative animate-in fade-in slide-in-from-bottom-4 duration-500"}>
+            {isPublicView ? (
+                <PublicStorefront
+                    products={inventory}
+                    cart={cart}
+                    loading={isInventoryLoading}
+                    error={inventoryError}
+                    totalItems={totalCartItems}
+                    totalPrice={finalCartPrice}
+                    onOpenCart={openCart}
+                    onAdd={(id) => {
+                        const product = inventory.find((item) => item.id === id);
+                        if (product) addToCart(product);
+                    }}
+                    onAdjust={updateCartQuantity}
+                    onRetry={() => void fetchInventory(true)}
+                />
+            ) : <>
             {/* Header */}
             <div className={isPublicView ? "relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7" : "relative mb-4 overflow-hidden rounded-2xl bg-[#123D2A] p-4 text-white shadow-sm"}>
                 <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
@@ -670,6 +688,8 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                     <button type="button" onClick={() => setProductPage(productPageCount)} disabled={productPage === productPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Last page" aria-label="Last product page"><ChevronsRight className="size-4" /></button>
                 </div>
             )}
+
+            </>}
 
             {totalCartItems > 0 && (
                 <div className={`fixed inset-x-3 ${isPublicView ? "bottom-3" : "bottom-20"} z-40 flex items-center justify-between gap-3 rounded-2xl border border-[#BBD7C1] bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(18,61,42,0.2)] backdrop-blur-md sm:hidden`}>

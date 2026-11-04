@@ -1,0 +1,482 @@
+.sidebar {
+  --nav-ground: var(--coop-forest, #123d2a);
+  --nav-ink: var(--coop-surface, #fff);
+  --nav-text: color-mix(in srgb, var(--nav-ink) 82%, var(--nav-ground));
+  --nav-muted: color-mix(in srgb, var(--nav-ink) 68%, var(--nav-ground));
+  --nav-hover: color-mix(in srgb, var(--nav-ink) 8%, transparent);
+  --nav-selected: var(--coop-sage, #eaf3e8);
+  --nav-ease: var(--coop-ease, cubic-bezier(0.16, 1, 0.3, 1));
+  --nav-fast: var(--coop-duration-fast, 160ms);
+  --nav-reveal: var(--coop-duration-normal, 240ms);
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--nav-ground);
+  color: var(--nav-ink);
+}
+
+.desktop {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: none;
+  width: 18rem;
+}
+
+.brand {
+  display: flex;
+  min-height: 88px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--nav-ink) 9%, transparent);
+  transition: background-color var(--nav-fast) ease;
+}
+
+.logo {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  transition: transform var(--nav-reveal) var(--nav-ease);
+}
+
+.brandText {
+  min-width: 0;
+}
+.brandName {
+  display: block;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+.role {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--nav-muted);
+  font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigation {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 16px 12px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--nav-ink) 34%, transparent)
+    transparent;
+  scrollbar-gutter: stable;
+  scroll-padding-block: 12px;
+}
+
+.navigation::-webkit-scrollbar {
+  width: 6px;
+}
+.navigation::-webkit-scrollbar-track {
+  background: var(--nav-ground);
+}
+.navigation::-webkit-scrollbar-thumb {
+  border: 1px solid var(--nav-ground);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nav-ink) 34%, transparent);
+}
+.navigation::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.navigation:hover,
+.navigation:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--nav-ink) 55%, transparent)
+    transparent;
+}
+.navigation::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--nav-ink) 60%, transparent);
+}
+
+.group {
+  flex-shrink: 0;
+}
+.groupTrigger {
+  display: flex;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: var(--nav-text);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color var(--nav-fast) ease,
+    color var(--nav-fast) ease,
+    transform var(--nav-fast) var(--nav-ease);
+}
+.group[data-open="true"] .groupTrigger {
+  background: color-mix(in srgb, var(--nav-ink) 4%, transparent);
+  color: var(--nav-ink);
+}
+.groupTitle {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+.groupMarker {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--coop-yellow, #f2c94c);
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity var(--nav-fast) ease,
+    transform var(--nav-reveal) var(--nav-ease);
+}
+.group[data-current="true"] .groupMarker {
+  opacity: 1;
+  transform: scale(1);
+}
+.chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--nav-muted);
+  transition:
+    transform var(--nav-reveal) var(--nav-ease),
+    color var(--nav-fast) ease;
+}
+.group[data-open="true"] .chevron {
+  transform: rotate(180deg);
+  color: var(--nav-ink);
+}
+
+/* Keep the group mounted for a reversible close; inert removes closed links from interaction. */
+.groupPanel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--nav-reveal) var(--nav-ease),
+    opacity var(--nav-fast) ease;
+}
+.groupPanel[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.groupClip {
+  min-height: 0;
+  overflow: hidden;
+}
+.linkList {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 5px 0 6px;
+  list-style: none;
+  transform: translateY(-4px);
+  transition: transform var(--nav-reveal) var(--nav-ease);
+}
+.groupPanel[data-open="true"] .linkList {
+  transform: translateY(0);
+}
+
+.link {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: var(--nav-text);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  touch-action: manipulation;
+  transition:
+    color var(--nav-fast) ease,
+    background-color var(--nav-fast) ease,
+    transform var(--nav-fast) var(--nav-ease);
+}
+.link::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--nav-hover);
+  content: "";
+  opacity: 0;
+  transform: scale(0.98);
+  transition:
+    opacity var(--nav-fast) ease,
+    transform var(--nav-reveal) var(--nav-ease),
+    background-color var(--nav-fast) ease;
+}
+.link[data-active="true"] {
+  color: var(--nav-ground);
+  font-weight: 600;
+}
+.link[data-active="true"]::before {
+  background: var(--nav-selected);
+  opacity: 1;
+  transform: scale(1);
+}
+.itemIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--nav-muted);
+  stroke-width: 1.7;
+  transition:
+    color var(--nav-fast) ease,
+    transform var(--nav-reveal) var(--nav-ease);
+}
+.link[data-active="true"] .itemIcon {
+  color: var(--coop-green, #1f6b43);
+}
+.linkLabel {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: transform var(--nav-reveal) var(--nav-ease);
+}
+.linkMarker {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity var(--nav-fast) ease,
+    transform var(--nav-reveal) var(--nav-ease);
+}
+.link[data-active="true"] .linkMarker {
+  opacity: 1;
+  transform: scale(1);
+}
+.link:active,
+.groupTrigger:active {
+  transform: scale(0.98);
+}
+.sidebar :is(a, button):focus-visible {
+  outline: 2px solid var(--coop-yellow, #f2c94c);
+  outline-offset: -3px;
+}
+.sidebar .link[data-active="true"]:focus-visible {
+  outline-color: var(--nav-ground);
+}
+.sidebar ::selection {
+  background: var(--coop-yellow, #f2c94c);
+  color: var(--nav-ground);
+}
+
+.overlay {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  background: color-mix(in srgb, var(--coop-forest, #123d2a) 48%, transparent);
+}
+.overlay[data-state="open"] {
+  animation: overlayIn var(--coop-duration-fast, 160ms) ease both;
+}
+.overlay[data-state="closed"] {
+  animation: overlayOut var(--coop-duration-fast, 160ms) ease both;
+}
+.mobileDrawer {
+  position: fixed;
+  z-index: 60;
+  inset: 0 auto 0 0;
+  width: min(20rem, 86vw);
+  height: 100dvh;
+  background: var(--coop-forest, #123d2a);
+  outline: none;
+  box-shadow: 12px 0 40px rgb(0 0 0 / 0.16);
+}
+.mobileDrawer[data-state="open"] {
+  animation: drawerIn var(--coop-duration-normal, 240ms)
+    var(--coop-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+.mobileDrawer[data-state="closed"] {
+  animation: drawerOut var(--coop-duration-fast, 160ms) ease-in both;
+}
+.mobileDrawer .brand {
+  padding-right: 64px;
+}
+.close {
+  position: absolute;
+  z-index: 2;
+  top: 22px;
+  right: 12px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--coop-surface, #fff) 7%, transparent);
+  color: var(--coop-surface, #fff);
+  cursor: pointer;
+  transition:
+    background-color var(--coop-duration-fast, 160ms) ease,
+    transform var(--coop-duration-fast, 160ms) ease;
+}
+.close svg {
+  width: 18px;
+  height: 18px;
+  transition: transform var(--coop-duration-normal, 240ms)
+    var(--coop-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.close:active {
+  transform: scale(0.94);
+}
+.close:focus-visible {
+  outline: 2px solid var(--coop-yellow, #f2c94c);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .brand:hover {
+    background: color-mix(in srgb, var(--nav-ink) 3%, transparent);
+  }
+  .brand:hover .logo {
+    transform: rotate(-5deg) scale(1.05);
+  }
+  .groupTrigger:hover {
+    background: var(--nav-hover);
+    color: var(--nav-ink);
+  }
+  .link:hover {
+    color: var(--nav-ink);
+  }
+  .link:hover::before {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .link:hover .itemIcon {
+    transform: translateX(2px);
+    color: var(--nav-ink);
+  }
+  .link:hover .linkLabel {
+    transform: translateX(2px);
+  }
+  .link[data-active="true"]:hover {
+    color: var(--nav-ground);
+  }
+  .link[data-active="true"]:hover .itemIcon {
+    color: var(--coop-green, #1f6b43);
+  }
+  .close:hover {
+    background: color-mix(in srgb, var(--coop-surface, #fff) 14%, transparent);
+  }
+  .close:hover svg {
+    transform: rotate(90deg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .desktop {
+    display: block;
+  }
+  .overlay,
+  .mobileDrawer {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar *,
+  .sidebar *::before,
+  .close,
+  .close svg {
+    transition: none;
+  }
+  .linkList,
+  .brand:hover .logo,
+  .link:hover .itemIcon,
+  .link:hover .linkLabel,
+  .link:active,
+  .groupTrigger:active,
+  .close:active,
+  .close:hover svg {
+    transform: none;
+  }
+  .overlay[data-state],
+  .mobileDrawer[data-state] {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .link[data-active="true"] {
+    background: Highlight;
+    color: HighlightText;
+    outline: 1px solid Highlight;
+    outline-offset: -2px;
+  }
+  .link[data-active="true"]::before {
+    display: none;
+  }
+  .link[data-active="true"] .itemIcon {
+    color: HighlightText;
+  }
+}
+
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes overlayOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes drawerIn {
+  from {
+    opacity: 0.7;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes drawerOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0.7;
+    transform: translateX(-100%);
+  }
+}

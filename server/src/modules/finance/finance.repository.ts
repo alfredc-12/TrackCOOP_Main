@@ -421,6 +421,25 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
         where.push("r.record_status = ?");
         values.push(query.recordStatus);
       }
+      // Drill-down filters used by analytics links. All are optional and parameterized.
+      if (query.startDate) {
+        where.push("r.record_date >= ?");
+        values.push(query.startDate);
+      }
+      if (query.endDate) {
+        where.push("r.record_date <= ?");
+        values.push(query.endDate);
+      }
+      if (query.financialCategoryIds?.length) {
+        where.push(`r.financial_category_id IN (${query.financialCategoryIds.map(() => "?").join(", ")})`);
+        values.push(...query.financialCategoryIds);
+      }
+      if (query.sourceModules?.length) {
+        where.push(`r.source_module IN (${query.sourceModules.map(() => "?").join(", ")})`);
+        values.push(...query.sourceModules);
+      }
+      if (query.posting === "posted") where.push("r.approved_by IS NOT NULL");
+      if (query.posting === "unposted") where.push("r.approved_by IS NULL");
 
       const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";

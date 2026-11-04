@@ -1,11 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, LoaderCircle, LogIn, Eye, EyeOff, AlertCircle, X, Keyboard } from "lucide-react";
+import { ArrowLeft, LogIn, Eye, EyeOff, AlertCircle, X, Keyboard, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   loginSchema,
@@ -14,6 +14,8 @@ import {
 import type { AuthUser } from "@/features/auth/types";
 import { getOptionalAuthenticatedUser, login } from "@/lib/auth-client";
 import { ApiClientError } from "@/lib/api-client";
+import { Button } from "@/components/ui/Button";
+import styles from "./LoginPage.module.css";
 
 const roleDestinations: Record<AuthUser["role"], string> = {
   chairman: "/portal/chairman/dashboard",
@@ -35,6 +37,27 @@ export default function LoginPage() {
   const [savedEmails, setSavedEmails] = useState<string[]>([]);
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [greeting, setGreeting] = useState("Welcome back");
+  const recentAccountsRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      const details = recentAccountsRef.current;
+      if (details?.open && !details.contains(event.target as Node)) details.open = false;
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      const details = recentAccountsRef.current;
+      if (event.key === "Escape" && details?.open) {
+        details.open = false;
+        details.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -149,174 +172,115 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-gray-50 text-[#17211C] lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(30rem,0.9fr)]">
-      <section className="relative hidden h-full overflow-hidden lg:block">
-        <Image
-          src="/images/Hero Page/Main Photo 4.jpg"
-          alt="TrackCOOP cooperative members"
-          fill
-          priority
-          sizes="55vw"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-[#123D2A]/60 backdrop-blur-[2px]" />
-        <div className="absolute inset-x-0 bottom-0 p-12 text-white xl:p-16 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#DCEB9A]">
-            Cooperative operations
-          </p>
-          <p className="mt-4 max-w-xl text-4xl font-semibold leading-tight text-white/95">
-            Shared records, clearer service, and accountable cooperative work.
-          </p>
-        </div>
-      </section>
+    <main className="min-h-svh bg-coop-canvas text-coop-ink">
+      <div className="grid min-h-svh lg:grid-cols-[minmax(0,1.1fr)_minmax(28rem,0.9fr)]">
+        <section aria-label="Our cooperative" className="relative hidden overflow-hidden bg-coop-forest lg:sticky lg:top-0 lg:block lg:h-svh">
+          <Image
+            src="/images/Hero Page/Main Photo 4.jpg"
+            alt="TrackCOOP cooperative members"
+            fill
+            preload
+            sizes="(min-width:1680px) 800px, 50vw"
+            className="object-cover object-center"
+          />
+          <div aria-hidden="true" className={styles.photoScrim} />
+          <div className="absolute inset-x-0 bottom-0 p-8 text-white xl:p-10">
+            <p className="max-w-lg text-[clamp(1.75rem,2.5vw,2.25rem)] font-semibold leading-tight text-pretty">
+              Shared records, clearer service, and accountable cooperative work.
+            </p>
+          </div>
+        </section>
 
-      <section className="flex h-full overflow-hidden items-center px-5 py-4 sm:px-10 lg:px-14 xl:px-20 relative bg-[#F8F1E5]/30">
-        <div className="absolute inset-0 bg-white/50 backdrop-blur-3xl -z-10" />
-        <div className="mx-auto w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
-          <Link
-            href="/"
-            className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[#365F4A] transition hover:text-[#123D2A]"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to the cooperative site
-          </Link>
+        <section aria-label="Account sign in" className="flex min-h-svh min-w-0 flex-col justify-center px-4 py-4 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full max-w-md">
+            <Link href="/" className="mb-2 inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-semibold text-coop-secondary transition-colors hover:text-coop-green">
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Back to the cooperative site
+            </Link>
 
-          <div className="flex items-center gap-3">
-            <span className="relative block size-12 overflow-hidden">
-              <Image
-                src="/trackcoop-logo.svg"
-                alt="TrackCOOP logo"
-                fill
-                unoptimized
-                sizes="48px"
-                className="object-contain"
-              />
-            </span>
-            <div>
-              <p className="text-xl font-bold text-[#123D2A]">TrackCOOP</p>
-              <p className="text-xs italic text-[#4B6B5A]">
-                Cooperative Management System
+            <div className={`${styles.card} coop-panel p-5`}>
+              <div className="flex items-center gap-3">
+                <span className="relative block size-9 shrink-0">
+                  <Image src="/trackcoop-logo.svg" alt="TrackCOOP logo" fill unoptimized sizes="36px" className="object-contain" />
+                </span>
+                <div className="min-w-0">
+                  <p translate="no" className="text-xl font-bold leading-tight text-coop-forest">TrackCOOP</p>
+                  <p className="mt-0.5 text-xs leading-4 text-coop-secondary">Cooperative Management System</p>
+                </div>
+              </div>
+
+              <header className="mt-4">
+                <p className="text-sm text-coop-muted">{greeting}</p>
+                <h1 className="mt-1 text-[1.625rem] font-bold leading-tight tracking-tight text-coop-forest sm:text-[1.75rem]">Sign in to your account</h1>
+                <p className="mt-1.5 text-sm leading-5 text-coop-muted">Use your assigned email address or username.</p>
+              </header>
+
+              <form className="mt-4 grid gap-3" onSubmit={handleSubmit(onSubmit)} noValidate>
+                <div className="grid min-w-0 gap-1.5">
+                  <label htmlFor="login-identifier" className="text-sm font-semibold text-coop-body">Email or username</label>
+                  <input
+                    {...register("identifier")}
+                    id="login-identifier"
+                    suppressHydrationWarning
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    aria-invalid={Boolean(errors.identifier)}
+                    aria-describedby={errors.identifier ? "login-identifier-error" : undefined}
+                    className="coop-field h-11 w-full min-w-0 rounded-coop-control border border-coop-border bg-coop-field px-3 text-base text-coop-ink outline-none focus:border-coop-green focus:ring-2 focus:ring-coop-green/15"
+                  />
+                  {errors.identifier && <p id="login-identifier-error" aria-live="polite" className="flex items-start gap-1.5 text-sm text-coop-danger"><AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{errors.identifier.message}</p>}
+                </div>
+
+                {savedEmails.length > 0 && <details ref={recentAccountsRef} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }} className="group relative min-w-0 rounded-lg bg-coop-workspace px-3">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-coop-secondary [&::-webkit-details-marker]:hidden">
+                    <span>Recent accounts</span>
+                    <span className="inline-flex items-center gap-2 text-xs text-coop-muted">{savedEmails.length} saved<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" /></span>
+                  </summary>
+                  <ul className="absolute inset-x-0 top-full z-20 mt-1.5 grid max-h-44 gap-1 overflow-y-auto rounded-lg border border-coop-border bg-coop-surface p-2 shadow-coop-floating">
+                    {savedEmails.map((email) => <li key={email} className="flex min-w-0 items-center rounded-md bg-coop-surface">
+                      <button type="button" onClick={() => { setValue("identifier", email); if (recentAccountsRef.current) recentAccountsRef.current.open = false; document.getElementById("login-password")?.focus(); }} title={email} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-3 text-left text-sm text-coop-forest transition-colors hover:bg-coop-sage">{email}</button>
+                      <button type="button" onClick={() => { removeSavedEmail(email); if (recentAccountsRef.current) recentAccountsRef.current.open = false; if (savedEmails.length === 1) document.getElementById("login-identifier")?.focus(); else recentAccountsRef.current?.querySelector("summary")?.focus(); }} aria-label={`Remove saved account ${email}`} className="grid size-11 shrink-0 place-items-center rounded-md text-coop-muted transition-colors hover:bg-coop-danger-bg hover:text-coop-danger"><X aria-hidden="true" className="size-4" /></button>
+                    </li>)}
+                  </ul>
+                </details>}
+
+                <div className="grid min-w-0 gap-1.5">
+                  <label htmlFor="login-password" className="text-sm font-semibold text-coop-body">Password</label>
+                  <div className="relative">
+                    <input
+                      {...register("password")}
+                      id="login-password"
+                      suppressHydrationWarning
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      aria-invalid={Boolean(errors.password)}
+                      aria-describedby={errors.password ? "login-password-error" : capsLockOn ? "login-caps-lock" : undefined}
+                      className="coop-field h-11 w-full min-w-0 rounded-coop-control border border-coop-border bg-coop-field pl-3 pr-12 text-base text-coop-ink outline-none focus:border-coop-green focus:ring-2 focus:ring-coop-green/15"
+                    />
+                    <button type="button" suppressHydrationWarning onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-0 grid w-12 place-items-center rounded-coop-control text-coop-secondary transition-colors hover:bg-coop-subtle">
+                      {showPassword ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+                    </button>
+                  </div>
+                  {errors.password ? <p id="login-password-error" aria-live="polite" className="flex items-start gap-1.5 text-sm text-coop-danger"><AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{errors.password.message}</p>
+                    : capsLockOn ? <p id="login-caps-lock" aria-live="polite" className="flex items-center gap-1.5 text-sm text-coop-danger"><Keyboard aria-hidden="true" className="size-4" />Caps Lock is on</p> : null}
+                </div>
+
+                {formError && <p role="alert" className="flex items-start gap-2 rounded-lg bg-coop-danger-bg p-3 text-sm leading-6 text-coop-danger"><AlertCircle aria-hidden="true" className="mt-1 size-4 shrink-0" /><span>{formError}</span></p>}
+
+                <Button type="submit" loading={isSubmitting} loadingLabel="Signing in to TrackCOOP..." aria-label={isSubmitting ? "Signing in to TrackCOOP..." : undefined} className="h-11 w-full text-base">
+                  <LogIn aria-hidden="true" className="size-4" />Sign in to account
+                </Button>
+              </form>
+
+              <p className="mt-4 border-t border-coop-border pt-3 text-sm leading-5 text-coop-muted">
+                Need an account? Contact the Chairman or send a request through the{" "}
+                <Link href="/contact" className="font-semibold text-coop-green underline underline-offset-4">cooperative contact page</Link>.
               </p>
             </div>
           </div>
-
-          <div className="mt-6 rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
-            <p className="text-sm font-semibold text-[#365F4A] mb-1">{greeting}</p>
-            <h1 className="text-3xl font-black text-[#123D2A] tracking-tight">Sign in to your account</h1>
-            <p className="mt-2 text-sm leading-5 text-[#5D6D63]">
-              Use the email address or username assigned to your cooperative account.
-            </p>
-
-            <form className="mt-6 grid gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-              <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
-                Email or username
-                <input
-                  {...register("identifier")}
-                  suppressHydrationWarning
-                  autoComplete="username"
-                  aria-invalid={Boolean(errors.identifier)}
-                  className="h-12 rounded-xl border border-[#BFD1C2]/60 bg-gray-50/50 px-4 text-[#17211C] outline-none transition-all focus:bg-white focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20 shadow-sm"
-                />
-                {errors.identifier ? (
-                  <span className="text-xs font-medium text-[#A33A2B] flex items-center gap-1 mt-1">
-                    <AlertCircle className="size-3" /> {errors.identifier.message}
-                  </span>
-                ) : null}
-                {savedEmails.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    <span className="text-xs text-gray-500 mr-1 mt-1 shrink-0">Recent:</span>
-                    {savedEmails.map((email) => (
-                      <div key={email} className="inline-flex items-center bg-[#1F6B43]/10 rounded-full border border-[#1F6B43]/20 hover:bg-[#1F6B43]/20 transition-colors">
-                        <button
-                          type="button"
-                          onClick={() => setValue("identifier", email)}
-                          className="px-3 py-1 text-xs font-medium text-[#123D2A]"
-                        >
-                          {email}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeSavedEmail(email)}
-                          className="pr-2 py-1 text-[#123D2A]/60 hover:text-[#A33A2B] transition-colors"
-                          aria-label="Remove saved email"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </label>
-
-              <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
-                <div className="flex items-center justify-between">
-                  <span>Password</span>
-                </div>
-                <div className="relative">
-                  <input
-                    {...register("password")}
-                    suppressHydrationWarning
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    aria-invalid={Boolean(errors.password)}
-                    className="h-12 w-full rounded-xl border border-[#BFD1C2]/60 bg-gray-50/50 px-4 pr-12 text-[#17211C] outline-none transition-all focus:bg-white focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20 shadow-sm"
-                  />
-                  <button
-                    type="button"
-                    suppressHydrationWarning
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 hover:text-[#123D2A] transition-colors focus:outline-none"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-                {errors.password ? (
-                  <span className="text-xs font-medium text-[#A33A2B] flex items-center gap-1 mt-1">
-                    <AlertCircle className="size-3" /> {errors.password.message}
-                  </span>
-                ) : capsLockOn ? (
-                  <span className="text-xs font-medium text-[#A33A2B] flex items-center gap-1 mt-1">
-                    <Keyboard className="size-3" /> Caps Lock is on
-                  </span>
-                ) : null}
-              </label>
-
-              {formError ? (
-                <p
-                  role="alert"
-                  className="rounded-lg border border-[#C25C3C]/30 bg-[#FFF4EC] px-4 py-3 text-sm text-[#7A3023] flex items-start gap-2 animate-in fade-in slide-in-from-top-1 mt-1"
-                >
-                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                  <span>{formError}</span>
-                </p>
-              ) : null}
-
-              <button
-                type="submit"
-                suppressHydrationWarning
-                disabled={isSubmitting}
-                className="mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-5 text-sm font-bold text-white shadow-md shadow-[#123D2A]/20 transition-all hover:bg-[#1F6B43] hover:shadow-lg hover:shadow-[#1F6B43]/30 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:cursor-wait disabled:opacity-65 disabled:hover:translate-y-0 disabled:hover:shadow-md"
-              >
-                {isSubmitting ? (
-                  <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-                ) : (
-                  <LogIn className="size-4" aria-hidden="true" />
-                )}
-                {isSubmitting ? "Signing in to TrackCOOP..." : "Sign in to account"}
-              </button>
-            </form>
-          </div>
-
-          <p className="mt-6 border-t border-[#CAD8CB] pt-4 text-sm leading-6 text-[#5D6D63]">
-            Need an account? Contact the Chairman or send a request through the{" "}
-            <Link href="/contact" className="font-bold text-[#1F6B43] underline underline-offset-4">
-              cooperative contact page
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }

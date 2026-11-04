@@ -78,12 +78,12 @@ export default function SiteHeader({
   const navClass = (id: string) =>
     `inline-flex h-8 items-center border-b-2 px-1 transition ${
       currentNav === id
-        ? "border-[#1F6B43] text-[#123D2A]"
-        : "border-transparent text-[#365f4a] hover:border-[#1F6B43]/55 hover:text-[#123D2A]"
+        ? "border-coop-green text-coop-forest"
+        : "border-transparent text-coop-secondary hover:border-[#1F6B43]/55 hover:text-coop-forest"
     }`;
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b-2 border-[#1F6B43]/55 bg-white/92 text-[#123D2A] shadow-sm backdrop-blur-xl">
+    <header className="fixed inset-x-0 top-0 z-50 border-b-2 border-[#1F6B43]/55 bg-white/92 text-coop-forest shadow-sm backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link
           href="/#home"
@@ -165,7 +165,7 @@ export default function SiteHeader({
         <div className="flex items-center gap-3">
           <a
             href="tel:+630430000000"
-            className="hidden rounded-full border border-[#DDE8D8] bg-[#F8F1E5] px-4 py-2 text-xs font-semibold text-[#365f4a] transition hover:bg-[#EAF3E8] hover:text-[#123D2A] xl:inline-flex"
+            className="hidden rounded-full border border-[#DDE8D8] bg-[var(--public-canvas)] px-4 py-2 text-xs font-semibold text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest xl:inline-flex"
           >
             Helpdesk: (043) 000-0000
           </a>
@@ -176,8 +176,8 @@ export default function SiteHeader({
             tabIndex={heroPassed ? undefined : -1}
             className={`group hidden h-10 shrink-0 place-items-center overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] md:grid ${
               heroPassed
-                ? "w-10 rounded-full border border-[#E4B83F] bg-[#F2C94C] text-[#123D2A] shadow-sm hover:bg-[#FFDD75] hover:text-[#0B3A29] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]"
-                : "pointer-events-none w-px rounded-none border-transparent bg-[#F2C94C] text-transparent"
+                ? "w-10 rounded-full border border-[#E4B83F] bg-coop-yellow text-coop-forest shadow-sm hover:bg-[#FFDD75] hover:text-[#0B3A29] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coop-green"
+                : "pointer-events-none w-px rounded-none border-transparent bg-coop-yellow text-transparent"
             }`}
           >
             <UserRoundPlus
@@ -189,7 +189,7 @@ export default function SiteHeader({
           </Link>
           <Link 
             href="/login" 
-            className="hidden sm:inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-5 text-sm font-semibold text-white transition hover:bg-[#1F6B43]"
+            className="hidden sm:inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#123D2A]/20 bg-coop-forest px-5 text-sm font-semibold text-white transition hover:bg-coop-green"
           >
             Portal
             <ArrowRight className="size-4" />
@@ -199,7 +199,7 @@ export default function SiteHeader({
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((open) => !open)}
-            className="grid size-10 place-items-center rounded-md border border-[#DDE8D8] bg-[#F8F1E5] text-[#123D2A] lg:hidden"
+            className="grid size-10 place-items-center rounded-md border border-[#DDE8D8] bg-[var(--public-canvas)] text-coop-forest lg:hidden"
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -207,7 +207,7 @@ export default function SiteHeader({
       </div>
       {mobileOpen ? (
         <nav className="border-t border-[#DDE8D8] bg-white px-5 py-4 shadow-xl lg:hidden">
-          <div className="mx-auto grid max-w-7xl gap-2 text-sm font-semibold text-[#365F4A]">
+          <div className="mx-auto grid max-w-7xl gap-2 text-sm font-semibold text-coop-secondary">
             {[
               { label: "Home", href: "/#home", id: "home" },
               { label: "About", href: "/#about", id: "about" },
@@ -223,13 +223,13 @@ export default function SiteHeader({
                 key={`${item.href}-${item.label}`}
                 href={item.href}
                 onClick={() => activateNav(item.id)}
-                className="rounded-lg px-3 py-2.5 transition hover:bg-[#EAF3E8] hover:text-[#123D2A]"
+                className="rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest"
               >
                 {item.label}
               </Link>
             ))}
             <Link href="/login" onClick={() => activateNav("portal")}>
-              <Button className="mt-2 h-11 w-full rounded-full bg-[#123D2A] text-white hover:bg-[#1F6B43]">
+              <Button className="mt-2 h-11 w-full rounded-full bg-coop-forest text-white hover:bg-coop-green">
                 Portal
                 <ArrowRight className="size-4" />
               </Button>
@@ -261,8 +261,8 @@ function HeaderDropdown({
         onClick={onActivate}
         className={`inline-flex h-8 items-center gap-1.5 border-b-2 px-1 transition focus:outline-none ${
           active
-            ? "border-[#1F6B43] text-[#123D2A]"
-            : "border-transparent text-[#365f4a] hover:border-[#1F6B43]/55 hover:text-[#123D2A]"
+            ? "border-coop-green text-coop-forest"
+            : "border-transparent text-coop-secondary hover:border-[#1F6B43]/55 hover:text-coop-forest"
         }`}
       >
         {label}
@@ -276,7 +276,7 @@ function HeaderDropdown({
               href={item.href}
               target={item.target}
               onClick={onActivate}
-              className="block rounded-lg px-3 py-2.5 text-sm text-[#365f4a] transition hover:bg-[#EAF3E8] hover:text-[#123D2A] focus:bg-[#EAF3E8] focus:text-[#123D2A] focus:outline-none"
+              className="block rounded-lg px-3 py-2.5 text-sm text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest focus:bg-coop-sage focus:text-coop-forest focus:outline-none"
             >
               {item.label}
             </Link>

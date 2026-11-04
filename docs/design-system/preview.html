@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TrackCOOP design reference</title>
+  <link rel="stylesheet" href="../../src/styles/design-tokens.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--coop-ink); background: var(--coop-canvas); font: 16px/1.6 var(--coop-font-body); }
+    main { max-width: 1200px; margin: auto; padding: 32px 20px 64px; }
+    h1 { margin: 0; color: var(--coop-forest); font-size: clamp(30px, 4vw, 44px); line-height: 1.1; }
+    h2 { margin: 0 0 16px; color: var(--coop-forest); font-size: 24px; }
+    h3 { margin: 0 0 8px; font-size: 18px; }
+    p { max-width: 74ch; }
+    section { margin-top: 40px; }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 12px; }
+    .swatch { background: var(--coop-surface); border-radius: var(--coop-radius-panel); overflow: hidden; border: 1px solid var(--coop-card-border); }
+    .paint { height: 80px; background: var(--paint); }
+    .details { padding: 12px; }
+    .details strong, .details span { display: block; }
+    .details span { color: var(--coop-muted); font-size: 14px; }
+    .panel { border: 1px solid var(--coop-card-border); border-radius: var(--coop-radius-panel); background: var(--coop-surface); box-shadow: var(--coop-shadow-soft); padding: 20px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    button, input, select { font: inherit; border-radius: var(--coop-radius-control); min-height: 44px; }
+    button { border: 0; padding: 10px 18px; background: var(--coop-forest); color: white; cursor: pointer; }
+    button:hover { background: var(--coop-primary-hover); }
+    button.secondary { background: white; color: var(--coop-forest); border: 1px solid var(--coop-border); }
+    button[disabled] { opacity: .5; cursor: default; }
+    input, select { min-width: 0; max-width: 100%; padding: 10px 12px; border: 1px solid var(--coop-border); color: var(--coop-ink); background: var(--coop-field); }
+    input::placeholder { color: var(--coop-placeholder); }
+    :focus-visible { outline: 2px solid var(--coop-green); outline-offset: 3px; }
+    .badge { padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+    .success { color: var(--coop-success); background: var(--coop-success-bg); }
+    .warning { color: var(--coop-warning); background: var(--coop-warning-bg); }
+    .danger { color: var(--coop-danger); background: var(--coop-danger-bg); }
+    .layout-grid { display: grid; gap: 16px; grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .example { min-height: 180px; display: grid; gap: 8px; }
+    .block { padding: 12px; border-radius: 6px; background: var(--coop-subtle); color: var(--coop-secondary); font-size: 14px; }
+    .split { display: grid; gap: 8px; grid-template-columns: 1fr 1.25fr; }
+    .photo { display: grid; align-content: center; background: var(--coop-sage); color: var(--coop-forest); }
+    .catalog { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+    .task { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
+    a { color: var(--coop-green); text-underline-offset: 4px; }
+    code { overflow-wrap: anywhere; font-size: 13px; }
+    @media (max-width: 640px) { .layout-grid { grid-template-columns: 1fr; } main { padding-top: 24px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>TrackCOOP design reference</h1>
+  <p>Existing colors, reusable controls, and the page compositions already implemented in TrackCOOP. This documentation preview contains illustrative controls and layout diagrams; it does not submit data.</p>
+  <p><a href="README.md">Documentation index</a> · <a href="../../.agents/skills/trackcoop-design-system/SKILL.md">Agent skill</a></p>
+  <section aria-labelledby="colors-title">
+    <h2 id="colors-title">Colors from the application</h2>
+    <div class="swatches" id="swatches"></div>
+  </section>
+  <section aria-labelledby="controls-title">
+    <h2 id="controls-title">Controls and states</h2>
+    <div class="panel">
+      <div class="controls">
+        <button type="button">Primary action</button>
+        <button type="button" class="secondary">Secondary action</button>
+        <button type="button" disabled>Processing…</button>
+        <label>Search<br><input placeholder="Search records" type="search"></label>
+      </div>
+      <div class="controls" style="margin-top:20px">
+        <span class="badge success">Verified</span><span class="badge warning">Pending</span><span class="badge danger">Rejected</span>
+        <label>Category <select><option>All categories</option><option>Membership</option><option>Rental</option></select></label>
+      </div>
+    </div>
+  </section>
+  <section aria-labelledby="layouts-title">
+    <h2 id="layouts-title">Different layouts, one visual language</h2>
+    <div class="layout-grid">
+      <article class="panel"><h3>Store</h3><p>Compact title and visible filters; products lead.</p><div class="example"><div class="block">Title + cart</div><div class="block">Search · category · stock · sort</div><div class="catalog"><div class="block">Product</div><div class="block">Product</div><div class="block">Product</div></div></div></article>
+      <article class="panel"><h3>Rental</h3><p>Keep the established photograph/catalog split.</p><div class="example split"><div class="block photo">Equipment photograph<br>Booking actions</div><div><div class="block">Search and filters</div><div class="block" style="margin-top:8px">Service · details · book</div><div class="block" style="margin-top:8px">Service · details · book</div></div></div></article>
+      <article class="panel"><h3>Contact and tracking</h3><p>Lead with the form and keep supporting information nearby.</p><div class="example"><div class="block">Compact title + related action</div><div class="task"><div class="block">Form / inquiry details</div><div class="block photo">Office / conversation</div></div></div></article>
+      <article class="panel"><h3>Staff workspace</h3><p>Existing navigation, readable data, compact task header.</p><div class="example split"><div class="block photo">Role navigation</div><div><div class="block">Page title + actions</div><div class="block" style="margin-top:8px">Totals / filters</div><div class="block" style="margin-top:8px">Table / calendar / records</div></div></div></article>
+    </div>
+  </section>
+  <section aria-labelledby="implementation-title"><h2 id="implementation-title">Use the real components</h2><p>Use <code>src/components/ui/</code> and <code>src/components/portal/PortalPrimitives.tsx</code>. The shared selector and dialogs use Radix. Tokens live in <code>src/styles/design-tokens.css</code>; new work should use semantic classes such as <code>bg-coop-forest</code> and <code>text-coop-muted</code>.</p></section>
+</main>
+<script>
+  const roles = ['forest','green','canvas','workspace','surface','sage','subtle','ink','body','secondary','muted','border','mint','yellow','harvest','success-bg','warning-bg','danger-bg'];
+  const root = getComputedStyle(document.documentElement);
+  for (const role of roles) {
+    const card = document.createElement('div'); card.className = 'swatch';
+    const paint = document.createElement('div'); paint.className = 'paint'; paint.style.setProperty('--paint', `var(--coop-${role})`);
+    const details = document.createElement('div'); details.className = 'details';
+    const name = document.createElement('strong'); name.textContent = role;
+    const value = document.createElement('span'); value.textContent = root.getPropertyValue(`--coop-${role}`).trim();
+    details.append(name, value); card.append(paint, details); document.getElementById('swatches').append(card);
+  }
+</script>
+</body>
+</html>

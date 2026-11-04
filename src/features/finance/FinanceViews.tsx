@@ -38,11 +38,13 @@ import {
   getFinancialSummary,
   getShareCapitalSummary,
   listFinancialCategories,
+  hasLedgerFilters,
   listFinancialRecords,
   listShareCapital,
   validatePaymentReference,
   type FinancialCategory,
   type FinancialRecord,
+  type LedgerFilters,
   type FinancialSummary,
   type ShareCapitalPayment,
   type ShareCapitalSummary,
@@ -523,16 +525,32 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
   );
 }
 
+function describeLedgerFilters(filters: LedgerFilters) {
+  return [
+    filters.startDate || filters.endDate ? `${filters.startDate ?? "start"} to ${filters.endDate ?? "today"}` : "",
+    filters.recordType ? `Type: ${filters.recordType}` : "",
+    filters.recordStatus ? `Status: ${filters.recordStatus}` : "",
+    filters.posting ? `Posting: ${filters.posting}` : "",
+    filters.sourceModules?.length ? `Source: ${filters.sourceModules.join(", ")}` : "",
+    filters.financialCategoryIds?.length ? `${filters.financialCategoryIds.length} categor${filters.financialCategoryIds.length === 1 ? "y" : "ies"}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
 export function FinancialLedgerView({
   title = "Financial Ledger",
   initialSearch = "",
+  initialFilters,
+  fromAnalytics = false,
 }: {
   title?: string;
   initialSearch?: string;
+  initialFilters?: LedgerFilters;
+  fromAnalytics?: boolean;
 } = {}) {
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [summary, setSummary] = useState<FinancialSummary>(emptyFinancialSummary);
-  const [search, setSearch] = useState(initialSearch);
+  const [filters, setFilters] = useState<LedgerFilters>(() => initialFilters ?? {});
+  const [search, setSearch] = useState(initialFilters?.search ?? initialSearch);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
@@ -547,7 +565,7 @@ export function FinancialLedgerView({
       setError("");
     }
     try {
-      const [nextRecords, nextSummary] = await Promise.all([listFinancialRecords(search), getFinancialSummary()]);
+      const [nextRecords, nextSummary] = await Promise.all([listFinancialRecords(search, filters), getFinancialSummary()]);
       setRecords(nextRecords);
       setSummary(nextSummary);
       setError("");
@@ -557,7 +575,7 @@ export function FinancialLedgerView({
       ledgerRefreshInFlight.current = false;
       if (!silent) setIsLoading(false);
     }
-  }, [search]);
+  }, [search, filters]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(), 0);
@@ -579,6 +597,15 @@ export function FinancialLedgerView({
         <StatCard label="Net" value={money(summary.netTotal)} icon={Banknote} />
         <StatCard label="Active Records" value={String(summary.activeRecords)} icon={ListChecks} />
       </div>
+      {hasLedgerFilters(filters) ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-[#EAF3E8] p-4 text-sm text-[#294B39]" role="status">
+          <p><strong>{fromAnalytics ? "Filtered from Financial Analytics" : "Filtered ledger"}:</strong> {describeLedgerFilters(filters)}. The summary cards above show all posted ledger totals; the table below is filtered.{records.length >= 100 ? " Showing the first 100 matching records; narrow the filters to see others." : ""}</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className="font-bold text-[#1F6B43] underline underline-offset-4" onClick={() => { setFilters({}); setPage(1); }}>Clear ledger filters</button>
+            {fromAnalytics ? <a className="font-bold text-[#1F6B43] underline underline-offset-4" href="/portal/chairman/financial-dashboard">Back to Financial Analytics</a> : null}
+          </div>
+        </div>
+      ) : fromAnalytics ? <a className="w-fit text-sm font-bold text-[#1F6B43] underline underline-offset-4" href="/portal/chairman/financial-dashboard">Back to Financial Analytics</a> : null}
       <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="ledger" rightContent={<RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />} />
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : records.length === 0 ? (

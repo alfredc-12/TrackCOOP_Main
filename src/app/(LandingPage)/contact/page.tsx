@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Link from "next/link";
 import {
   Clock,
   Globe,
@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Phone,
   Share2,
+  ArrowUpRight,
 } from "lucide-react";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
@@ -75,60 +76,48 @@ export default function ContactPage() {
     "https://maps.google.com/maps?q=14.058886759350967,120.63832068540415&z=16&output=embed";
 
   return (
-    <main className="min-h-screen bg-white text-[#123D2A]">
+    <main className="min-h-screen bg-[var(--public-canvas)] text-coop-forest">
       <SiteHeader initialActive="contact" />
 
-      <section className="relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-10 pt-24 text-white sm:px-8 lg:min-h-[26rem] lg:pb-12 lg:pt-28">
-        <Image
-          src="/images/Other%20Landing%20Page/About.jpg"
-          alt="Cooperative members and office activity"
-          fill
-          priority
-          unoptimized
-          sizes="100vw"
-          className="object-cover object-center opacity-45"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#052F22]/95 via-[#052F22]/82 to-[#052F22]/45" />
-        <div className="relative z-10 mx-auto max-w-7xl">
-          <p className="mb-6 text-xs font-black uppercase tracking-[0.48em] text-[#F2C94C]">
-            Contact
-          </p>
-          <h1 className="max-w-6xl text-5xl font-black leading-[0.95] tracking-normal md:text-7xl lg:text-8xl">
+      <section className="px-5 pb-6 pt-24 sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-5">
+          <div className="max-w-2xl">
+          <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
             Contact Us
           </h1>
-          <p className="mt-7 max-w-3xl text-lg leading-8 text-white/88 md:text-xl md:leading-9">
+          <p className="mt-2 text-base leading-7 text-coop-secondary">
             For member assistance, cooperative services, farm and fishery
             coordination, or public inquiries, use the contact channels below.
           </p>
+          </div>
+          <Link href="/track" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-4 text-sm font-semibold shadow-sm ring-1 ring-[#DDE8D8] transition hover:bg-[#EAF1E5] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-coop-green motion-reduce:transition-none">Track an inquiry<ArrowUpRight aria-hidden="true" className="size-4" /></Link>
         </div>
       </section>
 
-      <section className="border-y border-[#E0EADC] bg-[#F8F1E5] px-5 py-12 sm:px-8 lg:py-16">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="rounded-[16px] border border-[#DDE8D8] bg-white p-6 shadow-[0_18px_52px_rgba(18,61,42,0.08)] sm:p-8">
-            <div className="mb-8">
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-                Send a Message
-              </p>
-              <h2 className="text-2xl font-black leading-tight tracking-normal text-[#073f2b] md:text-3xl">
+      <section aria-label="Contact the cooperative" className="px-5 pb-10 sm:px-8">
+        <div className="mx-auto grid max-w-7xl items-start gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-stretch">
+          <section className="flex min-w-0 flex-col rounded-xl border border-[#DDE8D8] bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold leading-tight text-coop-forest">
                 Submit an Inquiry
               </h2>
-              <p className="mt-2 text-sm text-[#5d6b63]">
+              <p className="mt-2 text-base leading-7 text-coop-secondary">
                 Have a question? Send us a direct message and our admin team will review it.
               </p>
             </div>
             <ContactForm />
           </section>
 
-          <div className="rounded-[16px] bg-[#123D2A] p-7 text-white shadow-[0_28px_76px_rgba(18,61,42,0.24)] sm:p-8">
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#F2C94C]">
+          <div className="grid min-w-0 gap-5 lg:grid-rows-[auto_1fr]">
+          <section className="rounded-xl border border-[#DDE8D8] bg-[#EAF1E5] p-5 shadow-sm sm:p-6">
+            <h2 className="text-xl font-bold">
               Cooperative Office
-            </p>
-            <h2 className="mt-4 text-3xl font-black leading-tight tracking-normal sm:text-4xl">
-              {cooperativeName}
             </h2>
+            <p className="mt-2 text-base font-semibold leading-7">
+              {cooperativeName}
+            </p>
 
-            <div className="mt-8 grid gap-4">
+            <div className="mt-5 grid gap-4">
               <ContactInfo
                 icon={MapPin}
                 label="Map Coordinates"
@@ -144,33 +133,32 @@ export default function ContactPage() {
                 />
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="min-h-[400px] overflow-hidden rounded-[16px] border border-[#DDE8D8] bg-white shadow-[0_28px_76px_rgba(18,61,42,0.2)] lg:col-span-2">
+          <section aria-label="Office location" className="flex flex-col overflow-hidden rounded-xl border border-[#DDE8D8] bg-white shadow-sm">
             <iframe
               title="Nasugbu Farmers and Fisherfolks Agriculture Cooperative location"
               src={mapSrc}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              className="h-full min-h-[400px] w-full"
+              className="h-64 w-full lg:min-h-64 lg:flex-1"
             />
+            <a href="https://maps.google.com/?q=14.058886759350967,120.63832068540415" target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-between gap-3 px-5 text-sm font-semibold text-coop-green hover:bg-[#EDF3E9] focus-visible:outline-2 focus-visible:outline-coop-green">Open in Google Maps<ArrowUpRight aria-hidden="true" className="size-4" /></a>
+          </section>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#FFFDF8] px-5 py-12 sm:px-8 lg:py-16">
+      <section className="px-5 pb-10 sm:px-8">
         <div className="mx-auto max-w-7xl">
-          <section className="rounded-[16px] border border-[#DDE8D8] bg-white p-6 shadow-[0_18px_52px_rgba(18,61,42,0.08)] sm:p-8">
+          <section className="rounded-xl border border-[#DDE8D8] bg-white p-5 shadow-sm sm:p-7">
             <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.45em] text-[#f4b62a]">
-                  Socials
-                </p>
-                <h2 className="text-3xl font-black leading-tight tracking-normal text-[#073f2b] md:text-5xl">
+                <h2 className="text-2xl font-bold leading-tight text-coop-forest">
                   Online channels.
                 </h2>
               </div>
-              <p className="max-w-md text-sm leading-6 text-[#5d6b63]">
+              <p className="max-w-md text-sm leading-6 text-coop-secondary">
                 Placeholder links for now. These can be replaced with official
                 cooperative accounts when ready.
               </p>
@@ -181,16 +169,18 @@ export default function ContactPage() {
                 <a
                   key={item.label}
                   href={item.href}
-                  className="group rounded-[16px] border border-[#DDE8D8] bg-[#FFFAF2] p-5 transition hover:-translate-y-1 hover:border-[#1F6B43]/35 hover:shadow-[0_18px_44px_rgba(18,61,42,0.1)]"
+                  className="group flex min-w-0 items-center gap-3 rounded-lg bg-[var(--public-canvas)] p-4 transition hover:bg-[#EAF1E5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coop-green motion-reduce:transition-none"
                 >
-                  <span className="grid size-12 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43] ring-1 ring-[#1F6B43]/15">
-                    <item.icon className="size-5" />
+                  <span className="text-coop-green">
+                    <item.icon aria-hidden="true" className="size-5" />
                   </span>
-                  <span className="mt-5 block text-lg font-black text-[#073f2b]">
+                  <span className="min-w-0">
+                  <span className="block text-base font-semibold text-coop-forest">
                     {item.label}
                   </span>
-                  <span className="mt-2 block text-sm font-semibold text-[#5d6b63]">
+                  <span className="mt-1 block break-words text-sm text-coop-secondary">
                     {item.value}
+                  </span>
                   </span>
                 </a>
               ))}
@@ -217,12 +207,12 @@ function ContactInfo({
 }) {
   const content = (
     <>
-      <div className="grid size-11 shrink-0 place-items-center rounded-full bg-white text-[#123D2A]">
-        <Icon className="size-5" />
+      <div className="shrink-0 pt-1 text-coop-green">
+        <Icon aria-hidden="true" className="size-4" />
       </div>
-      <div>
-        <p className="text-sm font-semibold text-white/55">{label}</p>
-        <p className="mt-1 break-words font-semibold leading-6 text-white">
+      <div className="min-w-0">
+        <p className="text-sm text-coop-secondary">{label}</p>
+        <p className="mt-0.5 break-words text-base font-medium leading-6 text-coop-forest">
           {value}
         </p>
       </div>
@@ -233,12 +223,12 @@ function ContactInfo({
     return (
       <a
         href={href}
-        className="flex gap-4 rounded-[16px] bg-white/8 p-4 transition hover:bg-white/12"
+        className="-mx-2 flex min-w-0 gap-3 rounded-md px-2 py-1 transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coop-green motion-reduce:transition-none"
       >
         {content}
       </a>
     );
   }
 
-  return <div className="flex gap-4 rounded-[16px] bg-white/8 p-4">{content}</div>;
+  return <div className="flex min-w-0 gap-3 py-1">{content}</div>;
 }

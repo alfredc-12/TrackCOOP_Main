@@ -1,3 +1,5 @@
+> Maintained implementation reference: [TrackCOOP design system](docs/design-system/README.md) and [project-local agent skill](.agents/skills/trackcoop-design-system/SKILL.md). The original notes below are retained for context; use the maintained references and runtime tokens for current UI work.
+
 **# TrackCOOP Design System & UI/UX Guidelines**
 
 \> **\*\*Purpose\*\***  

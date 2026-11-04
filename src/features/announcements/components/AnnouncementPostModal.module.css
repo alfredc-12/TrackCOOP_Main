@@ -1,0 +1,35 @@
+.backdrop[data-state="open"] { animation: backdrop-in 180ms ease-out; }
+.backdrop[data-state="closed"] { animation: backdrop-out 140ms ease-in; }
+.reader[data-state="open"] { animation: reader-in 280ms var(--public-motion-ease); }
+.reader[data-state="closed"] { animation: reader-out 140ms ease-in; }
+
+.copy {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  line-height: 1.8;
+}
+
+.copy :where(p, div, span, h1, h2, h3, h4, li, a, blockquote, pre) {
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  white-space: pre-wrap !important;
+}
+
+.copy :where(p, ul, ol, blockquote, pre) + :where(p, ul, ol, blockquote, pre) { margin-top: 1em; }
+.copy :where(ul, ol) { padding-left: 1.5em; }
+.copy ul { list-style: disc; }
+.copy ol { list-style: decimal; }
+.copy :where(h1, h2, h3, h4) { font-size: 1.125em; font-weight: 700; }
+.copy a { color: #1f6b43; text-decoration: underline; text-underline-offset: 3px; }
+.copy :where(img, video, iframe) { max-width: 100%; height: auto; }
+.copy table { display: block; max-width: 100%; overflow-x: auto; }
+
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes reader-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes reader-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reader[data-state] { animation: none; }
+  .backdrop[data-state] { animation-duration: 100ms; }
+}

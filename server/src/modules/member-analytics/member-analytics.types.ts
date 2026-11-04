@@ -1,0 +1,85 @@
+export const ANALYTICS_SECTORS = ["Rice", "Corn", "Fishery", "Livestock", "High-value crops (gulayan)"] as const;
+export const ENGAGEMENT_LABELS = ["Active", "Needs Monitoring", "Inactive", "Not Yet Scored"] as const;
+export type EngagementLabel = typeof ENGAGEMENT_LABELS[number];
+export type AnalyticsFilters = {
+  start: string; end: string; asOf: string;
+  barangays: string[]; sectors: string[]; membershipType: string;
+  engagement: string; officialStatus: string; capitalStage: string; source: string;
+};
+export type AnalyticsSelection = { kind?: string; value?: string; sector?: string };
+export type AnalyticsMember = {
+  memberCode?: string; fullName?: string;
+  id: string; barangay: string | null; sector: string | null; membershipType: string;
+  approvalStatus: string; officialStatus: string; approvedAt: string | null;
+  deadline: string | null;
+};
+export type AnalyticsApplication = {
+  id: string; memberId: string | null; source: string; submittedAt: string;
+  requestedType: string; status: string; barangay: string | null; sector: string | null;
+};
+export type AnalyticsHistory = { id: string; status: string; at: string };
+export type AnalyticsIndicator = {
+  id: string; memberId: string; label: EngagementLabel; score: number;
+  recencyScore: number; frequencyScore: number; contributionScore: number;
+  computedAt: string; start: string; end: string; version: string; fingerprint: string | null;
+};
+export type CapitalEntry = {
+  paymentSource?: string | null;
+  id: string; memberId: string; date: string; direction: string; type: string;
+  amount: number; source: string; sourceId: string | null;
+};
+export type AnalyticsSources = {
+  members: AnalyticsMember[];
+  statusHistory: Array<{ id?: string; memberId: string; at: string; membershipType: string; officialStatus: string }>;
+  applications: AnalyticsApplication[]; applicationHistory: AnalyticsHistory[];
+  indicators: AnalyticsIndicator[]; capital: CapitalEntry[];
+  accounts: Array<{ memberId: string; balance: number }>;
+  capitalPayments: Array<{ id: string; memberId: string; date: string }>;
+  participation: Array<{ memberId: string; date: string; activityId: string }>;
+  referrals: Array<{ id: string; referrerId: string; memberId: string | null; applicationId: string; status: string; createdAt: string; qualifiedAt: string | null }>;
+  validatedApplications: string[];
+  settings: { target: number; maximum: number; participationStatuses: string[] };
+  capabilities: Record<string, boolean>;
+};
+export type CountItem = { name: string; count: number };
+export type Cohort = { month: string; days: number; total: number; mature: number; participated: number; rate: number | null };
+export type AnalyticsResult = {
+  generatedAt: string; filters: AnalyticsFilters; population: number;
+  options: { barangays: string[]; sectors: readonly string[] };
+  availability: { capital: boolean; engagement: boolean; participation: boolean; recruitment: boolean; referrals: boolean };
+  breakdown: { membershipTypes: CountItem[]; officialStatuses: CountItem[]; previousTotal: number; previousNew: number; newTypes: CountItem[] };
+  kpis: { total: number; newApprovals: number; growth: number | null; baseline: number;
+    participation90: number | null; mature90: number; participated90: number;
+    capitalCompletion: number | null; eligibleCapital: number; completedCapital: number;
+    attention: number | null; rfmAttention: number; overdueCapital: number };
+  growth: Array<{ month: string; newMembers: number; cumulative: number; previousNew: number; associates: number; trueMembers: number }>;
+  engagement: { distribution: CountItem[]; scores: Array<{ score: number; count: number }>;
+    dimensions: Array<{ score: number; recency: number; frequency: number; contribution: number }>;
+    byLabel: Array<{ label: string; dimensions: Array<{ score: number; recency: number; frequency: number; contribution: number }> }>;
+    lastComputedAt: string | null; movement: Array<{ from: string; to: string; count: number }>;
+    comparable: number; notComparable: number; cohorts: Cohort[] };
+  capital: { target: number; maximum: number; totalBalance: number; stages: CountItem[];
+    deadlineCategories: CountItem[]; monthly: Array<{ month: string; credits: number; interest: number; deductions: number }>;
+    previousCompletionRate: number | null; previousCompletions: number;
+    contributions: number; interest: number; otherCredits: number; deductions: number;
+    overdue: number; provisional: number; reconciled: number; unknown: number;
+    completions: Array<{ month: string; count: number }>; medianDays: number | null; averageDays: number | null };
+  sectors: CountItem[];
+  sectorDetails: Array<{ sector: string; members: number; newApprovals: number; previousMembers: number; change: number; engagement: CountItem[]; eligibleCapital: number; completedCapital: number; completionRate: number | null; recruitment: Array<{ month: string; count: number }> }>;
+  geography: Array<{ barangay: string; totalMembers: number; trueMembers: number; associates: number;
+    sectorCounts: Record<string, number>; engagementCounts: Record<string, number>;
+    newApprovals: number; previousMembers: number; change: number;
+    cells: Array<{ sector: string; members: number; newApprovals: number; engaged: number; change: number; periodChange: number }> }>;
+  recruitment: { monthly: Array<{ month: string; count: number }>; yearly: Array<{ year: string; count: number }>;
+    bestMonth: { month: string; count: number } | null; bestQuarter: { start: string; end: string; count: number } | null;
+    journey: Array<{ stage: string; count: number; averageDays: number | null; medianDays: number | null; completed: number; unresolved: number; stageRate: number | null; processingAverage: number | null; processingMedian: number | null }>;
+    applicationConversion: number | null; approvedApplications: number;
+    journeyCohort: number; incompleteHistory: number };
+  referrals: { created: number; qualified: number; pending: number; rejected: number;
+    topReferrers: Array<{ memberId: string; memberCode: string; fullName: string; created: number; qualified: number }>;
+    byBarangay: Array<{ barangay: string; created: number; qualified: number }>; bySector: CountItem[];
+    conversion: number | null; missingEvidence: number; byMonth: Array<{ month: string; created: number; qualified: number }> };
+  insights: Array<{ id: string; title: string; detail: string; formula: string; caveat: string; selection: AnalyticsSelection }>;
+  coverage: Array<{ code: string; message: string; count?: number }>;
+  definitions: Array<{ metric: string; definition: string }>;
+};

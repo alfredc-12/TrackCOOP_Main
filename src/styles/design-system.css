@@ -1,0 +1,59 @@
+/* Component-level defaults; Tailwind utility overrides remain available to callers. */
+@layer components {
+  .coop-panel {
+    min-width: 0;
+    border: 1px solid var(--coop-card-border);
+    border-radius: var(--coop-radius-panel);
+    background: var(--coop-surface);
+    box-shadow: var(--coop-shadow-soft);
+  }
+  .coop-field {
+    min-width: 0;
+    caret-color: var(--coop-forest);
+    transition: border-color var(--coop-duration-fast) ease, box-shadow var(--coop-duration-fast) ease;
+  }
+  .coop-field[aria-invalid="true"] {
+    border-color: var(--coop-danger);
+  }
+  .coop-field[aria-invalid="true"]:focus-visible {
+    outline: 2px solid var(--coop-danger);
+    outline-offset: 2px;
+  }
+  .coop-button {
+    transition: background-color var(--coop-duration-fast) ease, color var(--coop-duration-fast) ease, box-shadow var(--coop-duration-fast) ease;
+  }
+  .coop-table :where(th, td) {
+    vertical-align: top;
+    overflow-wrap: break-word;
+  }
+  .coop-table :where(tbody tr) {
+    transition: background-color var(--coop-duration-fast) ease;
+  }
+  .coop-table :where(tbody tr):focus-within {
+    background: var(--coop-sage);
+  }
+  .coop-table:focus-visible {
+    outline: 2px solid var(--coop-green);
+    outline-offset: -2px;
+  }
+}
+
+::selection { background: var(--coop-yellow); color: var(--coop-forest); }
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--coop-green);
+  outline-offset: 3px;
+}
+.coop-navigation :where(button, a):focus-visible {
+  outline-color: var(--coop-surface);
+  outline-offset: -3px;
+}
+
+@media (pointer: coarse) {
+  .coop-button, .coop-icon-button { min-height: var(--coop-control-height); min-width: var(--coop-control-height); }
+  .coop-field { font-size: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .coop-button, .coop-field, .coop-table tbody tr { transition: none; }
+  .coop-spinner, .coop-skeleton { animation: none; }
+}

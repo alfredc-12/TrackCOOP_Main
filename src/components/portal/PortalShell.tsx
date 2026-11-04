@@ -77,7 +77,7 @@ export function PortalShell({ role, children }: PortalShellProps) {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#F7F8F3] text-[#17211C]">
+    <div className="min-h-screen overflow-x-hidden bg-coop-workspace text-coop-ink">
       <PortalSidebar
         role={role}
         isMobileOpen={isMobileOpen}
@@ -88,6 +88,7 @@ export function PortalShell({ role, children }: PortalShellProps) {
           user={user}
           onMenuClick={() => setIsMobileOpen(true)}
           onLogout={handleLogout}
+          isNavigationOpen={isMobileOpen}
         />
         <main className="min-w-0 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}

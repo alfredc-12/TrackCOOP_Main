@@ -132,7 +132,10 @@ test.describe("user accounts", () => {
     await expect(page.getByText("50% of 8 accounts")).toBeVisible();
     await expect(page.getByText("25% of 8 accounts")).toBeVisible();
     await expect(page.getByText("1 Suspended · 1 Inactive")).toBeVisible();
-    await expect(page.getByText("5 of 6 member accounts linked to a member profile (83.3%)")).toBeVisible();
+    await expect(page.getByText("5 of 6 member accounts linked to a member profile (83.3%)")).toHaveClass("sr-only");
+    const totalCard = await page.getByRole("button", { name: /^Total accounts: 8/ }).locator("..").boundingBox();
+    const restrictedCard = await page.getByRole("button", { name: /^Restricted accounts: 2/ }).locator("..").boundingBox();
+    expect(Math.abs(totalCard!.height - restrictedCard!.height)).toBeLessThan(2);
 
     await page.getByRole("button", { name: /^Restricted accounts: 2/ }).click();
     await expect(page.getByText("Sam Suspended")).toBeVisible();
@@ -219,6 +222,7 @@ test.describe("membership applications", () => {
     await expect.poll(() => last(seen, "/api/membership-applications")?.searchParams.get("statuses")).toBe("Submitted|Under Review");
     expect(last(seen, "/api/membership-applications/summary")?.searchParams.has("statuses")).toBe(false);
 
+    await page.getByRole("button", { name: "How Payment stage is calculated" }).click();
     await page.getByRole("button", { name: "Payment OK 2" }).click();
     await expect.poll(() => last(seen, "/api/membership-applications")?.searchParams.get("statuses")).toBe("Payment Confirmed");
 

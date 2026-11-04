@@ -1,12 +1,12 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Maximize2 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useState } from "react";
 import { usePublishedLandingContent } from "@/features/landing-public/usePublishedLandingContent";
 import { resolveUploadUrl } from "@/lib/upload-url";
+import { GalleryPhotoViewer, type GalleryPhoto } from "./GalleryPhotoViewer";
+import styles from "./GalleryGrid.module.css";
 
 const photos = [
   "/images/Hero%20Page/Main%20Photo%201.jpg",
@@ -40,215 +40,92 @@ export default function GalleryGrid() {
   const [failedPhotos, setFailedPhotos] = useState<Set<string>>(new Set());
   const published = usePublishedLandingContent();
   const galleryPhotos = useMemo(() => {
-    const publishedPhotos = published.gallery
-      .map((item) => (typeof item.imagePath === "string" ? item.imagePath : ""))
-      .map(resolveUploadUrl)
-      .filter(Boolean);
-    const mergedPhotos = publishedPhotos.length
-      ? [
-          ...publishedPhotos,
-          ...photos.filter((photo) => !publishedPhotos.includes(photo)),
-        ]
-      : photos;
-
-    return mergedPhotos.filter((photo) => !failedPhotos.has(photo));
+    const collection = new Map<string, GalleryPhoto>();
+    for (const item of published.gallery) {
+      const src = resolveUploadUrl(typeof item.imagePath === "string" ? item.imagePath : "");
+      if (!src || collection.has(src)) continue;
+      collection.set(src, {
+        src,
+        title: typeof item.title === "string" ? item.title : "",
+        caption: typeof item.caption === "string" ? item.caption : "",
+      });
+    }
+    for (const src of photos) {
+      if (!collection.has(src)) collection.set(src, { src, title: "", caption: "" });
+    }
+    return [...collection.values()].filter((photo) => !failedPhotos.has(photo.src));
   }, [failedPhotos, published.gallery]);
-  const totalPages = Math.max(
-    1,
-    Math.ceil(galleryPhotos.length / photosPerPage),
-  );
+
+  const totalPages = Math.max(1, Math.ceil(galleryPhotos.length / photosPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages - 1);
+  const start = safeCurrentPage * photosPerPage;
+  const visiblePhotos = galleryPhotos.slice(start, start + photosPerPage);
+  const selected = galleryPhotos.find((photo) => photo.src === selectedPhoto);
 
-  const visiblePhotos = useMemo(() => {
-    const start = safeCurrentPage * photosPerPage;
-    return galleryPhotos.slice(start, start + photosPerPage);
-  }, [safeCurrentPage, galleryPhotos]);
-
-  function handlePhotoError(photo: string) {
+  function handlePhotoError(src: string) {
     setFailedPhotos((current) => {
-      if (current.has(photo)) return current;
+      if (current.has(src)) return current;
       const next = new Set(current);
-      next.add(photo);
+      next.add(src);
       return next;
     });
-    if (selectedPhoto === photo) setSelectedPhoto(null);
+    if (selectedPhoto === src) setSelectedPhoto(null);
   }
 
-  function nextPage() {
-    setCurrentPage((page) => (page + 1) % totalPages);
+  function retryPhotos() {
+    setFailedPhotos(new Set());
+    setCurrentPage(0);
+    published.retry();
   }
-
-  function prevPage() {
-    setCurrentPage((page) => (page - 1 + totalPages) % totalPages);
-  }
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setSelectedPhoto(null);
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedPhoto) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [selectedPhoto]);
 
   return (
     <>
-      <section className="relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-10 pt-24 text-white sm:px-8 lg:min-h-[26rem] lg:pb-12 lg:pt-28">
-        <Image
-          src="/images/Hero%20Page/Main%20Photo%203.jpg"
-          alt="Cooperative gallery activity"
-          fill
-          priority
-          unoptimized
-          sizes="100vw"
-          className="object-cover object-center opacity-45"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#052F22]/95 via-[#052F22]/82 to-[#052F22]/45" />
+      <section aria-labelledby="gallery-title" className="group relative min-h-[24rem] overflow-hidden bg-[#123D2A] px-5 pb-12 pt-28 text-white sm:px-8 lg:pb-14 lg:pt-32">
+        <Image src="/images/Hero%20Page/Main%20Photo%203.jpg" alt="Cooperative gallery activity" fill priority unoptimized sizes="100vw" className="public-hero-media object-cover object-[center_42%] opacity-70 transition-transform duration-700 motion-safe:group-hover:scale-[1.025]" />
+        <div className="absolute inset-0 bg-[#052F22]/70" />
         <div className="relative z-10 mx-auto max-w-7xl">
-          <p className="mb-6 text-xs font-black uppercase tracking-[0.48em] text-[#F2C94C]">
-            Gallery
-          </p>
-          <h1 className="max-w-6xl text-5xl font-black leading-[0.95] tracking-normal md:text-7xl lg:text-8xl">
-            Cooperative moments
-          </h1>
-          <p className="mt-7 max-w-3xl text-lg leading-8 text-white/88 md:text-xl md:leading-9">
-            Browse field activities, member gatherings, assistance programs,
-            and cooperative milestones captured for public viewing.
-          </p>
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.35em] text-[#F2C94C]">Cooperative moments</p>
+          <h1 id="gallery-title" className="max-w-5xl text-4xl font-black leading-[1.05] sm:text-6xl lg:text-7xl">Gallery</h1>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/90 sm:text-lg sm:leading-8">Browse field activities, member gatherings, assistance programs, and cooperative milestones captured for public viewing.</p>
         </div>
       </section>
 
-      <section className="border-y border-[#E0EADC] bg-[#F8F1E5] px-5 py-12 text-[#123D2A] sm:px-8 lg:py-16">
+      <section aria-labelledby="gallery-photos-heading" className="flex-1 border-t border-[var(--public-section-border)] bg-[var(--public-canvas)] px-5 pb-14 pt-8 text-[#123D2A] sm:px-8 lg:pb-20 lg:pt-10">
         <div className="mx-auto max-w-7xl">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {visiblePhotos.map((photo, index) => (
-              <button
-                key={photo}
-                type="button"
-                aria-label={`Open gallery photo ${safeCurrentPage * photosPerPage + index + 1}`}
-                onClick={() => setSelectedPhoto(photo)}
-                className="group relative aspect-square overflow-hidden rounded-[16px] border border-[#CFE0C8] bg-[#123D2A] text-left shadow-[0_28px_76px_rgba(18,61,42,0.24)] transition hover:-translate-y-1 hover:shadow-[0_34px_92px_rgba(18,61,42,0.34)] focus:outline-none focus:ring-2 focus:ring-[#F2C94C]"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo}
-                  alt={`Cooperative gallery photo ${safeCurrentPage * photosPerPage + index + 1}`}
-                  onError={() => handlePhotoError(photo)}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#03291d]/35 via-transparent to-transparent opacity-70 transition group-hover:opacity-40" />
-              </button>
-            ))}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <h2 id="gallery-photos-heading" tabIndex={-1} className="text-2xl font-bold outline-none">Photo gallery</h2>
+            <p aria-live="polite" className="text-sm font-semibold text-[#365F4A]">{published.isLoading ? "Loading published photos..." : `${galleryPhotos.length} photo${galleryPhotos.length === 1 ? "" : "s"}`}</p>
           </div>
+          {published.loadError ? <div role="status" className="public-card mb-6 flex flex-wrap items-center justify-between gap-3 px-4 py-3"><p className="text-sm leading-6 text-[#365F4A]">Some gallery photos could not be loaded. You can still browse the available collection.</p><button type="button" onClick={retryPhotos} className="public-action min-h-11 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]">Retry</button></div> : null}
 
-          <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-[#DDE8D8] pt-6 sm:flex-row">
-            <p className="text-sm font-semibold text-[#5d6b63]">
-              Page {safeCurrentPage + 1} of {totalPages}
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                aria-label="Previous gallery page"
-                onClick={prevPage}
-                className="inline-flex h-11 items-center gap-2 rounded-full border border-[#1F6B43]/15 bg-[#EAF3E8] px-5 text-sm font-bold text-[#123D2A] shadow-[0_8px_20px_rgba(18,61,42,0.08)] transition hover:-translate-y-0.5 hover:bg-[#123D2A] hover:text-white"
-              >
-                <ArrowLeft className="size-4" />
-                Prev
-              </button>
-              <div className="flex gap-2">
-                {Array.from({ length: totalPages }).map((_, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    aria-label={`Go to gallery page ${index + 1}`}
-                    aria-current={safeCurrentPage === index ? "true" : undefined}
-                    onClick={() => setCurrentPage(index)}
-                    className={`size-2.5 rounded-full transition ${
-                      safeCurrentPage === index
-                        ? "w-8 bg-[#123D2A]"
-                        : "bg-[#C9D8C8]"
-                    }`}
-                  />
-                ))}
+          {galleryPhotos.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {visiblePhotos.map((photo, index) => <button
+              key={photo.src}
+              type="button"
+              aria-label={`Open gallery photo ${start + index + 1}`}
+              onClick={() => setSelectedPhoto(photo.src)}
+              className={`${styles.photoCard} group relative min-w-0 cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1F6B43]`}
+            >
+              <span className="relative block aspect-[4/3] overflow-hidden">
+                <Image src={photo.src} alt={photo.title || `Cooperative gallery photo ${start + index + 1}`} fill unoptimized sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw" onError={() => handlePhotoError(photo.src)} className="object-cover" />
+                <span aria-hidden="true" className="pointer-events-none absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/95 text-[#123D2A] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"><Maximize2 className="size-4" /></span>
+              </span>
+            </button>)}
+          </div> : <div className="public-card px-6 py-12 text-center"><h3 className="text-xl font-bold">No photos to display</h3><p className="mt-2 leading-7 text-[#365F4A]">Please check back for cooperative photos.</p><button type="button" onClick={retryPhotos} className="public-action mt-5 min-h-11 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white hover:bg-[#1F6B43]">Retry photos</button></div>}
+
+          {galleryPhotos.length ? <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <p className="text-sm font-semibold text-[#365F4A]">Showing {start + 1}–{Math.min(start + photosPerPage, galleryPhotos.length)} of {galleryPhotos.length} photos</p>
+            <nav aria-label="Gallery pages" className="flex items-center gap-2">
+              <button type="button" aria-label="Previous gallery page" disabled={totalPages === 1} onClick={() => setCurrentPage((page) => (Math.min(page, totalPages - 1) - 1 + totalPages) % totalPages)} className="public-action grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-[#123D2A] hover:bg-[#EAF3E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:opacity-40"><ArrowLeft aria-hidden="true" className="size-4" /></button>
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, index) => <button key={index} type="button" aria-label={`Go to gallery page ${index + 1}`} aria-current={safeCurrentPage === index ? "page" : undefined} onClick={() => setCurrentPage(index)} className="grid size-6 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-[#1F6B43]"><span className={`h-2.5 rounded-full transition-[width,background-color] ${safeCurrentPage === index ? "w-5 bg-[#123D2A]" : "w-2.5 bg-[#A6BCA7]"}`} /></button>)}
               </div>
-              <button
-                type="button"
-                aria-label="Next gallery page"
-                onClick={nextPage}
-                className="inline-flex h-11 items-center gap-2 rounded-full border border-[#1F6B43]/15 bg-[#EAF3E8] px-5 text-sm font-bold text-[#123D2A] shadow-[0_8px_20px_rgba(18,61,42,0.08)] transition hover:-translate-y-0.5 hover:bg-[#123D2A] hover:text-white"
-              >
-                Next
-                <ArrowRight className="size-4" />
-              </button>
-            </div>
-          </div>
+              <button type="button" aria-label="Next gallery page" disabled={totalPages === 1} onClick={() => setCurrentPage((page) => (Math.min(page, totalPages - 1) + 1) % totalPages)} className="public-action grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-[#123D2A] hover:bg-[#EAF3E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:opacity-40"><ArrowRight aria-hidden="true" className="size-4" /></button>
+            </nav>
+          </div> : null}
         </div>
       </section>
-
-      {typeof document !== "undefined"
-        ? createPortal(
-            <AnimatePresence>
-              {selectedPhoto ? (
-                <motion.div
-                  key="gallery-preview"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Gallery photo preview"
-                  className="fixed inset-0 z-[9999] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black/35 p-3 backdrop-blur-2xl sm:p-6"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
-                  onClick={() => setSelectedPhoto(null)}
-                >
-                  <motion.button
-                    type="button"
-                    aria-label="Close gallery photo preview"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSelectedPhoto(null);
-                    }}
-                    className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full border border-white/20 bg-white/12 text-white backdrop-blur transition hover:bg-white hover:text-[#123D2A]"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.18, ease: "easeOut" }}
-                  >
-                    <X className="size-5" />
-                  </motion.button>
-                  <motion.div
-                    className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-1.5rem)] sm:max-h-[calc(100dvh-3rem)] sm:max-w-[calc(100vw-3rem)]"
-                    initial={{ opacity: 0, y: 18, scale: 0.94 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.96 }}
-                    transition={{ duration: 0.26, ease: "easeOut" }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selectedPhoto}
-                      alt="Selected cooperative gallery photo"
-                      onError={() => handlePhotoError(selectedPhoto)}
-                      className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-1.5rem)] rounded-[16px] object-contain drop-shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:max-w-[calc(100vw-3rem)]"
-                    />
-                  </motion.div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>,
-            document.body,
-          )
-        : null}
+      {selected ? <GalleryPhotoViewer key={selected.src} photo={selected} onClose={() => setSelectedPhoto(null)} onImageError={handlePhotoError} /> : null}
     </>
   );
 }

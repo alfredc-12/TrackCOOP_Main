@@ -1,0 +1,16 @@
+.photoScrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / .06) 35%, rgb(0 0 0 / .72) 100%);
+}
+
+.card { animation: settle-in 360ms var(--coop-ease); }
+
+@keyframes settle-in {
+  from { opacity: .85; translate: 0 8px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+}

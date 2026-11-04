@@ -166,6 +166,10 @@ function dateOrNull(value: string | null | undefined) {
 export function memberFilterConditions(filters: MemberFilters, options: { omitPartition?: boolean } = {}): SqlFilter[] {
   const conditions: SqlFilter[] = [];
 
+  if (filters.memberIds) {
+    conditions.push({ sql: filters.memberIds.length ? `m.member_id IN (${filters.memberIds.map(() => "?").join(",")})` : "1 = 0", values: [...filters.memberIds] });
+  }
+
   if (filters.search) {
     const search = likeTerm(filters.search);
     conditions.push({ sql: "(m.full_name LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)", values: [search, search, search] });

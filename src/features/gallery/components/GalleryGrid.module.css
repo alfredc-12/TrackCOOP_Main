@@ -1,0 +1,21 @@
+.photoCard {
+  overflow: hidden;
+  border: 0;
+  border-radius: 12px;
+  padding: 0;
+  background: transparent;
+  box-shadow: var(--public-card-shadow);
+  transition: translate 280ms var(--public-motion-ease), box-shadow 280ms ease;
+}
+
+.photoCard img { transition: scale 400ms var(--public-motion-ease); }
+.photoCard:focus-visible { box-shadow: var(--public-card-shadow-hover); }
+
+@media (hover: hover) and (pointer: fine) {
+  .photoCard:hover { translate: 0 -5px; box-shadow: var(--public-card-shadow-hover); }
+  .photoCard:hover img { scale: 1.035; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photoCard, .photoCard img { transition: none; translate: none; scale: 1; }
+}

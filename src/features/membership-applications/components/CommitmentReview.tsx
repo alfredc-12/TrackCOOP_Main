@@ -84,7 +84,7 @@ export function CommitmentReview({ setValue, watch, errors }: CommitmentReviewPr
         </label>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {activeCommitments.map((item) => (
-            <div key={item.name} className="rounded-2xl border border-[#EEF2EC] bg-[#FFFAF2] p-4">
+            <div key={item.name} className="rounded-2xl border border-[#EEF2EC] bg-[var(--public-canvas)] p-4">
               <p className="text-sm font-semibold leading-6 text-[#365F4A]">{item.text}</p>
             </div>
           ))}

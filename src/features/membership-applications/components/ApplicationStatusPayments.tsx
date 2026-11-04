@@ -2,7 +2,6 @@
 
 import {
   AlertCircle,
-  CalendarDays,
   Check,
   CheckCircle2,
   Clock3,
@@ -20,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import {
   type ChangeEvent,
   type FormEvent,
@@ -135,6 +135,7 @@ function applicantPaymentLabel(status: PublicMembershipPaymentStatus) {
 }
 
 export function ApplicationStatusPayments() {
+  const prefersReducedMotion = useReducedMotion();
   const searchParams = useSearchParams();
   const [applicationCode, setApplicationCode] = useState(
     searchParams.get("code") ?? "",
@@ -339,41 +340,51 @@ export function ApplicationStatusPayments() {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]">
-      <LookupCard
-        applicationCode={applicationCode}
-        dateOfBirth={dateOfBirth}
-        isLookingUp={isLookingUp}
-        lookupError={lookupError}
-        onApplicationCodeChange={setApplicationCode}
-        onDateOfBirthChange={setDateOfBirth}
-        onSubmit={lookup}
-      />
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.48, ease: [0.16, 1, 0.3, 1] }}>
+      <div className={`grid min-w-0 items-start gap-6 ${status ? "lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]" : ""}`}>
+        <motion.div layout className={status ? "min-w-0 lg:sticky lg:top-24" : "mx-auto w-full max-w-xl"}>
+          <LookupCard
+            applicationCode={applicationCode}
+            dateOfBirth={dateOfBirth}
+            isLookingUp={isLookingUp}
+            lookupError={lookupError}
+            onApplicationCodeChange={setApplicationCode}
+            onDateOfBirthChange={setDateOfBirth}
+            onSubmit={lookup}
+          />
+        </motion.div>
 
-      {status ? (
-        <StatusDashboard
-          status={status}
-          checkoutAction={checkoutAction}
-          checkoutError={checkoutError}
-          followUpError={followUpError}
-          followUpSuccess={followUpSuccess}
-          documentPreviewError={documentPreviewError}
-          activationError={activationError}
-          isIssuingActivation={isIssuingActivation}
-          uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
-          previewingDocumentId={previewingDocumentId}
-          shareCapitalAmount={shareCapitalAmount}
-          onShareCapitalAmountChange={setShareCapitalAmount}
-          onStartCheckout={startCheckout}
-          onIssueActivationLink={issueActivationLink}
-          onUploadFollowUpDocuments={uploadFollowUpDocuments}
-          onPreviewFollowUpDocument={previewFollowUpDocument}
-        />
-      ) : (
-        <EmptyDashboard />
-      )}
-      <DocumentPreviewModal preview={documentPreview} onClose={closeDocumentPreview} />
-    </div>
+        {status ? (
+          <motion.div
+            key={status.applicationCode}
+            className="min-w-0"
+            initial={{ opacity: 0, x: prefersReducedMotion ? 0 : 72 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0.15 : 0.48, delay: prefersReducedMotion ? 0 : 0.1, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <StatusDashboard
+              status={status}
+              checkoutAction={checkoutAction}
+              checkoutError={checkoutError}
+              followUpError={followUpError}
+              followUpSuccess={followUpSuccess}
+              documentPreviewError={documentPreviewError}
+              activationError={activationError}
+              isIssuingActivation={isIssuingActivation}
+              uploadingFollowUpDocumentType={uploadingFollowUpDocumentType}
+              previewingDocumentId={previewingDocumentId}
+              shareCapitalAmount={shareCapitalAmount}
+              onShareCapitalAmountChange={setShareCapitalAmount}
+              onStartCheckout={startCheckout}
+              onIssueActivationLink={issueActivationLink}
+              onUploadFollowUpDocuments={uploadFollowUpDocuments}
+              onPreviewFollowUpDocument={previewFollowUpDocument}
+            />
+          </motion.div>
+        ) : null}
+        <DocumentPreviewModal preview={documentPreview} onClose={closeDocumentPreview} />
+      </div>
+    </MotionConfig>
   );
 }
 
@@ -395,22 +406,22 @@ function LookupCard({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form
+    <motion.section layout="position" aria-label="Application status lookup" className="public-apply-card w-full min-w-0">
+      <form
       onSubmit={onSubmit}
-      className="h-fit rounded-[18px] border border-[#DDE8D8] bg-white/95 p-5 shadow-[0_18px_42px_rgba(18,61,42,0.10)]"
+      aria-busy={isLookingUp}
+      className="min-w-0 p-5 sm:p-6"
     >
-      <p className="text-[0.62rem] font-black uppercase tracking-[0.34em] text-[#f4b62a]">
-        Secure lookup
-      </p>
-      <h2 className="mt-2 text-2xl font-black tracking-normal text-[#123D2A]">
-        Track your application
-      </h2>
-      <p className="mt-3 text-xs leading-5 text-[#4F6F5D]">
-        Enter your application code and the date of birth used in your membership
-        application.
-      </p>
+      <div className="flex items-start gap-3">
+        <span className="status-icon grid size-10 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]"><Search aria-hidden="true" className="size-5" /></span>
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold leading-tight text-[#123D2A]">Track your application</h2>
+          <p className="mt-1 text-sm leading-6 text-[#365F4A]">Enter your application code and the date of birth used in your membership application.</p>
+        </div>
+      </div>
 
-      <label className="mt-5 block text-[0.68rem] font-black text-[#365F4A]">
+      <div className="mt-5 grid gap-4">
+      <label className="block min-w-0 text-sm font-semibold text-[#365F4A]">
         Application code
         <span className="relative mt-2 block">
           <input
@@ -418,7 +429,7 @@ function LookupCard({
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               onApplicationCodeChange(event.target.value)
             }
-            className="h-10 w-full rounded-xl border border-[#DDE8D8] bg-white py-2 pl-3 pr-9 text-xs font-black text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
+            className="h-12 w-full rounded-md border border-[var(--public-card-border)] bg-white py-2 pl-3 pr-9 text-base font-semibold text-[#123D2A] outline-none transition hover:border-[#9AB59F] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
             autoComplete="off"
           />
           {applicationCode.trim() ? (
@@ -434,15 +445,14 @@ function LookupCard({
         min="1900-01-01"
         max={todayDateKey()}
         placeholder="Select birth date"
-        className="mt-4 text-xs [&>button]:h-10 [&>button]:rounded-xl [&>button]:text-xs"
+        className="min-w-0"
+        triggerClassName="h-12 rounded-md text-base"
       />
-
-      {lookupError ? <ErrorNotice message={lookupError} /> : null}
 
       <Button
         type="submit"
         disabled={isLookingUp}
-        className="mt-5 h-11 w-full rounded-full bg-[#123D2A] text-xs font-black text-white shadow-[0_12px_28px_rgba(18,61,42,0.24)] hover:bg-[#1F6B43]"
+        className="public-apply-action min-h-12 w-full rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white shadow-sm hover:bg-[#1F6B43]"
       >
         {isLookingUp ? (
           <Loader2 className="size-4 animate-spin" />
@@ -451,14 +461,16 @@ function LookupCard({
         )}
         {isLookingUp ? "Checking..." : "Check Status"}
       </Button>
+      </div>
 
-      <div className="mt-6 flex gap-3 border-t border-[#EEF2EC] pt-4 text-[0.68rem] leading-5 text-[#5D6D63]">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
-          <LockKeyhole className="size-4" />
-        </span>
+      {lookupError ? <ErrorNotice message={lookupError} /> : null}
+
+      <div className="mt-4 flex items-start gap-2 text-xs leading-6 text-[#365F4A]">
+        <LockKeyhole aria-hidden="true" className="mt-1 size-4 shrink-0 text-[#1F6B43]" />
         <p>We protect your privacy. Your information is only used to retrieve your application status.</p>
       </div>
-    </form>
+      </form>
+    </motion.section>
   );
 }
 
@@ -503,16 +515,16 @@ function StatusDashboard({
   onPreviewFollowUpDocument: (requirement: PublicStatusRequirement) => Promise<void>;
 }) {
   return (
-    <section className="grid gap-5">
-      <article className="overflow-hidden rounded-[2rem] border border-[#DDE8D8] bg-white shadow-[0_18px_42px_rgba(18,61,42,0.08)]">
-        <div className="bg-[#F8F1E5] p-6 sm:p-7">
+    <section aria-label="Application status dashboard" className="grid min-w-0 gap-6">
+      <article className="public-apply-card overflow-hidden">
+        <div className="border-b border-[var(--public-card-border)] bg-[#EAF3E8] p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-sm font-bold text-[#D8A011]">Membership Application</p>
-              <h1 className="mt-2 text-3xl font-black leading-tight tracking-normal text-[#123D2A]">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9A6400]">Membership Application</p>
+              <h2 className="mt-2 break-words text-2xl font-black leading-tight text-[#123D2A] sm:text-3xl">
                 {status.fullName}
-              </h1>
-              <p className="mt-2 text-sm font-semibold text-[#5D6D63]">{status.applicationCode}</p>
+              </h2>
+              <p className="mt-2 break-all text-sm font-semibold text-[#365F4A]">{status.applicationCode}</p>
             </div>
             <Badge
               icon={Clock3}
@@ -520,7 +532,7 @@ function StatusDashboard({
               className={statusTone(status.applicationStatus)}
             />
           </div>
-          <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+          <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
             <MiniHeroItem label="Submitted" value={friendlyDate(status.submittedAt)} />
             <MiniHeroItem label="Membership" value={status.requestedMembershipType} />
             <MiniHeroItem label="Payment" value={applicantPaymentLabel(status)} />
@@ -561,9 +573,9 @@ function StatusDashboard({
 
 function MiniHeroItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#DDE8D8] bg-white p-3">
-      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#5D6D63]">{label}</p>
-      <p className="mt-1 font-black text-[#123D2A]">{value}</p>
+    <div className="status-highlight min-w-0 rounded-md bg-white p-3 shadow-sm">
+      <p className="text-xs font-semibold text-[#365F4A]">{label}</p>
+      <p className="mt-1 break-words font-bold text-[#123D2A]">{value}</p>
     </div>
   );
 }
@@ -627,8 +639,8 @@ function ApplicantNextActionCard({
           : "No action needed";
 
   return (
-    <article className="rounded-[2rem] border border-[#DDE8D8] bg-[#FFFAF2] p-5 shadow-sm sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <article className="public-apply-card p-5 sm:p-6">
+      <div className="flex flex-col gap-3 border-b border-[var(--public-card-border)] pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-black text-[#123D2A]">
             {heading}
@@ -675,7 +687,7 @@ function ApplicantNextActionCard({
               onStartCheckout={onStartCheckout}
             />
           ) : null}
-          <div className="rounded-[1.5rem] border border-[#DDE8D8] bg-white p-5 xl:col-span-2">
+          <div className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 xl:col-span-2">
             {status.requestedMembershipType === "Associate" ? (
               <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
                 <span>Membership Fee</span>
@@ -688,7 +700,7 @@ function ApplicantNextActionCard({
                 <strong className="text-[#123D2A]">{peso(Number(shareCapitalAmount || 0))}</strong>
               </div>
             ) : null}
-            <div className="mt-4 flex justify-between border-t border-[#DDE8D8] pt-4 text-lg font-black text-[#123D2A]">
+            <div className="mt-4 flex justify-between border-t border-[var(--public-card-border)] pt-4 text-lg font-black text-[#123D2A]">
               <span>Total</span>
               <span>{peso(totalDue)}</span>
             </div>
@@ -697,7 +709,7 @@ function ApplicantNextActionCard({
       ) : null}
 
       {isPaymentConfirmed ? (
-        <div className="mt-5 rounded-[1.5rem] border border-[#BBD9C0] bg-[#EAF3E8] p-5 text-[#1F6B43]">
+        <div className="mt-5 rounded-lg border border-[#BBD9C0] bg-[#EAF3E8] p-5 text-[#1F6B43]">
           <p className="flex items-center gap-2 text-lg font-black">
             <CheckCircle2 className="size-5" />
             Payment confirmed
@@ -707,7 +719,7 @@ function ApplicantNextActionCard({
       ) : null}
 
       {status.applicationStatus === "Approved" ? (
-        <div className="mt-5 rounded-[1.5rem] border border-[#BBD9C0] bg-white p-5">
+        <div className="mt-5 rounded-lg border border-[#BBD9C0] bg-white p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-lg font-black text-[#123D2A]">
@@ -725,7 +737,7 @@ function ApplicantNextActionCard({
                 type="button"
                 disabled={isIssuingActivation}
                 onClick={() => void onIssueActivationLink()}
-                className="h-11 rounded-full bg-[#123D2A] px-5 text-xs font-black text-white hover:bg-[#1F6B43]"
+                className="public-apply-action h-11 rounded-md bg-[#123D2A] px-5 text-xs font-black text-white hover:bg-[#1F6B43]"
               >
                 {isIssuingActivation ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -745,14 +757,14 @@ function ApplicantNextActionCard({
 
 function ApplicationInformationPanel({ status }: { status: PublicMembershipPaymentStatus }) {
   return (
-    <section className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF5] p-4">
+    <section className="public-apply-card p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <UserRound className="size-4 text-[#1F6B43]" />
-          <h3 className="text-sm font-black text-[#123D2A]">Applicant Information</h3>
+          <h3 className="text-base font-bold text-[#123D2A]">Applicant Information</h3>
         </div>
       </div>
-      <dl className="grid gap-0 overflow-hidden rounded-lg border border-[#DDE8D8] bg-white text-xs">
+      <dl className="grid gap-0 text-sm">
         <DetailRow label="Name" value={status.fullName} />
         <DetailRow label="Application Code" value={status.applicationCode} />
         <DetailRow label="Membership Type" value={status.requestedMembershipType} />
@@ -778,8 +790,8 @@ function DetailRow({
         last ? "" : "border-b border-[#EEF2EC]"
       }`}
     >
-      <dt className="text-[0.62rem] font-black text-[#5D6D63]">{label}</dt>
-      <dd className="min-w-0 break-words font-black text-[#123D2A]">{value}</dd>
+      <dt className="text-xs font-semibold text-[#5D6D63]">{label}</dt>
+      <dd className="min-w-0 break-words font-semibold text-[#123D2A]">{value}</dd>
     </div>
   );
 }
@@ -884,7 +896,7 @@ function ReviewActionCard({
   return (
     <PanelCard icon={CreditCard} title="Membership fee" compact className="h-fit">
       {paymentNeedsAction ? (
-        <div className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF5] p-3">
+        <div className="rounded-xl border border-[var(--public-card-border)] bg-[#F8FBF5] p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-black text-[#123D2A]">
@@ -901,7 +913,7 @@ function ReviewActionCard({
               type="button"
               disabled={Boolean(checkoutAction)}
               onClick={() => void onStartCheckout("Associate Membership Fee")}
-              className="h-10 rounded-full bg-[#123D2A] px-5 text-xs font-black text-white hover:bg-[#1F6B43]"
+              className="public-apply-action h-10 rounded-md bg-[#123D2A] px-5 text-xs font-black text-white hover:bg-[#1F6B43]"
             >
               {checkoutAction === "Associate Membership Fee" ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -1082,7 +1094,7 @@ function ShareCapitalActionCard({
             type="button"
             disabled={Boolean(checkoutAction)}
             onClick={() => void onStartCheckout("Share Capital")}
-            className="min-h-12 w-full justify-center rounded-full bg-[#123D2A] px-5 py-3 text-sm font-black leading-tight text-white hover:bg-[#1F6B43]"
+            className="public-apply-action min-h-12 w-full justify-center rounded-md bg-[#123D2A] px-5 py-3 text-sm font-black leading-tight text-white hover:bg-[#1F6B43]"
           >
             {checkoutAction === "Share Capital" ? (
               <Loader2 className="size-4 animate-spin" />
@@ -1103,7 +1115,7 @@ function CheckoutActivityCard({ status }: { status: PublicMembershipPaymentStatu
   return (
     <PanelCard icon={Clock3} title="Payment activity">
       <div className="max-h-36 overflow-y-auto pr-2">
-        <article className="rounded-xl border border-[#DDE8D8] bg-[#F8FBF5] p-3 text-xs leading-5 text-[#365F4A]">
+        <article className="rounded-xl border border-[var(--public-card-border)] bg-[#F8FBF5] p-3 text-xs leading-5 text-[#365F4A]">
           <p className="font-black text-[#123D2A]">
             {status.latestCheckout?.paymentPurpose} - {status.latestCheckout?.gatewayStatus}
           </p>
@@ -1157,12 +1169,12 @@ function RequirementItem({
   action?: ReactNode;
 }) {
   return (
-    <li className="flex flex-col gap-3 rounded-lg border border-[#EEF2EC] bg-white px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+    <li className="status-requirement flex flex-col gap-3 rounded-md border border-[#E0E9DF] bg-white px-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
       <span className="flex min-w-0 items-center gap-2 font-bold text-[#365F4A]">
         <Icon className="size-3.5 shrink-0 text-[#5D6D63]" />
-        <span className="truncate">{requirementType}</span>
+        <span className="break-words">{requirementType}</span>
       </span>
-      <span className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+      <span className="flex flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
         <span className="rounded-full bg-[#FFF3C9] px-2 py-1 text-[0.6rem] font-black text-[#946400]">
           {requirementStatus}
         </span>
@@ -1205,7 +1217,7 @@ function RequirementUploadButton({
           }
           openFilePicker();
         }}
-        className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-full px-3 text-[0.65rem] font-black text-white transition focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30 ${
+        className={`public-apply-action inline-flex min-h-11 min-w-24 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30 ${
           uploadDisabled
             ? "cursor-not-allowed bg-[#91A69A]"
             : "bg-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.16)] hover:bg-[#1F6B43]"
@@ -1260,7 +1272,7 @@ function RequirementPreviewButton({
       type="button"
       disabled={previewDisabled}
       onClick={() => void onPreview()}
-      className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-full border border-[#DDE8D8] bg-white px-3 text-[0.65rem] font-black text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.08)] transition focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20 ${
+      className={`public-apply-action inline-flex min-h-11 min-w-24 items-center justify-center gap-1.5 rounded-md border border-[var(--public-card-border)] bg-white px-3 py-2 text-sm font-semibold text-[#123D2A] shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20 ${
         previewDisabled ? "cursor-not-allowed opacity-65" : "hover:border-[#BBD9C0] hover:bg-[#F8FBF5]"
       }`}
     >
@@ -1292,7 +1304,7 @@ function ReuploadConfirmModal({
       aria-modal="true"
       aria-labelledby="reupload-confirm-title"
     >
-      <article className="w-full max-w-md rounded-[18px] border border-[#DDE8D8] bg-white p-5 shadow-[0_24px_60px_rgba(18,61,42,0.24)]">
+      <article className="w-full max-w-md rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-[0_24px_60px_rgba(18,61,42,0.24)]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 id="reupload-confirm-title" className="text-lg font-black text-[#123D2A]">
@@ -1306,7 +1318,7 @@ function ReuploadConfirmModal({
           <button
             type="button"
             onClick={onCancel}
-            className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
+            className="public-apply-action grid size-9 shrink-0 place-items-center rounded-xl border border-[var(--public-card-border)] bg-white text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
             aria-label="Cancel reupload"
           >
             <X className="size-4" />
@@ -1316,14 +1328,14 @@ function ReuploadConfirmModal({
           <button
             type="button"
             onClick={onCancel}
-            className="h-10 rounded-full border border-[#DDE8D8] bg-white px-4 text-xs font-black text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
+            className="public-apply-action h-10 rounded-md border border-[var(--public-card-border)] bg-white px-4 text-xs font-black text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
           >
             Keep Current File
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="h-10 rounded-full bg-[#123D2A] px-4 text-xs font-black text-white shadow-[0_10px_22px_rgba(18,61,42,0.16)] transition hover:bg-[#1F6B43] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30"
+            className="public-apply-action h-10 rounded-md bg-[#123D2A] px-4 text-xs font-black text-white shadow-[0_10px_22px_rgba(18,61,42,0.16)] transition hover:bg-[#1F6B43] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/30"
           >
             Choose Replacement
           </button>
@@ -1351,7 +1363,7 @@ function DocumentPreviewModal({
       aria-modal="true"
       aria-labelledby="document-preview-title"
     >
-      <article className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-[18px] border border-[#DDE8D8] bg-white shadow-[0_24px_60px_rgba(18,61,42,0.24)]">
+      <article className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg border border-[var(--public-card-border)] bg-white shadow-[0_24px_60px_rgba(18,61,42,0.24)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#EEF2EC] p-4">
           <div className="min-w-0">
             <h3
@@ -1367,7 +1379,7 @@ function DocumentPreviewModal({
           <button
             type="button"
             onClick={onClose}
-            className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#DDE8D8] bg-white text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
+            className="public-apply-action grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--public-card-border)] bg-white text-[#123D2A] transition hover:bg-[#F8FBF5] focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/20"
             aria-label="Close document preview"
           >
             <X className="size-4" />
@@ -1380,14 +1392,14 @@ function DocumentPreviewModal({
               <img
                 src={preview.objectUrl}
                 alt={`${preview.title} preview`}
-                className="mx-auto max-h-[72vh] max-w-full rounded-xl border border-[#DDE8D8] bg-white object-contain"
+                className="mx-auto max-h-[72vh] max-w-full rounded-xl border border-[var(--public-card-border)] bg-white object-contain"
               />
             </>
           ) : (
             <iframe
               title={`${preview.title} preview`}
               src={preview.objectUrl}
-              className="h-[72vh] w-full rounded-xl border border-[#DDE8D8] bg-white"
+              className="h-[72vh] w-full rounded-xl border border-[var(--public-card-border)] bg-white"
             />
           )}
         </div>
@@ -1411,21 +1423,21 @@ function PanelCard({
 }) {
   return (
     <article
-      className={`rounded-[18px] border border-[#DDE8D8] bg-white ${
+      className={`status-panel min-w-0 rounded-lg border border-[var(--public-card-border)] bg-white ${
         compact ? "p-3" : "p-4"
-      } shadow-[0_14px_32px_rgba(18,61,42,0.06)] ${className}`}
+      } shadow-[var(--public-card-shadow)] ${className}`}
     >
       <div className={`${compact ? "mb-2" : "mb-3"} flex items-center gap-3`}>
         <div
-          className={`grid shrink-0 place-items-center rounded-full bg-[#DDF5E2] text-[#1F6B43] ${
+          className={`status-icon grid shrink-0 place-items-center rounded-full bg-[#DDF5E2] text-[#1F6B43] ${
             compact ? "size-9" : "size-10"
           }`}
         >
           <Icon className={compact ? "size-4" : "size-5"} />
         </div>
-        <p className="text-[0.65rem] font-black uppercase tracking-[0.28em] text-[#f4b62a]">
+        <h3 className="text-base font-bold leading-6 text-[#123D2A]">
           {title}
-        </p>
+        </h3>
       </div>
       {children}
     </article>
@@ -1434,11 +1446,11 @@ function PanelCard({
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-h-[5.25rem] rounded-xl border border-[#EEF2EC] bg-[#F8FBF5] p-3">
-      <p className="text-[0.65rem] font-black uppercase tracking-[0.1em] text-[#5D6D63]">
+    <div className="status-highlight min-h-[5.25rem] min-w-0 rounded-md border border-[#E0E9DF] bg-[var(--public-canvas)] p-3">
+      <p className="text-xs font-semibold text-[#365F4A]">
         {label}
       </p>
-      <p className="mt-1 font-black text-[#123D2A]">{value}</p>
+      <p className="mt-1 break-words font-bold text-[#123D2A]">{value}</p>
     </div>
   );
 }
@@ -1483,27 +1495,6 @@ function Badge({
       <Icon className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{label}</span>
     </span>
-  );
-}
-
-function EmptyDashboard() {
-  return (
-    <section className="rounded-[18px] border border-[#DDE8D8] bg-white/80 p-6 shadow-[0_18px_42px_rgba(18,61,42,0.08)]">
-      <div className="grid min-h-[22rem] place-items-center text-center">
-        <div className="max-w-md">
-          <div className="mx-auto grid size-14 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
-            <CalendarDays className="size-7" />
-          </div>
-          <h2 className="mt-4 text-2xl font-black text-[#123D2A]">
-            Secure application status
-          </h2>
-          <p className="mt-2 text-sm leading-7 text-[#365F4A]">
-            Enter your application details to view review progress, safe applicant
-            messages, payment summaries, and requested follow-up documents.
-          </p>
-        </div>
-      </div>
-    </section>
   );
 }
 

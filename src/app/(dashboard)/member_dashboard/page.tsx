@@ -218,13 +218,13 @@ export default function MemberDashboardPage() {
     if (previous === 0) {
       return delta === 0
         ? { label: "No change from previous period", className: "text-[#6C7A70]" }
-        : { label: "New activity this period", className: kind === "expense" ? "text-[#A15C16]" : "text-[#1F6B43]" };
+        : { label: "New activity this period", className: kind === "expense" ? "text-[#A15C16]" : "text-coop-green" };
     }
     const percentage = Math.abs((delta / previous) * 100);
     const favorable = kind === "expense" ? delta <= 0 : delta >= 0;
     return {
       label: `${delta >= 0 ? "↑" : "↓"} ${percentage.toFixed(1)}% vs ${financialComparison.label.toLowerCase()}`,
-      className: favorable ? "text-[#1F6B43]" : "text-[#B42318]",
+      className: favorable ? "text-coop-green" : "text-[#B42318]",
     };
   }
 
@@ -492,8 +492,8 @@ export default function MemberDashboardPage() {
 
   const navClass = (id: string) =>
     `inline-flex h-9 items-center border-b-2 px-1 text-sm font-semibold transition ${activeTab === id
-      ? "border-[#1F6B43] text-[#123D2A]"
-      : "border-transparent text-[#365f4a] hover:border-[#1F6B43]/55 hover:text-[#123D2A]"
+      ? "border-coop-green text-coop-forest"
+      : "border-transparent text-coop-secondary hover:border-[#1F6B43]/55 hover:text-coop-forest"
     }`;
 
   async function handleLogout() {
@@ -511,7 +511,7 @@ export default function MemberDashboardPage() {
   return (
     <div className="flex min-h-[101vh] flex-col bg-[#F8F6EF] font-sans">
       {/* 1. TOP NAVBAR */}
-      <header className="sticky top-0 z-50 border-b-2 border-[#1F6B43]/55 bg-white/92 text-[#123D2A] shadow-sm backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b-2 border-[#1F6B43]/55 bg-white/92 text-coop-forest shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-2 px-3 sm:px-8">
           {/* Logo Section */}
           <div className="shrink-0 xl:w-[210px]">
@@ -550,23 +550,23 @@ export default function MemberDashboardPage() {
           {/* Right Actions */}
           <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3">
 
-            {/* <button onClick={() => setActiveTab("Help")} className={`transition ${activeTab === "Help" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Help Center">
+            {/* <button onClick={() => setActiveTab("Help")} className={`transition ${activeTab === "Help" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Help Center">
               <MessageSquare className="size-5" />
             </button> */}
-            <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className={`transition ${activeTab === "Profile" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Profile & Settings">
+            <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className={`transition ${activeTab === "Profile" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Profile & Settings">
               <User className="size-5" />
             </button>
-            <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="Announcements">
+            <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements">
               <Bell className="size-5" />
             </button>
-            <button onClick={() => setActiveTab("Requests")} className={`transition ${activeTab === "Requests" ? "text-[#1F6B43]" : "text-[#365f4a] hover:text-[#123D2A]"}`} title="My Requests">
+            <button onClick={() => setActiveTab("Requests")} className={`transition ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests">
               <Inbox className="size-5" />
             </button>
             <button
               type="button"
               onClick={() => setReferralModalOpen(true)}
               aria-haspopup="dialog"
-              className="flex min-h-10 items-center gap-2 rounded-full border border-[#A9C9B1] bg-[#EAF3E8] px-3 py-2.5 text-xs font-bold text-[#1F6B43] transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] focus-visible:ring-offset-2 sm:px-4 sm:text-sm"
+              className="flex min-h-10 items-center gap-2 rounded-full border border-[#A9C9B1] bg-coop-sage px-3 py-2.5 text-xs font-bold text-coop-green transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coop-green focus-visible:ring-offset-2 sm:px-4 sm:text-sm"
             >
               <UserPlus className="hidden size-4 sm:block" aria-hidden="true" />
               Refer a Friend
@@ -575,7 +575,7 @@ export default function MemberDashboardPage() {
               type="button"
               onClick={handleLogout}
               disabled={isSigningOut}
-              className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-[#123D2A] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[#1F6B43] sm:px-5 sm:text-sm disabled:cursor-wait disabled:opacity-70"
+              className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-coop-forest px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-coop-green sm:px-5 sm:text-sm disabled:cursor-wait disabled:opacity-70"
             >
               {isSigningOut ? "Logging out" : "Logout"}
               <LogOut className="size-4" />
@@ -641,7 +641,7 @@ export default function MemberDashboardPage() {
                     >
                       <div className="w-24 sm:w-32 bg-[#e8f3ec] relative overflow-hidden shrink-0">
                         {i === 0 && announcementSearch === "" && (
-                          <div className="absolute top-2 left-2 z-10 rounded-full bg-[#123D2A] px-2 py-0.5 text-[8px] font-bold text-white shadow-md">
+                          <div className="absolute top-2 left-2 z-10 rounded-full bg-coop-forest px-2 py-0.5 text-[8px] font-bold text-white shadow-md">
                             Latest
                           </div>
                         )}
@@ -706,7 +706,7 @@ export default function MemberDashboardPage() {
 
                   <div className="mt-8 relative flex items-center justify-center min-h-[40px]">
                     {totalPages > 1 && (
-                      <div className="flex items-center gap-3 bg-[#F8FDF9] py-2 px-3 rounded-xl border border-[#EAF3E8]">
+                      <div className="flex items-center gap-3 bg-[#F8FDF9] py-2 px-3 rounded-xl border border-coop-sage">
                         <div className="flex items-center gap-1.5">
                           <button 
                             onClick={() => setAnnouncementPage(1)} 
@@ -837,18 +837,18 @@ export default function MemberDashboardPage() {
       >
         {dividendAction === "withdraw" ? (
           <div className="mt-4 space-y-4">
-            <div className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-[#365F4A]">
+            <div className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-coop-secondary">
               Choose how you want to receive the Annual Interest. The Bookkeeper will review the request and record the payout.
             </div>
             <fieldset>
-              <legend className="text-sm font-bold text-[#294B39]">Payout method</legend>
+              <legend className="text-sm font-bold text-coop-body">Payout method</legend>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {(["Cash", "Online Transfer"] as const).map((method) => (
                   <button
                     key={method}
                     type="button"
                     onClick={() => setWithdrawalMethod(method)}
-                    className={`rounded-lg border px-3 py-2.5 text-sm font-bold transition ${withdrawalMethod === method ? "border-[#123D2A] bg-[#123D2A] text-white" : "border-[#CAD8CB] text-[#123D2A] hover:bg-[#F3F7F1]"}`}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-bold transition ${withdrawalMethod === method ? "border-coop-forest bg-coop-forest text-white" : "border-coop-border text-coop-forest hover:bg-[#F3F7F1]"}`}
                   >
                     {method}
                   </button>
@@ -857,20 +857,20 @@ export default function MemberDashboardPage() {
             </fieldset>
             {withdrawalMethod === "Online Transfer" ? (
               <div className="space-y-3 rounded-lg border border-[#DDE8D8] bg-[#F7FAF5] p-4">
-                <label className="block text-sm font-bold text-[#294B39]">
+                <label className="block text-sm font-bold text-coop-body">
                   Provider
                   <Select.Root value={withdrawalProvider || undefined} onValueChange={setWithdrawalProvider}>
-                    <Select.Trigger aria-label="Provider" className="mt-1 flex h-11 w-full items-center justify-between rounded-md border border-[#CAD8CB] bg-white px-3 text-left font-normal text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
+                    <Select.Trigger aria-label="Provider" className="mt-1 flex h-11 w-full items-center justify-between rounded-md border border-coop-border bg-white px-3 text-left font-normal text-coop-forest outline-none transition hover:border-[#9FB7A4] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
                       <Select.Value placeholder="Select provider" />
-                      <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+                      <Select.Icon><ChevronDown className="size-4 text-coop-green" aria-hidden="true" /></Select.Icon>
                     </Select.Trigger>
                     <Select.Portal>
-                      <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                      <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-coop-border bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
                         <Select.Viewport>
                           {["GCash", "Maya", "Bank Transfer"].map((provider) => (
-                            <Select.Item key={provider} value={provider} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                            <Select.Item key={provider} value={provider} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                               <Select.ItemText>{provider}</Select.ItemText>
-                              <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                              <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                             </Select.Item>
                           ))}
                         </Select.Viewport>
@@ -878,17 +878,17 @@ export default function MemberDashboardPage() {
                     </Select.Portal>
                   </Select.Root>
                 </label>
-                <label className="block text-sm font-bold text-[#294B39]">
+                <label className="block text-sm font-bold text-coop-body">
                   Account name
-                  <input value={withdrawalAccountName} onChange={(event) => setWithdrawalAccountName(event.target.value)} placeholder="Name registered on the account" className="mt-1 h-11 w-full rounded-md border border-[#CAD8CB] px-3 font-normal" />
+                  <input value={withdrawalAccountName} onChange={(event) => setWithdrawalAccountName(event.target.value)} placeholder="Name registered on the account" className="mt-1 h-11 w-full rounded-md border border-coop-border px-3 font-normal" />
                 </label>
-                <label className="block text-sm font-bold text-[#294B39]">
+                <label className="block text-sm font-bold text-coop-body">
                   Account number / mobile number
-                  <input value={withdrawalAccountNumber} onChange={(event) => setWithdrawalAccountNumber(event.target.value)} placeholder="Optional if a QR code is uploaded" className="mt-1 h-11 w-full rounded-md border border-[#CAD8CB] px-3 font-normal" />
+                  <input value={withdrawalAccountNumber} onChange={(event) => setWithdrawalAccountNumber(event.target.value)} placeholder="Optional if a QR code is uploaded" className="mt-1 h-11 w-full rounded-md border border-coop-border px-3 font-normal" />
                 </label>
-                <label className="block text-sm font-bold text-[#294B39]">
+                <label className="block text-sm font-bold text-coop-body">
                   QR code <span className="font-normal text-[#6C7A70]">(optional)</span>
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleWithdrawalQrCode(event.target.files?.[0])} className="mt-1 block w-full rounded-md border border-[#CAD8CB] bg-white p-2 text-sm font-normal" />
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleWithdrawalQrCode(event.target.files?.[0])} className="mt-1 block w-full rounded-md border border-coop-border bg-white p-2 text-sm font-normal" />
                 </label>
                 {withdrawalQrFileName ? <p className="text-xs font-semibold text-[#2F7D57]">QR attached: {withdrawalQrFileName}</p> : null}
                 <p className="text-xs text-[#6C7A70]">Provide either an account/mobile number or a QR code. These details are visible only to the Bookkeeper.</p>
@@ -898,7 +898,7 @@ export default function MemberDashboardPage() {
             )}
           </div>
         ) : (
-          <div className="mt-4 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-[#365F4A]">
+          <div className="mt-4 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-sm text-coop-secondary">
             This amount will be added immediately to your Share Capital balance. No Bookkeeper approval is required.
           </div>
         )}
@@ -942,11 +942,11 @@ export default function MemberDashboardPage() {
               <h3 className="mt-1 break-words text-xl font-black text-[#173626]">{selectedFinancialCategory.category}</h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Amount</p><p className="mt-1 text-lg font-black text-[#1F6B43]">{formatPeso(Number(selectedFinancialCategory.amount))}</p></div>
-              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Part of the total</p><p className="mt-1 text-lg font-black text-[#123D2A]">{selectedFinancialCategory.total > 0 ? `${((Number(selectedFinancialCategory.amount) / selectedFinancialCategory.total) * 100).toFixed(1)}%` : "0.0%"}</p></div>
-              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Approved records</p><p className="mt-1 text-lg font-black text-[#123D2A]">{Number(selectedFinancialCategory.recordCount || 0).toLocaleString("en-PH")}</p></div>
+              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Amount</p><p className="mt-1 text-lg font-black text-coop-green">{formatPeso(Number(selectedFinancialCategory.amount))}</p></div>
+              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Part of the total</p><p className="mt-1 text-lg font-black text-coop-forest">{selectedFinancialCategory.total > 0 ? `${((Number(selectedFinancialCategory.amount) / selectedFinancialCategory.total) * 100).toFixed(1)}%` : "0.0%"}</p></div>
+              <div className="rounded-lg border border-[#E5E7EB] p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-[#6C7A70]">Approved records</p><p className="mt-1 text-lg font-black text-coop-forest">{Number(selectedFinancialCategory.recordCount || 0).toLocaleString("en-PH")}</p></div>
             </div>
-            <p className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-3 text-sm leading-relaxed text-[#5D6D63]">
+            <p className="rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] p-3 text-sm leading-relaxed text-coop-muted">
               This total comes from records checked and approved by the cooperative for your chosen dates. Other members’ private payment details are not shown.
             </p>
           </div>
@@ -964,11 +964,11 @@ export default function MemberDashboardPage() {
         <div className="mt-2 space-y-5">
           <div className="flex flex-col gap-4 rounded-2xl border border-[#CFE4D4] bg-gradient-to-br from-[#F2FAF3] to-[#FFF9EC] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-[#1F6B43]">Your referral code</p>
-              <p className="mt-2 break-all text-2xl font-black tracking-wider text-[#123D2A]">
+              <p className="text-xs font-bold uppercase tracking-wider text-coop-green">Your referral code</p>
+              <p className="mt-2 break-all text-2xl font-black tracking-wider text-coop-forest">
                 {referralCode || "Loading..."}
               </p>
-              <p className="mt-2 text-xs text-[#5D6D63]">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Referral rewards are currently disabled." : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} ${dashboardData?.referrals?.rewardLabel || "referral credits"} per successful referral. Tracking only unless the cooperative approves a separate redemption policy.`}</p>
+              <p className="mt-2 text-xs text-coop-muted">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Referral rewards are currently disabled." : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} ${dashboardData?.referrals?.rewardLabel || "referral credits"} per successful referral. Tracking only unless the cooperative approves a separate redemption policy.`}</p>
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <button
@@ -985,7 +985,7 @@ export default function MemberDashboardPage() {
                     toast.error("Unable to copy the referral code.");
                   }
                 }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#A9C9B1] bg-white px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:bg-[#F4FAF4] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#A9C9B1] bg-white px-4 py-2.5 text-sm font-bold text-coop-forest transition hover:bg-[#F4FAF4] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isReferralCodeCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 {isReferralCodeCopied ? "Copied" : "Copy code"}
@@ -1004,7 +1004,7 @@ export default function MemberDashboardPage() {
                     toast.error("Unable to copy the referral link.");
                   }
                 }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-coop-forest px-4 py-2.5 text-sm font-bold text-white transition hover:bg-coop-green disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isReferralLinkCopied ? <Check className="size-4" /> : <Link2 className="size-4" />}
                 {isReferralLinkCopied ? "Copied" : "Copy link"}
@@ -1025,7 +1025,7 @@ export default function MemberDashboardPage() {
                     if (error instanceof Error && error.name !== "AbortError") toast.error("Unable to share the referral link.");
                   }
                 }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#A9C9B1] bg-white px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:bg-[#F4FAF4] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#A9C9B1] bg-white px-4 py-2.5 text-sm font-bold text-coop-forest transition hover:bg-[#F4FAF4] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Share2 className="size-4" />
                 Share
@@ -1035,7 +1035,7 @@ export default function MemberDashboardPage() {
 
           <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Invitation link</p>
-            <p className="mt-2 break-all rounded-xl bg-[#F7FAF7] px-3 py-2 text-xs font-semibold text-[#365F4A]">
+            <p className="mt-2 break-all rounded-xl bg-[#F7FAF7] px-3 py-2 text-xs font-semibold text-coop-secondary">
               {referralLink || "Preparing your referral link..."}
             </p>
           </div>
@@ -1051,11 +1051,11 @@ export default function MemberDashboardPage() {
             </div>
             <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
               <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Successful</p>
-              <p className="mt-2 text-2xl font-black text-[#1F6B43]">{Number(dashboardData?.referrals?.successful || 0)}</p>
+              <p className="mt-2 text-2xl font-black text-coop-green">{Number(dashboardData?.referrals?.successful || 0)}</p>
             </div>
             <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
               <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">{dashboardData?.referrals?.rewardLabel || "Referral credits"}</p>
-              <p className="mt-2 text-2xl font-black text-[#123D2A]">{Number(dashboardData?.referrals?.rewardCredits || 0)}</p>
+              <p className="mt-2 text-2xl font-black text-coop-forest">{Number(dashboardData?.referrals?.rewardCredits || 0)}</p>
               <p className="mt-1 text-[11px] text-[#6C7A70]">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Policy disabled" : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} per successful referral`}</p>
             </div>
           </div>
@@ -1071,7 +1071,7 @@ export default function MemberDashboardPage() {
                     <th className="px-4 py-3 font-bold">Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#EEF2EC]">
+                <tbody className="divide-y divide-coop-subtle">
                   {dashboardData.referrals.items.map((item: any) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3 font-semibold text-[#173626]">{item.applicantName || "Applicant"}</td>
@@ -1083,7 +1083,7 @@ export default function MemberDashboardPage() {
                         <p className="mt-1 text-[11px] text-[#6C7A70]">Application: {item.applicationStatus || "Submitted"}</p>
                         <div className="mt-2 flex max-w-[150px] items-center gap-1" aria-label={`Referral progress: ${item.status}`}>
                           {[1, 2, 3].map((step) => (
-                            <span key={step} className={`h-1.5 flex-1 rounded-full ${step <= referralStage(item) ? (item.status === "Rejected" || item.status === "Cancelled" ? "bg-[#B42318]" : "bg-[#1F6B43]") : "bg-[#E6EEE7]"}`} />
+                            <span key={step} className={`h-1.5 flex-1 rounded-full ${step <= referralStage(item) ? (item.status === "Rejected" || item.status === "Cancelled" ? "bg-[#B42318]" : "bg-coop-green") : "bg-[#E6EEE7]"}`} />
                           ))}
                         </div>
                         <p className="mt-1 text-[10px] text-[#7A887E]">Submitted · Review · Successful</p>
@@ -1110,7 +1110,7 @@ export default function MemberDashboardPage() {
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
               {dashboardData?.isLinked === false ? (
-                <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border border-[#CAD8CB] bg-white p-12 text-center shadow-sm">
+                <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border border-coop-border bg-white p-12 text-center shadow-sm">
                   <div className="mb-6 rounded-full bg-[#F8F6EF] p-4 text-[#2F7D57]">
                     <Link2 className="h-12 w-12" />
                   </div>
@@ -1128,13 +1128,13 @@ export default function MemberDashboardPage() {
                         <h1 id="member-dashboard-heading" className="mt-2 text-2xl font-bold tracking-tight text-[#173626] sm:text-3xl">Welcome back, {user?.displayName?.split(" ")[0] || "Member"}</h1>
                         <p className="mt-2 text-sm text-[#6B7280]">Your savings, activities, and cooperative updates in one place.</p>
                         {!dashboardLoadError && !isFetchingDashboard && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="My occupations and livelihoods">
-                          {(dashboardData?.member?.occupation || "").split("; ").filter(Boolean).map((occupation: string) => <span key={occupation} className="rounded-full border border-[#CFE2D1] bg-white px-2.5 py-1 text-xs font-semibold text-[#365F4A]">{occupation}</span>)}
-                          {(dashboardData?.member?.livelihoods ?? []).map((item: { activity: string }) => <span key={item.activity} className="rounded-full bg-[#E4F0DE] px-2.5 py-1 text-xs font-semibold text-[#365F4A]">{item.activity}</span>)}
+                          {(dashboardData?.member?.occupation || "").split("; ").filter(Boolean).map((occupation: string) => <span key={occupation} className="rounded-full border border-[#CFE2D1] bg-white px-2.5 py-1 text-xs font-semibold text-coop-secondary">{occupation}</span>)}
+                          {(dashboardData?.member?.livelihoods ?? []).map((item: { activity: string }) => <span key={item.activity} className="rounded-full bg-[#E4F0DE] px-2.5 py-1 text-xs font-semibold text-coop-secondary">{item.activity}</span>)}
                           <SeasonGuide livelihoods={dashboardData?.member?.livelihoods ?? []} province={dashboardData?.member?.province ?? ""} municipality={dashboardData?.member?.municipality ?? ""} onEdit={openLivelihoods} onFinancial={() => { setFinancialView("personal"); setActiveTab("Financial"); }} />
-                          {!dashboardData?.member?.occupation && <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-[#1F6B43] underline">Add your occupation</button>}
+                          {!dashboardData?.member?.occupation && <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-coop-green underline">Add your occupation</button>}
                         </div>}
                       </div>
-                      <div className="rounded-2xl bg-[#123D2A] p-3 text-white">
+                      <div className="rounded-2xl bg-coop-forest p-3 text-white">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-medium text-[#DFF5E8]">My Share Capital</p>
                           <Wallet className="size-5 text-[#A9D5B5]" aria-hidden="true" />
@@ -1156,7 +1156,7 @@ export default function MemberDashboardPage() {
                       <button key={stat.label} onClick={() => setActiveTab(stat.tab)} className="flex items-center justify-between gap-2 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-left shadow-sm transition hover:border-[#2F7D57] hover:bg-[#F5FAF4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F7D57]">
                         <div>
                           <p className="text-2xl font-bold text-[#173626]">{isFetchingDashboard ? "…" : dashboardLoadError ? "—" : stat.value}</p>
-                          <h2 className="mt-1 text-sm font-semibold text-[#365F4A]">{stat.label}</h2>
+                          <h2 className="mt-1 text-sm font-semibold text-coop-secondary">{stat.label}</h2>
                           <p className="mt-1 text-xs text-[#6B7280]">{stat.detail}</p>
                         </div>
                         <span className="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF6EE] text-[#2F7D57] sm:flex"><stat.icon className="size-5" aria-hidden="true" /></span>
@@ -1243,9 +1243,9 @@ export default function MemberDashboardPage() {
                 </section>
               </div>
 
-              <div className="mb-14 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDE8D8] bg-[#EDF6EE] px-4 py-2 text-sm text-[#365F4A]">
+              <div className="mb-14 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDE8D8] bg-[#EDF6EE] px-4 py-2 text-sm text-coop-secondary">
                 <p>Need help with your account? Send a request to the cooperative.</p>
-                <button onClick={() => setActiveTab("Requests")} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 font-bold text-[#123D2A] hover:bg-white">Get Help<ArrowRight className="size-4" aria-hidden="true" /></button>
+                <button onClick={() => setActiveTab("Requests")} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 font-bold text-coop-forest hover:bg-white">Get Help<ArrowRight className="size-4" aria-hidden="true" /></button>
               </div>
               </>
               )}
@@ -1263,8 +1263,8 @@ export default function MemberDashboardPage() {
                 <p className="mt-1 text-sm text-[#6B7280]">Your records and the cooperative’s money, clearly explained.</p>
                 </div>
                 <Tabs.List aria-label="Financial sections" className="flex shrink-0 gap-1 rounded-2xl lg:w-[420px] border border-[#DDE8D8] bg-white p-2">
-                  <Tabs.Trigger value="personal" className="flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-[#52705D] outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] data-[state=active]:bg-[#123D2A] data-[state=active]:text-white"><Wallet className="size-4 shrink-0" />My money</Tabs.Trigger>
-                  <Tabs.Trigger value="cooperative" className="flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-[#52705D] outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] data-[state=active]:bg-[#123D2A] data-[state=active]:text-white"><PieChart className="size-4 shrink-0" />Cooperative money</Tabs.Trigger>
+                  <Tabs.Trigger value="personal" className="flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-[#52705D] outline-none focus-visible:ring-2 focus-visible:ring-coop-green data-[state=active]:bg-coop-forest data-[state=active]:text-white"><Wallet className="size-4 shrink-0" />My money</Tabs.Trigger>
+                  <Tabs.Trigger value="cooperative" className="flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-[#52705D] outline-none focus-visible:ring-2 focus-visible:ring-coop-green data-[state=active]:bg-coop-forest data-[state=active]:text-white"><PieChart className="size-4 shrink-0" />Cooperative money</Tabs.Trigger>
                 </Tabs.List>
               </div>
               {dashboardData?.isLinked === false ? (
@@ -1272,7 +1272,7 @@ export default function MemberDashboardPage() {
               ) : null}
 
 
-                <Tabs.Content value="personal" className="rounded-3xl border border-[#DDE8D8] bg-[#FFFCF5] p-4 outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] sm:p-5">
+                <Tabs.Content value="personal" className="rounded-3xl border border-[#DDE8D8] bg-[#FFFCF5] p-4 outline-none focus-visible:ring-2 focus-visible:ring-coop-green sm:p-5">
                   {dashboardLoadError ? <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">We could not get the latest amounts. Please press Update to try again.</p> : null}
                   <details className="mb-4 rounded-xl border border-[#DDE8D8] bg-white p-3 text-sm text-[#52705D]">
                     <summary className="cursor-pointer font-bold text-[#173626]">What is seasonal analytics?</summary>
@@ -1288,17 +1288,17 @@ export default function MemberDashboardPage() {
                       <div className="flex flex-wrap items-end gap-2">
                         <div><p className="mb-1 text-xs font-semibold text-[#42594B]">Choose dates</p>
                   <Select.Root value={financialPeriod} onValueChange={(value) => setFinancialPeriod(value as FinancialPeriod)}>
-                    <Select.Trigger aria-label="My money period" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-48">
+                    <Select.Trigger aria-label="My money period" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-coop-border bg-white px-3 text-left text-sm font-bold text-coop-forest outline-none transition hover:border-[#9FB7A4] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-48">
                       <Select.Value />
-                      <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+                      <Select.Icon><ChevronDown className="size-4 text-coop-green" aria-hidden="true" /></Select.Icon>
                     </Select.Trigger>
                     <Select.Portal>
-                      <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                      <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-coop-border bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
                         <Select.Viewport>
                           {(["year", "month", "30d", "all", "custom"] as FinancialPeriod[]).map((period) => (
-                            <Select.Item key={period} value={period} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                            <Select.Item key={period} value={period} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                               <Select.ItemText>{FINANCIAL_PERIOD_LABELS[period]}</Select.ItemText>
-                              <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                              <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                             </Select.Item>
                           ))}
                         </Select.Viewport>
@@ -1306,23 +1306,23 @@ export default function MemberDashboardPage() {
                     </Select.Portal>
                   </Select.Root>
                         </div>
-                    <button type="button" onClick={() => void refreshDashboard()} disabled={isFetchingDashboard} className="inline-flex items-center gap-2 min-h-11 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60"><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} />Update</button>
+                    <button type="button" onClick={() => void refreshDashboard()} disabled={isFetchingDashboard} className="inline-flex items-center gap-2 min-h-11 rounded-lg border border-coop-border bg-white px-4 py-2 text-sm font-bold text-coop-forest hover:bg-coop-subtle disabled:opacity-60"><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} />Update</button>
                       </div>
                     </div>
 
                 {financialPeriod === "custom" ? (
                   <div className="mt-4 grid gap-3 rounded-2xl border border-[#DDE8D8] bg-white p-4 sm:grid-cols-2">
-                    <label className="text-sm font-bold text-[#294B39]">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
-                    <label className="text-sm font-bold text-[#294B39]">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+                    <label className="text-sm font-bold text-coop-body">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-coop-border px-3 font-normal text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+                    <label className="text-sm font-bold text-coop-body">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-coop-border px-3 font-normal text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
                     {financialStartDate && financialEndDate && financialStartDate > financialEndDate ? <p className="sm:col-span-2 text-xs font-semibold text-red-700">End date must be on or after the start date.</p> : null}
                   </div>
                 ) : null}
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {[
-                    { label: "What you earned", help: "Interest, patronage refund, and other earnings.", value: memberFinancialSummary?.totalEarnings, className: "text-[#1F6B43]", icon: ArrowDownLeft },
+                    { label: "What you earned", help: "Interest, patronage refund, and other earnings.", value: memberFinancialSummary?.totalEarnings, className: "text-coop-green", icon: ArrowDownLeft },
                     { label: "What you paid", help: "Purchases, rentals, and other charges.", value: memberFinancialSummary?.totalExpenses, className: "text-[#A15C16]", icon: ArrowUpRight },
-                    { label: "Earnings minus payments", help: "Earnings less payments. Not a cash balance.", value: memberFinancialSummary?.netResult, className: "text-[#123D2A]", icon: Wallet },
+                    { label: "Earnings minus payments", help: "Earnings less payments. Not a cash balance.", value: memberFinancialSummary?.netResult, className: "text-coop-forest", icon: Wallet },
                     { label: "Share Capital payments", help: "Added in these dates. Not earnings or total balance.", value: memberFinancialSummary?.shareCapitalContributions, className: "text-[#52705D]", icon: Leaf },
                   ].map((summary) => (
                     <div key={summary.label} className="rounded-2xl border border-[#DDE8D8] bg-gradient-to-br from-white to-[#EFF7F0] p-4 shadow-sm">
@@ -1331,7 +1331,7 @@ export default function MemberDashboardPage() {
                         <summary.icon className={`h-4 w-4 ${summary.className}`} />
                       </div>
                       <p className={`mt-2 text-2xl font-black tracking-tight ${summary.className}`}>{isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}</p>
-                      <p className="mt-1 text-sm leading-snug text-[#5D6D63]">{summary.help}</p>
+                      <p className="mt-1 text-sm leading-snug text-coop-muted">{summary.help}</p>
                     </div>
                   ))}
                 </div>
@@ -1339,14 +1339,14 @@ export default function MemberDashboardPage() {
                 <div className="grid items-start gap-3 lg:grid-cols-3">
                 <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2">
                   {[
-                    { title: "Where my earnings came from", items: memberIncomeItems, color: "bg-[#1F6B43]", amountClass: "text-[#1F6B43]", empty: "No earnings recorded for these dates." },
+                    { title: "Where my earnings came from", items: memberIncomeItems, color: "bg-coop-green", amountClass: "text-coop-green", empty: "No earnings recorded for these dates." },
                     { title: "What I paid for", items: memberExpenseItems, color: "bg-[#A15C16]", amountClass: "text-[#A15C16]", empty: "No payments recorded for these dates." },
                   ].map((group) => (
                     <section key={group.title} className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
                       <h4 className="text-sm font-bold text-[#173626]">
                         {group.title}
                       </h4>
-                      <div className="mt-2 max-h-32 overflow-y-auto divide-y divide-[#EEF2EC]">
+                      <div className="mt-2 max-h-32 overflow-y-auto divide-y divide-coop-subtle">
                         {group.items.length ? group.items.map((item) => (
                           <div key={item.category} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                             <span className="min-w-0 break-words font-medium text-[#42594B]">{item.category}</span>
@@ -1363,14 +1363,14 @@ export default function MemberDashboardPage() {
                     <h4 className="text-sm font-bold text-[#173626]">Recent payments &amp; earnings</h4>
                     <span className="text-[11px] font-semibold text-[#6C7A70]">Latest 5</span>
                   </div>
-                  <div className="mt-2 max-h-32 overflow-y-auto divide-y divide-[#EEF2EC]">
+                  <div className="mt-2 max-h-32 overflow-y-auto divide-y divide-coop-subtle">
                     {memberFinancialSummary?.transactions?.length ? memberFinancialSummary.transactions.slice(0, 5).map((transaction: { id: string; type: "Income" | "Expense"; category: string; description: string; amount: number; date: string | Date }) => (
                       <div key={`${transaction.id}-${transaction.date}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-[#42594B]">{transaction.description}</p>
                           <p className="text-xs text-[#6C7A70]">{transaction.category} · {new Date(transaction.date).toLocaleDateString("en-PH")}</p>
                         </div>
-                        <span className={`shrink-0 font-bold ${transaction.type === "Income" ? "text-[#1F6B43]" : "text-[#A15C16]"}`}>{transaction.type === "Income" ? "+" : "-"}{formatPeso(Number(transaction.amount || 0))}</span>
+                        <span className={`shrink-0 font-bold ${transaction.type === "Income" ? "text-coop-green" : "text-[#A15C16]"}`}>{transaction.type === "Income" ? "+" : "-"}{formatPeso(Number(transaction.amount || 0))}</span>
                       </div>
                     )) : <p className="py-3 text-sm text-[#6B7280]">No payments or earnings recorded for these dates.</p>}
                   </div>
@@ -1378,12 +1378,12 @@ export default function MemberDashboardPage() {
 
                 </div>
 
-                <p className="rounded-xl border border-[#DDE8D8] bg-white p-3 text-xs leading-relaxed text-[#5D6D63]">
+                <p className="rounded-xl border border-[#DDE8D8] bg-white p-3 text-xs leading-relaxed text-coop-muted">
                   Your Share Capital payments are separate from earnings. Farm and household records outside the cooperative are not included.
                 </p>
                 </div>
                 </Tabs.Content>
-                <Tabs.Content value="cooperative" className="rounded-3xl border border-[#DDE8D8] bg-white p-4 outline-none focus-visible:ring-2 focus-visible:ring-[#1F6B43] sm:p-4">
+                <Tabs.Content value="cooperative" className="rounded-3xl border border-[#DDE8D8] bg-white p-4 outline-none focus-visible:ring-2 focus-visible:ring-coop-green sm:p-4">
                   <div className="space-y-2">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                       <div>
@@ -1393,32 +1393,32 @@ export default function MemberDashboardPage() {
                       <div className="flex flex-wrap items-end gap-2">
                         <div><p className="mb-1 text-xs font-semibold text-[#42594B]">Choose dates</p>
             <Select.Root value={financialPeriod} onValueChange={(value) => setFinancialPeriod(value as FinancialPeriod)}>
-              <Select.Trigger aria-label="Choose dates" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-48">
+              <Select.Trigger aria-label="Choose dates" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-coop-border bg-white px-3 text-left text-sm font-bold text-coop-forest outline-none transition hover:border-[#9FB7A4] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-48">
                 <Select.Value />
-                <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
+                <Select.Icon><ChevronDown className="size-4 text-coop-green" aria-hidden="true" /></Select.Icon>
               </Select.Trigger>
               <Select.Portal>
-                <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
+                <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-coop-border bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
                   <Select.Viewport>
-                    <Select.Item value="year" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                    <Select.Item value="year" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                       <Select.ItemText>This Year</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                     </Select.Item>
-                    <Select.Item value="month" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                    <Select.Item value="month" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                       <Select.ItemText>This Month</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                     </Select.Item>
-                    <Select.Item value="30d" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                    <Select.Item value="30d" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                       <Select.ItemText>Last 30 Days</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                     </Select.Item>
-                    <Select.Item value="all" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                    <Select.Item value="all" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                       <Select.ItemText>All records</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                     </Select.Item>
-                    <Select.Item value="custom" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
+                    <Select.Item value="custom" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
                       <Select.ItemText>Choose dates</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
+                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
                     </Select.Item>
                   </Select.Viewport>
                 </Select.Content>
@@ -1426,9 +1426,9 @@ export default function MemberDashboardPage() {
             </Select.Root>
                         </div>
             <div className="flex flex-wrap gap-2">
-              <a href="/statement" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center min-h-11 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]">View full report</a>
-              <button type="button" onClick={() => void refreshDashboard()} className="inline-flex items-center gap-2 min-h-11 rounded-lg border border-[#CAD8CB] bg-white px-4 py-2 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-60" disabled={isFetchingDashboard}><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} /> Update</button>
-              <button type="button" onClick={printFinancialReport} className="inline-flex items-center gap-2 min-h-11 rounded-lg bg-[#123D2A] px-4 py-2 text-sm font-bold text-white hover:bg-[#1F6B43]"><Printer className="size-4" /> Print or save report</button>
+              <a href="/statement" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center min-h-11 rounded-lg border border-coop-border bg-white px-4 py-2 text-sm font-bold text-coop-forest hover:bg-coop-subtle">View full report</a>
+              <button type="button" onClick={() => void refreshDashboard()} className="inline-flex items-center gap-2 min-h-11 rounded-lg border border-coop-border bg-white px-4 py-2 text-sm font-bold text-coop-forest hover:bg-coop-subtle disabled:opacity-60" disabled={isFetchingDashboard}><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} /> Update</button>
+              <button type="button" onClick={printFinancialReport} className="inline-flex items-center gap-2 min-h-11 rounded-lg bg-coop-forest px-4 py-2 text-sm font-bold text-white hover:bg-coop-green"><Printer className="size-4" /> Print or save report</button>
             </div>
                       </div>
                     </div>
@@ -1445,15 +1445,15 @@ export default function MemberDashboardPage() {
 
           {financialPeriod === "custom" ? (
             <div className="grid gap-3 rounded-xl border border-[#DDE8D8] bg-white p-4 sm:grid-cols-2">
-              <label className="text-sm font-bold text-[#294B39]">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
-              <label className="text-sm font-bold text-[#294B39]">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-[#CAD8CB] px-3 font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+              <label className="text-sm font-bold text-coop-body">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-coop-border px-3 font-normal text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
+              <label className="text-sm font-bold text-coop-body">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-coop-border px-3 font-normal text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
               {financialStartDate && financialEndDate && financialStartDate > financialEndDate ? <p className="sm:col-span-2 text-xs font-semibold text-red-700">End date must be on or after the start date.</p> : null}
             </div>
           ) : null}
 
           {financialDefinitionsOpen ? (
-            <div className="rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-xs leading-relaxed text-[#5D6D63]">
-              <p className="font-bold text-[#294B39]">A simple guide</p>
+            <div className="rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-xs leading-relaxed text-coop-muted">
+              <p className="font-bold text-coop-body">A simple guide</p>
               <p className="mt-1">Last updated: {financialGeneratedAt && !Number.isNaN(financialGeneratedAt.getTime()) ? financialGeneratedAt.toLocaleString("en-PH") : "Not available"}</p>
               <ul className="mt-2 space-y-1.5">
                 <li><span className="font-bold text-[#173626]">Money received:</span> income checked and approved by the cooperative. Members’ Share Capital payments are not included.</li>
@@ -1476,15 +1476,15 @@ export default function MemberDashboardPage() {
             <>
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
             {[
-              { label: "Money received", help: "Income recorded by the cooperative.", value: financialIncomeTotal, previous: financialComparison?.incomeTotal, kind: "income" as const, className: "text-[#1F6B43]" },
+              { label: "Money received", help: "Income recorded by the cooperative.", value: financialIncomeTotal, previous: financialComparison?.incomeTotal, kind: "income" as const, className: "text-coop-green" },
               { label: "Money spent", help: "Expenses paid by the cooperative.", value: financialExpenseTotal, previous: financialComparison?.expenseTotal, kind: "expense" as const, className: "text-[#A15C16]" },
-              { label: "Income minus spending", help: "Income less spending. Not a bank balance.", value: financialTransparency?.netTotal, previous: financialComparison?.netTotal, kind: "net" as const, className: "text-[#123D2A]" },
+              { label: "Income minus spending", help: "Income less spending. Not a bank balance.", value: financialTransparency?.netTotal, previous: financialComparison?.netTotal, kind: "net" as const, className: "text-coop-forest" },
             ].map((summary) => (
               <div key={summary.label} className="min-w-0 rounded-xl border border-[#E5E7EB] bg-[#F8FBF8] p-3">
                 <p className="text-sm font-bold text-[#42594B]">{summary.label}</p>
                 <p className={`mt-1 whitespace-nowrap text-xl font-black ${summary.className}`}>{isFetchingDashboard && !dashboardData ? "..." : formatPeso(Number(summary.value || 0))}</p>
-                <p className="mt-1 text-sm leading-relaxed text-[#5D6D63]">{summary.help}</p>
-                <details className="mt-1 text-sm text-[#365F4A]">
+                <p className="mt-1 text-sm leading-relaxed text-coop-muted">{summary.help}</p>
+                <details className="mt-1 text-sm text-coop-secondary">
                   <summary className="cursor-pointer py-1 font-semibold">Compare with earlier dates</summary>
                   <p className={`mt-1 ${financialComparisonMeta(Number(summary.value || 0), Number(summary.previous || 0), summary.kind).className}`}>
                     {financialComparisonMeta(Number(summary.value || 0), Number(summary.previous || 0), summary.kind).label}
@@ -1495,16 +1495,16 @@ export default function MemberDashboardPage() {
           </div>
 
           {!dashboardLoadError && financialIncomeTotal === 0 && financialExpenseTotal === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#CAD8CB] bg-[#FBFCFA] px-5 py-8 text-center">
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-coop-border bg-[#FBFCFA] px-5 py-8 text-center">
               <FileText className="size-8 text-[#7A9A84]" aria-hidden="true" />
-              <p className="mt-3 text-sm font-bold text-[#294B39]">No records for these dates</p>
+              <p className="mt-3 text-sm font-bold text-coop-body">No records for these dates</p>
               <p className="mt-1 max-w-md text-xs leading-relaxed text-[#6C7A70]">Try choosing different dates, or ask the cooperative office about missing records.</p>
             </div>
           ) : null}
 
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
             {[
-              { title: "Where the money came from", kind: "Income" as const, items: financialIncomeItems, total: financialIncomeTotal, empty: "No income recorded for these dates.", color: "bg-[#1F6B43]", amountClass: "text-[#1F6B43]" },
+              { title: "Where the money came from", kind: "Income" as const, items: financialIncomeItems, total: financialIncomeTotal, empty: "No income recorded for these dates.", color: "bg-coop-green", amountClass: "text-coop-green" },
               { title: "What the money was spent on", kind: "Expense" as const, items: financialExpenseItems, total: financialExpenseTotal, empty: "No spending recorded for these dates.", color: "bg-[#A15C16]", amountClass: "text-[#A15C16]" },
             ].map((group) => {
               const visibleItems = group.items.filter((item) => Number(item.amount) > 0);
@@ -1515,7 +1515,7 @@ export default function MemberDashboardPage() {
                     <h4 className="text-sm font-bold text-[#173626]">{group.title}</h4>
                     <span className="text-[11px] font-semibold text-[#6C7A70]">Select an item to learn more</span>
                   </div>
-                  <div className="mt-1 max-h-24 overflow-y-auto divide-y divide-[#EEF2EC]">
+                  <div className="mt-1 max-h-24 overflow-y-auto divide-y divide-coop-subtle">
                     {visibleItems.length ? pagedItems.map((item) => {
                       const percentage = group.total > 0 ? (Number(item.amount) / group.total) * 100 : 0;
                       return (
@@ -1523,7 +1523,7 @@ export default function MemberDashboardPage() {
                           key={item.category}
                           type="button"
                           onClick={() => setSelectedFinancialCategory({ ...item, kind: group.kind, total: group.total })}
-                          className="group w-full py-2 text-left text-sm outline-none transition hover:bg-[#F8FBF8] focus-visible:ring-2 focus-visible:ring-[#1F6B43]"
+                          className="group w-full py-2 text-left text-sm outline-none transition hover:bg-[#F8FBF8] focus-visible:ring-2 focus-visible:ring-coop-green"
                           aria-label={`View details for ${group.kind.toLowerCase()} category ${item.category}`}
                         >
                           <div className="flex items-start justify-between gap-4">
@@ -1533,7 +1533,7 @@ export default function MemberDashboardPage() {
                               <span className="ml-2 text-xs font-bold text-[#6C7A70]">{percentage.toFixed(1)}%</span>
                             </div>
                           </div>
-                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#EEF2EC]" aria-hidden="true"><div className={`h-full rounded-full ${group.color}`} style={{ width: `${Math.min(100, percentage)}%` }} /></div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-coop-subtle" aria-hidden="true"><div className={`h-full rounded-full ${group.color}`} style={{ width: `${Math.min(100, percentage)}%` }} /></div>
                           <span className="sr-only">See details</span>
                         </button>
                       );
@@ -1547,7 +1547,7 @@ export default function MemberDashboardPage() {
             </>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] px-3 py-2 text-xs text-[#5D6D63]">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] px-3 py-2 text-xs text-coop-muted">
             <p>Approved records only. Members’ Share Capital payments are separate from income.</p>
             <button type="button" onClick={() => setFinancialDefinitionsOpen((open) => !open)} aria-expanded={financialDefinitionsOpen} className="inline-flex min-h-7 items-center gap-1 font-semibold text-[#2F7D57] hover:underline"><Info className="size-4" />What do these amounts mean?</button>
           </div>
@@ -1556,8 +1556,8 @@ export default function MemberDashboardPage() {
             <div className="flex items-center justify-between gap-3 border-t border-[#DDE8D8] pt-2">
               <span className="text-xs font-bold text-[#6C7A70]">Page {safeFinancialCategoryPage} of {financialCategoryPageCount}</span>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.max(1, page - 1))} disabled={safeFinancialCategoryPage === 1} className="rounded-lg border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#365F4A] disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.min(financialCategoryPageCount, page + 1))} disabled={safeFinancialCategoryPage === financialCategoryPageCount} className="rounded-lg border border-[#8FB49A] bg-[#F5FAF5] px-3 py-2 text-xs font-bold text-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.max(1, page - 1))} disabled={safeFinancialCategoryPage === 1} className="rounded-lg border border-coop-border px-3 py-2 text-xs font-bold text-coop-secondary disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.min(financialCategoryPageCount, page + 1))} disabled={safeFinancialCategoryPage === financialCategoryPageCount} className="rounded-lg border border-[#8FB49A] bg-[#F5FAF5] px-3 py-2 text-xs font-bold text-coop-green disabled:cursor-not-allowed disabled:opacity-40">Next</button>
               </div>
             </div>
           ) : null}
@@ -1590,7 +1590,7 @@ export default function MemberDashboardPage() {
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
 
               {/* Header Banner */}
-              <section className="mb-10 rounded-3xl bg-[#123D2A] px-8 py-10 text-white shadow-md relative overflow-hidden">
+              <section className="mb-10 rounded-3xl bg-coop-forest px-8 py-10 text-white shadow-md relative overflow-hidden">
                 <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-[#1F6B43]/50 to-transparent"></div>
                 <div className="relative z-10">
                   <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wider backdrop-blur-md mb-4 border border-white/20">
@@ -1614,7 +1614,7 @@ export default function MemberDashboardPage() {
                   ) : announcementLoadError ? (
                     <div role="alert" aria-live="assertive" className="rounded-3xl border border-red-200 bg-red-50 p-12 text-center shadow-sm">
                       <p className="text-sm font-semibold text-red-800">Unable to load announcements.</p>
-                      <button type="button" onClick={fetchAnnouncements} className="mt-3 rounded-lg bg-[#123D2A] px-4 py-2 text-sm font-bold text-white">Retry</button>
+                      <button type="button" onClick={fetchAnnouncements} className="mt-3 rounded-lg bg-coop-forest px-4 py-2 text-sm font-bold text-white">Retry</button>
                     </div>
                   ) : announcements.length === 0 ? (
                     <div className="rounded-3xl border border-[#E5E7EB] bg-white p-12 text-center shadow-sm">
@@ -1634,7 +1634,7 @@ export default function MemberDashboardPage() {
                         >
                           <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
                             {i === 0 && (
-                              <div className="absolute top-4 left-4 z-10 rounded-full bg-[#123D2A] px-3 py-1 text-xs font-bold text-white shadow-md">
+                              <div className="absolute top-4 left-4 z-10 rounded-full bg-coop-forest px-3 py-1 text-xs font-bold text-white shadow-md">
                                 Latest Update
                               </div>
                             )}
@@ -1691,7 +1691,7 @@ export default function MemberDashboardPage() {
                       {announcements.length > 3 && (
                         <button
                           onClick={() => setAllAnnouncementsModalOpen(true)}
-                          className="mt-2 w-full rounded-2xl border border-gray-200 bg-white py-3 text-sm font-bold text-[#123D2A] transition hover:bg-gray-50 hover:shadow-sm"
+                          className="mt-2 w-full rounded-2xl border border-gray-200 bg-white py-3 text-sm font-bold text-coop-forest transition hover:bg-gray-50 hover:shadow-sm"
                         >
                           View All Announcements
                         </button>
@@ -1720,7 +1720,7 @@ export default function MemberDashboardPage() {
                       ) : announcementLoadError ? (
                         <div role="alert" aria-live="assertive" className="py-8 text-center">
                           <p className="text-xs font-medium text-red-700">Unable to load alerts.</p>
-                          <button type="button" onClick={fetchAnnouncements} className="mt-2 text-xs font-bold text-[#1F6B43] underline">Retry</button>
+                          <button type="button" onClick={fetchAnnouncements} className="mt-2 text-xs font-bold text-coop-green underline">Retry</button>
                         </div>
                       ) : announcements.length === 0 ? (
                         <div className="py-8 text-center">
@@ -1846,7 +1846,7 @@ export default function MemberDashboardPage() {
                               setIsCopied(true);
                               setTimeout(() => setIsCopied(false), 2000);
                             }}
-                            className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
+                            className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-coop-forest"
                           >
                             {isCopied ? <CheckCircle2 className="size-5 text-green-400" /> : <Copy className="size-5" />}
                           </button>
@@ -1857,14 +1857,14 @@ export default function MemberDashboardPage() {
                               event.stopPropagation();
                               setReadMoreModalOpen(false);
                             }}
-                            className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-[#123D2A]"
+                            className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/20 text-white backdrop-blur-md transition hover:bg-white hover:text-coop-forest"
                           >
                             <X className="size-5" />
                           </button>
                         </div>
 
                         <div className="flex flex-col">
-                          <div className="relative h-72 sm:h-96 bg-[#123D2A] shrink-0">
+                          <div className="relative h-72 sm:h-96 bg-coop-forest shrink-0">
                             {selectedAnnouncement.featuredImagePath ? (
                               <img
                                 src={resolveUploadUrl(selectedAnnouncement.featuredImagePath)}
@@ -1884,7 +1884,7 @@ export default function MemberDashboardPage() {
                                   {selectedAnnouncement.title}
                                 </h2>
                               )}
-                              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#F2C94C] shrink-0 drop-shadow-md text-right">
+                              <p className="text-xs font-bold uppercase tracking-[0.24em] text-coop-yellow shrink-0 drop-shadow-md text-right">
                                 {new Date(selectedAnnouncement.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
                               </p>
                             </div>
@@ -1892,7 +1892,7 @@ export default function MemberDashboardPage() {
 
                           <div className="flex min-w-0 flex-col overflow-x-hidden p-6 sm:p-8 max-h-[50vh] overflow-y-auto">
                             <div 
-                              className="quill-content min-w-0 max-w-full overflow-x-hidden whitespace-pre-line break-words text-base leading-relaxed text-[#123D2A] [&_*]:max-w-full [&_img]:h-auto [&_img]:object-contain"
+                              className="quill-content min-w-0 max-w-full overflow-x-hidden whitespace-pre-line break-words text-base leading-relaxed text-coop-forest [&_*]:max-w-full [&_img]:h-auto [&_img]:object-contain"
                               dangerouslySetInnerHTML={{ __html: selectedAnnouncement.message }}
                             />
                           </div>
