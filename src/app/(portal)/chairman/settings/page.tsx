@@ -1,5 +1,5 @@
-import { LandingSettingsView } from "@/features/landing-admin/LandingAdminViews";
+import { SystemSettingsClient } from "@/features/system-settings/SystemSettingsClient";
 
-export default function ChairmanSettingsPage() {
-  return <LandingSettingsView />;
+export default function Page() {
+  return <SystemSettingsClient />;
 }
