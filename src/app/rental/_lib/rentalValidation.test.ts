@@ -172,11 +172,11 @@ test("computes an automatic possible rental fee from the date range and requeste
     {
       days: 3,
       originalDailyRate: 300,
-      dailyRate: 240,
-      discountPercent: 20,
-      discountAmount: 60,
+      dailyRate: 285,
+      discountPercent: 5,
+      discountAmount: 15,
       rateLabel: "Member discounted rate",
-      total: 720,
+      total: 855,
       currency: "PHP",
     },
   );

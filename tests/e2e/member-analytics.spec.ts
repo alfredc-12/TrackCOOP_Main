@@ -1,3 +1,6 @@
+import {createFinancialAnalyticsEngine} from "../../server/src/modules/financial-analytics/financial-analytics.engine";
+import {closeAllTime,parseFinancialAnalyticsFilters} from "../../server/src/modules/financial-analytics/financial-analytics.filters";
+import {fixtureSources} from "../../server/src/modules/financial-analytics/financial-analytics.test-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { analyticsFixture, fixtureFilters } from "../../server/src/modules/member-analytics/member-analytics.test-fixture";
 import { createAnalyticsEngine } from "../../server/src/modules/member-analytics/member-analytics.engine";
@@ -132,15 +135,17 @@ test("management drill-down opens the existing directory with analytics context"
   await expect(page.getByRole("button", { name: "Create Manual Member", exact: true })).toBeVisible();
 });
 
-test("financial dashboard retains its existing endpoint and does not use member analytics", async ({ page }) => {
+test("financial analytics uses its own endpoint and does not use member analytics", async ({ page }) => {
   const { requests } = await setup(page);
   let financialRequests = 0;
-  await page.route("**/api/chairman/dashboard?*", route => {
+  await page.route("**/api/chairman/financial-analytics?*", route => {
     financialRequests++;
-    return route.fulfill({ json: envelope({ generatedAt: "2026-11-02T00:00:00Z", filters: {}, metrics: { totalMembers: 0, newMembersThisPeriod: 0, totalMembersGrowth: 0, totalShareCapital: 0, shareCapitalThisPeriod: 0, totalShareCapitalGrowth: 0, pendingApprovals: 0, pendingActionsCount: 0, totalPosSales: 0, totalPosSalesGrowth: 0, totalRentalIncome: 0, totalIncome: 0, totalExpenses: 0, netSurplus: 0, posTransactions: 0 }, memberHealth: { active: 0, needsMonitoring: 0, inactive: 0 }, shareCapitalProgress: { total: 0, thisPeriod: 0, contributingMembers: 0, reachedMinimum: 0, reachedMaximum: 0, belowMinimum: 0, totalMembers: 0 }, demographics: [], revenueTrend: [], membershipTrend: [], incomeSources: [], inventoryAlerts: [], recentTransactions: [], actionItems: [], recentActivity: [], operationsSnapshot: { pos: { totalSales: 0, transactions: 0, productsSold: 0 }, rental: { totalIncome: 0, completed: 0, pending: 0, upcoming: 0 }, inventory: { lowStock: 0, outOfStock: 0, alerts: [] } }, productShopAnalytics: { totalSales: 0, transactions: 0, unitsSold: 0, averageOrderValue: 0, topProducts: [], categorySales: [] }, referralAnalytics: { total: 0, pending: 0, successful: 0, conversionRate: 0, rewardCredits: 0, rewardLabel: "Referral credits", rewardPolicyEnabled: false, rewardPerSuccessfulReferral: 0, topReferrers: [], byBarangay: [] } }) });
+    const now=new Date("2026-11-02T01:00:00Z");const data=fixtureSources();
+    const filters=closeAllTime(parseFinancialAnalyticsFilters(Object.fromEntries(new URL(route.request().url()).searchParams),now),data.firstRecordDate);
+    return route.fulfill({json:envelope(createFinancialAnalyticsEngine(data,filters,now).result)});
   });
   await page.goto("/chairman/financial-dashboard");
-  await expect(page.getByRole("heading", { name: "Financial Dashboard", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Financial analytics", exact: true })).toBeVisible();
   expect(financialRequests).toBeGreaterThan(0); expect(requests.length).toBe(0);
 });
 

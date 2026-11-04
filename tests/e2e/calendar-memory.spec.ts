@@ -106,7 +106,7 @@ test("Reports date filters retain selection and remember the preferred day", asy
   await expect(field.getByRole("button", { name: "29", exact: true, pressed: true })).toBeVisible();
   await field.getByRole("button", { name: "Next month", exact: true }).click();
   await expect(field.getByRole("button", { name: "31", exact: true, pressed: true })).toBeVisible();
-  await page.getByRole("heading", { name: "Financial Summary", exact: true }).click();
+  await trigger.click();
   await expect(trigger).toHaveText("Mar 31, 2024");
   await trigger.click();
   await expect(field.getByRole("button", { name: "31", exact: true, pressed: true })).toBeVisible();

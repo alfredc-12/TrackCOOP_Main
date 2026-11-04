@@ -40,9 +40,10 @@ export function LandingPhotoLightbox({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[9999] bg-black/65 backdrop-blur-xl motion-reduce:backdrop-blur-none" />
+        <Dialog.Overlay onClick={onClose} className="fixed inset-0 z-[9999] bg-black/65 backdrop-blur-xl motion-reduce:backdrop-blur-none" />
         <Dialog.Content
-          className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center p-4 outline-none sm:p-12"
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 outline-none sm:p-12"
+          onPointerDown={event=>{if(event.target===event.currentTarget)onClose();}}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             close.current?.focus();
