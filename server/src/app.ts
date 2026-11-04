@@ -23,6 +23,7 @@ import { createResendWebhookRouter } from "./modules/email/email-webhook";
 import { createPublicReceiptRouter } from "./modules/email/public-receipt.routes";
 import { createExpenseOverviewRouter } from "./modules/expense-overview/expense-overview.routes";
 import { createFinanceRouter } from "./modules/finance/finance.routes";
+import { createBookkeeperDashboardRouter } from "./modules/bookkeeper-dashboard/bookkeeper-dashboard.routes";
 import { createInventoryRouter } from "./modules/inventory/inventory.routes";
 import { createLandingRouter } from "./modules/landing/landing.routes";
 import { createDashboardRouter } from "./modules/dashboard/dashboard.routes";
@@ -174,6 +175,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createPaymongoRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
   app.use("/api", createFinanceMonitoringRouter(options.authService));
+  app.use("/api", createBookkeeperDashboardRouter(options.authService));
   app.use("/api", createPatronageRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
