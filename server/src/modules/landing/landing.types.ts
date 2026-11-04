@@ -1,3 +1,4 @@
+import type { LibraryPhoto } from "../gallery-placement/gallery-placement.types";
 export type LandingCollection =
   | "partners"
   | "gallery";
@@ -29,4 +30,15 @@ export type GallerySlotInput = {
 export type PublicLandingPayload = {
   partners: LandingRow[];
   gallery: LandingRow[];
+  recentPhotos: RecentLandingPhoto[];
+  landingPhotos?: Array<LibraryPhoto & { position: number }>;
+};
+
+export type RecentLandingPhoto = {
+  id: string;
+  source: "gallery" | "announcement";
+  title: string;
+  caption: string;
+  imagePath: string;
+  publishedAt: string;
 };

@@ -1,8 +1,10 @@
+import { createGalleryPlacementRepository } from "../gallery-placement/gallery-placement.repository";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { limitOffsetSql } from "../../db/pagination";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
+import { loadRecentLandingPhotos } from "./landing.recent-photos";
 import type { AuthContext } from "../auth/auth.types";
 import type { GallerySlotInput, LandingCollection, LandingListQuery, LandingListResult, LandingRow, PublicLandingPayload } from "./landing.types";
 
@@ -276,6 +278,7 @@ function sanitizeGalleryGroupInput(input: Record<string, unknown>) {
 
 export interface LandingRepository {
   publicLanding(): Promise<PublicLandingPayload>;
+  getGalleryGroup?(id:string): Promise<LandingRow|null>;
   list(collection: LandingCollection, query: LandingListQuery): Promise<LandingListResult<LandingRow>>;
   create(collection: LandingCollection, input: Record<string, unknown>, auth: AuthContext): Promise<LandingRow>;
   update(collection: LandingCollection, id: string, input: Record<string, unknown>, auth: AuthContext): Promise<LandingRow>;
@@ -506,12 +509,15 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
   }
 
   return {
+    getGalleryGroup: readGalleryGroup,
     async publicLanding() {
-      const [partners, gallery] = await Promise.all([
+      const [partners, gallery, recentPhotos, landingPhotos] = await Promise.all([
         listPublic("partners"),
         listPublic("gallery"),
+        loadRecentLandingPhotos(databasePool()),
+        createGalleryPlacementRepository(databasePool()).publicPhotos(),
       ]);
-      return { partners, gallery };
+      return { partners, gallery, recentPhotos, landingPhotos };
     },
 
     async list(collection, query) {

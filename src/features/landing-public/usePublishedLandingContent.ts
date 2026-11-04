@@ -8,14 +8,27 @@ export type PublishedLandingRow = Record<string, unknown> & {
   id: string;
 };
 
+export type RecentLandingPhoto = {
+  id: string;
+  source: "gallery" | "announcement";
+  title: string;
+  caption: string;
+  imagePath: string;
+  publishedAt: string;
+};
+
 type PublishedLandingPayload = {
+  landingPhotos: import("./LandingPhotoLightbox").LandingPhoto[];
   partners: PublishedLandingRow[];
   gallery: PublishedLandingRow[];
+  recentPhotos: RecentLandingPhoto[];
 };
 
 const emptyPayload: PublishedLandingPayload = {
+  landingPhotos: [],
   partners: [],
   gallery: [],
+  recentPhotos: [],
 };
 
 function asString(value: unknown, fallback = "") {
@@ -32,6 +45,9 @@ function isPdfPath(path: string) {
 
 export function usePublishedLandingContent() {
   const [content, setContent] = useState<PublishedLandingPayload>(emptyPayload);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -46,19 +62,33 @@ export function usePublishedLandingContent() {
           success?: boolean;
           data?: PublishedLandingPayload;
         };
-        if (response.ok && payload.success && payload.data) {
-          setContent(payload.data);
-        }
+        if (!response.ok || !payload.success || !payload.data) throw new Error("Landing content unavailable");
+        if (controller.signal.aborted) return;
+        setContent({ ...payload.data, recentPhotos: payload.data.recentPhotos ?? [], landingPhotos: payload.data.landingPhotos ?? [] });
+        setLoadError(false);
       } catch {
+        if (controller.signal.aborted) return;
         setContent(emptyPayload);
+        setLoadError(true);
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }
 
     void load();
     return () => controller.abort();
-  }, []);
+  }, [retryKey]);
 
-  return content;
+  return {
+    ...content,
+    isLoading,
+    loadError,
+    retry() {
+      setIsLoading(true);
+      setLoadError(false);
+      setRetryKey((key) => key + 1);
+    },
+  };
 }
 
 export function mapPublishedGallery(rows: PublishedLandingRow[], areaClasses: string[]) {

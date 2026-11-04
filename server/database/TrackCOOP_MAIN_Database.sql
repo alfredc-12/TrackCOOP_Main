@@ -48,6 +48,8 @@ DROP TABLE IF EXISTS `user_activation_tokens`;
 
 DROP TABLE IF EXISTS `system_settings`;
 
+DROP TABLE IF EXISTS `gallery_landing_state`;
+
 DROP TABLE IF EXISTS `gallery_landing_slots`;
 
 DROP TABLE IF EXISTS `gallery_images`;
@@ -2021,11 +2023,18 @@ CREATE INDEX `idx_gallery_images_cover` ON `gallery_images` (
 
 CREATE TABLE gallery_landing_slots (
     slot_key VARCHAR(80) PRIMARY KEY,
+    source_type VARCHAR(20) NULL,
     gallery_group_id BIGINT UNSIGNED NULL,
     gallery_image_id BIGINT UNSIGNED NULL,
+    announcement_id BIGINT UNSIGNED NULL,
+    announcement_image_id BIGINT UNSIGNED NULL,
     display_order INT NOT NULL DEFAULT 0,
     updated_by BIGINT UNSIGNED NULL,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_gallery_slots_announcement FOREIGN KEY (announcement_id) REFERENCES announcements(announcement_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_gallery_slots_announcement_image FOREIGN KEY (announcement_image_id) REFERENCES announcement_images(announcement_image_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    INDEX idx_gallery_slots_announcement (announcement_id),
+    INDEX idx_gallery_slots_announcement_image (announcement_image_id),
     CONSTRAINT fk_gallery_landing_slots_group FOREIGN KEY (gallery_group_id) REFERENCES gallery_groups (gallery_group_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_gallery_landing_slots_image FOREIGN KEY (gallery_image_id) REFERENCES gallery_images (gallery_image_id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_gallery_landing_slots_updated_by FOREIGN KEY (updated_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
@@ -2038,6 +2047,18 @@ CREATE INDEX `idx_gallery_landing_slots_group` ON `gallery_landing_slots` (
 CREATE INDEX `idx_gallery_landing_slots_image` ON `gallery_landing_slots` (
     gallery_image_id
 );
+CREATE TABLE gallery_landing_state (
+ state_id TINYINT UNSIGNED PRIMARY KEY,
+ revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ updated_by BIGINT UNSIGNED NULL,
+ updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ CONSTRAINT fk_gallery_landing_state_actor FOREIGN KEY(updated_by) REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO gallery_landing_state(state_id,revision) VALUES(1,0);
+INSERT IGNORE INTO gallery_landing_slots(slot_key,display_order) VALUES
+ ('gallery-feature-1',1),('gallery-feature-2',2),('gallery-feature-3',3),
+ ('gallery-feature-4',4),('gallery-feature-5',5),('gallery-feature-6',6),('gallery-feature-7',7);
+
 -- ============================================================================
 -- 12. CONFIGURATION AND AUDIT
 -- ============================================================================

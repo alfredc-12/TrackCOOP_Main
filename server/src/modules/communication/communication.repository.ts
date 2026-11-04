@@ -524,20 +524,31 @@ async function replaceAnnouncementAudienceTargets(
   }
 }
 
-async function replaceAnnouncementImages(
+export async function replaceAnnouncementImages(
   connection: PoolConnection,
   announcementId: string,
   imagePaths: string[],
   altText?: string | null,
 ) {
-  await connection.execute(`DELETE FROM announcement_images WHERE announcement_id = ?`, [announcementId]);
-
-  for (const [index, imagePath] of imagePaths.entries()) {
-    await connection.execute(
-      `INSERT IGNORE INTO announcement_images
-         (announcement_id, image_path, alt_text, sort_order, is_featured)
-       VALUES (?, ?, ?, ?, ?)`,
-      [announcementId, imagePath, altText ?? null, index, index === 0 ? 1 : 0],
+  // Retain image IDs for unchanged assets: homepage placements reference these rows.
+  const [existing] = await connection.execute<RowDataPacket[]>(
+    "SELECT announcement_image_id AS id,image_path AS path FROM announcement_images WHERE announcement_id=? FOR UPDATE", [announcementId],
+  );
+  const retained = new Set(imagePaths);
+  for (const row of existing) {
+    if (!retained.has(String(row.path))) await connection.execute(
+      "DELETE FROM announcement_images WHERE announcement_id=? AND announcement_image_id=?", [announcementId,row.id],
+    );
+  }
+  for (const [index,imagePath] of imagePaths.entries()) {
+    const row=existing.find(item=>item.path===imagePath);
+    if(row) await connection.execute(
+      "UPDATE announcement_images SET alt_text=?,sort_order=?,is_featured=? WHERE announcement_id=? AND announcement_image_id=?",
+      [altText??null,index,index===0?1:0,announcementId,row.id],
+    );
+    else await connection.execute(
+      "INSERT INTO announcement_images(announcement_id,image_path,alt_text,sort_order,is_featured) VALUES(?,?,?,?,?)",
+      [announcementId,imagePath,altText??null,index,index===0?1:0],
     );
   }
 }

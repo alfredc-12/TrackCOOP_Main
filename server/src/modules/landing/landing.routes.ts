@@ -1,3 +1,8 @@
+import {type GalleryPlacementRepository} from "../gallery-placement/gallery-placement.repository";
+import { sendSuccess } from "../../utils/response";
+import { createGalleryPlacementRouter } from "../gallery-placement/gallery-placement.routes";
+import { asyncHandler } from "../../utils/async-handler";
+import { AppError } from "../../utils/app-error";
 import { createSettingsRouter } from "../system-settings/settings.routes";
 import { createActivityRouter } from "../audit-logs/activity.routes";
 import { Router } from "express";
@@ -38,12 +43,15 @@ const galleryFileUpload = multer({
 export function createLandingRouter(
   authService: AuthService = createAuthService(),
   landingService: LandingService = createLandingService(),
+  galleryRepository?: GalleryPlacementRepository,
 ) {
   const router = Router();
   const controller = createLandingController(landingService);
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
 
   router.get("/public/landing", controller.publicLanding);
+  router.use(createGalleryPlacementRouter(authService,galleryRepository));
+  router.get("/landing/gallery/:id",...chairmanOnly,asyncHandler(async(req,res)=>{ const id=String(req.params.id);if(!/^[1-9]\d{0,19}$/.test(id))throw new AppError("Invalid gallery group",422,"INVALID_GALLERY_GROUP"); const record=await landingService.getGalleryGroup?.(id);if(!record)throw new AppError("Gallery group not found",404,"GALLERY_NOT_FOUND");return sendSuccess(res,record); }));
   router.post("/landing/partners/upload", ...chairmanOnly, partnerFileUpload.single("file"), async (req, res, next) => {
     if (!req.file) {
       res.status(400).json({ success: false, message: "No file provided", errors: [] });
@@ -109,7 +117,7 @@ export function createLandingRouter(
       next(error);
     }
   });
-  router.put("/landing/gallery-slots/:slotKey", ...chairmanOnly, controller.updateGallerySlot);
+  router.put("/landing/gallery-slots/:slotKey", ...chairmanOnly, asyncHandler(async () => { throw new AppError("Reload Gallery and use Save & Publish to update the complete arrangement.",409,"GALLERY_PLACEMENT_RELOAD_REQUIRED"); }));
   router.get("/landing/:collection", ...chairmanOnly, controller.list);
   router.post("/landing/:collection", ...chairmanOnly, controller.create);
   router.patch("/landing/:collection/:id", ...chairmanOnly, controller.update);

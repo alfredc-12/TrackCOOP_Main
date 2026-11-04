@@ -7,6 +7,7 @@ import type { GallerySlotInput, LandingCollection, LandingListQuery } from "./la
 
 export interface LandingService {
   publicLanding(): ReturnType<LandingRepository["publicLanding"]>;
+  getGalleryGroup?(id:string):Promise<import("./landing.types").LandingRow|null>;
   list(collection: LandingCollection, query: LandingListQuery): ReturnType<LandingRepository["list"]>;
   create(collection: LandingCollection, input: Record<string, unknown>, auth: AuthContext): ReturnType<LandingRepository["create"]>;
   update(collection: LandingCollection, id: string, input: Record<string, unknown>, auth: AuthContext): ReturnType<LandingRepository["update"]>;
@@ -20,6 +21,7 @@ export function createLandingService(
   repository: LandingRepository = createLandingRepository(),
 ): LandingService {
   return {
+    getGalleryGroup(id) { return repository.getGalleryGroup?.(id)??Promise.resolve(null); },
     publicLanding() {
       return repository.publicLanding();
     },

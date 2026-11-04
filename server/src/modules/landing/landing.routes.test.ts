@@ -49,6 +49,11 @@ function createLandingService() {
       return {
         partners: [],
         gallery: [{ id: "gallery-1", title: "Harvest Day" }],
+        recentPhotos: [{
+          id: "announcement:1", source: "announcement", title: "Recent training",
+          caption: "Training in the field", imagePath: "/uploads/announcements/training.jpg",
+          publishedAt: "2026-11-01T00:00:00.000Z",
+        }],
       };
     },
     async list(_collection, query) {
@@ -107,6 +112,7 @@ test("GET /api/public/landing is available without a session", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.data.gallery[0].title, "Harvest Day");
+  assert.equal(response.body.data.recentPhotos[0].id, "announcement:1");
   assert.equal(calls[0].method, "publicLanding");
 });
 
