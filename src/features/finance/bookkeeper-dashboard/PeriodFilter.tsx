@@ -88,7 +88,7 @@ export function PeriodFilter({
   const selectedLabel = LABEL_BY_KEY.get(query.period) ?? "This Month";
 
   return (
-    <section aria-label="Dashboard header and reporting filters" className="grid gap-4">
+    <section aria-label="Dashboard header and reporting filters" className="grid min-w-0 gap-4">
       <PageHeader
         eyebrow="Bookkeeper · Finance"
         title="Financial Dashboard"

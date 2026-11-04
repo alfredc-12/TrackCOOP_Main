@@ -122,7 +122,7 @@ export function TrendChart({ trend, error, onRetry }: TrendChartProps) {
   return (
     <section
       aria-labelledby="trend-heading"
-      className="rounded-xl border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.05)]"
+      className="min-w-0 rounded-xl border border-[#CAD8CB] bg-white p-5 shadow-[0_10px_24px_rgba(18,61,42,0.05)]"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -201,7 +201,7 @@ export function TrendChart({ trend, error, onRetry }: TrendChartProps) {
           >
             <svg
               viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-              className="block h-auto min-w-[560px] w-full"
+              className="block h-auto w-full"
               aria-hidden="true"
               onMouseLeave={() => setActiveIndex(null)}
             >

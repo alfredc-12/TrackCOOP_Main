@@ -103,7 +103,7 @@ export function MemberCapitalBand({
   return (
     <section
       aria-labelledby="member-capital-heading"
-      className="rounded-xl border border-[#CAD8CB] bg-[#F7F8F3] p-5 shadow-[0_10px_24px_rgba(18,61,42,0.04)]"
+      className="min-w-0 rounded-xl border border-[#CAD8CB] bg-[#F7F8F3] p-5 shadow-[0_10px_24px_rgba(18,61,42,0.04)]"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>

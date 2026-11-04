@@ -59,7 +59,7 @@ export function OverviewCards({ overview, scope, error, onRetry }: OverviewCards
   const periodRangeText = formatManilaDateRange(scope.start, scope.end);
 
   return (
-    <section aria-labelledby="overview-heading" className="grid gap-4">
+    <section aria-labelledby="overview-heading" className="grid min-w-0 gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 id="overview-heading" className="text-base font-black text-[#123D2A]">

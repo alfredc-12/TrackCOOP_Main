@@ -114,7 +114,7 @@ export function AttentionCards({ attention, error, onRetry }: AttentionCardsProp
   ] as const;
 
   return (
-    <section aria-labelledby="attention-heading" className="grid gap-4">
+    <section aria-labelledby="attention-heading" className="grid min-w-0 gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 id="attention-heading" className="text-base font-black text-[#123D2A]">

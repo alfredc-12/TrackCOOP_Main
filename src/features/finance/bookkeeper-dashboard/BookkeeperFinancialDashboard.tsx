@@ -61,7 +61,7 @@ export function BookkeeperFinancialDashboard() {
   const errors = data?.errors ?? {};
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-6">
       <PeriodFilter
         query={query}
         scope={scope}
