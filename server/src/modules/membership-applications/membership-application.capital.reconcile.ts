@@ -1,12 +1,20 @@
-import type { PoolConnection, ResultSetHeader } from "mysql2/promise";
+import type {
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
+import { postShareCapitalPaymentToLedger } from "../share-capital/share-capital-ledger.repository";
 import {
   assertNoMemberLinkConflicts,
   existingCapitalPaymentReferenceIds,
   loadApplicationCapitalReferencesForUpdate,
   otherValidatedMemberCapital,
 } from "./membership-application.capital.queries";
-import { buildCapitalConversionPlan, capitalMoney } from "./membership-application.capital.rules";
+import {
+  buildCapitalConversionPlan,
+  capitalMoney,
+} from "./membership-application.capital.rules";
 import type {
   ApplicationCapitalReference,
   CapitalReconciliationResult,
@@ -27,11 +35,26 @@ export async function reconcileApplicationCapital(input: {
   maximumShareCapital: number;
   references?: ApplicationCapitalReference[];
 }): Promise<CapitalReconciliationResult> {
-  const references = input.references
-    ?? await loadApplicationCapitalReferencesForUpdate(
+  // Match the member-first lock used by the shared ledger/capacity workflow.
+  // The caller owns this transaction; retries and posting failures roll back together.
+  const [members] = await input.connection.execute<
+    (RowDataPacket & { id: string })[]
+  >(
+    "SELECT CAST(member_id AS CHAR) AS id FROM member_profiles WHERE member_id = ? FOR UPDATE",
+    [input.memberId],
+  );
+  if (!members[0])
+    throw new AppError(
+      "Member profile was not found",
+      404,
+      "MEMBER_PROFILE_NOT_FOUND",
+    );
+  const references =
+    input.references ??
+    (await loadApplicationCapitalReferencesForUpdate(
       input.connection,
       input.applicationId,
-    );
+    ));
   const existingIds = await existingCapitalPaymentReferenceIds(
     input.connection,
     input.applicationId,
@@ -42,14 +65,16 @@ export async function reconcileApplicationCapital(input: {
     maximumShareCapital: input.maximumShareCapital,
   });
 
-  const otherCapital = capitalMoney(await otherValidatedMemberCapital(
-    input.connection,
-    input.memberId,
-    input.applicationId,
-  ));
+  const otherCapital = capitalMoney(
+    await otherValidatedMemberCapital(
+      input.connection,
+      input.memberId,
+      input.applicationId,
+    ),
+  );
   if (
-    capitalMoney(otherCapital + plan.validatedTotal)
-    > capitalMoney(input.maximumShareCapital)
+    capitalMoney(otherCapital + plan.validatedTotal) >
+    capitalMoney(input.maximumShareCapital)
   ) {
     throw new AppError(
       "Validated share capital cannot exceed PHP 15,000",
@@ -86,6 +111,47 @@ export async function reconcileApplicationCapital(input: {
       ],
     );
     insertedCapitalRows += result.affectedRows;
+  }
+
+  // Visit all validated references, not only newly inserted rows: an earlier
+  // reconciliation may have created its payment row without posting a ledger credit.
+  for (const reference of plan.validatedReferences) {
+    const [payments] = await input.connection.execute<
+      (RowDataPacket & {
+        id: string;
+        memberId: string;
+        amount: string | number;
+        paymentStatus: string;
+      })[]
+    >(
+      `SELECT CAST(share_payment_id AS CHAR) AS id, CAST(member_id AS CHAR) AS memberId,
+              amount, payment_status AS paymentStatus
+         FROM share_capital_payments WHERE payment_reference_id = ? LIMIT 1 FOR UPDATE`,
+      [reference.paymentReferenceId],
+    );
+    const payment = payments[0];
+    if (
+      !payment ||
+      String(payment.memberId) !== input.memberId ||
+      payment.paymentStatus !== "Validated" ||
+      capitalMoney(Number(payment.amount)) !== capitalMoney(reference.amount)
+    ) {
+      throw new AppError(
+        "Reconciled Share Capital does not match the validated application payment; review the existing record",
+        409,
+        "MEMBERSHIP_CAPITAL_POSTING_CONFLICT",
+      );
+    }
+    await postShareCapitalPaymentToLedger({
+      connection: input.connection,
+      memberId: input.memberId,
+      sharePaymentId: String(payment.id),
+      amount: reference.amount,
+      transactionDate: paymentDate(reference),
+      referenceNumber: reference.referenceNumber,
+      createdBy: input.actorUserId,
+      remarks: `Pre-approval Share Capital from ${input.applicationCode} (${reference.referenceNumber}).`,
+    });
   }
 
   const [paymentLink] = await input.connection.execute<ResultSetHeader>(

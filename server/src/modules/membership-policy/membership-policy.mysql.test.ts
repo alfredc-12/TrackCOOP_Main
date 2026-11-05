@@ -193,6 +193,9 @@ test(
         [approval.memberId],
       );
       assert.equal(memberRows.length, 2);
+      const [ledger] = await pool.execute<RowDataPacket[]>("SELECT current_balance FROM share_capital_accounts WHERE member_id=?",[approval.memberId]);
+      assert.equal(Number(ledger[0].current_balance),1500,"approval reconciliation must post initial capital to the member ledger");
+
       const [converted] = await capitalCases(
         pool,
         "c.membership_application_id=?",

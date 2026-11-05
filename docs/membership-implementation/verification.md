@@ -43,3 +43,7 @@ No merge, direct main push, production migration, credential change or deploymen
 The final endpoint validation review also verifies malformed sector payloads return 400 before any write. New self-service sector changes lock the member row before replacing sector relationships. Future reporting dates are rejected rather than projecting capital status.
 
 The latest main commit `ab3b2f4` (another agent’s annual-interest task) was inspected after the feature integration. A read-only three-way merge simulation reported no conflicts. Its annual-interest files are outside this PR’s diff; GitHub’s PR Quality Gate will validate the current merge combination.
+
+## Reconciliation ledger correction
+
+The follow-up Section 1 ledger posting correction and combined PR #6 integration results are recorded in [Reconciliation ledger verification](reconciliation-ledger.md). This correction supersedes the earlier incomplete initial-ledger coverage; production data was not repaired.
