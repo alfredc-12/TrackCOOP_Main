@@ -1,5 +1,6 @@
 "use client";
 
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { getPatronageCapitalOverview, requestPatronageCapital, type PatronageCapitalOverview } from "./patronage-api";
@@ -59,7 +60,7 @@ export function PatronageCapitalMemberPanel() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-6 text-[#5D6D63]">Use an unpaid patronage refund instead of receiving it as cash. The Bookkeeper will check your request before adding it to your Share Capital.</p>
+      <p className="text-sm leading-6 text-[#5D6D63]">True Members can add an approved annual rental patronage refund to Share Capital instead of receiving it as cash. Legacy refunds need cooperative review first. The Bookkeeper will check your request before adding it to your Share Capital.</p>
       {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}<Button className="mt-2" variant="secondary" disabled={busy} onClick={() => void load()}>Try again</Button></div> : null}
       {success ? <p role="status" className="rounded-xl border border-[#BFD9C5] bg-[#EAF3E8] p-4 text-sm text-[#1F6B43]">{success}</p> : null}
       {!data && !error ? <p role="status">Loading your patronage refund…</p> : null}
@@ -70,9 +71,7 @@ export function PatronageCapitalMemberPanel() {
         </div>
         {!data.refunds.length ? <p className="rounded-xl border border-dashed border-[#CAD8CB] p-4 text-sm text-[#5D6D63]">You have no patronage refund available yet. Refunds awaiting review are shown below.</p> : data.availableCapacity <= 0 ? <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Your Share Capital limit is already reached or reserved by pending payments.</p> : <>
           <label className="block text-sm font-bold text-[#173626]" htmlFor="patronage-refund-period">Choose a refund</label>
-          <select id="patronage-refund-period" value={allocationId} disabled={busy} onChange={(event) => { setAllocationId(event.target.value); setAmount(""); setConfirming(false); setRequestKey(crypto.randomUUID()); }} className="h-11 w-full rounded-xl border border-[#CAD8CB] bg-white px-3 text-sm text-[#173626]">
-            {data.refunds.map((item) => <option key={item.allocationId} value={item.allocationId}>{item.periodName} — {money(item.availableAmount)} available</option>)}
-          </select>
+          <StyledSelect id="patronage-refund-period" aria-label="Choose a refund" value={refund ? `${refund.periodName} — ${money(refund.availableAmount)} available` : ""} disabled={busy} options={data.refunds.map((item) => `${item.periodName} — ${money(item.availableAmount)} available`)} onChange={(value) => { setAllocationId(data.refunds.find((item) => `${item.periodName} — ${money(item.availableAmount)} available` === value)?.allocationId ?? ""); setAmount(""); setConfirming(false); setRequestKey(crypto.randomUUID()); }} />
           <div className="rounded-xl border border-[#CAD8CB] p-4">
             <p className="mb-3 text-sm text-[#5D6D63]">Available refund: <strong className="text-[#1F6B43]">{money(refund?.availableAmount ?? 0)}</strong></p>
             <label htmlFor="patronage-capital-amount" className="text-sm font-bold text-[#173626]">Amount to add (₱)</label>

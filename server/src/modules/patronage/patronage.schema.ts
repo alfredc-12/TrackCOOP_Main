@@ -4,7 +4,7 @@ export const createPatronagePeriodSchema = z.object({
   name: z.string().trim().min(3).max(120),
   startDate: z.iso.date(),
   endDate: z.iso.date(),
-  refundPool: z.coerce.number().positive().max(999_999_999_999.99),
+  refundPool: z.coerce.number().nonnegative().max(999_999_999_999.99).optional(),
   notes: z.string().trim().max(4000).nullable().optional(),
 }).refine((value) => value.endDate >= value.startDate, {
   message: "End date must be on or after the start date",

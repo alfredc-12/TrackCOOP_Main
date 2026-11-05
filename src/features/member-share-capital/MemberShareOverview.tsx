@@ -91,6 +91,7 @@ export function MemberShareOverview(props: Props) {
 
       <article aria-label="Patronage Refund" className="flex flex-col rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm">
         <h3 className="flex items-center gap-2 font-bold text-[#173626]"><Award className="size-4 text-[#2F7D57]" />Patronage Refund</h3>
+        <p className="mt-1 text-xs text-[#5D6D63]">True Members · 3% yearly equipment rentals · POS excluded</p>
         <p className="mt-2 text-sm text-[#5D6D63]">Available to use</p><p className="mt-1 text-2xl font-black text-[#1F6B43]">{display(refund.available, props.loading.patronage, unavailable.patronage)}</p>
         <MoneyRows summary={refund} unavailable={unavailable.patronage || props.loading.patronage} waitingLabel="Waiting for approval" />
         <div className="mt-auto flex gap-2 pt-2"><button type="button" onClick={() => setPatronageOpen(true)} className={`${actionClass} flex-1`}>View refund details</button><button type="button" disabled={unavailable.patronage || props.loading.patronage || refund.available <= 0} onClick={() => openMemberCapital("refund")} className={`${actionClass} flex-1`}>Add to capital</button></div>
@@ -124,7 +125,7 @@ export function MemberShareOverview(props: Props) {
         {item.status === "Available" ? <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={props.dividendBusy} className={actionClass} onClick={() => { setInterestOpen(false); props.onDividendAction(item, "withdraw"); }}>Request withdrawal</button><button type="button" disabled={props.dividendBusy} className={actionClass} onClick={() => { setInterestOpen(false); props.onDividendAction(item, "capital"); }}>Add to capital</button></div> : null}
       </article>)}</div> : <p className="text-sm text-[#6C7A70]">No published interest yet. This does not mean your capital is missing; interest appears after the cooperative publishes it.</p>}
     </Modal>
-    <Modal title="Your patronage refund" description="Refunds based on your eligible cooperative purchases and rentals." open={patronageOpen} onOpenChange={setPatronageOpen} maxWidth="max-w-4xl" trigger={<span className="hidden" />}>
+    <Modal title="Your patronage refund" description="Yearly 3% refund on eligible equipment rentals for True Members only. POS purchases are excluded." open={patronageOpen} onOpenChange={setPatronageOpen} maxWidth="max-w-4xl" trigger={<span className="hidden" />}>
       {patronageOpen ? <MemberPatronageClient /> : null}
     </Modal>
   </section>;

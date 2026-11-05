@@ -6,6 +6,8 @@ export type PatronagePeriodStatus = "Draft" | "Finalized" | "Paid";
 export type PatronagePaymentStatus = "Pending" | "Paid";
 
 export type PatronagePeriod = {
+  policyVersion?: string;
+  refundRate?: number;
   id: string;
   name: string;
   startDate: string;
@@ -64,15 +66,18 @@ export type PatronageFinancialBasis = {
   netOperatingSurplus: number;
   eligibleMemberPatronage: number;
   eligibleMemberCount: number;
+  estimatedRefund?: number;
+  refundRate?: number;
   postedRecordCount: number;
   unpostedRecordCount: number;
 };
 
 export type MemberPatronageSummary = {
-  member: { code: string; name: string; membershipType: "Associate" | "True Member" };
-  currentYear: { startDate: string; endDate: string; purchasePatronage: number; rentalPatronage: number; totalPatronage: number };
+  member: { code: string; name: string; membershipType: "Associate" | "True Member"; eligible?: boolean; trueMemberSince?: string | null; eligibilityMessage?: string };
+  currentYear: { startDate: string; endDate: string; purchasePatronage: number; rentalPatronage: number; totalPatronage: number; estimatedRefund?: number; refundRate?: number };
   refunds: { allocatedTotal: number; paidTotal: number; pendingTotal: number; capitalizedTotal?: number; pendingCapitalTotal?: number };
   history: Array<{
+    policyVersion?: string;
     periodId: string;
     periodName: string;
     startDate: string;
@@ -97,7 +102,7 @@ export function getPatronageFinancialBasis(startDate: string, endDate: string) {
   return apiRequest<PatronageFinancialBasis>(`/api/patronage/financial-basis?${query}`);
 }
 
-export function createPatronagePeriod(input: { name: string; startDate: string; endDate: string; refundPool: number; notes?: string | null }) {
+export function createPatronagePeriod(input: { name: string; startDate: string; endDate: string; refundPool?: number; notes?: string | null }) {
   return apiRequest<PatronagePeriod>("/api/patronage/periods", { method: "POST", body: JSON.stringify(input) });
 }
 

@@ -1,3 +1,5 @@
+import { loadPatronageSources as loadSources, assertRefundSourcesUnchanged } from "./patronage-sources";
+import { PATRONAGE_POLICY, PATRONAGE_RATE, assertAnnualPatronage, assertCurrentPatronagePolicy, patronageToday } from "./patronage-policy";
 import { patronageCapitalColumns, patronageCapitalTotals } from "./patronage-capital.repository";
 import { availablePatronageRefund, moneyCents } from "./patronage-capital.rules";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
@@ -12,7 +14,6 @@ import type {
   PatronageMemberSummary,
   PatronageFinancialBasis,
   PatronagePeriod,
-  PatronageSourceAmount,
 } from "./patronage.types";
 
 type PeriodRow = RowDataPacket & {
@@ -34,14 +35,6 @@ type PeriodRow = RowDataPacket & {
   paidCount: string | number;
 };
 
-type SourceRow = RowDataPacket & {
-  memberId: string;
-  memberCode: string;
-  memberName: string;
-  membershipType: "Associate" | "True Member";
-  purchasePatronage: string | number | null;
-  rentalPatronage: string | number | null;
-};
 
 type AllocationRow = RowDataPacket & {
   id: string;
@@ -83,6 +76,8 @@ type FinancialBasisRow = RowDataPacket & {
 function mapPeriod(row: PeriodRow): PatronagePeriod {
   return {
     ...row,
+    policyVersion: row.policyVersion as string ?? "Legacy",
+    refundRate: Number(row.refundRate ?? 0),
     refundPool: Number(row.refundPool),
     totalPatronage: Number(row.totalPatronage ?? 0),
     purchasePatronage: Number(row.purchasePatronage ?? 0),
@@ -103,7 +98,7 @@ function mapAllocation(row: AllocationRow): PatronageAllocation {
     refundAmount: Number(row.refundAmount),
     capitalizedAmount: Number(row.capitalizedAmount ?? 0),
     pendingCapitalAmount: Number(row.pendingCapitalAmount ?? 0),
-    availableRefund: availablePatronageRefund({ ...row, capitalizedAmount: row.capitalizedAmount ?? 0, pendingCapitalAmount: row.pendingCapitalAmount ?? 0 }),
+    availableRefund: row.policyVersion === PATRONAGE_POLICY && row.membershipType === "True Member" ? availablePatronageRefund({ ...row, capitalizedAmount: row.capitalizedAmount ?? 0, pendingCapitalAmount: row.pendingCapitalAmount ?? 0 }) : 0,
   };
 }
 
@@ -112,6 +107,7 @@ const periodSelect = `SELECT CAST(p.patronage_period_id AS CHAR) AS id,
        DATE_FORMAT(p.period_start, '%Y-%m-%d') AS startDate,
        DATE_FORMAT(p.period_end, '%Y-%m-%d') AS endDate,
        p.refund_pool AS refundPool,
+       p.calculation_policy AS policyVersion, p.refund_rate AS refundRate,
        p.period_status AS status,
        p.notes,
        p.finalized_at AS finalizedAt,
@@ -134,56 +130,6 @@ async function loadPeriod(connection: Pick<PoolConnection, "execute">, periodId:
   return rows[0] ? mapPeriod(rows[0]) : null;
 }
 
-async function loadSources(
-  connection: Pick<PoolConnection, "execute">,
-  startDate: string,
-  endDate: string,
-  memberId?: string,
-): Promise<PatronageSourceAmount[]> {
-  const memberFilter = memberId ? " AND m.member_id = ?" : "";
-  const params: Array<string> = [startDate, endDate, startDate, endDate];
-  if (memberId) params.push(memberId);
-  const [rows] = await connection.execute<SourceRow[]>(
-    `SELECT CAST(m.member_id AS CHAR) AS memberId,
-            m.member_code AS memberCode,
-            m.full_name AS memberName,
-            m.membership_type AS membershipType,
-            COALESCE(pos.purchasePatronage, 0) AS purchasePatronage,
-            COALESCE(rental.rentalPatronage, 0) AS rentalPatronage
-       FROM member_profiles m
-       LEFT JOIN (
-         SELECT member_id, SUM(total_amount) AS purchasePatronage
-           FROM pos_sales
-          WHERE member_id IS NOT NULL
-            AND payment_status = 'Paid'
-            AND sale_status IN ('Paid', 'Completed')
-            AND sale_date >= ?
-            AND sale_date < DATE_ADD(?, INTERVAL 1 DAY)
-          GROUP BY member_id
-       ) pos ON pos.member_id = m.member_id
-       LEFT JOIN (
-         SELECT member_id, SUM(total_amount) AS rentalPatronage
-           FROM rental_bookings
-          WHERE member_id IS NOT NULL
-            AND booking_status = 'Completed'
-            AND payment_status = 'Paid'
-            AND COALESCE(completed_at, end_datetime, created_at) >= ?
-            AND COALESCE(completed_at, end_datetime, created_at) < DATE_ADD(?, INTERVAL 1 DAY)
-          GROUP BY member_id
-       ) rental ON rental.member_id = m.member_id
-      WHERE m.approval_status = 'Approved'
-        AND m.official_member_status = 'Active'
-        AND m.membership_type IN ('Associate', 'True Member')${memberFilter}
-      ORDER BY m.full_name ASC`,
-    params,
-  );
-
-  return rows.map((row) => ({
-    ...row,
-    purchasePatronage: Number(row.purchasePatronage ?? 0),
-    rentalPatronage: Number(row.rentalPatronage ?? 0),
-  }));
-}
 
 export interface PatronageRepository {
   financialBasis(startDate: string, endDate: string): Promise<PatronageFinancialBasis>;
@@ -213,8 +159,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
               a.refund_amount AS refundAmount,
               a.payment_status AS paymentStatus,
               a.paid_at AS paidAt,
-              a.payment_notes AS paymentNotes, ${patronageCapitalColumns}
+              a.payment_notes AS paymentNotes, p.calculation_policy AS policyVersion, ${patronageCapitalColumns}
          FROM patronage_allocations a
+         JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
          JOIN member_profiles m ON m.member_id = a.member_id
         WHERE a.patronage_period_id = ?
         ORDER BY a.patronage_allocation_id DESC`,
@@ -225,6 +172,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
   return {
     async financialBasis(startDate, endDate) {
+      assertAnnualPatronage(startDate, endDate);
       const eligibleSources = await loadSources(databasePool(), startDate, endDate);
       const eligibleMemberPatronage = eligibleSources.reduce(
         (sum, item) => sum + item.purchasePatronage + item.rentalPatronage,
@@ -266,6 +214,8 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         adjustments,
         netOperatingSurplus: totalOperatingIncome - totalOperatingExpenses + adjustments,
         eligibleMemberPatronage,
+        estimatedRefund: calculatePatronageAllocations(eligibleSources).reduce((sum, item) => sum + moneyCents(item.refundAmount), 0) / 100,
+        refundRate: PATRONAGE_RATE,
         eligibleMemberCount: eligibleSources.filter((item) => item.purchasePatronage + item.rentalPatronage > 0).length,
         postedRecordCount: Number(row?.postedRecordCount ?? 0),
         unpostedRecordCount: Number(row?.unpostedRecordCount ?? 0),
@@ -286,7 +236,8 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
     },
 
     async createPeriod(input, auth) {
-      return withTransaction(async (connection) => {
+      assertAnnualPatronage(input.startDate, input.endDate);
+      try { return await withTransaction(async (connection) => {
         const [duplicateNames] = await connection.execute<RowDataPacket[]>(
           `SELECT patronage_period_id FROM patronage_periods
             WHERE LOWER(TRIM(period_name)) = LOWER(TRIM(?)) LIMIT 1`,
@@ -294,7 +245,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         );
         if (duplicateNames.length) {
           throw new AppError(
-            "A patronage period with this name already exists. Use a different period name.",
+            "A patronage period with this name already exists. Review the existing year; refunds cannot be duplicated.",
             409,
             "PATRONAGE_PERIOD_NAME_DUPLICATE",
             [{ code: "PATRONAGE_PERIOD_NAME_DUPLICATE", field: "name", message: "This period name is already used." }],
@@ -307,24 +258,23 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
           [input.endDate, input.startDate],
         );
         if (overlaps.length) {
-          throw new AppError("This date range overlaps an existing patronage period.", 409, "PATRONAGE_PERIOD_OVERLAP");
+          throw new AppError("This calendar year overlaps an existing patronage period. Reconcile any legacy allocations before creating another refund.", 409, "PATRONAGE_PERIOD_OVERLAP");
         }
 
         const calculated = calculatePatronageAllocations(
           await loadSources(connection, input.startDate, input.endDate),
-          input.refundPool,
         );
         if (calculated.length === 0) {
           throw new AppError(
-            "No eligible member purchases or completed paid rentals were found for this period.",
+            "No completed, fully paid equipment rentals after True Member eligibility were found for this calendar year.",
             409,
             "PATRONAGE_NO_ELIGIBLE_MEMBER_USAGE",
           );
         }
-        const totalEligiblePatronage = calculated.reduce((sum, item) => sum + item.totalPatronage, 0);
-        if (input.refundPool > totalEligiblePatronage) {
+        const computedRefund = calculated.reduce((sum, item) => sum + moneyCents(item.refundAmount), 0) / 100;
+        if (input.refundPool !== undefined && moneyCents(input.refundPool) !== moneyCents(computedRefund)) {
           throw new AppError(
-            "The refund pool cannot be greater than the members' paid purchases and rentals for this period.",
+            "The refund total is fixed at 3% of each eligible True Member’s paid equipment rentals. It cannot be entered manually.",
             409,
             "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
           );
@@ -332,9 +282,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO patronage_periods
-             (period_name, period_start, period_end, refund_pool, notes, created_by)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [input.name, input.startDate, input.endDate, input.refundPool, input.notes ?? null, auth.user.id],
+             (period_name, period_start, period_end, refund_pool, notes, created_by, calculation_policy, refund_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [input.name, input.startDate, input.endDate, computedRefund, input.notes ?? null, auth.user.id, PATRONAGE_POLICY, PATRONAGE_RATE],
         );
         const periodId = String(result.insertId);
         await connection.execute(
@@ -345,36 +295,34 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         const period = await loadPeriod(connection, periodId);
         if (!period) throw new AppError("Patronage period was not found.", 404, "PATRONAGE_PERIOD_NOT_FOUND");
         return period;
-      }, databasePool());
+      }, databasePool()); } catch (error) {
+        if (error && typeof error === "object" && "code" in error && error.code === "ER_DUP_ENTRY") throw new AppError("A refund period already exists for this year or name.", 409, "PATRONAGE_PERIOD_DUPLICATE");
+        throw error;
+      }
     },
 
     async recalculate(periodId, auth) {
       return withTransaction(async (connection) => {
+        await connection.execute("SELECT patronage_period_id FROM patronage_periods WHERE patronage_period_id = ? FOR UPDATE", [periodId]);
         const period = await loadPeriod(connection, periodId);
         if (!period) throw new AppError("Patronage period was not found.", 404, "PATRONAGE_PERIOD_NOT_FOUND");
         if (period.status !== "Draft") {
           throw new AppError("Only draft patronage periods can be recalculated.", 409, "PATRONAGE_PERIOD_LOCKED");
         }
 
-        const calculated = calculatePatronageAllocations(
-          await loadSources(connection, period.startDate, period.endDate),
-          period.refundPool,
-        );
+        assertAnnualPatronage(period.startDate, period.endDate);
+        const [used] = await connection.execute<RowDataPacket[]>(`SELECT a.patronage_allocation_id FROM patronage_allocations a WHERE a.patronage_period_id = ? AND (a.payment_status = 'Paid' OR EXISTS (SELECT 1 FROM patronage_capital_transfers t WHERE t.patronage_allocation_id = a.patronage_allocation_id)) LIMIT 1`, [periodId]);
+        if (used.length) throw new AppError("This period contains payments or transfer history and needs manual review.", 409, "PATRONAGE_HISTORY_LOCKED");
+        const calculated = calculatePatronageAllocations(await loadSources(connection, period.startDate, period.endDate));
         if (calculated.length === 0) {
           throw new AppError(
-            "No eligible member purchases or completed paid rentals were found for this period.",
+            "No completed, fully paid equipment rentals after True Member eligibility were found for this calendar year.",
             409,
             "PATRONAGE_NO_ELIGIBLE_MEMBER_USAGE",
           );
         }
-        const totalEligiblePatronage = calculated.reduce((sum, item) => sum + item.totalPatronage, 0);
-        if (period.refundPool > totalEligiblePatronage) {
-          throw new AppError(
-            "The refund pool cannot be greater than the members' paid purchases and rentals for this period.",
-            409,
-            "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
-          );
-        }
+        const computedRefund = calculated.reduce((sum, item) => sum + moneyCents(item.refundAmount), 0) / 100;
+        await connection.execute(`UPDATE patronage_periods SET refund_pool = ?, calculation_policy = ?, refund_rate = ? WHERE patronage_period_id = ?`, [computedRefund, PATRONAGE_POLICY, PATRONAGE_RATE, periodId]);
         await connection.execute("DELETE FROM patronage_allocations WHERE patronage_period_id = ?", [periodId]);
         for (const item of calculated) {
           await connection.execute(
@@ -398,6 +346,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
     async finalize(periodId, auth) {
       return withTransaction(async (connection) => {
+        await connection.execute("SELECT patronage_period_id FROM patronage_periods WHERE patronage_period_id = ? FOR UPDATE", [periodId]);
         const period = await loadPeriod(connection, periodId);
         if (!period) throw new AppError("Patronage period was not found.", 404, "PATRONAGE_PERIOD_NOT_FOUND");
         if (period.status !== "Draft") {
@@ -405,6 +354,13 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         }
         if (period.memberCount === 0 || period.totalPatronage <= 0) {
           throw new AppError("Calculate at least one eligible member allocation before finalizing.", 409, "PATRONAGE_ALLOCATIONS_REQUIRED");
+        }
+        assertAnnualPatronage(period.startDate, period.endDate, true);
+        assertCurrentPatronagePolicy(period.policyVersion);
+        const current = calculatePatronageAllocations(await loadSources(connection, period.startDate, period.endDate));
+        const [saved] = await connection.execute<AllocationRow[]>(`SELECT CAST(member_id AS CHAR) AS memberId, purchase_patronage AS purchasePatronage, rental_patronage AS rentalPatronage, refund_amount AS refundAmount FROM patronage_allocations WHERE patronage_period_id = ?`, [periodId]);
+        if (current.length !== saved.length || current.some((item) => !saved.some((row) => row.memberId === item.memberId && moneyCents(row.purchasePatronage) === 0 && moneyCents(row.rentalPatronage) === moneyCents(item.rentalPatronage) && moneyCents(row.refundAmount) === moneyCents(item.refundAmount))) || moneyCents(period.refundPool) !== current.reduce((sum, item) => sum + moneyCents(item.refundAmount), 0)) {
+          throw new AppError("Rental payments or eligibility changed. Recalculate the yearly refunds and review them before finalizing.", 409, "PATRONAGE_RECALCULATION_REQUIRED");
         }
         await connection.execute(
           `UPDATE patronage_periods
@@ -425,11 +381,13 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
 
     async markPaid(allocationId, notes, auth) {
       return withTransaction(async (connection) => {
-        const [rows] = await connection.execute<Array<RowDataPacket & { periodId: string; periodStatus: string; paymentStatus: string; refundAmount: number | string }>>(
+        const [rows] = await connection.execute<Array<RowDataPacket & { periodId: string; periodStatus: string; policyVersion: string; membershipType: string; paymentStatus: string; refundAmount: number | string }>>(
           `SELECT CAST(a.patronage_period_id AS CHAR) AS periodId, p.period_status AS periodStatus,
-                  a.refund_amount AS refundAmount, a.payment_status AS paymentStatus
+                  a.refund_amount AS refundAmount, a.payment_status AS paymentStatus,
+                  p.calculation_policy AS policyVersion, m.membership_type AS membershipType
              FROM patronage_allocations a
              JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
+             JOIN member_profiles m ON m.member_id = a.member_id
             WHERE a.patronage_allocation_id = ? FOR UPDATE`,
           [allocationId],
         );
@@ -441,6 +399,9 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         if (record.paymentStatus === "Paid") {
           throw new AppError("This patronage refund is already recorded as paid.", 409, "PATRONAGE_REFUND_ALREADY_PAID");
         }
+        assertCurrentPatronagePolicy(record.policyVersion as string);
+        if (record.membershipType !== "True Member") throw new AppError("Patronage refunds are for True Members only.", 403, "MEMBER_PATRONAGE_NOT_ELIGIBLE");
+        await assertRefundSourcesUnchanged(connection, allocationId);
         const totals = await patronageCapitalTotals(connection, allocationId);
         if (totals.pendingCapitalAmount > 0) {
           throw new AppError("Review the pending Share Capital transfer before recording a cash payout.", 409, "PATRONAGE_TRANSFER_PENDING");
@@ -491,7 +452,8 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
     async memberSummary(auth) {
       const [members] = await databasePool().execute<MemberRow[]>(
         `SELECT CAST(member_id AS CHAR) AS memberId, member_code AS memberCode,
-                full_name AS memberName, membership_type AS membershipType
+                full_name AS memberName, membership_type AS membershipType,
+                DATE_FORMAT(true_member_since, '%Y-%m-%d') AS trueMemberSince
            FROM member_profiles
           WHERE user_id = ?
             AND approval_status = 'Approved'
@@ -507,21 +469,24 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         "MEMBER_PATRONAGE_NOT_ELIGIBLE",
       );
 
-      const year = new Date().getUTCFullYear();
+      const year = Number(patronageToday().slice(0, 4));
       const startDate = `${year}-01-01`;
       const endDate = `${year}-12-31`;
       const source = (await loadSources(databasePool(), startDate, endDate, member.memberId))[0];
-      const purchasePatronage = source?.purchasePatronage ?? 0;
+      const purchasePatronage = 0;
+      const eligible = member.membershipType === "True Member" && Boolean(member.trueMemberSince);
+      const eligibilityMessage = member.membershipType !== "True Member" ? "Associate Members do not earn patronage refunds. Only equipment rentals after becoming a True Member qualify." : !member.trueMemberSince ? "Your True Member effective date is missing. Ask the cooperative office to complete it before rental refunds can be computed." : `Eligible equipment rentals must start on or after ${member.trueMemberSince}. POS products do not earn a refund.`;
       const rentalPatronage = source?.rentalPatronage ?? 0;
 
       const [historyRows] = await databasePool().execute<Array<RowDataPacket & {
-        periodId: string; periodName: string; startDate: string; endDate: string;
+        policyVersion: string; periodId: string; periodName: string; startDate: string; endDate: string;
         periodStatus: PatronagePeriod["status"]; totalPatronage: string | number;
         capitalizedAmount: string | number; pendingCapitalAmount: string | number; refundAmount: string | number; paymentStatus: PatronageAllocation["paymentStatus"]; paidAt: Date | null;
       }>>(
         `SELECT CAST(p.patronage_period_id AS CHAR) AS periodId, p.period_name AS periodName,
                 DATE_FORMAT(p.period_start, '%Y-%m-%d') AS startDate,
                 DATE_FORMAT(p.period_end, '%Y-%m-%d') AS endDate,
+                p.calculation_policy AS policyVersion,
                 p.period_status AS periodStatus, a.total_patronage AS totalPatronage,
                 a.refund_amount AS refundAmount, a.payment_status AS paymentStatus, a.paid_at AS paidAt, ${patronageCapitalColumns}
            FROM patronage_allocations a
@@ -539,13 +504,13 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
       }));
       const allocatedTotal = history.reduce((sum, row) => sum + row.refundAmount, 0);
       const capitalizedTotal = history.reduce((sum, row) => sum + row.capitalizedAmount, 0);
-      const pendingCapitalTotal = history.reduce((sum, row) => sum + row.pendingCapitalAmount, 0);
+      const pendingCapitalTotal = eligible ? history.filter((row) => row.policyVersion === PATRONAGE_POLICY && row.paymentStatus === "Pending").reduce((sum, row) => sum + row.pendingCapitalAmount, 0) : 0;
       const paidTotal = history.filter((row) => row.paymentStatus === "Paid").reduce((sum, row) => sum + row.refundAmount - row.capitalizedAmount, 0);
 
       return {
-        member: { code: member.memberCode, name: member.memberName, membershipType: member.membershipType },
-        currentYear: { startDate, endDate, purchasePatronage, rentalPatronage, totalPatronage: purchasePatronage + rentalPatronage },
-        refunds: { allocatedTotal, paidTotal, capitalizedTotal, pendingCapitalTotal, pendingTotal: Math.max(0, moneyCents(allocatedTotal) - moneyCents(paidTotal) - moneyCents(capitalizedTotal)) / 100 },
+        member: { code: member.memberCode, name: member.memberName, membershipType: member.membershipType, eligible, trueMemberSince: member.trueMemberSince as string | null, eligibilityMessage },
+        currentYear: { startDate, endDate, purchasePatronage, rentalPatronage, totalPatronage: rentalPatronage, refundRate: PATRONAGE_RATE, estimatedRefund: calculatePatronageAllocations(source ? [source] : []).reduce((sum, item) => sum + item.refundAmount, 0) },
+        refunds: { allocatedTotal, paidTotal, capitalizedTotal, pendingCapitalTotal, pendingTotal: eligible ? history.filter((row) => row.policyVersion === PATRONAGE_POLICY && row.paymentStatus === "Pending").reduce((sum, row) => sum + Math.max(0, moneyCents(row.refundAmount) - moneyCents(row.capitalizedAmount)), 0) / 100 : 0 },
         history,
       };
     },

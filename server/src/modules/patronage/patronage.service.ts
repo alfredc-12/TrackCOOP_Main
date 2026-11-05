@@ -1,4 +1,3 @@
-import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 import { createPatronageRepository, type PatronageRepository } from "./patronage.repository";
 import type { CreatePatronagePeriodInput } from "./patronage.types";
@@ -19,62 +18,9 @@ export function createPatronageService(
   return {
     financialBasis: (startDate, endDate) => repository.financialBasis(startDate, endDate),
     overview: (periodId) => repository.overview(periodId),
-    async createPeriod(input, auth) {
-      const basis = await repository.financialBasis(input.startDate, input.endDate);
-      if (basis.netOperatingSurplus <= 0) {
-        throw new AppError(
-          "The selected period has no positive posted POS and rental operating surplus available for a patronage refund.",
-          409,
-          "PATRONAGE_SURPLUS_REQUIRED",
-        );
-      }
-      if (input.refundPool > basis.netOperatingSurplus) {
-        throw new AppError(
-          "The refund pool cannot be greater than the posted POS and rental operating surplus for this period.",
-          409,
-          "PATRONAGE_POOL_EXCEEDS_SURPLUS",
-        );
-      }
-      if (basis.eligibleMemberPatronage <= 0) {
-        throw new AppError(
-          "No eligible member purchases or completed paid rentals were found for this period.",
-          409,
-          "PATRONAGE_NO_ELIGIBLE_MEMBER_USAGE",
-        );
-      }
-      if (input.refundPool > basis.eligibleMemberPatronage) {
-        throw new AppError(
-          "The refund pool cannot be greater than the members' paid purchases and rentals for this period.",
-          409,
-          "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
-        );
-      }
-      return repository.createPeriod(input, auth);
-    },
+    createPeriod: (input, auth) => repository.createPeriod(input, auth),
     recalculate: (periodId, auth) => repository.recalculate(periodId, auth),
-    async finalize(periodId, auth) {
-      const overview = await repository.overview(periodId);
-      const period = overview.selectedPeriod?.id === periodId ? overview.selectedPeriod : null;
-      if (!period) {
-        throw new AppError("Patronage period was not found.", 404, "PATRONAGE_PERIOD_NOT_FOUND");
-      }
-      const basis = await repository.financialBasis(period.startDate, period.endDate);
-      if (period.refundPool > Math.max(0, basis.netOperatingSurplus)) {
-        throw new AppError(
-          "The refund pool is greater than the current posted POS and rental operating surplus. Review the ledger or create a corrected period before finalizing.",
-          409,
-          "PATRONAGE_POOL_EXCEEDS_SURPLUS",
-        );
-      }
-      if (period.refundPool > Math.max(0, basis.eligibleMemberPatronage)) {
-        throw new AppError(
-          "The refund pool is greater than the members' paid purchases and rentals for this period. Review the period before finalizing.",
-          409,
-          "PATRONAGE_POOL_EXCEEDS_MEMBER_USAGE",
-        );
-      }
-      return repository.finalize(periodId, auth);
-    },
+    finalize: (periodId, auth) => repository.finalize(periodId, auth),
     markPaid: (allocationId, notes, auth) => repository.markPaid(allocationId, notes, auth),
     memberSummary: (auth) => repository.memberSummary(auth),
   };

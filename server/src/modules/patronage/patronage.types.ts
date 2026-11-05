@@ -25,6 +25,8 @@ export type PatronageAllocation = PatronageSourceAmount & {
 };
 
 export type PatronagePeriod = {
+  policyVersion?: string;
+  refundRate?: number;
   id: string;
   name: string;
   startDate: string;
@@ -47,7 +49,7 @@ export type CreatePatronagePeriodInput = {
   name: string;
   startDate: string;
   endDate: string;
-  refundPool: number;
+  refundPool?: number;
   notes?: string | null;
 };
 
@@ -65,6 +67,8 @@ export type PatronageFinancialBasis = {
   netOperatingSurplus: number;
   eligibleMemberPatronage: number;
   eligibleMemberCount: number;
+  estimatedRefund?: number;
+  refundRate?: number;
   postedRecordCount: number;
   unpostedRecordCount: number;
 };
@@ -74,6 +78,9 @@ export type PatronageMemberSummary = {
     code: string;
     name: string;
     membershipType: "Associate" | "True Member";
+    eligible?: boolean;
+    trueMemberSince?: string | null;
+    eligibilityMessage?: string;
   };
   currentYear: {
     startDate: string;
@@ -81,6 +88,8 @@ export type PatronageMemberSummary = {
     purchasePatronage: number;
     rentalPatronage: number;
     totalPatronage: number;
+    estimatedRefund?: number;
+    refundRate?: number;
   };
   refunds: {
     allocatedTotal: number;
@@ -90,6 +99,7 @@ export type PatronageMemberSummary = {
     pendingCapitalTotal?: number;
   };
   history: Array<{
+    policyVersion?: string;
     periodId: string;
     periodName: string;
     startDate: string;

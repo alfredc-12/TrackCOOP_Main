@@ -1,3 +1,5 @@
+import { assertRefundSourcesUnchanged } from "./patronage-sources";
+import { assertCurrentPatronagePolicy } from "./patronage-policy";
 import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { env } from "../../config/env";
@@ -47,9 +49,9 @@ async function memberByUser(connection: Database, userId: string, lock = false) 
   const [rows] = await connection.execute<RowDataPacket[]>(
     `SELECT CAST(member_id AS CHAR) AS id FROM member_profiles
       WHERE user_id = ? AND approval_status = 'Approved' AND official_member_status = 'Active'
-        AND membership_type IN ('Associate', 'True Member') LIMIT 1${lock ? " FOR UPDATE" : ""}`, [userId],
+        AND ${lock ? "membership_type = 'True Member'" : "membership_type IN ('Associate', 'True Member')"} LIMIT 1${lock ? " FOR UPDATE" : ""}`, [userId],
   );
-  if (!rows[0]) throw new AppError("An active linked member profile is required.", 403, "MEMBER_PATRONAGE_NOT_ELIGIBLE");
+  if (!rows[0]) throw new AppError("An active True Member profile is required for patronage refund transfers.", 403, "MEMBER_PATRONAGE_NOT_ELIGIBLE");
   return String(rows[0].id);
 }
 
@@ -57,7 +59,7 @@ async function allocation(connection: Database, id: string, memberId: string) {
   const [rows] = await connection.execute<AllocationRow[]>(
     `SELECT CAST(a.patronage_allocation_id AS CHAR) AS id, CAST(a.member_id AS CHAR) AS memberId,
             CAST(a.patronage_period_id AS CHAR) AS periodId, p.period_name AS periodName,
-            p.period_status AS periodStatus, a.payment_status AS paymentStatus, a.refund_amount AS refundAmount
+            p.period_status AS periodStatus, p.calculation_policy AS policyVersion, a.payment_status AS paymentStatus, a.refund_amount AS refundAmount
        FROM patronage_allocations a JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
       WHERE a.patronage_allocation_id = ? AND a.member_id = ? LIMIT 1 FOR UPDATE`, [id, memberId],
   );
@@ -123,7 +125,8 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
         `SELECT CAST(a.patronage_allocation_id AS CHAR) AS id, p.period_name AS periodName,
                 a.refund_amount AS refundAmount, a.payment_status AS paymentStatus, ${patronageCapitalColumns}
            FROM patronage_allocations a JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
-          WHERE a.member_id = ? AND p.period_status = 'Finalized' AND a.payment_status = 'Pending'
+          WHERE a.member_id = ? AND p.period_status = 'Finalized' AND p.calculation_policy = 'Rental3PercentAnnual' AND a.payment_status = 'Pending'
+            AND EXISTS (SELECT 1 FROM member_profiles m WHERE m.member_id = a.member_id AND m.membership_type = 'True Member')
           ORDER BY p.period_end, a.patronage_allocation_id`, [memberId],
       );
       const [transfers] = await database().execute<TransferRow[]>(`${transferSelect} WHERE t.member_id = ? ORDER BY t.transfer_id DESC`, [memberId]);
@@ -140,6 +143,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
         // All contribution paths serialize on the member before touching their account.
         const memberId = await memberByUser(connection, auth.user.id, true);
         const refund = await allocation(connection, input.allocationId, memberId);
+        assertCurrentPatronagePolicy(refund.policyVersion as string);
         const [existing] = await connection.execute<TransferRow[]>(`${transferSelect} WHERE t.request_key = ? LIMIT 1`, [input.requestKey]);
         if (existing[0]) {
           if (existing[0].memberId !== memberId || existing[0].allocationId !== input.allocationId || moneyCents(existing[0].amount) !== moneyCents(input.amount)) {
@@ -148,6 +152,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
           return mapTransfer(existing[0]);
         }
         if (refund.periodStatus !== "Finalized") throw new AppError("Only a finalized, unpaid refund can be used.", 409, "PATRONAGE_REFUND_UNAVAILABLE");
+        await assertRefundSourcesUnchanged(connection, input.allocationId);
         const totals = await patronageCapitalTotals(connection, input.allocationId);
         const capital = await capacity(connection, memberId, true);
         assertPatronageCapitalAmount(input.amount, availablePatronageRefund({ ...refund, ...totals }), capital.availableCapacity);
@@ -167,7 +172,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
       if (!found[0]) throw new AppError("Transfer request was not found.", 404, "PATRONAGE_TRANSFER_NOT_FOUND");
       return withTransaction(async (connection) => {
         const [members] = await connection.execute<RowDataPacket[]>(
-          `SELECT approval_status AS approvalStatus, official_member_status AS memberStatus
+          `SELECT approval_status AS approvalStatus, official_member_status AS memberStatus, membership_type AS membershipType
              FROM member_profiles WHERE member_id = ? FOR UPDATE`, [found[0].memberId],
         );
         const refund = await allocation(connection, found[0].allocationId, found[0].memberId);
@@ -178,8 +183,11 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
         if (transfer.status !== "Pending") throw new AppError("This request has already been reviewed.", 409, "PATRONAGE_TRANSFER_PROCESSED");
         let transactionId: string | null = null;
         if (input.decision === "Approve") {
+          assertCurrentPatronagePolicy(refund.policyVersion as string);
+          if (members[0]?.membershipType !== "True Member") throw new AppError("Patronage refunds are for True Members only.", 403, "MEMBER_PATRONAGE_NOT_ELIGIBLE");
           if (members[0]?.approvalStatus !== "Approved" || members[0]?.memberStatus !== "Active") throw new AppError("The member is no longer active.", 409, "MEMBER_PATRONAGE_NOT_ELIGIBLE");
           if (refund.periodStatus !== "Finalized" || refund.paymentStatus === "Paid") throw new AppError("The refund is no longer available.", 409, "PATRONAGE_REFUND_UNAVAILABLE");
+          await assertRefundSourcesUnchanged(connection, refund.id);
           const totals = await patronageCapitalTotals(connection, refund.id);
           const capital = await capacity(connection, transfer.memberId, true);
           assertPatronageCapitalAmount(Number(transfer.amount), availablePatronageRefund({ ...refund, ...totals, pendingCapitalAmount: (moneyCents(totals.pendingCapitalAmount) - moneyCents(transfer.amount)) / 100 }), capital.availableCapacity);

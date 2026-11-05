@@ -15,9 +15,10 @@ type Transfer = { id: string; allocationId: string; memberId: string; amount: nu
 // A transactional adapter: unknown SQL fails, writes are rolled back on failure, and
 // transactions serialize to exercise competing requests against the same locked member.
 class Database {
-  state = { balance: 2000, refundAmount: 500, paymentStatus: "Pending", periodStatus: "Finalized", pendingQrph: 0, transfers: [] as Transfer[], ledger: [] as number[] };
+  state = { balance: 2000, refundAmount: 500, paymentStatus: "Pending", periodStatus: "Finalized", pendingQrph: 0, membershipType: "True Member", policyVersion: "Rental3PercentAnnual", transfers: [] as Transfer[], ledger: [] as number[] };
   statements: string[] = [];
   failAudit = false;
+  rentalSourceAvailable = true;
   private queue: Promise<void> = Promise.resolve();
   async getConnection() {
     let unlock!: () => void;
@@ -37,12 +38,14 @@ class Database {
       if (sql.includes("WHERE t.transfer_id = ?")) found = found.filter((t) => t.id === values[0]);
       return rows(found.map((t) => ({ ...t, memberName: "Member", memberCode: "M-1", periodName: "2026", requestedAt: new Date(), processedAt: null, notes: null })));
     }
-    if (sql.includes("FROM member_profiles") && sql.includes("user_id = ?")) return rows(values[0] === member.user.id ? [{ id: "1" }] : []);
-    if (sql.includes("FROM member_profiles") && sql.includes("FOR UPDATE")) return rows([{ approvalStatus: "Approved", memberStatus: "Active" }]);
+    if (sql.includes("FROM member_profiles m") && sql.includes("JOIN rental_bookings")) return rows(this.rentalSourceAvailable ? [{ memberId: "1", memberCode: "M-1", memberName: "Member", membershipType: this.state.membershipType, purchasePatronage: 0, rentalPatronage: 16666.67 }] : []);
+    if (sql.includes("DATE_FORMAT(p.period_start") && sql.includes("AS rentalPatronage") && sql.includes("FOR UPDATE")) return rows([{ memberId: "1", startDate: "2025-01-01", endDate: "2025-12-31", rentalPatronage: 16666.67, refundAmount: 500 }]);
+    if (sql.includes("FROM member_profiles") && sql.includes("user_id = ?")) return rows(values[0] === member.user.id && (!sql.includes("membership_type = 'True Member'") || this.state.membershipType === "True Member") ? [{ id: "1" }] : []);
+    if (sql.includes("FROM member_profiles") && sql.includes("FOR UPDATE")) return rows([{ approvalStatus: "Approved", memberStatus: "Active", membershipType: this.state.membershipType }]);
     if (sql.includes("FROM patronage_allocations a JOIN patronage_periods") || (sql.includes("FROM patronage_allocations a") && sql.includes("FOR UPDATE") && !sql.includes("a.payment_notes AS paymentNotes"))) {
       if (sql.includes("AND a.member_id = ?") && values[1] !== "1") return rows([]);
       if (values[0] !== "10") return rows([]);
-      return rows([{ id: "10", memberId: "1", periodId: "20", periodName: "2026", refundAmount: this.state.refundAmount, paymentStatus: this.state.paymentStatus, periodStatus: this.state.periodStatus }]);
+      return rows([{ id: "10", memberId: "1", periodId: "20", periodName: "2026", refundAmount: this.state.refundAmount, policyVersion: this.state.policyVersion, membershipType: this.state.membershipType, paymentStatus: this.state.paymentStatus, periodStatus: this.state.periodStatus }]);
     }
     if (sql.includes("FROM patronage_capital_transfers WHERE")) {
       const total = (status: string) => this.state.transfers.filter((t) => t.status === status).reduce((sum, t) => sum + t.amount, 0);
@@ -156,4 +159,29 @@ test("refund availability preserves cents and rejects invalid or excessive amoun
   assert.equal(availablePatronageRefund({ refundAmount: 500.05, capitalizedAmount: 100.01, pendingCapitalAmount: 50.02, paymentStatus: "Pending" }), 350.02);
   for (const amount of [0, -1, Infinity, NaN, 0.001, 500.01]) assert.throws(() => assertPatronageCapitalAmount(amount, 500, 500));
   assert.doesNotThrow(() => assertPatronageCapitalAmount(0.29, 0.29, 0.29));
+});
+
+test("Associates and legacy allocations cannot request a new transfer", async () => {
+  const associate = new Database(); associate.state.membershipType = "Associate";
+  await assert.rejects(createPatronageCapitalRepository(associate.pool()).request(request, member), (error) => error instanceof AppError && error.code === "MEMBER_PATRONAGE_NOT_ELIGIBLE");
+  const legacy = new Database(); legacy.state.policyVersion = "Legacy";
+  await assert.rejects(createPatronageCapitalRepository(legacy.pool()).request(request, member), (error) => error instanceof AppError && error.code === "PATRONAGE_LEGACY_REVIEW_REQUIRED");
+  assert.equal(legacy.state.transfers.length, 0);
+});
+
+test("changed rental sources block cash payouts and transfer approval without losing the reservation", async () => {
+  const db = new Database();
+  const repo = createPatronageCapitalRepository(db.pool());
+  await repo.request(request, member);
+  db.rentalSourceAvailable = false;
+  const requiresReview = (error: unknown) => error instanceof AppError && error.code === "PATRONAGE_SOURCE_REVIEW_REQUIRED";
+  await assert.rejects(repo.decide("1", { decision: "Approve" }, bookkeeper), requiresReview);
+  await assert.rejects(createPatronageRepository(db.pool()).markPaid("10", null, bookkeeper), requiresReview);
+  await assert.rejects(repo.request({ ...request, requestKey: "new-key" }, member), requiresReview);
+  assert.equal(db.state.balance, 2000);
+  assert.equal(db.state.ledger.length, 0);
+  assert.equal(db.state.paymentStatus, "Pending");
+  assert.equal(db.state.transfers[0].status, "Pending");
+  await repo.decide("1", { decision: "Reject" }, bookkeeper);
+  assert.equal(db.state.transfers[0].status, "Rejected");
 });
