@@ -6,6 +6,7 @@ export interface InventoryService {
   createProduct(input: InventoryProductInput, userId: string): ReturnType<InventoryRepository["createProduct"]>;
   updateProduct(productId: string, input: InventoryProductInput, userId: string): ReturnType<InventoryRepository["updateProduct"]>;
   archiveProduct(productId: string, userId: string): ReturnType<InventoryRepository["archiveProduct"]>;
+  restoreProduct(productId: string, userId: string): ReturnType<InventoryRepository["restoreProduct"]>;
   updateStock(productId: string, input: InventoryStockInput, userId: string): ReturnType<InventoryRepository["updateStock"]>;
   listHistory(): ReturnType<InventoryRepository["listHistory"]>;
 }
@@ -16,6 +17,7 @@ export function createInventoryService(repository: InventoryRepository = createI
     createProduct: (input, userId) => repository.createProduct(input, userId),
     updateProduct: (productId, input, userId) => repository.updateProduct(productId, input, userId),
     archiveProduct: (productId, userId) => repository.archiveProduct(productId, userId),
+    restoreProduct: (productId, userId) => repository.restoreProduct(productId, userId),
     updateStock: (productId, input, userId) => repository.updateStock(productId, input, userId),
     listHistory: () => repository.listHistory(),
   };

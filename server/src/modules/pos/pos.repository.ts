@@ -319,8 +319,8 @@ export function createPosRepository(pool?: Pool): PosRepository {
           }
         }
 
-        const discountAmount = memberId ? subtotal * 0.05 : 0;
-        const totalAmount = Math.max(0, subtotal - discountAmount);
+        const discountAmount = 0;
+        const totalAmount = subtotal;
         const saleNumber = createSaleNumber();
 
         const [saleResult] = await connection.query<ResultSetHeader>(
@@ -395,12 +395,9 @@ export function createPosRepository(pool?: Pool): PosRepository {
       }, databasePool());
     },
 
-    async confirmOrder(orderId, input, auth) {
+    async confirmOrder(orderId, _input, auth) {
       const userId = numericUserId(auth);
-      const discountAmount = Number(input.discount_amount || 0);
-      if (!Number.isFinite(discountAmount) || discountAmount < 0) {
-        throw new AppError("Discount must be a non-negative number.", 400, "INVALID_DISCOUNT");
-      }
+      const discountAmount = 0;
 
       return withTransaction(async (connection) => {
         const [sales] = await connection.query<PosSaleStatusRow[]>(
@@ -425,10 +422,6 @@ export function createPosRepository(pool?: Pool): PosRepository {
             "POS_QRPH_MANUAL_CONFIRMATION_FORBIDDEN",
           );
         }
-        if (discountAmount > Number(sale.subtotal_amount)) {
-          throw new AppError("Discount cannot exceed the order subtotal.", 400, "INVALID_DISCOUNT");
-        }
-
         const [items] = await connection.query<PosSaleItemRow[]>(
           "SELECT pos_sale_item_id, product_id, quantity FROM pos_sale_items WHERE pos_sale_id = ?",
           [orderId],
@@ -650,8 +643,8 @@ export function createPosRepository(pool?: Pool): PosRepository {
         );
 
         const notesAddition = reason ? `\n[Revoked Reason]: ${reason}` : "\n[Revoked Reason]: Payment revoked by user.";
-        const originalMemberDiscount = sale.member_id ? Number(sale.subtotal_amount) * 0.05 : 0;
-        const newTotalAmount = Number(sale.subtotal_amount) - originalMemberDiscount;
+        const originalMemberDiscount = 0;
+        const newTotalAmount = Number(sale.subtotal_amount);
         await connection.query<ResultSetHeader>(
           `UPDATE pos_sales
               SET sale_status = 'Pending Payment',

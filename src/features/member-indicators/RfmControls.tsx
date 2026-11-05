@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { StyledSelect } from "@/components/ui/StyledSelect";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import {
   defaultFilters,
   type RfmFilters,
@@ -203,62 +204,26 @@ export function Pagination({
   pageSize,
   total,
   onPage,
+  onPageSizeChange,
 }: {
   page: number;
   pageSize: number;
   total: number;
   onPage: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
-    <nav aria-label="RFM pagination" className={styles.pagination}>
-      <p className={styles.muted}>
-        {total
-          ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)}`
-          : "0"}{" "}
-        of {total.toLocaleString("en-PH")}
-      </p>
-      <div className={styles.actions}>
-        <Button
-          type="button"
-          variant="secondary"
-          aria-label="First page"
-          disabled={page <= 1}
-          onClick={() => onPage(1)}
-        >
-          First
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          aria-label="Previous page"
-          disabled={page <= 1}
-          onClick={() => onPage(page - 1)}
-        >
-          Previous
-        </Button>
-        <span className={styles.muted}>
-          {page} / {pages}
-        </span>
-        <Button
-          type="button"
-          variant="secondary"
-          aria-label="Next page"
-          disabled={page >= pages}
-          onClick={() => onPage(page + 1)}
-        >
-          Next
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          aria-label="Last page"
-          disabled={page >= pages}
-          onClick={() => onPage(pages)}
-        >
-          Last
-        </Button>
-      </div>
-    </nav>
+    <PaginationControls
+      currentPage={page}
+      totalPages={pages}
+      totalItems={total}
+      itemName="records"
+      onPageChange={onPage}
+      pageSize={pageSize}
+      pageSizeOptions={[10, 20, 50]}
+      onPageSizeChange={onPageSizeChange}
+      className="mt-4"
+    />
   );
 }

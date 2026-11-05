@@ -3,7 +3,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit, FileText, Filter, Globe, GripVertical, MapPin, Megaphone, Plus, Printer, Search, ShieldCheck, Sprout, Trash2, UploadCloud, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
-import { EmptyState, FormDialog, ConfirmDialog, StatCard } from "@/components/portal/PortalPrimitives";
+import { ConfirmDialog, EmptyState, FormDialog, PaginationControls, StatCard } from "@/components/portal/PortalPrimitives";
 import { useState, useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
@@ -1515,25 +1515,15 @@ export function ChairmanAnnouncementsClient() {
                     </div>
                   ))}
 
-                  {totalPages > 1 && (
-                    <div className="mt-4 flex items-center justify-center gap-2 pt-2 border-t border-[#CAD8CB]">
-                      <button onClick={() => setDeletedPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#EEF2EC] text-[#123D2A] font-bold text-xs">
-                        &lt;&lt;
-                      </button>
-                      <button onClick={() => setDeletedPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#EEF2EC] text-[#123D2A] font-bold text-xs">
-                        &lt;
-                      </button>
-                      <span className="text-xs font-semibold text-[#6C7A70] px-2">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <button onClick={() => setDeletedPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#EEF2EC] text-[#123D2A] font-bold text-xs">
-                        &gt;
-                      </button>
-                      <button onClick={() => setDeletedPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#EEF2EC] text-[#123D2A] font-bold text-xs">
-                        &gt;&gt;
-                      </button>
-                    </div>
-                  )}
+                  <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredDeleted.length}
+                    itemName="deleted announcements"
+                    onPageChange={setDeletedPage}
+                    pageSize={itemsPerPage}
+                    className="mt-4 border-t border-[#CAD8CB] pt-4"
+                  />
                 </>
               );
             })()}
@@ -1608,25 +1598,15 @@ export function ChairmanAnnouncementsClient() {
                       ))}
                     </ul>
 
-                    {totalPages > 1 && (
-                      <div className="mt-4 flex items-center justify-center gap-2 pt-2 border-t border-[#CAD8CB]">
-                        <button onClick={() => setAckPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#F7F8F3] text-[#123D2A] font-bold text-xs">
-                          &lt;&lt;
-                        </button>
-                        <button onClick={() => setAckPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#F7F8F3] text-[#123D2A] font-bold text-xs">
-                          &lt;
-                        </button>
-                        <span className="text-xs font-semibold text-[#6C7A70] px-2">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <button onClick={() => setAckPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#F7F8F3] text-[#123D2A] font-bold text-xs">
-                          &gt;
-                        </button>
-                        <button onClick={() => setAckPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-md border border-[#CAD8CB] disabled:opacity-50 hover:bg-[#F7F8F3] text-[#123D2A] font-bold text-xs">
-                          &gt;&gt;
-                        </button>
-                      </div>
-                    )}
+                    <PaginationControls
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      totalItems={filteredAcks.length}
+                      itemName="acknowledgments"
+                      onPageChange={setAckPage}
+                      pageSize={itemsPerPage}
+                      className="mt-4 border-t border-[#CAD8CB] pt-4"
+                    />
                   </>
                 );
               })()

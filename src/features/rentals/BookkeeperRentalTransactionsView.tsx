@@ -22,6 +22,7 @@ import {
   ErrorState,
   FormDialog,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -66,12 +67,6 @@ function RentalStatusSelect({ value, onChange }: { value: string; onChange: (val
   const options = [{ value: "", label: "All statuses" }, { value: "Pending", label: "Waiting" }, { value: "Needs Clarification", label: "Needs correction" }, { value: "Validated", label: "Approved" }, { value: "Rejected", label: "Rejected" }, { value: "Reversed", label: "Reversed" }];
   const selected = options.find((option) => option.value === value)?.label ?? "All statuses";
   return <div className="relative"><button type="button" aria-label="Filter payment status" aria-expanded={open} onClick={() => setOpen((current) => !current)} className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"><span>{selected}</span><ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} /></button>{open ? <div role="listbox" className="absolute z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => { onChange(option.value); setOpen(false); }} className={`w-full rounded px-3 py-3 text-left text-sm ${option.value === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option.label}</button>)}</div> : null}</div>;
-}
-
-function RentalPageSizeSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  const [open, setOpen] = useState(false);
-  const options = [5, 10, 20, 50];
-  return <div className="relative w-32"><button type="button" aria-label="Rows per page" aria-expanded={open} onClick={() => setOpen((current) => !current)} className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"><span>{value} per page</span><ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} /></button>{open ? <div className="absolute bottom-full z-30 mb-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button key={option} type="button" onClick={() => { onChange(option); setOpen(false); }} className={`w-full rounded px-3 py-2 text-left text-sm ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option} per page</button>)}</div> : null}</div>;
 }
 
 function rentalPeriod(payment: Pick<PaymentReferenceListItem, "rentalStartAt" | "rentalEndAt">) {
@@ -253,13 +248,12 @@ export function BookkeeperRentalTransactionsView() {
       <StatCard label="Approved" value={String(totals.approved)} icon={BadgeCheck} />
     </div>
 
-    <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-[minmax(0,1fr)_13rem_8rem_auto]">
+    <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-[minmax(0,1fr)_13rem_auto]">
       <label className="relative"><span className="sr-only">Search rentals</span><Search className="absolute left-3 top-3.5 size-4 text-[#6C7A70]" />
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search renter, equipment, or reference"
           className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]" />
       </label>
       <RentalStatusSelect value={status} onChange={(value) => { setStatus(value); setPage(1); }} />
-      <RentalPageSizeSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
       <button type="button" disabled={loading} aria-busy={loading} onClick={() => void load()} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold text-[#123D2A] disabled:opacity-60">
         <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} />{loading ? "Loading..." : "Refresh"}
       </button>
@@ -281,7 +275,7 @@ export function BookkeeperRentalTransactionsView() {
           <td className="px-5 py-4 text-center"><StatusBadge tone={statusTone(payment.validationStatus)}>{statusLabel(payment.validationStatus)}</StatusBadge></td>
           <td className="px-5 py-4"><button type="button" onClick={() => void openPayment(payment.id)} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 font-bold text-white"><Eye className="size-4" />Review</button></td>
         </tr>)}</tbody>
-      </table></DataTable><div className="flex flex-col items-center justify-between gap-3 text-center text-sm sm:flex-row sm:text-left"><span className="font-semibold text-[#6C7A70]">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} rentals</span><div className="flex items-center gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:opacity-40">Previous</button><button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:opacity-40">Next</button></div></div></>}
+      </table></DataTable><PaginationControls currentPage={page} totalPages={pageCount} totalItems={filtered.length} itemName="rentals" onPageChange={setPage} pageSize={pageSize} pageSizeOptions={[5, 10, 20, 50]} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} className="mt-0" /></>}
 
     <FormDialog open={detailLoading || Boolean(selected)} onOpenChange={(open) => { if (!open && !saving) { setSelected(null); setDecision(null); } }}
       title={selected?.rentalNumber || "Rental payment"} description={selected?.rentalEquipmentName || "Loading rental details…"}

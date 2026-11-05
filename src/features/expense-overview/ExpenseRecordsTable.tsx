@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye } from "lucide-react";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { FilterSelect } from "@/features/people-management/PeopleFilterUi";
 import {
   classLabel, count, peso, shortDate, viewOptions,
@@ -22,7 +23,6 @@ const statusTone: Record<Row["postingStatus"], string> = {
 function Status({ value }: { value: Row["postingStatus"] }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusTone[value]}`}>{value}</span>;
 }
-
 const columns: Array<{ key: ExpenseSortField | null; label: string; align?: "right" }> = [
   { key: "recordDate", label: "Expense date" },
   { key: "recordNumber", label: "Record no." },
@@ -142,29 +142,19 @@ export function ExpenseRecordsTable({ data, loading, error, onRetry, query, onCh
             ))}
           </ul>
 
-          <nav aria-label="Expense record pages" className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-[#365F4A]">
-              <span>Rows per page</span>
-              <div className="w-36"><FilterSelect label="Rows" value={String(query.pageSize)} onChange={(value) => onChange({ pageSize: Number(value), page: 1 })} options={pageSizes.map((size) => ({ value: String(size), label: String(size) }))} /></div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <PageButton label="First page" disabled={data.page <= 1} onClick={() => page(1)}><ChevronsLeft className="size-4" aria-hidden="true" /></PageButton>
-              <PageButton label="Previous page" disabled={data.page <= 1} onClick={() => page(data.page - 1)}><ChevronLeft className="size-4" aria-hidden="true" /></PageButton>
-              <span className="min-w-28 text-center text-sm font-bold text-[#123D2A]">Page {data.page} of {totalPages}</span>
-              <PageButton label="Next page" disabled={data.page >= totalPages} onClick={() => page(data.page + 1)}><ChevronRight className="size-4" aria-hidden="true" /></PageButton>
-              <PageButton label="Last page" disabled={data.page >= totalPages} onClick={() => page(totalPages)}><ChevronsRight className="size-4" aria-hidden="true" /></PageButton>
-            </div>
-          </nav>
+          <PaginationControls
+            currentPage={data.page}
+            totalPages={totalPages}
+            totalItems={data.total}
+            itemName="expense records"
+            onPageChange={page}
+            pageSize={query.pageSize}
+            pageSizeOptions={pageSizes}
+            onPageSizeChange={(nextPageSize) => onChange({ pageSize: nextPageSize, page: 1 })}
+            className="mt-4"
+          />
         </>
       ) : null}
     </div>
-  );
-}
-
-function PageButton({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" aria-label={label} disabled={disabled} onClick={onClick} className="grid size-11 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#365F4A] outline-none transition hover:bg-[#EEF2EC] focus-visible:ring-2 focus-visible:ring-[#1F6B43]/40 disabled:cursor-not-allowed disabled:opacity-40">
-      {children}
-    </button>
   );
 }

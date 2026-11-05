@@ -306,10 +306,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
     const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalCartPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
-    const isMember = !isPublicView;
-    const autoDiscountRate = isMember ? 0.05 : 0;
-    const autoDiscountAmount = totalCartPrice * autoDiscountRate;
-    const finalCartPrice = totalCartPrice - autoDiscountAmount;
+    const finalCartPrice = totalCartPrice;
 
     const openCart = useCallback(() => {
         setIsCartOpen(true);
@@ -735,11 +732,6 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                                     }}
                                 />
                             ) : <>
-                            {isMember && (
-                                <div className="mb-4 bg-green-50 border border-green-200 text-green-800 rounded-xl p-3 text-sm flex items-center justify-center gap-2 animate-in fade-in duration-300">
-                                    <span className="font-bold">⭐ Member Perks:</span> You get an automatic 5% discount on all purchases!
-                                </div>
-                            )}
                             {checkoutStep === "payment" ? (
                                 <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                                     <div className="mb-6 rounded-2xl border border-[#123D2A]/15 bg-[#123D2A]/5 p-5 shadow-sm">
@@ -900,12 +892,6 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                                     <span className="text-sm font-semibold text-gray-500">Subtotal</span>
                                     <span className="text-sm font-semibold text-gray-700">₱ {totalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
-                                {isMember && (
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-sm font-bold text-red-500">Member Discount (5%)</span>
-                                        <span className="text-sm font-bold text-red-500">- ₱ {autoDiscountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                )}
                                 <div className="flex justify-between items-center border-t border-gray-100 pt-3 mb-6">
                                     <span className="text-base font-bold text-[#1e293b]">Total</span>
                                     <span className="text-2xl font-bold text-[#123D2A]">₱ {finalCartPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -1149,41 +1135,12 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                                     <span>Subtotal</span>
                                     <span>₱{Number(receiptOrder.subtotal_amount || receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
-                                {(() => {
-                                    const subtotal = Number(receiptOrder.subtotal_amount || receiptOrder.total_amount);
-                                    const totalDiscount = Number(receiptOrder.discount_amount);
-                                    
-                                    if (totalDiscount <= 0) return null;
-
-                                    // In Member UI, if there is a discount, it's safe to assume they are a member 
-                                    // if the view is not public, or we can just check if member_id exists. 
-                                    // Wait, receiptOrder in Member UI doesn't have member_id explicitly typed, let's just use the same logic
-                                    // but we know for a fact that if it's not public view, they are a member.
-                                    const isMember = !isPublicView;
-                                    const expectedMemberDiscount = isMember ? subtotal * 0.05 : 0;
-                                    
-                                    // Due to float precision, we compare with a tiny threshold
-                                    const hasMemberDiscount = isMember && totalDiscount >= expectedMemberDiscount - 0.01;
-                                    const actualMemberDiscount = hasMemberDiscount ? expectedMemberDiscount : 0;
-                                    const additionalDiscount = Math.max(0, totalDiscount - actualMemberDiscount);
-                                    
-                                    return (
-                                        <>
-                                            {actualMemberDiscount > 0 && (
-                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
-                                                    <span>Member Discount (5%)</span>
-                                                    <span>- ₱{actualMemberDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                                                </div>
-                                            )}
-                                            {additionalDiscount > 0.01 && (
-                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
-                                                    <span>Additional Discount ({Math.round((additionalDiscount / subtotal) * 100)}%)</span>
-                                                    <span>- ₱{additionalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                                                </div>
-                                            )}
-                                        </>
-                                    );
-                                })()}
+                                {Number(receiptOrder.discount_amount) > 0 && (
+                                    <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                        <span>Discount</span>
+                                        <span>- ₱{Number(receiptOrder.discount_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between items-center text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
                                     <span>TOTAL</span>
                                     <span>₱{Number(receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>

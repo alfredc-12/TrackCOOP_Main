@@ -22,10 +22,6 @@ import {
   UserRound,
   UsersRound,
   Trash2,
-  ChevronsLeft,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -37,6 +33,7 @@ import {
   ErrorState,
   FormDialog,
   LoadingSkeleton,
+  PaginationControls,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { getAuthenticatedUser } from "@/lib/auth-client";
@@ -816,9 +813,6 @@ function UserAccountList({
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) {
-  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min((page - 1) * pageSize + users.length, total);
-
   return (
     <section className="overflow-hidden rounded-lg border border-[#D9E2D8] bg-white shadow-[0_16px_34px_rgba(18,61,42,0.06)]">
       <div className="hidden grid-cols-[minmax(14rem,1.4fr)_minmax(7rem,.7fr)_minmax(9rem,.9fr)_minmax(8rem,.7fr)_4rem] border-b border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-[#6C7A70] md:grid">
@@ -926,64 +920,17 @@ function UserAccountList({
         })}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm font-semibold text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          Showing {start}-{end} of {total} users
-        </span>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => onPageChange(1)}
-            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="First page"
-          >
-            <ChevronsLeft className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-          </button>
-          <span className="grid size-9 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white">
-            {page}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(totalPages)}
-            className="grid size-9 place-items-center rounded-md border border-[#D9E2D8] bg-white text-[#123D2A] transition hover:bg-[#EEF2EC] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Last page"
-          >
-            <ChevronsRight className="size-4" aria-hidden="true" />
-          </button>
-          <div className="w-32">
-            <ComboSelect
-              value={String(pageSize)}
-              onChange={(value) => onPageSizeChange(Number(value))}
-              ariaLabel="Accounts per page"
-              options={[
-                { value: "5", label: "5 per page" },
-                { value: "10", label: "10 per page" },
-                { value: "20", label: "20 per page" },
-              ]}
-            />
-          </div>
-        </div>
-      </div>
+      <PaginationControls
+        currentPage={page}
+        totalPages={totalPages}
+        totalItems={total}
+        itemName="users"
+        onPageChange={onPageChange}
+        pageSize={pageSize}
+        pageSizeOptions={[5, 10, 20]}
+        onPageSizeChange={onPageSizeChange}
+        className="mt-0 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm sm:px-5"
+      />
     </section>
   );
 }

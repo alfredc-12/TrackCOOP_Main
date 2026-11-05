@@ -36,10 +36,7 @@ import {
   UsersRound,
   WalletCards,
   X,
-  ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
 } from "lucide-react";
 import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -50,6 +47,7 @@ import {
   ErrorState,
   FormDialog,
   LoadingSkeleton,
+  PaginationControls,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { Button } from "@/components/ui/Button";
@@ -1255,8 +1253,6 @@ function MemberResponsiveList({
   const pageSize = query.pageSize ?? 10;
   const direction = query.sortDirection ?? "desc";
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min((page - 1) * pageSize + members.length, total);
   const sortBy = (field: NonNullable<MemberListQuery["sortBy"]>) => {
     setQuery((current) => ({
       ...current,
@@ -1352,35 +1348,17 @@ function MemberResponsiveList({
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm font-semibold text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          Showing {start}-{end} of {total} members
-        </span>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" disabled={page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: 1 }))} aria-label="First page">
-            <ChevronsLeft className="size-4" />
-          </Button>
-          <Button type="button" disabled={page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, (current.page ?? 1) - 1) }))} aria-label="Previous page">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="grid h-9 w-9 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]" aria-current="page">
-            {page}
-          </span>
-          <Button type="button" disabled={page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, (current.page ?? 1) + 1) }))} aria-label="Next page">
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button type="button" disabled={page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: maxPage }))} aria-label="Last page">
-            <ChevronsRight className="size-4" />
-          </Button>
-          <div className="w-40 shrink-0">
-            <Select value={String(pageSize)} onChange={(value) => setQuery((current) => ({ ...current, pageSize: Number(value), page: 1 }))}>
-              <option value="5">5 per page</option>
-              <option value="10">10 per page</option>
-              <option value="20">20 per page</option>
-            </Select>
-          </div>
-        </div>
-      </div>
+      <PaginationControls
+        currentPage={page}
+        totalPages={maxPage}
+        totalItems={total}
+        itemName="members"
+        onPageChange={(nextPage) => setQuery((current) => ({ ...current, page: nextPage }))}
+        pageSize={pageSize}
+        pageSizeOptions={[5, 10, 20]}
+        onPageSizeChange={(nextPageSize) => setQuery((current) => ({ ...current, pageSize: nextPageSize, page: 1 }))}
+        className="mt-0 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm"
+      />
     </section>
   );
 }
@@ -2487,8 +2465,6 @@ function ApplicationsResponsiveList({
   setQuery: (updater: (current: ChairmanApplicationListQuery) => ChairmanApplicationListQuery) => void;
 }) {
   const maxPage = Math.max(1, Math.ceil(total / query.pageSize));
-  const start = total === 0 ? 0 : (query.page - 1) * query.pageSize + 1;
-  const end = Math.min((query.page - 1) * query.pageSize + applications.length, total);
 
   return (
     <section className="overflow-hidden rounded-lg border border-[#CAD8CB] bg-white shadow-[0_16px_34px_rgba(18,61,42,0.06)]">
@@ -2589,35 +2565,17 @@ function ApplicationsResponsiveList({
         })}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm font-semibold text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          Showing {start}-{end} of {total} applications
-        </span>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" disabled={query.page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: 1 }))} aria-label="First page">
-            <ChevronsLeft className="size-4" />
-          </Button>
-          <Button type="button" disabled={query.page <= 1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, current.page - 1) }))} aria-label="Previous page">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="grid h-9 w-9 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]" aria-current="page">
-            {query.page}
-          </span>
-          <Button type="button" disabled={query.page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: Math.min(maxPage, current.page + 1) }))} aria-label="Next page">
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button type="button" disabled={query.page >= maxPage} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#6C7A70] hover:bg-[#EEF2EC] disabled:opacity-45" onClick={() => setQuery((current) => ({ ...current, page: maxPage }))} aria-label="Last page">
-            <ChevronsRight className="size-4" />
-          </Button>
-          <div className="w-40 shrink-0">
-            <Select value={String(query.pageSize)} onChange={(value) => setQuery((current) => ({ ...current, pageSize: Number(value), page: 1 }))}>
-              <option value="5">5 per page</option>
-              <option value="10">10 per page</option>
-              <option value="20">20 per page</option>
-            </Select>
-          </div>
-        </div>
-      </div>
+      <PaginationControls
+        currentPage={query.page}
+        totalPages={maxPage}
+        totalItems={total}
+        itemName="applications"
+        onPageChange={(nextPage) => setQuery((current) => ({ ...current, page: nextPage }))}
+        pageSize={query.pageSize}
+        pageSizeOptions={[5, 10, 20]}
+        onPageSizeChange={(nextPageSize) => setQuery((current) => ({ ...current, pageSize: nextPageSize, page: 1 }))}
+        className="mt-0 border-t border-[#E7EEE5] bg-[#FBFCF8] px-5 py-4 text-sm"
+      />
     </section>
   );
 }
@@ -3842,41 +3800,18 @@ function SimplePagination({
   onPageSizeChange?: (pageSize: number) => void;
 }) {
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min((page - 1) * pageSize + pageSize, total);
-
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-[#CAD8CB] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-      <p className="text-sm font-black text-[#365F4A]">
-        Showing {start}-{end} of {total} {noun}
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" disabled={page <= 1} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(1)}>
-          <ChevronsLeft className="size-4" />
-        </Button>
-        <Button type="button" disabled={page <= 1} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(Math.max(1, page - 1))}>
-          <ChevronLeft className="size-4" />
-        </Button>
-        <span className="grid size-10 place-items-center rounded-md bg-[#123D2A] text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]">
-          {page}
-        </span>
-        <Button type="button" disabled={page >= maxPage} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(Math.min(maxPage, page + 1))}>
-          <ChevronRight className="size-4" />
-        </Button>
-        <Button type="button" disabled={page >= maxPage} className="flex size-10 items-center justify-center rounded-md border border-[#CAD8CB] bg-white p-0 text-[#123D2A] shadow-[0_6px_14px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC] disabled:text-[#AAB6AE] disabled:opacity-60" onClick={() => setPage(maxPage)}>
-          <ChevronsRight className="size-4" />
-        </Button>
-        {onPageSizeChange && pageSizeOptions ? (
-          <div className="ml-1 w-44">
-            <Select value={String(pageSize)} onChange={(value) => onPageSizeChange(Number(value))}>
-              {pageSizeOptions.map((option) => (
-                <option key={option} value={option}>{option} per page</option>
-              ))}
-            </Select>
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <PaginationControls
+      currentPage={page}
+      totalPages={maxPage}
+      totalItems={total}
+      itemName={noun}
+      onPageChange={setPage}
+      pageSize={pageSize}
+      pageSizeOptions={pageSizeOptions}
+      onPageSizeChange={onPageSizeChange}
+      className="mt-0 rounded-lg border border-[#CAD8CB] bg-white px-4 py-4 sm:px-5"
+    />
   );
 }
 

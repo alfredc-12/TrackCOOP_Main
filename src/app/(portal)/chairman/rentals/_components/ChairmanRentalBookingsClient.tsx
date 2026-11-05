@@ -178,7 +178,7 @@ export function ChairmanRentalBookingsClient() {
   const [saving, setSaving] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
+  const [pageSize, setPageSize] = useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -303,8 +303,8 @@ export function ChairmanRentalBookingsClient() {
     });
   }, [asset, inquiries, payment, preferredDate, requesterType, search, view]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   async function bulkUpdate(status: RentalStatus) {
     const records = inquiries.filter(
@@ -625,6 +625,13 @@ export function ChairmanRentalBookingsClient() {
               totalItems={filtered.length}
               itemName="bookings"
               onPageChange={setPage}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 20]}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+              className="mt-0"
             />
           </div>
         </>

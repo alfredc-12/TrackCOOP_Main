@@ -10,10 +10,6 @@ import {
   Search,
   RefreshCcw,
   MessageSquare,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   ChevronDown,
 } from "lucide-react";
 import {
@@ -21,6 +17,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
   FormDialog,
@@ -431,51 +428,17 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
       )}
 
       {!isLoading && requests.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4">
-          <div className="flex items-center gap-2">
-            <button
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#6C7A70] transition hover:bg-[#F7F8F3] disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-              disabled={query.page === 1}
-              onClick={() => setQuery(prev => ({ ...prev, page: 1 }))}
-              title="First Page"
-            >
-              <ChevronsLeft className="size-4" />
-            </button>
-            <button
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#6C7A70] transition hover:bg-[#F7F8F3] disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-              disabled={query.page === 1}
-              onClick={() => setQuery(prev => ({ ...prev, page: prev.page - 1 }))}
-              title="Previous Page"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-          </div>
-          
-          <div className="text-sm font-bold text-[#123D2A] flex items-center gap-2">
-            <span>Page {query.page} of {Math.ceil(total / query.pageSize) || 1}</span>
-            <span className="text-[#CAD8CB]">•</span>
-            <span>{total} requests</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#6C7A70] transition hover:bg-[#F7F8F3] disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-              disabled={query.page * query.pageSize >= total}
-              onClick={() => setQuery(prev => ({ ...prev, page: prev.page + 1 }))}
-              title="Next Page"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-            <button
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white text-[#6C7A70] transition hover:bg-[#F7F8F3] disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-              disabled={query.page * query.pageSize >= total}
-              onClick={() => setQuery(prev => ({ ...prev, page: Math.ceil(total / query.pageSize) }))}
-              title="Last Page"
-            >
-              <ChevronsRight className="size-4" />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          currentPage={query.page}
+          totalPages={Math.max(1, Math.ceil(total / query.pageSize))}
+          totalItems={total}
+          itemName="requests"
+          onPageChange={(nextPage) => setQuery((current) => ({ ...current, page: nextPage }))}
+          pageSize={query.pageSize}
+          pageSizeOptions={[5, 10, 20, 50]}
+          onPageSizeChange={(nextPageSize) => setQuery((current) => ({ ...current, pageSize: nextPageSize, page: 1 }))}
+          className="mt-4"
+        />
       )}
 
       <FormDialog

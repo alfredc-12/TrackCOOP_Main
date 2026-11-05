@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { FormDialog, ConfirmDialog } from "@/components/portal/PortalPrimitives";
-import { FileText, ArchiveRestore, Clock3, Inbox, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
+import { ConfirmDialog, FormDialog, PaginationControls } from "@/components/portal/PortalPrimitives";
+import { ArchiveRestore, Clock3, Inbox } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import type { DocumentListResponse, DocumentRecord } from "../records-types";
 import { apiError, primaryButtonClass, secondaryButtonClass, formatDate } from "./RecordsUi";
@@ -22,6 +22,7 @@ export function ArchivedDocumentsModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [mutating, setMutating] = useState<string | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<DocumentRecord | null>(null);
 
@@ -32,7 +33,7 @@ export function ArchivedDocumentsModal({
       const parameters = new URLSearchParams({
         status: "ARCHIVED",
         page: String(page),
-        pageSize: "5",
+        pageSize: String(pageSize),
       });
       const response = await expressFetch(`/api/documents?${parameters}`);
       if (!response.ok) throw new Error(await apiError(response));
@@ -43,7 +44,7 @@ export function ArchivedDocumentsModal({
     } finally {
       setLoading(false);
     }
-  }, [open, page]);
+  }, [open, page, pageSize]);
 
   useEffect(() => {
     load();
@@ -69,7 +70,7 @@ export function ArchivedDocumentsModal({
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil((data?.summary.archived ?? 0) / 5));
+  const totalPages = Math.max(1, Math.ceil((data?.summary.archived ?? 0) / pageSize));
 
   return (
     <>
@@ -117,43 +118,21 @@ export function ArchivedDocumentsModal({
               </div>
             ))}
             
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#5D6D63]">
-              <button
-                type="button"
-                className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-                disabled={page <= 1}
-                onClick={() => setPage(1)}
-              >
-                <ChevronsLeft className="size-4" />
-              </button>
-              <button
-                type="button"
-                className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              <span className="px-2 font-medium">
-                Page {page} of {totalPages} &middot; {data.summary.archived} document{data.summary.archived === 1 ? "" : "s"}
-              </span>
-              <button
-                type="button"
-                className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                <ChevronRight className="size-4" />
-              </button>
-              <button
-                type="button"
-                className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-                disabled={page >= totalPages}
-                onClick={() => setPage(totalPages)}
-              >
-                <ChevronsRight className="size-4" />
-              </button>
-            </div>
+            <PaginationControls
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={data.summary.archived}
+              itemName="documents"
+              onPageChange={setPage}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 20]}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+              disabled={loading}
+              className="mt-4 border-t border-[#EEF2EC] pt-4"
+            />
           </div>
         )}
         

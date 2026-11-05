@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { expressFetch } from "@/lib/express-api";
 import { format } from "date-fns";
 
@@ -26,10 +27,11 @@ export default function ActivityModal({
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const pageSize = 8; // Number of items per page
+  const [pageSize, setPageSize] = useState(8);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -56,6 +58,7 @@ export default function ActivityModal({
       .then(result => {
         setData(Array.isArray(result?.records) ? result.records : []);
         setTotalPages(Number(result?.totalPages) || 1);
+        setTotalItems(Number(result?.total) || Number(result?.totalCount) || (Array.isArray(result?.records) ? result.records.length : 0));
       })
       .catch((requestError: unknown) => {
         return expressFetch("/api/members/me/dashboard")
@@ -73,6 +76,7 @@ export default function ActivityModal({
               : recentActivity;
             setData(filtered);
             setTotalPages(1);
+            setTotalItems(filtered.length);
           })
           .catch((fallbackError: unknown) => {
             console.error(fallbackError);
@@ -82,7 +86,7 @@ export default function ActivityModal({
           });
       })
       .finally(() => setLoading(false));
-  }, [page, debouncedSearch, open]);
+  }, [page, pageSize, debouncedSearch, open]);
 
   return (
     <Modal
@@ -159,48 +163,21 @@ export default function ActivityModal({
           </table>
         </div>
 
-        {/* Pagination Controls */}
-        <div className="flex items-center justify-center mt-4 border-t border-gray-100 pt-4">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setPage(1)}
-              disabled={page === 1 || loading}
-              className="p-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="First Page"
-            >
-              <ChevronsLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1 || loading}
-              className="p-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Previous Page"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            
-            <div className="text-sm text-gray-500 px-4">
-              Page <span className="font-semibold text-gray-900">{page}</span> of <span className="font-semibold text-gray-900">{totalPages}</span>
-            </div>
-
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages || totalPages === 0 || loading}
-              className="p-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Next Page"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setPage(totalPages)}
-              disabled={page === totalPages || totalPages === 0 || loading}
-              className="p-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Last Page"
-            >
-              <ChevronsRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemName="activities"
+          onPageChange={setPage}
+          pageSize={pageSize}
+          pageSizeOptions={[5, 8, 10, 20]}
+          onPageSizeChange={(nextPageSize) => {
+            setPageSize(nextPageSize);
+            setPage(1);
+          }}
+          disabled={loading}
+          className="mt-4 border-t border-gray-100 pt-4"
+        />
       </div>
     </Modal>
   );

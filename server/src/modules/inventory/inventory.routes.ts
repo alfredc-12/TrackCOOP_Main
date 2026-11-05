@@ -15,10 +15,12 @@ export function createInventoryRouter(
   const readable = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper", "member")];
 
   router.get("/inventory", ...readable, controller.listProducts);
+  router.get("/inventory/archived", ...staff, controller.listArchivedProducts);
   router.post("/inventory", ...staff, controller.createProduct);
   router.get("/inventory/history", ...staff, controller.listHistory);
   router.put("/inventory/:id", ...staff, controller.updateProduct);
   router.delete("/inventory/:id", ...staff, controller.archiveProduct);
+  router.post("/inventory/:id/restore", ...staff, controller.restoreProduct);
   router.post("/inventory/:id/stock", ...staff, controller.updateStock);
   router.get("/public/store-products", controller.listPublicProducts);
 

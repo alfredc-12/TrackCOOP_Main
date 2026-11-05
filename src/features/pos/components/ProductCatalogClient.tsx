@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Image as ImageIcon, Package, Search, LayoutGrid, List, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, AlertCircle, Sprout, Eye, X, History } from "lucide-react";
+import { Image as ImageIcon, Package, Search, LayoutGrid, List, ChevronDown, RefreshCw, AlertCircle, Eye, X, History } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { normalizeProductImage } from "../product-image-url";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 
 type InventoryItem = {
   id: number;
@@ -42,7 +43,7 @@ export default function ProductCatalogClient() {
   const [detailsProduct, setDetailsProduct] = useState<InventoryItem | null>(null);
   const [brokenImageIds, setBrokenImageIds] = useState<Set<number>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const [itemsPerPage, setItemsPerPage] = useState(8);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -132,11 +133,6 @@ export default function ProductCatalogClient() {
   return (
     <main className={`-mx-4 -my-6 flex-1 bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 ${detailsProduct ? "overflow-hidden" : "overflow-y-auto"}`}>
       <div className="mx-auto max-w-7xl">
-        <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
-          <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative operations</div><h1 className="text-2xl font-black tracking-tight sm:text-3xl">Product Catalog</h1><p className="mt-2 max-w-xl text-sm leading-6 text-white/75">Browse products used by Inventory, POS Sales, and member ordering.</p></div><div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#CDE8D4]/20 bg-[#D8F0DE]/10 px-4 py-3"><div className="flex size-10 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><Sprout className="size-5" /></div><div><p className="text-xs font-semibold text-white/60">Catalog health</p><p className="font-bold">{unavailableProducts ? `${unavailableProducts} unavailable` : "All products available"}</p></div></div></div>
-        </div>
-
         <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[["Total Products", inventory.length, "Catalog items"], ["Available", availableProducts, "Ready to order"], ["Unavailable", unavailableProducts, "Needs attention"], ["Catalog Value", `₱ ${totalCatalogValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, "Based on stock"]].map(([label, value, hint]) => <div key={String(label)} className="flex min-h-[112px] items-center gap-3 rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5"><div className="rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]"><Package className="size-5" /></div><div><p className="text-xs font-bold text-gray-500">{label}</p><p className="text-[10px] text-gray-400">{hint}</p><p className="break-words text-xl font-black text-[#123D2A]">{value}</p></div></div>)}
         </div>
@@ -329,47 +325,17 @@ export default function ProductCatalogClient() {
         )}
 
         {!isLoading && filteredProducts.length > 0 && (
-          <div className="mt-8 flex items-center justify-center border-t border-[#d8e4d6] pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
-                  className="flex size-8 items-center justify-center rounded-lg border border-[#d8e4d6] bg-white text-[#365944] shadow-sm transition hover:bg-[#eef4ef] hover:text-[#123D2A] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronsLeft className="size-4" />
-                </button>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="flex size-8 items-center justify-center rounded-lg border border-[#d8e4d6] bg-white text-[#365944] shadow-sm transition hover:bg-[#eef4ef] hover:text-[#123D2A] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="size-4" />
-                </button>
-              </div>
-
-              <div className="text-sm font-semibold text-[#123D2A]">
-                Page {currentPage} of {Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage))} <span className="text-[#a4b8ab] mx-1">•</span> {filteredProducts.length} products
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredProducts.length / itemsPerPage)))}
-                  disabled={currentPage === Math.ceil(filteredProducts.length / itemsPerPage) || filteredProducts.length === 0}
-                  className="flex size-8 items-center justify-center rounded-lg border border-[#d8e4d6] bg-white text-[#365944] shadow-sm transition hover:bg-[#eef4ef] hover:text-[#123D2A] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="size-4" />
-                </button>
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage)))}
-                  disabled={currentPage === Math.ceil(filteredProducts.length / itemsPerPage) || filteredProducts.length === 0}
-                  className="flex size-8 items-center justify-center rounded-lg border border-[#d8e4d6] bg-white text-[#365944] shadow-sm transition hover:bg-[#eef4ef] hover:text-[#123D2A] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronsRight className="size-4" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <PaginationControls
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={filteredProducts.length}
+            itemName="products"
+            onPageChange={setCurrentPage}
+            pageSize={itemsPerPage}
+            pageSizeOptions={[8, 16, 24]}
+            onPageSizeChange={(nextPageSize) => { setItemsPerPage(nextPageSize); setCurrentPage(1); }}
+            className="mt-8 border-t border-[#d8e4d6] pt-6"
+          />
         )}
 
         {detailsProduct && (

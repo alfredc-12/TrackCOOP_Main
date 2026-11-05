@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { expressFetch } from "@/lib/express-api";
+import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout, AlertCircle, History, Activity, ShoppingBag, Banknote, Smartphone, Printer, Loader2, BarChart3, Download, Archive, ArchiveRestore } from "lucide-react";
+import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import {
     HIGH_VALUE_CROP_CRITERIA,
     HIGH_VALUE_CROP_DEFINITION,
@@ -47,7 +48,43 @@ type DemandFilter = "All" | DemandLevel;
 type HighValueFilter = "All" | "High-Value" | "Other";
 type DemandPeriod = "all" | "7d" | "30d" | "year";
 type StockStatus = "Healthy" | "Low Stock" | "Out of Stock";
+type SalesReportPeriod = "All time" | "Today" | "This week" | "This month" | "This year";
 const DEFAULT_LOW_STOCK_THRESHOLD = 10;
+
+const SALES_REPORT_PERIOD_OPTIONS: Array<{ value: SalesReportPeriod; label: string }> = [
+    { value: "All time", label: "All time" },
+    { value: "Today", label: "Today" },
+    { value: "This week", label: "This week" },
+    { value: "This month", label: "This month" },
+    { value: "This year", label: "This year" },
+];
+
+function reportDateQuery(period: SalesReportPeriod) {
+    if (period === "All time") return "";
+
+    const now = new Date();
+    const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+    const dateTo = formatDate(now);
+    const dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (period === "Today") {
+        return `dateFrom=${dateTo}&dateTo=${dateTo}`;
+    }
+    if (period === "This week") {
+        dateFrom.setDate(dateFrom.getDate() - 6);
+    } else if (period === "This month") {
+        dateFrom.setDate(1);
+    } else if (period === "This year") {
+        dateFrom.setMonth(0, 1);
+    }
+
+    return `dateFrom=${formatDate(dateFrom)}&dateTo=${dateTo}`;
+}
 
 const DEMAND_PERIOD_OPTIONS: Array<{ value: DemandPeriod; label: string }> = [
     { value: "all", label: "All-time demand" },
@@ -96,6 +133,22 @@ function stockStatusClass(status: StockStatus) {
     if (status === "Out of Stock") return "bg-[#FFF0F0] text-[#C33A36] ring-[#F2B8B5]";
     if (status === "Low Stock") return "bg-[#FFF6DD] text-[#A76500] ring-[#F2D28B]";
     return "bg-[#E8F7EE] text-[#168047] ring-[#B8E4C7]";
+}
+
+function isOrderInSalesReportPeriod(order: Pick<PosOrder, "sale_date">, period: SalesReportPeriod) {
+    if (period === "All time") return true;
+
+    const saleDate = new Date(order.sale_date);
+    if (Number.isNaN(saleDate.getTime())) return false;
+
+    const now = new Date();
+    if (saleDate.getTime() > now.getTime()) return false;
+    if (period === "Today") return saleDate.toDateString() === now.toDateString();
+    if (period === "This month") return saleDate.getFullYear() === now.getFullYear() && saleDate.getMonth() === now.getMonth();
+    if (period === "This year") return saleDate.getFullYear() === now.getFullYear();
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return saleDate.getTime() >= startOfToday - (7 * 24 * 60 * 60 * 1000);
 }
 
 export type InventoryItem = {
@@ -306,10 +359,22 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     const [detailsItem, setDetailsItem] = useState<InventoryItem | null>(null);
     const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
     const [orders, setOrders] = useState<PosOrder[]>([]);
+    const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+    const [isReportsLoading, setIsReportsLoading] = useState(false);
+    const [reportPeriod, setReportPeriod] = useState<SalesReportPeriod>("All time");
+    const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+    const [archivedInventory, setArchivedInventory] = useState<InventoryItem[]>([]);
+    const [isArchivedLoading, setIsArchivedLoading] = useState(false);
+    const [archivedPage, setArchivedPage] = useState(1);
+    const [archivedPageSize, setArchivedPageSize] = useState(10);
+    const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
+    const [isRestoring, setIsRestoring] = useState(false);
     const [orderSearchQuery, setOrderSearchQuery] = useState("");
     const [orderStatusFilter, setOrderStatusFilter] = useState("All");
     const [ordersCurrentPage, setOrdersCurrentPage] = useState(1);
+    const [ordersPageSize, setOrdersPageSize] = useState(5);
     const [inventoryPage, setInventoryPage] = useState(1);
+    const [inventoryPageSize, setInventoryPageSize] = useState(8);
 
     const fetchInventory = useCallback(async () => {
         try {
@@ -330,6 +395,21 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             setIsInventoryLoading(false);
         }
     }, [demandPeriod]);
+
+    const fetchArchivedInventory = useCallback(async () => {
+        setIsArchivedLoading(true);
+        try {
+            const res = await expressFetch("/api/inventory/archived", { cache: "no-store" });
+            if (!res.ok) throw new Error("Unable to load archived products.");
+            const data = await res.json();
+            setArchivedInventory((data as InventoryItem[]).map(normalizeProductImage));
+        } catch (error) {
+            console.error("Failed to fetch archived products", error);
+            toast.error("Archived products could not be loaded.");
+        } finally {
+            setIsArchivedLoading(false);
+        }
+    }, []);
 
     const fetchOrdersQuietly = useCallback(async () => {
         try {
@@ -379,6 +459,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     const [activitySearchQuery, setActivitySearchQuery] = useState("");
     const [activityTypeFilter, setActivityTypeFilter] = useState<"All" | "add" | "deduct">("All");
     const [activityCurrentPage, setActivityCurrentPage] = useState(1);
+    const [activityPageSize, setActivityPageSize] = useState(5);
     const [pendingAction, setPendingAction] = useState<"add" | "edit" | "stock" | null>(null);
     const [isActionProcessing, setIsActionProcessing] = useState(false);
     const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -423,50 +504,72 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
         }
     };
 
+    const openReports = async () => {
+        setIsReportsModalOpen(true);
+        setIsReportsLoading(true);
+        try {
+            await fetchOrdersQuietly();
+        } finally {
+            setIsReportsLoading(false);
+        }
+    };
+
+    const openArchivedProducts = async () => {
+        setArchivedPage(1);
+        setArchivedPageSize(10);
+        setIsArchivedModalOpen(true);
+        await fetchArchivedInventory();
+    };
+
+    const handleConfirmRestore = async () => {
+        if (!itemToRestore) return;
+        setIsRestoring(true);
+        try {
+            const res = await expressFetch(`/api/inventory/${itemToRestore.id}/restore`, { method: "POST" });
+            if (!res.ok) {
+                const error = await res.json().catch(() => null);
+                throw new Error(error?.error || "Failed to restore product.");
+            }
+            setItemToRestore(null);
+            await Promise.all([fetchArchivedInventory(), fetchInventory()]);
+            toast.success(`${itemToRestore.name} restored to active inventory.`);
+        } catch (error) {
+            console.error("Failed to restore product", error);
+            toast.error(error instanceof Error ? error.message : "Failed to restore product.");
+        } finally {
+            setIsRestoring(false);
+        }
+    };
+
 
 
     const confirmPayment = async (orderId: number) => {
         setOrderToConfirmId(orderId);
-        setConfirmDiscountAmount("");
-        setConfirmDiscountError("");
     };
 
     const processConfirmPayment = async () => {
         if (orderToConfirmId === null) return;
         if (isConfirming) return;  // prevent double submission
-        
-        if (Number(confirmDiscountAmount) > 100) {
-            setConfirmDiscountError("Discount cannot exceed 100%");
-            return;
-        }
 
         setIsConfirming(true);
         try {
             const confirmedOrder = orders.find(o => o.id === orderToConfirmId);
             const subtotal = Number(confirmedOrder?.subtotal_amount || confirmedOrder?.total_amount || 0);
-            const memberDiscountAmount = Number(confirmedOrder?.discount_amount || 0);
-            
-            const additionalDiscountPercent = confirmDiscountAmount ? Number(confirmDiscountAmount) : 0;
-            const additionalDiscountAmount = subtotal * (additionalDiscountPercent / 100);
-            
-            const totalDiscountAmount = memberDiscountAmount + additionalDiscountAmount;
 
             const res = await expressFetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ discount_amount: totalDiscountAmount })
+                body: JSON.stringify({})
             });
             if (res.ok) {
                 toast.success("Payment confirmed!");
                 if (confirmedOrder) {
-                    const newTotal = Math.max(0, subtotal - totalDiscountAmount);
-                    
                     setReceiptOrder({ 
                         ...confirmedOrder, 
                         sale_status: 'Paid', 
                         payment_status: 'Paid',
-                        discount_amount: totalDiscountAmount,
-                        total_amount: newTotal,
+                        discount_amount: 0,
+                        total_amount: subtotal,
                         subtotal_amount: subtotal
                     });
                 }
@@ -564,22 +667,20 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     const [revokeReason, setRevokeReason] = useState("");
     const [isConfirming, setIsConfirming] = useState(false);
     const [isRevoking, setIsRevoking] = useState(false);
-    const [confirmDiscountAmount, setConfirmDiscountAmount] = useState<string>("");
     const [receiptOrder, setReceiptOrder] = useState<PosOrder | null>(null);
     const [newItemErrors, setNewItemErrors] = useState<Record<string, string>>({});
     const [editItemErrors, setEditItemErrors] = useState<Record<string, string>>({});
     const [stockInputError, setStockInputError] = useState<string>("");
-    const [confirmDiscountError, setConfirmDiscountError] = useState<string>("");
 
 
     useEffect(() => {
-        if (isAddModalOpen || isStockAlertModalOpen || isHighValueInfoOpen || detailsItem || editingItem || addingStockItem || historyItem || itemToDelete || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
+        if (isAddModalOpen || isStockAlertModalOpen || isHighValueInfoOpen || detailsItem || editingItem || addingStockItem || historyItem || itemToDelete || itemToRestore || isGlobalHistoryModalOpen || pendingAction || isOrdersModalOpen || isReportsModalOpen || isArchivedModalOpen || orderToConfirmId !== null || orderToRejectId !== null || receiptOrder !== null) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
         return () => { document.body.style.overflow = 'auto'; };
-    }, [isAddModalOpen, isStockAlertModalOpen, isHighValueInfoOpen, detailsItem, editingItem, addingStockItem, historyItem, itemToDelete, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
+    }, [isAddModalOpen, isStockAlertModalOpen, isHighValueInfoOpen, detailsItem, editingItem, addingStockItem, historyItem, itemToDelete, itemToRestore, isGlobalHistoryModalOpen, pendingAction, isOrdersModalOpen, isReportsModalOpen, isArchivedModalOpen, orderToConfirmId, orderToRejectId, receiptOrder]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -693,8 +794,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
         field: keyof EditableInventoryItem,
         value: EditableInventoryItem[keyof EditableInventoryItem],
     ) => {
-        if (!editingItem) return;
-        setEditingItem({ ...editingItem, [field]: value });
+        setEditingItem((current) => current ? { ...current, [field]: value } : current);
     };
 
     const saveEditItemClick = () => {
@@ -894,6 +994,40 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
         .sort((a, b) => getAvailableStock(a) - getAvailableStock(b) || a.name.localeCompare(b.name));
     const highDemandCount = inventory.filter((item) => demandByProductId.get(item.id) === "High").length;
     const totalSoldUnits = inventory.reduce((sum, item) => sum + Number(item.sold || 0), 0);
+    const reportOrders = settledOrders.filter((order) => isOrderInSalesReportPeriod(order, reportPeriod));
+    const reportSales = reportOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+    const reportTransactions = reportOrders.length;
+    const reportUnitsSold = reportOrders.reduce(
+        (sum, order) => sum + (order.items ?? []).reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0),
+        0,
+    );
+    const reportAverageOrder = reportTransactions > 0 ? reportSales / reportTransactions : 0;
+    const reportCashSales = reportOrders
+        .filter((order) => orderPaymentLabel(order) === "Cash")
+        .reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+    const reportQrpSales = reportOrders
+        .filter((order) => orderPaymentLabel(order) === "QRPH")
+        .reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+    const reportTopProducts = (() => {
+        const products = new Map<string, { name: string; units: number; sales: number }>();
+        reportOrders.forEach((order) => {
+            (order.items ?? []).forEach((item) => {
+                const units = Number(item.quantity || 0);
+                const sales = Number(item.price || 0) * units;
+                const existing = products.get(item.name);
+                products.set(item.name, {
+                    name: item.name,
+                    units: (existing?.units ?? 0) + units,
+                    sales: (existing?.sales ?? 0) + sales,
+                });
+            });
+        });
+        return Array.from(products.values())
+            .sort((a, b) => b.sales - a.sales || b.units - a.units || a.name.localeCompare(b.name))
+            .slice(0, 5);
+    })();
+    const inventorySalesExportQuery = reportDateQuery(reportPeriod);
+    const inventorySalesExportHref = `${expressApiUrl("/api/reports/generate/sales-by-product/export")}?format=xlsx${inventorySalesExportQuery ? `&${inventorySalesExportQuery}` : ""}`;
 
     useEffect(() => {
         if (hasShownStockAlert.current || isInventoryLoading || inventoryError || inventory.length === 0) return;
@@ -915,15 +1049,16 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
         setInventoryPage(1);
     };
 
-    const inventoryPageSize = 8;
     const inventoryPageCount = Math.max(1, Math.ceil(filteredAndSortedInventory.length / inventoryPageSize));
     const paginatedInventory = filteredAndSortedInventory.slice((inventoryPage - 1) * inventoryPageSize, inventoryPage * inventoryPageSize);
+    const archivedPageCount = Math.max(1, Math.ceil(archivedInventory.length / archivedPageSize));
+    const archivedCurrentPage = Math.min(archivedPage, archivedPageCount);
+    const paginatedArchivedInventory = archivedInventory.slice((archivedCurrentPage - 1) * archivedPageSize, archivedCurrentPage * archivedPageSize);
 
     const filteredActivityLogs = globalHistory.filter((log) => {
         const name = log.inventoryItem?.name?.toLowerCase() ?? "";
         return name.includes(activitySearchQuery.toLowerCase()) && (activityTypeFilter === "All" || log.type === activityTypeFilter);
     });
-    const activityPageSize = 5;
     const activityPageCount = Math.max(1, Math.ceil(filteredActivityLogs.length / activityPageSize));
     const paginatedActivityLogs = filteredActivityLogs.slice((activityCurrentPage - 1) * activityPageSize, activityCurrentPage * activityPageSize);
 
@@ -1004,6 +1139,24 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                     <p className="text-sm text-[#64748b] mt-1">Manage products, stock levels, and reorder alerts.</p>
                 </div>
                 <div className="flex flex-wrap items-center justify-start gap-2 lg:max-w-[620px] lg:justify-end">
+                    <button
+                        type="button"
+                        onClick={() => void openArchivedProducts()}
+                        disabled={isArchivedLoading}
+                        className="flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm transition hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] disabled:cursor-wait disabled:opacity-60"
+                    >
+                        {isArchivedLoading ? <Loader2 className="size-4 animate-spin" /> : <Archive className="size-4 text-[#1F6B43]" />}
+                        Archived products
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void openReports()}
+                        disabled={isReportsLoading}
+                        className="flex items-center gap-2 rounded-xl border border-[#D8E5DB] bg-white px-4 py-2 text-sm font-semibold text-[#123D2A] shadow-sm transition hover:-translate-y-0.5 hover:border-[#91B99D] hover:bg-[#F4FAF5] disabled:cursor-wait disabled:opacity-60"
+                    >
+                        {isReportsLoading ? <Loader2 className="size-4 animate-spin" /> : <BarChart3 className="size-4 text-[#1F6B43]" />}
+                        Reports
+                    </button>
                     {showOrdersPayments ? (
                         <button
                             onClick={fetchOrders}
@@ -1304,7 +1457,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     <div className="mt-auto flex gap-3">
                                         <button
                                             onClick={() => {
-                                                const margin = item.cost_price && item.price ? (((item.price - item.cost_price) / item.cost_price) * 100).toFixed(1) : "";
+                                                const margin = item.cost_price !== undefined && item.price >= item.cost_price ? (item.price - item.cost_price).toFixed(2) : "";
                                                 setEditingItem({ ...item, margin });
                                             }}
                                             className="flex-1 rounded-xl border border-[#D8E5DB] bg-[#F5F9F5] py-2 text-xs font-bold text-[#52705D] transition hover:border-[#A9CBAF] hover:bg-[#EAF5EC]">
@@ -1334,11 +1487,17 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                 )}
             </div>
             {inventoryPageCount > 1 && (
-                <div className="mb-8 flex items-center justify-center gap-3 rounded-2xl border border-[#DCE9DE] bg-white p-3 shadow-sm">
-                    <button type="button" onClick={() => setInventoryPage((page) => Math.max(1, page - 1))} disabled={inventoryPage === 1} className="rounded-xl border border-[#D8E5DB] px-4 py-2 text-sm font-bold text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-                    <span className="text-sm font-bold text-[#123D2A]">Page {inventoryPage} of {inventoryPageCount}</span>
-                    <button type="button" onClick={() => setInventoryPage((page) => Math.min(inventoryPageCount, page + 1))} disabled={inventoryPage === inventoryPageCount} className="rounded-xl bg-[#123D2A] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:opacity-40">Next</button>
-                </div>
+                <PaginationControls
+                    currentPage={inventoryPage}
+                    totalPages={inventoryPageCount}
+                    totalItems={filteredAndSortedInventory.length}
+                    itemName="products"
+                    onPageChange={setInventoryPage}
+                    pageSize={inventoryPageSize}
+                    pageSizeOptions={[8, 16, 24]}
+                    onPageSizeChange={(nextPageSize) => { setInventoryPageSize(nextPageSize); setInventoryPage(1); }}
+                    className="mb-8 rounded-2xl border border-[#DCE9DE] bg-white p-3 shadow-sm"
+                />
             )}
 
             {/* Stock Alert Modal */}
@@ -1545,8 +1704,8 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                                     if ((cost.match(/\./g) || []).length > 1) cost = cost.substring(0, cost.lastIndexOf('.'));
                                                     setNewItemCostPrice(cost);
                                                     if (newItemErrors.cost_price) setNewItemErrors({ ...newItemErrors, cost_price: "" });
-                                                    if (cost && newItemMargin) {
-                                                        const selling = Number(cost) * (1 + Number(newItemMargin) / 100);
+                                                    if (cost && newItemMargin !== "") {
+                                                        const selling = Number(cost) + Number(newItemMargin);
                                                         setNewItemPrice(selling.toFixed(2));
                                                         if (newItemErrors.price) setNewItemErrors(prev => ({ ...prev, price: "" }));
                                                     }
@@ -1558,12 +1717,12 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                         {newItemErrors.cost_price && <p className="mt-1 text-xs text-red-500">{newItemErrors.cost_price}</p>}
                                     </div>
                                     <div>
-                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Target Margin</label>
-                                        <div className="relative">
+                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional amount</label>
+                                        <div className="relative [&>input]:pl-8 [&>span]:left-4 [&>span]:right-auto">
                                             <input
                                                 type="number"
                                                 min="0"
-                                                step="0.1"
+                                                step="0.01"
                                                 onKeyDown={(e) => {
                                                     if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
                                                 }}
@@ -1572,15 +1731,15 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                                     let margin = e.target.value.replace(/[^0-9.]/g, '');
                                                     if ((margin.match(/\./g) || []).length > 1) margin = margin.substring(0, margin.lastIndexOf('.'));
                                                     setNewItemMargin(margin);
-                                                    if (newItemCostPrice && margin) {
-                                                        const selling = Number(newItemCostPrice) * (1 + Number(margin) / 100);
+                                                    if (newItemCostPrice && margin !== "") {
+                                                        const selling = Number(newItemCostPrice) + Number(margin);
                                                         setNewItemPrice(selling.toFixed(2));
                                                     }
                                                 }}
-                                                placeholder="20"
+                                                placeholder="70.00"
                                                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#1e293b] font-medium outline-none transition focus:border-[#0F9D58] focus:ring-2 focus:ring-[#0F9D58]/20"
                                             />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₱</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1763,8 +1922,8 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                                     let cost = e.target.value.replace(/[^0-9.]/g, '');
                                                     if ((cost.match(/\./g) || []).length > 1) cost = cost.substring(0, cost.lastIndexOf('.'));
                                                     if (editItemErrors.cost_price) setEditItemErrors({ ...editItemErrors, cost_price: "" });
-                                                    if (cost && editingItem.margin) {
-                                                        const selling = Number(cost) * (1 + Number(editingItem.margin) / 100);
+                                                    if (cost && editingItem.margin !== undefined && editingItem.margin !== "") {
+                                                        const selling = Number(cost) + Number(editingItem.margin);
                                                         handleEditChange('price', selling.toFixed(2));
                                                         if (editItemErrors.price) setEditItemErrors(prev => ({ ...prev, price: "" }));
                                                     }
@@ -1776,12 +1935,12 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                         {editItemErrors.cost_price && <p className="mt-1 text-xs text-red-500">{editItemErrors.cost_price}</p>}
                                     </div>
                                     <div>
-                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Target Margin</label>
-                                        <div className="relative">
+                                        <label className="mb-1.5 block text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional amount</label>
+                                        <div className="relative [&>input]:pl-8 [&>span]:left-4 [&>span]:right-auto">
                                             <input
                                                 type="number"
                                                 min="0"
-                                                step="0.1"
+                                                step="0.01"
                                                 onKeyDown={(e) => {
                                                     if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
                                                 }}
@@ -1789,15 +1948,15 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                                 onChange={(e) => {
                                                     let margin = e.target.value.replace(/[^0-9.]/g, '');
                                                     if ((margin.match(/\./g) || []).length > 1) margin = margin.substring(0, margin.lastIndexOf('.'));
-                                                    if (editingItem.cost_price && margin) {
-                                                        const selling = Number(editingItem.cost_price) * (1 + Number(margin) / 100);
+                                                    if (editingItem.cost_price && margin !== "") {
+                                                        const selling = Number(editingItem.cost_price) + Number(margin);
                                                         handleEditChange('price', selling.toFixed(2));
                                                     }
                                                     handleEditChange('margin', margin);
                                                 }}
                                                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-[#1e293b] font-medium outline-none transition focus:border-[#0F9D58] focus:ring-2 focus:ring-[#0F9D58]/20"
                                             />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₱</span>
                                         </div>
                                     </div>
                                 </div>
@@ -2025,7 +2184,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => { const margin = detailsItem.cost_price && detailsItem.price ? (((detailsItem.price - detailsItem.cost_price) / detailsItem.cost_price) * 100).toFixed(1) : ""; setEditingItem({ ...detailsItem, margin }); setDetailsItem(null); }}
+                                        onClick={() => { const margin = detailsItem.cost_price !== undefined && detailsItem.price >= detailsItem.cost_price ? (detailsItem.price - detailsItem.cost_price).toFixed(2) : ""; setEditingItem({ ...detailsItem, margin }); setDetailsItem(null); }}
                                         className="rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
                                     >
                                         Edit product
@@ -2036,18 +2195,18 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                     </div>
                 );
             })()}
-            {/* Archive Confirmation Modal */}
+            {/* Archive / Delete Confirmation Modal */}
             {itemToDelete && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0">
+                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0" role="dialog" aria-modal="true" aria-labelledby="archive-product-title">
                     <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
                         <div className="mb-4 flex justify-center">
                             <div className="flex size-16 items-center justify-center rounded-full bg-red-100 text-red-600">
                                 <AlertCircle className="size-8" />
                             </div>
                         </div>
-                        <h3 className="mb-2 text-center text-xl font-bold text-gray-900">Archive Product?</h3>
+                        <h3 id="archive-product-title" className="mb-2 text-center text-xl font-bold text-gray-900">Archive / remove product?</h3>
                         <p className="mb-6 text-center text-sm text-gray-500">
-                            Are you sure you want to archive <span className="font-bold text-gray-700">{itemToDelete.name}</span>? It will be removed from active inventory.
+                            This removes <span className="font-bold text-gray-700">{itemToDelete.name}</span> from active inventory. Historical sales are preserved, so the product is archived instead of permanently deleted.
                         </p>
                         <div className="flex gap-3">
                             <button
@@ -2062,7 +2221,101 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                 disabled={isDeleting}
                                 className="flex-1 rounded-xl border border-transparent bg-red-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
                             >
-                                {isDeleting ? <><Loader2 className="mr-2 inline size-4 animate-spin" />Archiving...</> : "Archive Product"}
+                                {isDeleting ? <><Loader2 className="mr-2 inline size-4 animate-spin" />Removing...</> : "Archive product"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Archived Products Modal */}
+            {isArchivedModalOpen && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B2E20]/55 p-4 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="archived-products-title">
+                    <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
+                        <div className="flex items-start justify-between border-b border-[#E7EFE8] bg-[#F8FBF8] px-5 py-5 sm:px-7">
+                            <div className="flex items-start gap-3">
+                                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF5EC] text-[#1F6B43]">
+                                    <Archive className="size-6" />
+                                </div>
+                                <div>
+                                    <h2 id="archived-products-title" className="text-xl font-black text-[#123D2A]">Archived products</h2>
+                                    <p className="mt-1 text-sm leading-5 text-[#64748b]">Products removed from active inventory. Historical sales remain preserved.</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setIsArchivedModalOpen(false)} className="rounded-full p-2 text-[#64748b] transition hover:bg-white hover:text-[#123D2A]" aria-label="Close archived products">
+                                <X className="size-5" />
+                            </button>
+                        </div>
+
+                        <div className="relative flex-1 overflow-y-auto bg-white p-5 custom-scrollbar sm:p-7">
+                            {isArchivedLoading && (
+                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-[#123D2A]"><Loader2 className="size-5 animate-spin" /> Loading archived products...</div>
+                                </div>
+                            )}
+
+                            {!isArchivedLoading && archivedInventory.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-[#CDE2D1] bg-[#F8FBF8] px-5 py-12 text-center">
+                                    <Archive className="mx-auto size-10 text-[#9DC6A8]" />
+                                    <h3 className="mt-3 text-lg font-black text-[#123D2A]">No archived products</h3>
+                                    <p className="mt-1 text-sm text-[#789181]">Archived products will appear here after they are removed from active inventory.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {paginatedArchivedInventory.map((item) => (
+                                        <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#E3EDE4] bg-[#F8FBF8] p-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-black text-[#123D2A]" title={item.name}>{item.name}</p>
+                                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#789181]">
+                                                    <span>{item.category || "Uncategorized"}</span>
+                                                    <span>Stock history: {item.history?.length ?? 0} records</span>
+                                                    <span>₱{Number(item.price).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                <span className="rounded-full bg-[#F1F4F2] px-3 py-1 text-[11px] font-bold text-[#5D6D63] ring-1 ring-inset ring-[#D7E0D9]">Archived</span>
+                                                <button type="button" onClick={() => setItemToRestore(item)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#BBD7C1] bg-white px-3 py-2 text-xs font-bold text-[#1F6B43] transition hover:border-[#1F6B43] hover:bg-[#EAF5EC]">
+                                                    <ArchiveRestore className="size-3.5" /> Unarchive
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <PaginationControls
+                            currentPage={archivedCurrentPage}
+                            totalPages={archivedPageCount}
+                            totalItems={archivedInventory.length}
+                            itemName="archived products"
+                            onPageChange={setArchivedPage}
+                            pageSize={archivedPageSize}
+                            pageSizeOptions={[5, 10, 20]}
+                            onPageSizeChange={(nextPageSize) => { setArchivedPageSize(nextPageSize); setArchivedPage(1); }}
+                            className="mt-0 border-t border-[#E7EFE8] bg-[#F8FBF8] px-5 py-4 text-sm sm:px-7"
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Unarchive Confirmation Modal */}
+            {itemToRestore && (
+                <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="restore-product-title">
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl animate-in zoom-in-95 duration-200">
+                        <div className="mb-4 flex justify-center">
+                            <div className="flex size-16 items-center justify-center rounded-full bg-[#EAF5EC] text-[#1F6B43]">
+                                <ArchiveRestore className="size-8" />
+                            </div>
+                        </div>
+                        <h3 id="restore-product-title" className="mb-2 text-center text-xl font-bold text-[#123D2A]">Unarchive product?</h3>
+                        <p className="mb-6 text-center text-sm text-[#64748b]">
+                            <span className="font-bold text-[#123D2A]">{itemToRestore.name}</span> will return to the active Inventory list and can be sold again.
+                        </p>
+                        <div className="flex gap-3">
+                            <button type="button" onClick={() => setItemToRestore(null)} disabled={isRestoring} className="flex-1 rounded-xl border border-[#D8E5DB] bg-white py-3 text-sm font-semibold text-[#52705D] transition hover:bg-[#F8FBF8] disabled:opacity-60">Cancel</button>
+                            <button type="button" onClick={() => void handleConfirmRestore()} disabled={isRestoring} className="flex-1 rounded-xl bg-[#123D2A] py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1F6B43] disabled:cursor-wait disabled:opacity-60">
+                                {isRestoring ? <><Loader2 className="mr-2 inline size-4 animate-spin" />Restoring...</> : "Unarchive"}
                             </button>
                         </div>
                     </div>
@@ -2137,21 +2390,17 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     </div>
                                 ))}
                                 {activityPageCount > 1 && (
-                                    <div className="flex items-center justify-center gap-2 border-t border-[#DDE9E0] pt-4">
-                                        <button type="button" onClick={() => setActivityCurrentPage(1)} disabled={activityCurrentPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="First Page" aria-label="First activity page">
-                                            <ChevronsLeft className="size-4" />
-                                        </button>
-                                        <button type="button" onClick={() => setActivityCurrentPage((page) => Math.max(1, page - 1))} disabled={activityCurrentPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Previous Page" aria-label="Previous activity page">
-                                            <ChevronLeft className="size-4" />
-                                        </button>
-                                        <span className="px-2 text-sm font-bold text-[#123D2A]">Page {activityCurrentPage} of {activityPageCount} &bull; {filteredActivityLogs.length} activities</span>
-                                        <button type="button" onClick={() => setActivityCurrentPage((page) => Math.min(activityPageCount, page + 1))} disabled={activityCurrentPage === activityPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Next Page" aria-label="Next activity page">
-                                            <ChevronRight className="size-4" />
-                                        </button>
-                                        <button type="button" onClick={() => setActivityCurrentPage(activityPageCount)} disabled={activityCurrentPage === activityPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Last Page" aria-label="Last activity page">
-                                            <ChevronsRight className="size-4" />
-                                        </button>
-                                    </div>
+                                    <PaginationControls
+                                        currentPage={activityCurrentPage}
+                                        totalPages={activityPageCount}
+                                        totalItems={filteredActivityLogs.length}
+                                        itemName="activities"
+                                        onPageChange={setActivityCurrentPage}
+                                        pageSize={activityPageSize}
+                                        pageSizeOptions={[5, 10, 20]}
+                                        onPageSizeChange={(nextPageSize) => { setActivityPageSize(nextPageSize); setActivityCurrentPage(1); }}
+                                        className="mt-0 border-t border-[#DDE9E0] pt-4"
+                                    />
                                 )}
                                 </>
                             ) : (
@@ -2239,6 +2488,145 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                 </div>
             )}
 
+            {/* Inventory Reports Modal */}
+            {isReportsModalOpen && (
+                <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[#0B2E20]/55 p-4 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="inventory-reports-title">
+                    <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
+                        <div className="flex items-start justify-between border-b border-[#E7EFE8] bg-[#F8FBF8] px-5 py-5 sm:px-7">
+                            <div className="flex items-start gap-3">
+                                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#E8F7EE] text-[#1F6B43]">
+                                    <BarChart3 className="size-6" />
+                                </div>
+                                <div>
+                                    <h2 id="inventory-reports-title" className="text-xl font-black text-[#123D2A]">Inventory reports</h2>
+                                    <p className="mt-1 text-sm leading-5 text-[#64748b]">Sales performance and stock attention from posted POS transactions.</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setIsReportsModalOpen(false)} className="rounded-full p-2 text-[#64748b] transition hover:bg-white hover:text-[#123D2A]" aria-label="Close inventory reports">
+                                <X className="size-5" />
+                            </button>
+                        </div>
+
+                        <div className="relative flex-1 overflow-y-auto bg-white p-5 custom-scrollbar sm:p-7">
+                            {isReportsLoading && (
+                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-[#123D2A]"><Loader2 className="size-5 animate-spin" /> Loading report data...</div>
+                                </div>
+                            )}
+
+                            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#DCE9DE] bg-[#F8FBF8] p-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#789181]">Reporting period</p>
+                                    <p className="mt-1 text-sm text-[#52705D]">Only paid and completed orders are included.</p>
+                                </div>
+                                <div className="w-full sm:w-48">
+                                    <ThemedSelect
+                                        value={reportPeriod}
+                                        onChange={(value) => setReportPeriod(value as SalesReportPeriod)}
+                                        ariaLabel="Inventory report period"
+                                        options={SALES_REPORT_PERIOD_OPTIONS}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                {[
+                                    ["Total sales", `₱${reportSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, "text-[#1F6B43]"],
+                                    ["Transactions", reportTransactions.toLocaleString(), "text-[#123D2A]"],
+                                    ["Units sold", reportUnitsSold.toLocaleString(), "text-[#123D2A]"],
+                                    ["Average order", `₱${reportAverageOrder.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, "text-[#A76500]"],
+                                ].map(([label, value, valueClass]) => (
+                                    <div key={label} className="rounded-2xl border border-[#E3EDE4] bg-white p-4 shadow-sm">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-[#789181]">{label}</p>
+                                        <p className={`mt-2 break-words text-2xl font-black ${valueClass}`}>{value}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="flex items-center justify-between rounded-2xl border border-[#E3EDE4] bg-[#F8FBF8] px-4 py-3">
+                                    <span className="flex items-center gap-2 text-sm font-semibold text-[#52705D]"><Banknote className="size-4 text-[#1F6B43]" /> Cash sales</span>
+                                    <span className="font-black text-[#123D2A]">₱{reportCashSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex items-center justify-between rounded-2xl border border-[#E3EDE4] bg-[#F8FBF8] px-4 py-3">
+                                    <span className="flex items-center gap-2 text-sm font-semibold text-[#52705D]"><Smartphone className="size-4 text-[#1F6B43]" /> QRPH sales</span>
+                                    <span className="font-black text-[#123D2A]">₱{reportQrpSales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+                                <section className="rounded-2xl border border-[#E3EDE4] bg-white p-4 shadow-sm sm:p-5">
+                                    <div className="mb-4 flex items-center justify-between gap-3">
+                                        <div>
+                                            <h3 className="text-lg font-black text-[#123D2A]">Top products by sales</h3>
+                                            <p className="mt-1 text-xs text-[#789181]">Based on completed units and recorded item prices.</p>
+                                        </div>
+                                        <ShoppingBag className="size-5 text-[#1F6B43]" />
+                                    </div>
+                                    {reportTopProducts.length > 0 ? (
+                                        <div className="divide-y divide-[#E7EFE8]">
+                                            {reportTopProducts.map((product, index) => (
+                                                <div key={product.name} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                                                    <div className="flex min-w-0 items-center gap-3">
+                                                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#EAF5EC] text-xs font-black text-[#1F6B43]">{index + 1}</span>
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-bold text-[#123D2A]" title={product.name}>{product.name}</p>
+                                                            <p className="mt-0.5 text-xs text-[#789181]">{product.units.toLocaleString()} units sold</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="shrink-0 text-sm font-black text-[#1F6B43]">₱{product.sales.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border border-dashed border-[#CDE2D1] bg-[#F8FBF8] px-4 py-8 text-center text-sm text-[#789181]">No completed sales for this period.</div>
+                                    )}
+                                </section>
+
+                                <section className="rounded-2xl border border-[#E3EDE4] bg-white p-4 shadow-sm sm:p-5">
+                                    <div className="mb-4 flex items-center justify-between gap-3">
+                                        <div>
+                                            <h3 className="text-lg font-black text-[#123D2A]">Stock attention</h3>
+                                            <p className="mt-1 text-xs text-[#789181]">Products at or below the reorder threshold.</p>
+                                        </div>
+                                        <AlertCircle className="size-5 text-[#A76500]" />
+                                    </div>
+                                    {stockAlertItems.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {stockAlertItems.slice(0, 5).map((item) => {
+                                                const status = getStockStatus(item);
+                                                return (
+                                                    <button key={item.id} type="button" onClick={() => { setIsReportsModalOpen(false); setStockActionType("add"); setStockToAdd(""); setStockInputError(""); setAddingStockItem(item); }} className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E3EDE4] bg-[#F8FBF8] px-3 py-3 text-left transition hover:border-[#9DC6A8] hover:bg-[#F1F8F2]">
+                                                        <span className="min-w-0">
+                                                            <span className="block truncate text-sm font-bold text-[#123D2A]">{item.name}</span>
+                                                            <span className="mt-1 block text-xs text-[#789181]">{formatQuantityUnit(getAvailableStock(item), item.unit)} available</span>
+                                                        </span>
+                                                        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${stockStatusClass(status)}`}>{status}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                            {stockAlertItems.length > 5 && <p className="pt-2 text-center text-xs text-[#789181]">+{stockAlertItems.length - 5} more alert(s) in Inventory</p>}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border border-dashed border-[#CDE2D1] bg-[#F8FBF8] px-4 py-8 text-center text-sm text-[#1F6B43]">All active products have healthy stock.</div>
+                                    )}
+                                </section>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3 border-t border-[#E7EFE8] bg-[#F8FBF8] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                            <p className="text-xs text-[#789181]">Export the selected sales period as Excel, or open the Reports module for more report types.</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <a href={inventorySalesExportHref} download className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#BBD7C1] bg-white px-4 py-2.5 text-sm font-bold text-[#123D2A] transition hover:border-[#1F6B43] hover:bg-[#EAF5EC]">
+                                    <Download className="size-4" /> Export Excel
+                                </a>
+                                <a href={showOrdersPayments ? "/portal/bookkeeper/reports" : "/portal/chairman/reports"} className="inline-flex items-center justify-center rounded-xl bg-[#123D2A] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#1F6B43]">Open full reports</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Orders & Payments Modal */}
             {isOrdersModalOpen && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-6">
@@ -2305,10 +2693,9 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
 
                             {(() => {
                                 const filteredOrders = orders.filter(order => (orderStatusFilter === "All" || order.sale_status === orderStatusFilter) && (order.sale_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) || (order.customer_name || '').toLowerCase().includes(orderSearchQuery.toLowerCase())));
-                                const ordersPerPage = 5;
-                                const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
-                                const startIndex = (ordersCurrentPage - 1) * ordersPerPage;
-                                const paginatedOrders = filteredOrders.slice(startIndex, startIndex + ordersPerPage);
+                                const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ordersPageSize));
+                                const startIndex = (ordersCurrentPage - 1) * ordersPageSize;
+                                const paginatedOrders = filteredOrders.slice(startIndex, startIndex + ordersPageSize);
 
                                 return filteredOrders.length > 0 ? (
                                     <>
@@ -2391,43 +2778,17 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     ))}
                                 </div>
                                 {totalPages > 1 && (
-                                    <div className="mt-6 flex items-center justify-center gap-2 border-t border-gray-100 pt-4">
-                                        <button
-                                            onClick={() => setOrdersCurrentPage(1)}
-                                            disabled={ordersCurrentPage === 1}
-                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
-                                            title="First Page"
-                                        >
-                                            <ChevronsLeft className="size-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => setOrdersCurrentPage(p => Math.max(1, p - 1))}
-                                            disabled={ordersCurrentPage === 1}
-                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
-                                            title="Previous Page"
-                                        >
-                                            <ChevronLeft className="size-4" />
-                                        </button>
-                                        <span className="text-sm font-medium text-gray-700 px-2">
-                                            Page {ordersCurrentPage} of {totalPages} &bull; {filteredOrders.length} orders
-                                        </span>
-                                        <button
-                                            onClick={() => setOrdersCurrentPage(p => Math.min(totalPages, p + 1))}
-                                            disabled={ordersCurrentPage === totalPages}
-                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
-                                            title="Next Page"
-                                        >
-                                            <ChevronRight className="size-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => setOrdersCurrentPage(totalPages)}
-                                            disabled={ordersCurrentPage === totalPages}
-                                            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
-                                            title="Last Page"
-                                        >
-                                            <ChevronsRight className="size-4" />
-                                        </button>
-                                    </div>
+                                    <PaginationControls
+                                        currentPage={ordersCurrentPage}
+                                        totalPages={totalPages}
+                                        totalItems={filteredOrders.length}
+                                        itemName="orders"
+                                        onPageChange={setOrdersCurrentPage}
+                                        pageSize={ordersPageSize}
+                                        pageSizeOptions={[5, 10, 20]}
+                                        onPageSizeChange={(nextPageSize) => { setOrdersPageSize(nextPageSize); setOrdersCurrentPage(1); }}
+                                        className="mt-6 border-t border-gray-100 pt-4"
+                                    />
                                 )}
                             </>
                         ) : (
@@ -2454,36 +2815,9 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             Are you sure you want to verify this payment? This will finalize the order and deduct the items from stock.
                         </p>
                         
-                        <div className="mb-6 text-left">
-                            <label className="mb-1 block text-sm font-medium text-gray-700">Add Discount % (Optional)</label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="any"
-                                    onKeyDown={(e) => {
-                                        if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
-                                    }}
-                                    placeholder="0.00"
-                                    value={confirmDiscountAmount}
-                                    onChange={(e) => {
-                                        let val = e.target.value.replace(/[^0-9.]/g, '');
-                                        if ((val.match(/\./g) || []).length > 1) val = val.substring(0, val.lastIndexOf('.'));
-                                        if (Number(val) > 100) val = "100";
-                                        setConfirmDiscountAmount(val);
-                                        if (confirmDiscountError) setConfirmDiscountError("");
-                                    }}
-                                    className={`w-full rounded-xl border ${confirmDiscountError ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#123D2A]'} bg-gray-50 p-3 pl-8 text-sm outline-none transition focus:bg-white focus:ring-1`}
-                                />
-                            </div>
-                            {confirmDiscountError && <p className="mt-1 text-xs text-red-500">{confirmDiscountError}</p>}
-                        </div>
-
                         <div className="flex gap-3">
                             <button
-                                onClick={() => { setOrderToConfirmId(null); setConfirmDiscountAmount(""); }}
+                                onClick={() => setOrderToConfirmId(null)}
                                 className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                             >
                                 Cancel
@@ -2587,34 +2921,15 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                     <span>₱{Number(receiptOrder.subtotal_amount || receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
                                 {(() => {
-                                    const subtotal = Number(receiptOrder.subtotal_amount || receiptOrder.total_amount);
                                     const totalDiscount = Number(receiptOrder.discount_amount);
                                     
                                     if (totalDiscount <= 0) return null;
 
-                                    const isMember = !!receiptOrder.member_id;
-                                    const expectedMemberDiscount = isMember ? subtotal * 0.05 : 0;
-                                    
-                                    // Due to float precision, we compare with a tiny threshold
-                                    const hasMemberDiscount = isMember && totalDiscount >= expectedMemberDiscount - 0.01;
-                                    const actualMemberDiscount = hasMemberDiscount ? expectedMemberDiscount : 0;
-                                    const additionalDiscount = Math.max(0, totalDiscount - actualMemberDiscount);
-                                    
                                     return (
-                                        <>
-                                            {actualMemberDiscount > 0 && (
-                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
-                                                    <span>Member Discount (5%)</span>
-                                                    <span>- ₱{actualMemberDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                                                </div>
-                                            )}
-                                            {additionalDiscount > 0.01 && (
-                                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
-                                                    <span>Additional Discount ({Math.round((additionalDiscount / subtotal) * 100)}%)</span>
-                                                    <span>- ₱{additionalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                                                </div>
-                                            )}
-                                        </>
+                                        <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                            <span>Discount</span>
+                                            <span>- ₱{totalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                        </div>
                                     );
                                 })()}
                                 <div className="flex justify-between items-center text-base font-bold text-gray-900 pt-2 border-t border-gray-100">

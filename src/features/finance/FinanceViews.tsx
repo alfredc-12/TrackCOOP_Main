@@ -23,6 +23,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -135,23 +136,6 @@ function Toolbar({
           {refreshing ? "Loading..." : "Refresh"}
         </button>
       </div>
-    </div>
-  );
-}
-
-function RowsPerPageSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  const [open, setOpen] = useState(false);
-  const options = [5, 10, 20, 50];
-  return (
-    <div className="relative w-40">
-      <button type="button" aria-label="Rows per page" aria-expanded={open} onClick={() => setOpen((current) => !current)}
-        className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-        <span>{value} per page</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-      {open ? <div role="listbox" aria-label="Rows per page options" className="absolute right-0 z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
-        {options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} onClick={() => { onChange(option); setOpen(false); }}
-          className={`flex w-full items-center rounded px-3 py-3 text-left text-sm transition ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option} per page</button>)}
-      </div> : null}
     </div>
   );
 }
@@ -330,7 +314,6 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
                 setPage(1);
               }}
             />
-            <RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
           </div>
         )}
       />
@@ -358,13 +341,7 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
               ))}
             </tbody>
           </table>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
-            <span className="font-semibold text-[#6C7A70]">Showing {payments.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, paymentTotal)} of {paymentTotal} payments</span>
-            <div className="flex gap-2">
-              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
-              <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
-            </div>
-          </div>
+          <PaginationControls currentPage={page} totalPages={pageCount} totalItems={paymentTotal} itemName="payments" onPageChange={setPage} pageSize={pageSize} pageSizeOptions={[5, 10, 20, 50]} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} className="mt-0 border-t border-[#E2E8E2] px-5 py-4" />
         </DataTable>
       )}
 
@@ -606,7 +583,7 @@ export function FinancialLedgerView({
           </div>
         </div>
       ) : fromAnalytics ? <a className="w-fit text-sm font-bold text-[#1F6B43] underline underline-offset-4" href="/portal/chairman/financial-dashboard">Back to Financial Analytics</a> : null}
-      <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="ledger" rightContent={<RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />} />
+      <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="ledger" />
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : records.length === 0 ? (
         <EmptyState icon={Landmark} title="No financial records found" description="Ledger entries will appear here once posted or recorded by the bookkeeper." />
@@ -628,13 +605,7 @@ export function FinancialLedgerView({
               ))}
             </tbody>
           </table>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
-            <span className="font-semibold text-[#6C7A70]">Showing {records.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, records.length)} of {records.length} records</span>
-            <div className="flex gap-2">
-              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
-              <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
-            </div>
-          </div>
+          <PaginationControls currentPage={page} totalPages={pageCount} totalItems={records.length} itemName="records" onPageChange={setPage} pageSize={pageSize} pageSizeOptions={[5, 10, 20, 50]} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} className="mt-0 border-t border-[#E2E8E2] px-5 py-4" />
         </DataTable>
       )}
     </div>
@@ -672,7 +643,6 @@ export function FinancialCategoriesView() {
     <div className="grid gap-4">
       <PageHeader eyebrow="Finance" title="Financial Categories" description="Reusable income and expense categories for ledger organization." />
       <div className="flex flex-wrap items-center justify-end gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3">
-        <RowsPerPageSelect value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
         <button type="button" onClick={() => void load()} disabled={isLoading} aria-busy={isLoading} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:cursor-wait disabled:opacity-60">
           <RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />{isLoading ? "Loading..." : "Refresh"}
         </button>
@@ -697,13 +667,7 @@ export function FinancialCategoriesView() {
               ))}
             </tbody>
           </table>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
-            <span className="font-semibold text-[#6C7A70]">Showing {categories.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, categories.length)} of {categories.length} categories</span>
-            <div className="flex gap-2">
-              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
-              <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
-            </div>
-          </div>
+          <PaginationControls currentPage={page} totalPages={pageCount} totalItems={categories.length} itemName="categories" onPageChange={setPage} pageSize={pageSize} pageSizeOptions={[5, 10, 20, 50]} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} className="mt-0 border-t border-[#E2E8E2] px-5 py-4" />
         </DataTable>
       )}
     </div>

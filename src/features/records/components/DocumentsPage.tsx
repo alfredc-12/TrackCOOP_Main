@@ -6,10 +6,6 @@ import { saveAs } from "file-saver";
 import {
   Archive,
   ArchiveRestore,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Clock3,
   Download,
   Eye,
@@ -39,6 +35,7 @@ import {
   FormDialog,
   ConfirmDialog,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -105,10 +102,10 @@ function statusTone(status: DocumentStatus) {
   return "neutral" as const;
 }
 
-function queryFor(filters: Filters, page = 1) {
+function queryFor(filters: Filters, page = 1, pageSize = 5) {
   const parameters = new URLSearchParams({
     page: String(page),
-    pageSize: "5",
+    pageSize: String(pageSize),
     sortBy: "insertionOrder",
     sortDirection: "desc",
   });
@@ -123,6 +120,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [draftFilters, setDraftFilters] = useState<Filters>(emptyFilters);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [data, setData] = useState<DocumentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +146,8 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const debouncedSearch = useDebounce(draftFilters.search, 300);
 
   useEffect(() => {
+    // The debounced search value is external timing state; sync it into the API query after the debounce.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFilters((current) => ({ ...current, search: debouncedSearch }));
     setPage(1);
   }, [debouncedSearch]);
@@ -157,7 +157,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     refreshInFlight.current = true;
     try {
       const response = await expressFetch(
-        `/api/documents?${queryFor(filters, page)}`,
+        `/api/documents?${queryFor(filters, page, pageSize)}`,
         {
           cache: "no-store",
         },
@@ -177,7 +177,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       refreshInFlight.current = false;
       if (!silent) setLoading(false);
     }
-  }, [filters, page]);
+  }, [filters, page, pageSize]);
 
   useEffect(() => {
     // The async loader updates state only after the external request resolves.
@@ -189,7 +189,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     return () => window.clearInterval(refreshTimer);
   }, [load]);
 
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / 5));
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
   const visibleAccess = DOCUMENT_ACCESS_LEVELS.filter(
     (item) => role === "chairman" || item.value !== "ADMIN_ONLY",
   );
@@ -778,43 +778,17 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               </article>
             ))}
           </div>
-          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#5D6D63]">
-            <button
-              type="button"
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-              disabled={page <= 1}
-              onClick={() => setPage(1)}
-            >
-              <ChevronsLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <span className="px-2 font-medium">
-              Page {page} of {totalPages} &middot; {data.total} document{data.total === 1 ? "" : "s"}
-            </span>
-            <button
-              type="button"
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="grid size-9 place-items-center rounded-md border border-[#CAD8CB] bg-white hover:bg-[#EEF2EC] disabled:opacity-50"
-              disabled={page >= totalPages}
-              onClick={() => setPage(totalPages)}
-            >
-              <ChevronsRight className="size-4" />
-            </button>
-          </div>
+          <PaginationControls
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={data.total}
+            itemName="documents"
+            onPageChange={setPage}
+            pageSize={pageSize}
+            pageSizeOptions={[5, 10, 20]}
+            onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+            className="mt-4"
+          />
         </>
       ) : null}
 

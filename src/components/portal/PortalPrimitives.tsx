@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RetryButton } from "@/components/ui/RetryButton";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 
 export { LoadingSpinner, LoadingButton, SkeletonCard, SkeletonTable, LoadingOverlay } from "@/components/ui/LoadingStates";
 
@@ -394,20 +395,35 @@ export function PaginationControls({
   totalItems,
   itemName = "items",
   onPageChange,
+  pageSize,
+  pageSizeOptions = [5, 10, 20],
+  onPageSizeChange,
+  className,
+  disabled = false,
 }: {
   currentPage: number;
   totalPages: number;
   totalItems: number;
   itemName?: string;
   onPageChange: (page: number) => void;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (pageSize: number) => void;
+  className?: string;
+  disabled?: boolean;
 }) {
+  const start = pageSize && totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+  const end = pageSize ? Math.min(currentPage * pageSize, totalItems) : 0;
   return (
-    <nav aria-label="Table pagination" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
-      <div className="flex items-center gap-2">
+    <nav aria-label="Table pagination" className={cn("mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
+      <span className="text-sm font-semibold tabular-nums text-coop-secondary">
+        {pageSize ? `Showing ${start}-${end} of ${totalItems} ${itemName}` : <>Page {currentPage} of {totalPages || 1} <span className="mx-2 text-[#9CA3AF]">·</span> {totalItems} {itemName}</>}
+      </span>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           aria-label="First page"
-          disabled={currentPage === 1}
+          disabled={disabled || currentPage === 1}
           onClick={() => onPageChange(1)}
           className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
@@ -416,23 +432,17 @@ export function PaginationControls({
         <button
           type="button"
           aria-label="Previous page"
-          disabled={currentPage === 1}
+          disabled={disabled || currentPage === 1}
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
           <ChevronLeft className="size-4" />
         </button>
-      </div>
-      
-      <p className="text-center text-sm font-medium tabular-nums text-coop-secondary">
-        Page {currentPage} of {totalPages || 1} <span className="mx-2 text-[#9CA3AF]">•</span> {totalItems} {itemName}
-      </p>
-
-      <div className="flex items-center gap-2">
+        <span className="grid size-9 place-items-center rounded-md bg-coop-forest text-sm font-black text-white shadow-[0_8px_16px_rgba(18,61,42,0.18)]" aria-current="page">{currentPage}</span>
         <button
           type="button"
           aria-label="Next page"
-          disabled={currentPage >= totalPages || totalPages === 0}
+          disabled={disabled || currentPage >= totalPages || totalPages === 0}
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
@@ -441,13 +451,25 @@ export function PaginationControls({
         <button
           type="button"
           aria-label="Last page"
-          disabled={currentPage >= totalPages || totalPages === 0}
+          disabled={disabled || currentPage >= totalPages || totalPages === 0}
           onClick={() => onPageChange(totalPages)}
           className="coop-icon-button grid size-11 place-items-center rounded-coop-control border border-coop-border bg-coop-surface text-coop-secondary transition hover:bg-coop-subtle disabled:opacity-50 sm:size-9"
         >
           <ChevronsRight className="size-4" />
         </button>
       </div>
+      {onPageSizeChange && pageSize ? (
+        <div className="w-40">
+          <StyledSelect
+            value={`${pageSize} per page`}
+            options={pageSizeOptions.map((option) => `${option} per page`)}
+            onChange={(value) => onPageSizeChange(Number(value.split(" ")[0]))}
+            aria-label="Rows per page"
+            disabled={disabled}
+            className="h-9"
+          />
+        </div>
+      ) : null}
     </nav>
   );
 }
