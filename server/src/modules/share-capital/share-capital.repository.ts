@@ -335,7 +335,18 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
                   m.full_name AS memberName,
                   m.share_capital_deadline AS shareCapitalDeadline,
                   GREATEST(
-                    COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = m.member_id LIMIT 1), 0),
+                    COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = m.member_id LIMIT 1), 0) +
+                    COALESCE(SUM(CASE
+                      WHEN s.payment_status = 'Validated'
+                       AND NOT EXISTS (
+                         SELECT 1
+                           FROM share_capital_transactions t
+                          WHERE t.member_id = s.member_id
+                            AND t.source_type = 'share_capital_payment'
+                            AND t.source_id = s.share_payment_id
+                            AND t.transaction_status = 'Posted'
+                       )
+                      THEN s.amount ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN s.payment_status = 'Validated' THEN s.amount ELSE 0 END), 0)
                   ) AS validatedTotal
              FROM member_profiles m

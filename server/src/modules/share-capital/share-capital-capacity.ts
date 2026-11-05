@@ -7,11 +7,14 @@ type Executor = Pick<Pool | PoolConnection, "execute">;
 
 type CapacitySnapshotRow = RowDataPacket & {
   ledgerBalance: string | number | null;
+  unpostedValidatedPayments: string | number | null;
   validatedPayments: string | number | null;
   activePendingQrph: string | number | null;
   pendingPatronageTransfers: string | number | null;
   pendingDividendCapitalizations: string | number | null;
 };
+
+export type MemberShareCapitalGatewayEnvironment = "Test" | "Live";
 
 export type MemberShareCapitalCapacityOptions = {
   memberId: string;
@@ -23,11 +26,13 @@ export type MemberShareCapitalCapacityOptions = {
   excludeDividendId?: string;
   reuseMinutes?: number;
   maximumShareCapital?: number;
+  gatewayEnvironment?: MemberShareCapitalGatewayEnvironment;
 };
 
 export type MemberShareCapitalCapacitySnapshot = {
   committedCapital: number;
   ledgerBalance: number;
+  unpostedValidatedPayments: number;
   validatedPayments: number;
   activePendingQrph: number;
   pendingPatronageTransfers: number;
@@ -46,6 +51,10 @@ export function shareCapitalMoney(value: number | string | null | undefined) {
   return shareCapitalCents(value) / 100;
 }
 
+export function activePaymongoGatewayEnvironment(): MemberShareCapitalGatewayEnvironment {
+  return env.PAYMONGO_MODE === "live" ? "Live" : "Test";
+}
+
 export async function selectMemberShareCapitalCapacity(
   executor: Executor,
   options: MemberShareCapitalCapacityOptions,
@@ -61,15 +70,33 @@ export async function selectMemberShareCapitalCapacity(
   }
 
   const reuseMinutes = options.reuseMinutes ?? env.PAYMONGO_CHECKOUT_REUSE_MINUTES;
+  const gatewayEnvironment = options.gatewayEnvironment ?? activePaymongoGatewayEnvironment();
   const maximumShareCapital = shareCapitalMoney(
     options.maximumShareCapital ?? MAX_SHARE_CAPITAL,
   );
 
-  const excludedPaymentSql = options.excludingPaymentId
-    ? `COALESCE((SELECT amount FROM share_capital_payments WHERE share_payment_id = ? AND member_id = ? AND payment_status = 'Validated'), 0)`
+  const excludedPostedPaymentSql = options.excludingPaymentId
+    ? `COALESCE((
+        SELECT s.amount
+          FROM share_capital_payments s
+         WHERE s.share_payment_id = ?
+           AND s.member_id = ?
+           AND s.payment_status = 'Validated'
+           AND EXISTS (
+             SELECT 1
+               FROM share_capital_transactions t
+              WHERE t.member_id = s.member_id
+                AND t.source_type = 'share_capital_payment'
+                AND t.source_id = s.share_payment_id
+                AND t.transaction_status = 'Posted'
+           )
+      ), 0)`
     : "0";
   const excludePaymentClause = options.excludingPaymentId
-    ? " AND share_payment_id <> ?"
+    ? " AND s.share_payment_id <> ?"
+    : "";
+  const excludeReferenceInPaymentsClause = options.excludePaymentReferenceId
+    ? " AND (s.payment_reference_id IS NULL OR s.payment_reference_id <> ?)"
     : "";
   const excludeReferenceClause = options.excludePaymentReferenceId
     ? " AND pr.payment_reference_id <> ?"
@@ -88,6 +115,12 @@ export async function selectMemberShareCapitalCapacity(
     ...(options.excludingPaymentId ? [options.excludingPaymentId] : []),
     ...(options.excludePaymentReferenceId ? [options.excludePaymentReferenceId] : []),
     options.memberId,
+    ...(options.excludingPaymentId ? [options.excludingPaymentId] : []),
+    ...(options.excludePaymentReferenceId ? [options.excludePaymentReferenceId] : []),
+    options.memberId,
+    gatewayEnvironment,
+    gatewayEnvironment,
+    gatewayEnvironment,
     reuseMinutes,
     ...(options.excludePaymentReferenceId ? [options.excludePaymentReferenceId] : []),
     options.memberId,
@@ -98,18 +131,29 @@ export async function selectMemberShareCapitalCapacity(
 
   const [rows] = await executor.execute<CapacitySnapshotRow[]>(
     `SELECT GREATEST(
-              COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), 0) - ${excludedPaymentSql},
+              COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), 0) - ${excludedPostedPaymentSql},
               0
             ) AS ledgerBalance,
             COALESCE(
-              (SELECT SUM(amount)
-                 FROM share_capital_payments
-                WHERE member_id = ?
-                  AND payment_status = 'Validated'${excludePaymentClause}${
-                    options.excludePaymentReferenceId
-                      ? " AND (payment_reference_id IS NULL OR payment_reference_id <> ?)"
-                      : ""
-                  }),
+              (SELECT SUM(s.amount)
+                 FROM share_capital_payments s
+                WHERE s.member_id = ?
+                  AND s.payment_status = 'Validated'${excludePaymentClause}${excludeReferenceInPaymentsClause}
+                  AND NOT EXISTS (
+                    SELECT 1
+                      FROM share_capital_transactions t
+                     WHERE t.member_id = s.member_id
+                       AND t.source_type = 'share_capital_payment'
+                       AND t.source_id = s.share_payment_id
+                       AND t.transaction_status = 'Posted'
+                  )),
+              0
+            ) AS unpostedValidatedPayments,
+            COALESCE(
+              (SELECT SUM(s.amount)
+                 FROM share_capital_payments s
+                WHERE s.member_id = ?
+                  AND s.payment_status = 'Validated'${excludePaymentClause}${excludeReferenceInPaymentsClause}),
               0
             ) AS validatedPayments,
             COALESCE(
@@ -119,6 +163,7 @@ export async function selectMemberShareCapitalCapacity(
                   AND pr.payment_purpose = 'Share Capital'
                   AND pr.related_entity_type = 'member_profile'
                   AND pr.payment_channel = 'PayMongo'
+                  AND pr.gateway_environment = ?
                   AND pr.validation_status IN ('Pending', 'Needs Clarification')
                   AND (
                     EXISTS (
@@ -129,6 +174,8 @@ export async function selectMemberShareCapitalCapacity(
                            SELECT MAX(latest.payment_gateway_checkout_attempt_id)
                              FROM payment_gateway_checkout_attempts latest
                             WHERE latest.payment_reference_id = pr.payment_reference_id
+                              AND latest.gateway_name = 'PayMongo'
+                              AND latest.gateway_environment = ?
                          )
                          AND a.checkout_url IS NOT NULL
                          AND a.reusable_until > UTC_TIMESTAMP()
@@ -141,6 +188,8 @@ export async function selectMemberShareCapitalCapacity(
                         SELECT 1
                           FROM payment_gateway_checkout_attempts a
                          WHERE a.payment_reference_id = pr.payment_reference_id
+                           AND a.gateway_name = 'PayMongo'
+                           AND a.gateway_environment = ?
                       )
                       AND pr.submitted_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? MINUTE)
                     )
@@ -171,8 +220,19 @@ export async function selectMemberShareCapitalCapacity(
       ? shareCapitalCents(options.currentAccountBalance)
       : 0,
   );
-  const validatedPaymentsCents = shareCapitalCents(row?.validatedPayments ?? 0);
-  const committedCents = Math.max(0, ledgerBalanceCents, validatedPaymentsCents);
+  const unpostedValidatedPaymentsCents = Math.max(
+    0,
+    shareCapitalCents(row?.unpostedValidatedPayments ?? 0),
+  );
+  const validatedPaymentsCents = Math.max(
+    0,
+    shareCapitalCents(row?.validatedPayments ?? 0),
+  );
+  const committedCents = Math.max(
+    0,
+    ledgerBalanceCents + unpostedValidatedPaymentsCents,
+    validatedPaymentsCents,
+  );
   const activePendingQrphCents = Math.max(0, shareCapitalCents(row?.activePendingQrph ?? 0));
   const pendingPatronageCents = Math.max(0, shareCapitalCents(row?.pendingPatronageTransfers ?? 0));
   const pendingDividendCents = Math.max(0, shareCapitalCents(row?.pendingDividendCapitalizations ?? 0));
@@ -184,6 +244,7 @@ export async function selectMemberShareCapitalCapacity(
   return {
     committedCapital: committedCents / 100,
     ledgerBalance: ledgerBalanceCents / 100,
+    unpostedValidatedPayments: unpostedValidatedPaymentsCents / 100,
     validatedPayments: validatedPaymentsCents / 100,
     activePendingQrph: activePendingQrphCents / 100,
     pendingPatronageTransfers: pendingPatronageCents / 100,
@@ -230,4 +291,3 @@ export async function assertLockedMemberShareCapitalCapacity(
 
   return snapshot;
 }
-

@@ -161,7 +161,20 @@ async function selectPaymentReference(
 
 async function validatedCapital(connection: Pool | PoolConnection, memberId: string) {
   const [rows] = await connection.execute<AmountRow[]>(
-    `SELECT GREATEST(COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), 0), COALESCE(SUM(amount), 0)) AS total
+    `SELECT GREATEST(
+              COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), 0) +
+              COALESCE(SUM(CASE
+                WHEN NOT EXISTS (
+                  SELECT 1
+                    FROM share_capital_transactions t
+                   WHERE t.member_id = share_capital_payments.member_id
+                     AND t.source_type = 'share_capital_payment'
+                     AND t.source_id = share_capital_payments.share_payment_id
+                     AND t.transaction_status = 'Posted'
+                )
+                THEN amount ELSE 0 END), 0),
+              COALESCE(SUM(amount), 0)
+            ) AS total
        FROM share_capital_payments
       WHERE member_id = ? AND payment_status = 'Validated'`,
     [memberId, memberId],
@@ -222,6 +235,7 @@ async function activeContributions(
         AND pr.related_entity_type = 'member_profile'
         AND pr.validation_status IN ('Pending', 'Needs Clarification')
         AND pr.payment_channel = 'PayMongo'
+        AND pr.gateway_environment = ?
         AND (
           (a.checkout_url IS NOT NULL
            AND a.reusable_until > UTC_TIMESTAMP()
@@ -235,7 +249,7 @@ async function activeContributions(
         ${exclusion}
       ORDER BY pr.payment_reference_id DESC
       ${input.forUpdate ? "FOR UPDATE" : ""}`,
-    [input.environment, input.memberId, input.reuseMinutes, ...(input.excludePaymentReferenceId ? [input.excludePaymentReferenceId] : [])],
+    [input.environment, input.memberId, input.environment, input.reuseMinutes, ...(input.excludePaymentReferenceId ? [input.excludePaymentReferenceId] : [])],
   );
   return rows.map((row) => ({ ...row, amount: Number(row.amount) }));
 }

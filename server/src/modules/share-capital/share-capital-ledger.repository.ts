@@ -1042,6 +1042,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           throw new AppError("The dividend amount must be greater than zero", 409, "DIVIDEND_AMOUNT_INVALID");
         }
         await connection.execute(
+          `SELECT member_id FROM member_profiles WHERE member_id = ? LIMIT 1 FOR UPDATE`,
+          [dividend.memberId],
+        );
+        await connection.execute(
           `INSERT INTO share_capital_accounts (member_id) VALUES (?)
            ON DUPLICATE KEY UPDATE member_id = member_id`,
           [dividend.memberId],
@@ -1058,7 +1062,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           requestedAmount: amount,
           currentAccountBalance: balanceBefore,
           excludeDividendId: dividendId,
-          lockMember: true,
+          lockMember: false,
           errorMessage: "Adding this dividend would exceed the PHP 15,000 Share Capital limit",
         });
         const [transactionResult] = await connection.execute<ResultSetHeader>(
@@ -1499,6 +1503,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           );
         } else {
           await connection.execute(
+            `SELECT member_id FROM member_profiles WHERE member_id = ? LIMIT 1 FOR UPDATE`,
+            [dividend.memberId],
+          );
+          await connection.execute(
             `INSERT INTO share_capital_accounts (member_id) VALUES (?)
              ON DUPLICATE KEY UPDATE member_id = member_id`,
             [dividend.memberId],
@@ -1516,7 +1524,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
             requestedAmount: amount,
             currentAccountBalance: balanceBefore,
             excludeDividendId: dividendId,
-            lockMember: true,
+            lockMember: false,
             errorMessage: "Adding this dividend would exceed the PHP 15,000 Share Capital limit",
           });
           const [transactionResult] = await connection.execute<ResultSetHeader>(
