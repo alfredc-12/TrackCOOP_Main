@@ -160,6 +160,7 @@ test("capital reminder runs deduplicate milestones without browser timers or fin
     1,
   );
   assert.equal(store.keys.size, 2);
+  assert.ok(store.commands.some(c=>c.sql.includes("c.deadline<?")),"preserved earlier deadlines must not wait for the new three-month anniversary");
   store.events[1].date = "2026-08-01 00:00:00";
   await enqueueCapitalReminders(store.pool(), config, "2026-08-02");
   assert.equal(store.keys.size, 2);

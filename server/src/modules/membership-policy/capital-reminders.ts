@@ -13,8 +13,8 @@ export async function enqueueCapitalReminders(
   if (config.mode !== "resend") return { ...counts, disabled: true };
   const cases = await capitalCases(
     pool,
-    "c.closed_at IS NULL AND c.reminder_on<=?",
-    [today],
+    "c.closed_at IS NULL AND (c.reminder_on<=? OR c.deadline<?)",
+    [today,today],
   );
   for (const c of cases)
     await withTransaction(async (db) => {
