@@ -6,7 +6,7 @@ Verified locally on 6 November 2026 (Asia/Manila), in the isolated membership fe
 
 - `npm ci --ignore-scripts`: passed; existing locked dependency audit findings are outside this change.
 - `npm run typecheck`: passed for frontend and API.
-- `npm run lint:ci`: passed with the original `eslint-baseline.json`, 52 existing errors / 75 warnings; no per-file/rule/severity increase.
+- `npm run lint:ci`: passed with the original `eslint-baseline.json`, 51 existing errors / 74 warnings; no per-file/rule/severity increase.
 - `npm run test:api`: 677 passed, 10 skipped, zero failed. Opt-in SQL tests are reported separately below.
 - `npm run test:paymongo-core`: 182 passed.
 - `npm run test:records`: exited successfully, but discovered zero tests; not claimed as records coverage.
@@ -41,3 +41,5 @@ The feature started at GitHub main `b905358`. Local original main remains untouc
 No merge, direct main push, production migration, credential change or deployment is authorized. A future approved PR merge may trigger existing staging workflows.
 
 The final endpoint validation review also verifies malformed sector payloads return 400 before any write. New self-service sector changes lock the member row before replacing sector relationships. Future reporting dates are rejected rather than projecting capital status.
+
+The latest main commit `ab3b2f4` (another agent’s annual-interest task) was inspected after the feature integration. A read-only three-way merge simulation reported no conflicts. Its annual-interest files are outside this PR’s diff; GitHub’s PR Quality Gate will validate the current merge combination.
