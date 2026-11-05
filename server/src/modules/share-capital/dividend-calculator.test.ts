@@ -43,7 +43,7 @@ test("rejects rates outside the supported percentage range", () => {
   );
 });
 
-test("computes interest on share capital from average share months", () => {
+test("computes interest on share capital for True Members only", () => {
   const calculation = calculateInterestOnShareCapital([
     {
       memberId: "1",
@@ -63,10 +63,11 @@ test("computes interest on share capital from average share months", () => {
 
   assert.equal(calculation.distributableSurplus, 8_000);
   assert.equal(calculation.interestAllocationAmount, 4_000);
-  assert.equal(calculation.totalAverageShareMonth, 400);
-  assert.equal(calculation.ratePerPeso, 10);
-  assert.equal(calculation.interestRate, 10);
-  assert.deepEqual(calculation.allocations.map((allocation) => allocation.dividendAmount), [1_000, 3_000]);
+  assert.equal(calculation.totalAverageShareMonth, 300);
+  assert.equal(calculation.ratePerPeso, 13.3333333);
+  assert.equal(calculation.interestRate, 13.3333333);
+  assert.deepEqual(calculation.allocations.map((allocation) => allocation.dividendAmount), [4_000]);
+  assert.deepEqual(calculation.allocations.map((allocation) => allocation.membershipType), ["True Member"]);
 });
 
 test("rejects statutory reserves above net surplus", () => {
@@ -76,10 +77,12 @@ test("rejects statutory reserves above net surplus", () => {
   );
 });
 
-test("keeps at least thirty percent of distributable surplus for patronage refund", () => {
+test("allows the allocation rate to follow the approved policy up to 100 percent", () => {
+  const calculation = calculateInterestOnShareCapital([], 100, 0, 100);
+  assert.equal(calculation.interestAllocationAmount, 100);
   assert.throws(
-    () => calculateInterestOnShareCapital([], 100, 0, 70.01),
-    /between 0 and 70 percent/,
+    () => calculateInterestOnShareCapital([], 100, 0, 100.01),
+    /between 0 and 100 percent/,
   );
 });
 
@@ -99,7 +102,7 @@ test("matches the documented CDA-aligned three-member example", () => {
       memberId: "1",
       memberCode: "M-001",
       memberName: "Ana",
-      membershipType: "Associate" as const,
+      membershipType: "True Member" as const,
       transactions: [
         { transactionId: "a-1", transactionDate: "2026-01-05", direction: "Credit" as const, amount: 10_000 },
         { transactionId: "a-2", transactionDate: "2026-06-10", direction: "Credit" as const, amount: 5_000 },
@@ -118,7 +121,7 @@ test("matches the documented CDA-aligned three-member example", () => {
       memberId: "3",
       memberCode: "M-003",
       memberName: "Cara",
-      membershipType: "Associate" as const,
+      membershipType: "True Member" as const,
       transactions: [
         { transactionId: "c-1", transactionDate: "2026-02-08", direction: "Credit" as const, amount: 12_000 },
         { transactionId: "c-2", transactionDate: "2026-11-07", direction: "Debit" as const, amount: 2_000 },

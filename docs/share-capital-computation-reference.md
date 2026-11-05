@@ -38,13 +38,15 @@ The new-declaration form follows these rules:
 | Distribution date | Required before the declaration can be created. |
 | Net surplus | Automatically calculated from posted financial records for the selected dates. |
 | Statutory reserves (%) | Editable from 0% to 100%. The UI suggests 10% as a starting point. |
-| Interest on Share Capital allocation (%) | Editable from 0% to 70%. The UI suggests 70% as a starting point. |
+| Fiscal year | Selectable in the new-declaration form; selecting a year sets January 1 through December 31 coverage dates. |
+| Interest on Share Capital allocation (%) | Required and editable from 0% to 100%. No fixed rate is preselected while the approved policy is pending. |
 | Notes | Optional policy or approval notes. |
 
-The 10% and 70% values are editable suggestions, not automatic legal defaults.
-The reserve rate must follow the cooperative's applicable rules and approved
-policy. The 70% value is the current TrackCOOP product limit; it should not be
-treated as a universal CDA-prescribed allocation rate.
+The 10% reserve value is an editable starting suggestion, not an automatic
+legal default. The reserve rate and Interest on Share Capital allocation rate
+must follow the cooperative's applicable rules and approved policy. TrackCOOP
+does not assume a fixed 30% patronage-refund split until the cooperative
+confirms the allocation policy.
 
 ## 3. Governing computation
 
@@ -71,14 +73,17 @@ Member Interest
 = Member Average Share Month x Rate per Peso
 ```
 
-The current validator limits `X` to 70%. This leaves at least 30% of the
-distributable surplus for patronage refund and other approved allocations. The
-remaining amount is not automatically a final patronage-refund amount; it
-still depends on the cooperative's approved allocation and distribution policy.
+The validator accepts `X` from 0% to 100% so the declaration records the rate
+approved for that fiscal year instead of silently enforcing an unconfirmed
+30% remainder. The remaining amount, if any, is not automatically a final
+patronage-refund amount; it still depends on the cooperative's approved
+allocation and distribution policy.
 
-Only members with a positive Average Share Month are qualified for an
-allocation. If the total Average Share Month is zero, the system cannot
-allocate an Interest on Share Capital pool.
+Only approved, active True Members with a positive Average Share Month are
+qualified for an allocation. Associates are excluded from the preview,
+declaration allocations, member list, and Bookkeeper action queue. If the
+total Average Share Month is zero, the system cannot allocate an Interest on
+Share Capital pool.
 
 All monetary results are rounded to centavos. A final centavo adjustment makes
 the sum of member allocations exactly equal to the approved Interest on Share

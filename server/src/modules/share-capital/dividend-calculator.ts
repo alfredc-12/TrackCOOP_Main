@@ -164,8 +164,8 @@ export function calculateInterestOnShareCapital(
   const normalizedNetSurplus = validateNonNegative(netSurplus, "Net surplus");
   const normalizedStatutoryReserves = validateNonNegative(statutoryReserves, "Statutory reserves");
   const normalizedAllocationRate = Number(interestAllocationRate);
-  if (!Number.isFinite(normalizedAllocationRate) || normalizedAllocationRate < 0 || normalizedAllocationRate > 70) {
-    throw new Error("Interest allocation rate must be between 0 and 70 percent so at least 30 percent remains for patronage refund.");
+  if (!Number.isFinite(normalizedAllocationRate) || normalizedAllocationRate < 0 || normalizedAllocationRate > 100) {
+    throw new Error("Interest allocation rate must be between 0 and 100 percent.");
   }
   if (normalizedStatutoryReserves > normalizedNetSurplus) {
     throw new Error("Statutory reserves cannot exceed net surplus.");
@@ -180,7 +180,7 @@ export function calculateInterestOnShareCapital(
       const averageShareMonth = monthlyShareCapital.length ? cents(totalShareMonths / monthlyShareCapital.length) : 0;
       return { ...member, monthlyShareCapital, totalShareMonths, averageShareMonth };
     })
-    .filter((member) => member.averageShareMonth > 0);
+    .filter((member) => member.membershipType === "True Member" && member.averageShareMonth > 0);
   const totalAverageShareMonth = cents(normalizedMembers.reduce((total, member) => total + member.averageShareMonth, 0));
   const ratePerPeso = totalAverageShareMonth > 0
     ? Number((interestAllocationAmount / totalAverageShareMonth).toFixed(7))
