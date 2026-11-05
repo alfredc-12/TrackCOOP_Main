@@ -1,3 +1,5 @@
+import { applicationPaymentPolicy } from "../membership-policy/membership-policy";
+import { readSectors, saveSectors } from "../membership-policy/membership-sectors";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -111,6 +113,8 @@ export function createMembershipApprovalConversionService(
             "MEMBERSHIP_APPLICATION_NOT_FOUND",
           );
         }
+        Object.assign(settings, applicationPaymentPolicy(application, settings));
+        if (application.deadlineMonths != null) settings.shareCapitalDeadlineMonths = Number(application.deadlineMonths);
         validateApplicationForApproval(application, approval);
 
         const requirements = await selectApprovalRequirements(connection, applicationId);
@@ -153,7 +157,7 @@ export function createMembershipApprovalConversionService(
         });
         const requirementsByType = validateApprovalRequirements(application, requirements);
         if (
-          application.requestedMembershipType === "Associate"
+          settings.associateFee > 0
           && requirementsByType.get("Associate Membership Fee")?.requirementStatus !== "Waived"
           && feeTotal < approvalMoney(settings.associateFee)
         ) {
@@ -169,6 +173,11 @@ export function createMembershipApprovalConversionService(
           validatedCapitalAmount,
           settings,
         });
+        if (application.newMembershipPolicy && approval.approveTrueMembership && !membership.trueMemberEligible) throw new AppError("PHP 3,000 validated capital is required for True Member classification",409,"TRUE_MEMBER_CAPITAL_REQUIREMENT_NOT_MET");
+        if (application.newMembershipPolicy && !approval.approveTrueMembership) {
+          membership.membershipType = "Associate"; membership.trueMemberEligible = false;
+          membership.needsShareCapitalDeadline = application.requestedMembershipType === "True Member";
+        }
         await assertNoDuplicateMember(connection, application);
         const userId = await createApprovedMemberUser({
           connection,
@@ -180,7 +189,8 @@ export function createMembershipApprovalConversionService(
         const trueMemberSince = membership.trueMemberEligible
           ? mysqlDate(new Date())
           : null;
-        const shareCapitalDeadline = membership.needsShareCapitalDeadline
+        const [policyCases] = await connection.execute<RowDataPacket[]>("SELECT DATE_FORMAT(deadline, '%Y-%m-%d') AS deadline FROM membership_capital_cases WHERE membership_application_id=?", [applicationId]);
+        const shareCapitalDeadline = policyCases[0]?.deadline ? String(policyCases[0].deadline) : membership.needsShareCapitalDeadline
           ? dateMonthsFromNow(settings.shareCapitalDeadlineMonths)
           : null;
         const member = await insertApprovedMemberProfile({
@@ -192,6 +202,9 @@ export function createMembershipApprovalConversionService(
           trueMemberSince,
           shareCapitalDeadline,
         });
+        await connection.execute("UPDATE membership_capital_cases SET member_id=? WHERE membership_application_id=?", [member.memberId, applicationId]);
+        await saveSectors(connection, "member", member.memberId, await readSectors(connection, "application", applicationId));
+        await connection.execute("UPDATE member_profiles m JOIN membership_applications a ON a.membership_application_id=? SET m.municipality_psgc=a.municipality_psgc,m.barangay_psgc=a.barangay_psgc WHERE m.member_id=?",[applicationId,member.memberId]);
         const reconciliation = await reconcileApplicationCapital({
           connection,
           applicationId,
@@ -360,6 +373,7 @@ export function createMembershipApprovalConversionService(
           );
         }
         const settings = await loadApprovalSettings(connection);
+        await connection.execute("UPDATE membership_capital_cases SET member_id=? WHERE membership_application_id=?", [application.convertedMemberId, applicationId]);
         const reconciliation = await reconcileApplicationCapital({
           connection,
           applicationId,

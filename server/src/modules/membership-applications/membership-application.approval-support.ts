@@ -26,6 +26,11 @@ export type RequirementRow = RowDataPacket & {
 export type ApplicationRow = RowDataPacket & {
   id: string;
   applicationCode: string;
+  membershipFeeAmount?: number;
+  initialShareCapitalAmount?: number;
+  targetShareCapitalAmount?: number;
+  deadlineMonths?: number;
+  newMembershipPolicy?: boolean;
   requestedMembershipType: RequestedMembershipType;
   firstName: string;
   middleName: string | null;
@@ -73,7 +78,7 @@ const defaults: MembershipSettings = {
   initialShareCapital: 1500,
   trueMemberRequiredCapital: 3000,
   maximumShareCapital: 15000,
-  shareCapitalDeadlineMonths: 1,
+  shareCapitalDeadlineMonths: 6,
   orientationRequired: true,
   activationTokenHours: 72,
   termsVersion: "2026-07-24",

@@ -5,6 +5,8 @@ import { endExclusive } from "./member-analytics.filters";
 import type { AnalyticsFilters, AnalyticsSources } from "./member-analytics.types";
 
 export const REQUIRED_ANALYTICS_COLUMNS: Record<string, string[]> = {
+  member_sectors: ["member_id","sector_id"],
+  cooperative_sectors: ["sector_id","sector_name"],
   member_profiles: ["member_id", "member_code", "full_name", "barangay", "sector", "membership_type", "approval_status", "official_member_status", "approved_at", "share_capital_deadline"],
   member_status_history: ["member_status_history_id", "member_id", "changed_at", "new_membership_type", "new_official_status"],
   membership_applications: ["membership_application_id", "converted_member_id", "application_source", "requested_membership_type", "application_status", "barangay", "sector", "submitted_at", "membership_fee_amount", "initial_share_capital_amount"],
@@ -51,10 +53,11 @@ export function createMemberAnalyticsRepository(injectedPool?: Pool) {
         if (typeof statuses === "string") { try { statuses = JSON.parse(statuses); } catch { statuses = null; } }
         const participationStatuses = Array.isArray(statuses) && statuses.length && statuses.every(s => typeof s === "string") ? statuses as string[] : ["Participated"];
         const before = endExclusive(filters.asOf);
+        const sectorRows = await read<{memberId:string;sector:string}>(["member_sectors","cooperative_sectors"], "SELECT CAST(ms.member_id AS CHAR) AS memberId,s.sector_name AS sector FROM member_sectors ms JOIN cooperative_sectors s ON s.sector_id=ms.sector_id");
         const result: AnalyticsSources = {
           capabilities,
           settings: { target: numericSetting("membership.true_member_required_capital", 3000), maximum: numericSetting("membership.maximum_share_capital", 15000), participationStatuses },
-          members: await read(["member_profiles"], `SELECT CAST(member_id AS CHAR) AS id, member_code AS memberCode, full_name AS fullName, barangay, sector, membership_type AS membershipType, approval_status AS approvalStatus, official_member_status AS officialStatus, DATE_FORMAT(approved_at, '%Y-%m-%dT%H:%i:%sZ') AS approvedAt, DATE_FORMAT(share_capital_deadline, '%Y-%m-%d') AS deadline FROM member_profiles WHERE approval_status = 'Approved'`),
+          members: (await read<AnalyticsSources["members"][number]>(["member_profiles"], `SELECT CAST(member_id AS CHAR) AS id, member_code AS memberCode, full_name AS fullName, barangay, sector, membership_type AS membershipType, approval_status AS approvalStatus, official_member_status AS officialStatus, DATE_FORMAT(approved_at, '%Y-%m-%dT%H:%i:%sZ') AS approvedAt, DATE_FORMAT(share_capital_deadline, '%Y-%m-%d') AS deadline FROM member_profiles WHERE approval_status = 'Approved'`)).map(m=>({...m,selectedSectors:sectorRows.filter(r=>r.memberId===m.id).map(r=>r.sector)})),
           statusHistory: await read(["member_status_history"], `SELECT CAST(member_status_history_id AS CHAR) AS id, CAST(member_id AS CHAR) AS memberId, DATE_FORMAT(changed_at, '%Y-%m-%dT%H:%i:%sZ') AS at, new_membership_type AS membershipType, new_official_status AS officialStatus FROM member_status_history WHERE changed_at < ?`, [before]),
           applications: await read(["membership_applications"], `SELECT CAST(membership_application_id AS CHAR) AS id, CAST(converted_member_id AS CHAR) AS memberId, application_source AS source, requested_membership_type AS requestedType, application_status AS status, barangay, sector, DATE_FORMAT(submitted_at, '%Y-%m-%dT%H:%i:%sZ') AS submittedAt FROM membership_applications WHERE submitted_at < ?`, [before]),
           applicationHistory: await read(["membership_application_status_history"], `SELECT CAST(membership_application_id AS CHAR) AS id, new_status AS status, DATE_FORMAT(changed_at, '%Y-%m-%dT%H:%i:%sZ') AS at FROM membership_application_status_history WHERE changed_at < ?`, [before]),

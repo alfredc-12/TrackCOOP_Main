@@ -1,3 +1,4 @@
+import { SECTORS } from "../membership-policy/membership-sectors";
 import { z } from "zod";
 import { isoDateSchema, refineDateRange } from "../../utils/people-filters";
 
@@ -66,6 +67,7 @@ export const memberProfileSchema = z.object({
   municipality: z.string().trim().min(2).max(120).default("Nasugbu"),
   province: z.string().trim().min(2).max(120).default("Batangas"),
   sector: nullableText(100),
+  sectors: z.array(z.enum(SECTORS)).min(1).max(6).optional(),
   membershipType: z.enum(membershipTypes).default("Associate"),
   approvalStatus: z.enum(approvalStatuses).default("Pending"),
   officialMemberStatus: z.enum(officialMemberStatuses).default("Pending"),

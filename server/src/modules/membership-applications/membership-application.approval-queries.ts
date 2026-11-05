@@ -33,6 +33,11 @@ export async function selectApprovalApplication(
   const [rows] = await connection.execute<ApplicationRow[]>(
     `SELECT CAST(a.membership_application_id AS CHAR) AS id,
             a.application_code AS applicationCode,
+            a.membership_fee_amount AS membershipFeeAmount,
+            a.initial_share_capital_amount AS initialShareCapitalAmount,
+            a.target_share_capital_amount AS targetShareCapitalAmount,
+            a.share_capital_deadline_months AS deadlineMonths,
+            EXISTS(SELECT 1 FROM membership_capital_cases c WHERE c.membership_application_id=a.membership_application_id) AS newMembershipPolicy,
             a.requested_membership_type AS requestedMembershipType,
             a.first_name AS firstName,
             a.middle_name AS middleName,

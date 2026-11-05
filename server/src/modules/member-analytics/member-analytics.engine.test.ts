@@ -161,7 +161,7 @@ test("status transitions within the same timestamp use the latest history ID", (
 test("Excel export contains all filtered aggregate rows plus context/definitions, with safe string cells", async () => {
   const result = createAnalyticsEngine(analyticsFixture(), fixtureFilters).result;
   const sheets = analyticsSheets(result);
-  assert.equal(sheets.find(s => s.name === "Barangays and sectors")?.rows.length, 211);
+  assert.equal(sheets.find(s => s.name === "Barangays and sectors")?.rows.length, 253);
   result.coverage.push({ code: "TEST", message: '=HYPERLINK("bad") <&>' });
   const zip = await JSZip.loadAsync(await exportAnalyticsWorkbook(result));
   assert.ok(zip.file("xl/workbook.xml"));

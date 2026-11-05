@@ -1,3 +1,5 @@
+import { createApplicationCapitalCase } from "../membership-policy/membership-progress.repository";
+import { readSectors, saveSectors } from "../membership-policy/membership-sectors";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import crypto from "node:crypto";
 import path from "node:path";
@@ -188,7 +190,7 @@ const defaultSettings: MembershipSettings = {
   initialShareCapital: 1500,
   trueMemberRequiredCapital: 3000,
   maximumShareCapital: 15000,
-  shareCapitalDeadlineMonths: 1,
+  shareCapitalDeadlineMonths: 6,
   orientationRequired: true,
   activationTokenHours: 72,
   termsVersion: "2026-07-24",
@@ -542,9 +544,8 @@ function initialRequirements(
 
   if (input.requestedMembershipType === "True Member") {
     requirements.push("Initial Share Capital");
-  } else {
-    requirements.push("Associate Membership Fee");
   }
+  requirements.push("Associate Membership Fee");
 
   return requirements;
 }
@@ -753,7 +754,7 @@ async function selectApplicationDetail(
     selectHistory(connection, applicationId),
   ]);
 
-  return mapApplicationDetail(row, beneficiaries, documents, requirements, history);
+  return { ...mapApplicationDetail(row, beneficiaries, documents, requirements, history), sectors: await readSectors(connection, "application", applicationId) };
 }
 
 function requiredReason(
@@ -962,11 +963,11 @@ export function createMembershipApplicationRepository(
             nullable(application.occupation),
             application.orientationCommitmentAccepted,
             application.membershipFeeCommitmentAccepted,
-            application.requestedMembershipType === "Associate" ? input.settings.associateFee : 0,
+            200,
             application.shareSubscriptionCommitmentAccepted,
-            input.settings.initialShareCapital,
-            input.settings.trueMemberRequiredCapital,
-            input.settings.shareCapitalDeadlineMonths,
+            1500,
+            3000,
+            6,
             application.patronageRefundAcknowledged,
             application.bylawsAgreementAccepted,
             application.privacyConsentAccepted,
@@ -981,6 +982,10 @@ export function createMembershipApplicationRepository(
 
         const membershipApplicationId = String(result.insertId);
         const code = applicationCode(result.insertId);
+        await connection.execute("UPDATE membership_applications SET submitted_at=UTC_TIMESTAMP(),created_at=UTC_TIMESTAMP() WHERE membership_application_id=?", [membershipApplicationId]);
+        await createApplicationCapitalCase(connection, membershipApplicationId);
+        await saveSectors(connection, "application", membershipApplicationId, application.sectors ?? (application.sector ? [application.sector] : []));
+        await connection.execute("UPDATE membership_applications SET municipality_psgc=?,barangay_psgc=? WHERE membership_application_id=?", [application.municipalityPsgc ?? null, application.barangayPsgc ?? null, membershipApplicationId]);
 
         await connection.execute(
           `UPDATE membership_applications
@@ -1339,11 +1344,11 @@ export function createMembershipApplicationRepository(
             nullable(application.occupation),
             application.orientationCommitmentAccepted,
             application.membershipFeeCommitmentAccepted,
-            application.requestedMembershipType === "Associate" ? input.settings.associateFee : 0,
+            200,
             application.shareSubscriptionCommitmentAccepted,
-            input.settings.initialShareCapital,
-            input.settings.trueMemberRequiredCapital,
-            input.settings.shareCapitalDeadlineMonths,
+            1500,
+            3000,
+            6,
             application.patronageRefundAcknowledged,
             application.bylawsAgreementAccepted,
             application.privacyConsentAccepted,
@@ -1356,6 +1361,10 @@ export function createMembershipApplicationRepository(
         );
         const applicationId = String(result.insertId);
         const code = applicationCode(result.insertId);
+        await connection.execute("UPDATE membership_applications SET submitted_at=UTC_TIMESTAMP(),created_at=UTC_TIMESTAMP() WHERE membership_application_id=?", [applicationId]);
+        await createApplicationCapitalCase(connection, applicationId);
+        await saveSectors(connection, "application", applicationId, application.sectors ?? (application.sector ? [application.sector] : []));
+        await connection.execute("UPDATE membership_applications SET municipality_psgc=?,barangay_psgc=? WHERE membership_application_id=?", [application.municipalityPsgc ?? null, application.barangayPsgc ?? null, applicationId]);
 
         await connection.execute(
           `UPDATE membership_applications SET application_code = ? WHERE membership_application_id = ?`,
@@ -1467,6 +1476,8 @@ export function createMembershipApplicationRepository(
         ["barangay", "barangay", (value) => nullable(value as string | null)],
         ["municipality", "municipality", (value) => value as string],
         ["province", "province", (value) => value as string],
+        ["municipalityPsgc", "municipality_psgc", (value) => nullable(value as string | null)],
+        ["barangayPsgc", "barangay_psgc", (value) => nullable(value as string | null)],
         ["sector", "sector", (value) => nullable(value as string | null)],
         ["fatherName", "father_name", (value) => nullable(value as string | null)],
         ["motherName", "mother_name", (value) => nullable(value as string | null)],
@@ -1522,6 +1533,7 @@ export function createMembershipApplicationRepository(
           ],
         );
 
+        if (input.sectors) await saveSectors(connection, "application", applicationId, input.sectors);
         const detail = await selectApplicationDetail(connection, applicationId);
         if (!detail) throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
         return detail;
@@ -2134,6 +2146,7 @@ export function createMembershipApplicationRepository(
           [auth.user.id, applicationId, application.applicationStatus, nextStatus],
         );
 
+        if (["Rejected", "Withdrawn"].includes(nextStatus)) await connection.execute("UPDATE membership_capital_cases SET closed_at=UTC_TIMESTAMP() WHERE membership_application_id=? AND closed_at IS NULL", [applicationId]);
         const detail = await selectApplicationDetail(connection, applicationId);
         if (!detail) throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
         const applicant = { applicationId, applicationCode: detail.applicationCode, email: detail.email, name: detail.fullName };

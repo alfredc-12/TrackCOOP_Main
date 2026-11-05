@@ -16,8 +16,8 @@ const commitments = [
   },
   {
     name: "membershipFeeCommitmentAccepted",
-    text: "I agree to pay the configured PHP 200 associate membership fee.",
-    membershipTypes: ["Associate"],
+    text: "I agree to pay the one-time PHP 200 membership fee.",
+
   },
   {
     name: "shareSubscriptionCommitmentAccepted",
@@ -30,7 +30,7 @@ const commitments = [
   },
   {
     name: "trueMemberRequirementAcknowledged",
-    text: "I acknowledge the PHP 3,000 True Member target and the 1-month completion period after approval.",
+    text: "I acknowledge the PHP 3,000 True Member target and the six-calendar-month completion period from application submission.",
     membershipTypes: ["True Member"],
   },
   {

@@ -1,4 +1,6 @@
 "use client";
+import { AgriculturalSectorFields, MembershipLocationFields } from "@/features/membership/MembershipSelectionFields";
+import { ChairmanMembershipProgress } from "@/features/membership/ChairmanMembershipProgress";
 
 import { MembershipUpgradeReviews } from "@/features/membership/MembershipUpgradeReviews";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -40,7 +42,6 @@ import {
 } from "lucide-react";
 import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { PRIMARY_SECTOR_OPTIONS, PRIMARY_SECTOR_POLICY } from "@/features/membership/sector-options";
 import {
   ConfirmDialog,
   EmptyState,
@@ -242,6 +243,7 @@ type ApplicationFormState = ChairmanMembershipApplicationUpdateInput & {
   municipality: string;
   province: string;
   sector: string;
+  sectors?: string[];
   applicantSignatureName: string;
   signedAt: string;
   signedPlace: string;
@@ -258,6 +260,7 @@ type MemberFormState = {
   municipality: string;
   province: string;
   sector: string;
+  sectors?: string[];
   membershipType: MembershipType;
   approvalStatus: MemberProfile["approvalStatus"];
   officialMemberStatus: OfficialMemberStatus;
@@ -880,14 +883,7 @@ function MembersWorkspace({ context, initialTab }: { context: string; initialTab
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {rfmReturn && <a href={rfmReturn} className="inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-[#123D2A] underline underline-offset-4">Back to Member Indicators</a>}
-          <Button
-            type="button"
-            onClick={() => setRewardPolicyOpen(true)}
-            className="h-11 rounded-md border border-[#CAD8CB] bg-white px-4 text-[#123D2A] shadow-[0_10px_22px_rgba(18,61,42,0.06)] hover:bg-[#EEF2EC]"
-          >
-            <ShieldCheck className="size-4" aria-hidden="true" />
-            Referral Policy
-          </Button>
+
           {activeTab !== "history" ? (
             <Button
               type="button"
@@ -1630,7 +1626,7 @@ function MemberOverviewSection({ member }: { member: MemberDetail }) {
         <MemberInfoCard label="Contact" value={member.contactNumber ?? "Not provided"} icon={Phone} />
         <MemberInfoCard label="Barangay" value={member.barangay ?? "Unspecified"} icon={MapPin} />
         <MemberInfoCard label="Municipality" value={`${member.municipality}, ${member.province}`} icon={Building2} />
-        <MemberInfoCard label="Primary sector" value={member.sector ?? "Not assigned"} icon={Leaf} />
+        <MemberInfoCard label="Agricultural sectors" value={member.sectors?.join(", ") || member.sector || "Not assigned"} icon={Leaf} />
         <MemberInfoCard
           label="Linked Account"
           value={member.linkedUserEmail ? `${member.linkedUserEmail} (${member.linkedUserStatus ?? "Unknown"})` : "Unlinked"}
@@ -1851,15 +1847,8 @@ function MemberFormDialog({
       {step === 2 && (
       <div className="grid gap-4 md:grid-cols-2">
         <TextInput label="Barangay" value={draft.barangay} onChange={(value) => setDraft((current) => ({ ...current, barangay: value }))} />
-        <label className="grid gap-2 text-sm font-semibold text-[#294B39]">
-          Primary sector
-          <select value={draft.sector} onChange={(event) => setDraft((current) => ({ ...current, sector: event.target.value }))} className="h-11 rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
-            <option value="">Not assigned</option>
-            {draft.sector && !PRIMARY_SECTOR_OPTIONS.includes(draft.sector as (typeof PRIMARY_SECTOR_OPTIONS)[number]) ? <option value={draft.sector}>{draft.sector} (existing value)</option> : null}
-            {PRIMARY_SECTOR_OPTIONS.map((sector) => <option key={sector} value={sector}>{sector}</option>)}
-          </select>
-          <span className="text-xs font-normal leading-relaxed text-[#6C7A70]">{PRIMARY_SECTOR_POLICY}</span>
-        </label>
+        <div className="md:col-span-2"><AgriculturalSectorFields value={draft.sectors ?? (draft.sector ? [draft.sector] : [])} onChange={sectors=>setDraft(current=>({...current,sectors,sector:sectors[0]??""}))}/></div>
+
         <TextInput label="Municipality" value={draft.municipality} onChange={(value) => setDraft((current) => ({ ...current, municipality: value }))} />
         <TextInput label="Province" value={draft.province} onChange={(value) => setDraft((current) => ({ ...current, province: value }))} />
       </div>
@@ -2825,6 +2814,7 @@ function ApplicationDetailDialog({
         <div className="grid gap-5">
           <ReviewWorkspaceSection title="Applicant Overview" icon={UserCheck}>
             <ApplicantSummary detail={detail} />
+            <ChairmanMembershipProgress key={detail.id} applicationId={detail.id} sectors={detail.sectors ?? (detail.sector ? [detail.sector] : [])} />
           </ReviewWorkspaceSection>
 
           <ReviewWorkspaceSection title="Family & Beneficiaries" icon={UsersRound}>
@@ -3024,6 +3014,7 @@ function ApplicationDetailDialog({
     </FormDialog>
 
       <ApprovalConfirmDialog
+        key={detail.id}
         open={approvalConfirmOpen}
         onOpenChange={setApprovalConfirmOpen}
         isMutating={isMutating}
@@ -3032,17 +3023,17 @@ function ApplicationDetailDialog({
         accountEmail={accountEmail}
         decisionReason={approvalDecisionReason}
         onDecisionReasonChange={(value) => setApprovalDecisionDraft({ applicationId: detail.id, decisionReason: value })}
-        onConfirm={() => {
+        onConfirm={(approveTrueMembership) => {
           setApprovalConfirmOpen(false);
           void runMutation("Application approved and converted.", async () => {
             const result = await approveApplication(
               detail.id,
-              buildApprovalInput({
+              { ...buildApprovalInput({
                 boardMeetingDate: approvalDate,
                 secretaryName: approvedBy,
                 decisionReason: approvalDecisionReason,
                 accountEmail,
-              }),
+              }), approveTrueMembership },
             );
             setActivationResult(result);
             await onRefresh();
@@ -3495,8 +3486,9 @@ function ApprovalConfirmDialog({
   accountEmail: string | null;
   decisionReason: string;
   onDecisionReasonChange: (value: string) => void;
-  onConfirm: () => void;
+  onConfirm: (approveTrueMembership: boolean) => void;
 }) {
+  const [approveTrueMembership,setApproveTrueMembership] = useState(false);
   return (
     <FormDialog
       open={open}
@@ -3511,7 +3503,7 @@ function ApprovalConfirmDialog({
             <CheckCircle2 className="size-5" />
             Payment confirmed
           </p>
-          <p className="mt-2">True Member: PHP 1,500 share capital verified. Associate: PHP 200 fee verified.</p>
+          <p className="mt-2">New True application: PHP 200 fee plus PHP 1,500 initial capital. Full classification requires PHP 3,000 validated capital. Existing obligations retain their recorded policy.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Info label="Board Meeting Date" value={formatLongDate(approvalDate)} />
@@ -3522,6 +3514,7 @@ function ApprovalConfirmDialog({
           />
         </div>
 
+        <label className="flex items-start gap-3 text-sm"><input type="checkbox" checked={approveTrueMembership} onChange={e=>setApproveTrueMembership(e.target.checked)} className="mt-1 size-4 accent-coop-green"/><span>I explicitly approve True Member classification, subject to PHP 3,000 validated capital. Leave unchecked to approve as an Associate pursuing True Membership.</span></label>
         <label className="grid gap-2 text-sm font-bold text-[#294B39]">
           Decision remarks
           <textarea
@@ -3545,7 +3538,7 @@ function ApprovalConfirmDialog({
             type="button"
             disabled={isMutating}
             className="h-11 rounded-full bg-[#123D2A] px-5 text-white hover:bg-[#1F6B43] disabled:cursor-not-allowed disabled:bg-[#8A9A91]"
-            onClick={onConfirm}
+            onClick={()=>onConfirm(approveTrueMembership)}
           >
             <UserCheck className="size-4" />
             {isMutating ? "Approving..." : "Approve & Create Member"}
@@ -3672,9 +3665,9 @@ function ApplicationFormDialog({
         <TextInput label="Place of birth" value={draft.placeOfBirth ?? ""} onChange={(value) => setDraft((current) => ({ ...current, placeOfBirth: value }))} />
         <TextInput label="Date of birth" type="date" value={draft.dateOfBirth ?? ""} onChange={(value) => setDraft((current) => ({ ...current, dateOfBirth: value }))} />
         <TextInput label="Current address" value={draft.currentAddress} onChange={(value) => setDraft((current) => ({ ...current, currentAddress: value }))} className="md:col-span-2" />
-        <TextInput label="Barangay" value={draft.barangay ?? ""} onChange={(value) => setDraft((current) => ({ ...current, barangay: value }))} />
-        <TextInput label="Municipality" value={draft.municipality} onChange={(value) => setDraft((current) => ({ ...current, municipality: value }))} />
-        <TextInput label="Province" value={draft.province} onChange={(value) => setDraft((current) => ({ ...current, province: value }))} />
+        <MembershipLocationFields municipality={draft.municipality} barangay={draft.barangay??""} onChange={location=>setDraft(current=>({...current,...location}))}/>
+        <div className="md:col-span-2"><AgriculturalSectorFields value={draft.sectors??(draft.sector?[draft.sector]:[])} onChange={sectors=>setDraft(current=>({...current,sectors,sector:sectors[0]??""}))}/></div>
+
       </div>
       )}
 
@@ -3822,7 +3815,7 @@ function ApplicantSummary({ detail }: { detail: ChairmanApplicationDetail }) {
         <div className="grid gap-4 py-4 first:pt-0 lg:grid-cols-4 lg:divide-x lg:divide-[#E7EEE5]">
           <SummaryCell label="Source" value={detail.applicationSource} />
           <SummaryCell label="Requested Type" value={detail.requestedMembershipType} />
-          <SummaryCell label="Primary sector" value={detail.sector ?? "Not provided"} />
+          <SummaryCell label="Agricultural sectors" value={detail.sectors?.join(", ") || detail.sector || "Not provided"} />
           <SummaryCell label="Email" value={detail.email ?? "Not provided"} />
         </div>
         <div className="grid gap-4 py-4 md:grid-cols-3 md:divide-x md:divide-[#E7EEE5]">
@@ -4237,6 +4230,7 @@ function memberToDraft(member: MemberDetail): MemberFormState {
     municipality: member.municipality,
     province: member.province,
     sector: member.sector ?? "",
+    sectors: member.sectors ?? (member.sector ? [member.sector] : []),
     membershipType: member.membershipType,
     approvalStatus: member.approvalStatus,
     officialMemberStatus: member.officialMemberStatus,
@@ -4256,6 +4250,7 @@ function memberPayload(draft: MemberFormState): MemberProfileInput {
     municipality: draft.municipality,
     province: draft.province,
     sector: draft.sector || null,
+    sectors: draft.sectors,
     membershipType: draft.membershipType,
     approvalStatus: draft.approvalStatus,
     officialMemberStatus: draft.officialMemberStatus,
@@ -4290,6 +4285,7 @@ function toCreatePayload(draft: ApplicationFormState): ChairmanMembershipApplica
     municipality: draft.municipality,
     province: draft.province,
     sector: draft.sector || null,
+    sectors: draft.sectors,
     fatherName: draft.fatherName || null,
     motherName: draft.motherName || null,
     spouseName: draft.spouseName || null,
@@ -4339,6 +4335,7 @@ function fromDetail(detail: ChairmanApplicationDetail): ApplicationFormState {
     municipality: detail.municipality,
     province: detail.province,
     sector: detail.sector ?? "",
+    sectors: detail.sectors ?? (detail.sector ? [detail.sector] : []),
     fatherName: detail.fatherName ?? "",
     motherName: detail.motherName ?? "",
     spouseName: detail.spouseName ?? "",

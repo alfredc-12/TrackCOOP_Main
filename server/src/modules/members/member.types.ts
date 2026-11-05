@@ -22,6 +22,7 @@ export type MemberProfile = {
   municipality: string;
   province: string;
   sector: string | null;
+  sectors?: string[];
   membershipType: MembershipType;
   approvalStatus: ApprovalStatus;
   officialMemberStatus: OfficialMemberStatus;
@@ -75,6 +76,7 @@ export type MemberProfileInput = {
   municipality?: string;
   province?: string;
   sector?: string | null;
+  sectors?: string[];
   membershipType?: MembershipType;
   approvalStatus?: ApprovalStatus;
   officialMemberStatus?: OfficialMemberStatus;

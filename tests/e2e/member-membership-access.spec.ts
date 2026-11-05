@@ -16,6 +16,8 @@ async function setup(page: Page, trueMember = false, validatedCapital = 0) {
       recentActivity: [], recentCapitalContributions: [], financialTransparency: trueMember ? { incomeByCategory: [], expenseByCategory: [] } : null,
       memberFinancialSummary: trueMember ? { incomeByCategory: [], expenseByCategory: [], transactions: [] } : null,
     } });
+    if (path === "/api/members/me/membership-progress") return route.fulfill({json:envelope({membershipType:trueMember?"True Member":"Associate",sectors:[],capital:null,validatedCapital,legacyReviewRequired:true,legacyDeadline:null})});
+    if (path === "/api/members/me/membership-payments" || path === "/api/members/me/referrals") return route.fulfill({json:envelope({items:[],total:0})});
     if (path === "/api/members/me/true-membership") {
       if (route.request().method() === "POST") { pending = true; return route.fulfill({ status: 201, json: { success: true } }); }
       return route.fulfill({ json: { membershipType: trueMember ? "True Member" : "Associate", application: pending ? { status: "Pending" } : null, requirements: { fullRequirement: 3000, validatedTotal: validatedCapital, remainingToFull: Math.max(0, 3000 - validatedCapital), fullRequirementMet: validatedCapital >= 3000, maximumAllowed: 15000 } } });

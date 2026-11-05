@@ -1,3 +1,4 @@
+import { capitalCases, caseProgress } from "../membership-policy/membership-progress.repository";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -146,6 +147,7 @@ function referenceSuffix(paymentPurpose: PaymongoMembershipCheckoutPurpose) {
 }
 
 export interface PaymongoRepository {
+  getMembershipCapitalProgress?(applicationId: string): Promise<unknown>;
   findPaymentReference(paymentReferenceId: string): Promise<PaymongoPaymentReferenceRecord | null>;
   findPaymentReferenceByIdAndReferenceNumber(input: {
     paymentReferenceId: string;
@@ -215,13 +217,22 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
       return rows[0] ? mapPaymentReference(rows[0]) : null;
     },
 
+    async getMembershipCapitalProgress(applicationId) {
+      const cases = await capitalCases(databasePool(), "c.membership_application_id=?", [applicationId]);
+      return cases[0] ? caseProgress(databasePool(), cases[0]) : null;
+    },
     async findMembershipApplicationByCode(applicationCode) {
       const [rows] = await databasePool().execute<MembershipApplicationCheckoutRow[]>(
         `SELECT CAST(a.membership_application_id AS CHAR) AS id,
                 a.application_code AS applicationCode,
                 a.public_tracking_token_hash AS publicTrackingTokenHash,
                 CAST(a.date_of_birth AS CHAR) AS dateOfBirth,
-                a.requested_membership_type AS requestedMembershipType,
+                a.membership_fee_amount AS membershipFeeAmount,
+            a.initial_share_capital_amount AS initialShareCapitalAmount,
+            a.target_share_capital_amount AS targetShareCapitalAmount,
+            a.share_capital_deadline_months AS deadlineMonths,
+            EXISTS(SELECT 1 FROM membership_capital_cases c WHERE c.membership_application_id=a.membership_application_id) AS newMembershipPolicy,
+            a.requested_membership_type AS requestedMembershipType,
                 TRIM(CONCAT_WS(' ', a.first_name, NULLIF(a.middle_name, ''), a.last_name, NULLIF(a.suffix, ''))) AS fullName,
                 a.email,
                 a.contact_number AS contactNumber,
@@ -256,7 +267,7 @@ export function createPaymongoRepository(pool?: Pool): PaymongoRepository {
         trueMemberRequiredCapital: numberSetting(
           rows,
           "membership.true_member_required_capital",
-          1500,
+          3000,
         ),
         maximumShareCapital: numberSetting(rows, "membership.maximum_share_capital", 15000),
       };

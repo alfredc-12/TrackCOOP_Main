@@ -35,34 +35,15 @@ test("settings approve only real consumers and leave inconsistent capital/invent
   );
   assert.equal(new Set(definitions.map((d) => d.key)).size, definitions.length);
 });
-test("referrals retain their boolean, credits and label without silent coercion or cash behavior", () => {
-  const d = byKey.get("referrals.reward_policy")!;
-  assert.deepEqual(
-    validateValue(d, {
-      enabled: false,
-      creditsPerSuccessfulReferral: 7,
-      label: "Participation credits",
-    }),
-    {
-      enabled: false,
-      creditsPerSuccessfulReferral: 7,
-      label: "Participation credits",
-    },
-  );
-  for (const bad of [
-    { enabled: "false", creditsPerSuccessfulReferral: 7, label: "x" },
-    { enabled: true, creditsPerSuccessfulReferral: 101, label: "x" },
-    { enabled: true, creditsPerSuccessfulReferral: 1.5, label: "x" },
-    { enabled: true, creditsPerSuccessfulReferral: 1, label: "" },
-    {
-      enabled: true,
-      creditsPerSuccessfulReferral: 1,
-      label: "x",
-      apiKey: "hidden",
-    },
-  ])
-    assert.throws(() => validateValue(d, bad));
+test("unapproved referral rewards are read-only; historical stored values remain readable", () => {
+ const d=byKey.get("referrals.reward_policy")!;
+ assert.equal(d.editable,false);
+ assert.throws(()=>validateValue(d,{enabled:true,creditsPerSuccessfulReferral:1,label:"Credits"}));
+ const legacy={enabled:true,creditsPerSuccessfulReferral:7,label:"Participation credits"};
+ assert.deepEqual(parseStored(d,JSON.stringify(legacy)),legacy);
+ assert.deepEqual(d.fallback,{enabled:false,creditsPerSuccessfulReferral:0,label:"Referrals"});
 });
+
 test("numeric/text revisions and RFM validation preserve authoritative configuration and row order", () => {
   assert.throws(() =>
     validateValue(byKey.get("membership.activation_token_hours")!, 1.5),

@@ -125,6 +125,11 @@ export type PaymongoMembershipApplicationRecord = {
   applicationCode: string;
   publicTrackingTokenHash: string;
   dateOfBirth: string | null;
+  membershipFeeAmount?: number;
+  initialShareCapitalAmount?: number;
+  targetShareCapitalAmount?: number;
+  deadlineMonths?: number;
+  newMembershipPolicy?: boolean;
   requestedMembershipType: "Associate" | "True Member";
   fullName: string;
   email: string | null;

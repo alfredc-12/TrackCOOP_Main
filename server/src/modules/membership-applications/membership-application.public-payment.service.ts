@@ -1,3 +1,4 @@
+import { applicationPaymentPolicy } from "../membership-policy/membership-policy";
 import { AppError } from "../../utils/app-error";
 import {
   createPaymongoConfigFromEnv,
@@ -56,14 +57,15 @@ export function createPublicMembershipPaymentService(options: {
         );
       }
 
-      const settings = await paymongoRepository.getMembershipPaymentSettings();
-      return installmentRepository.publicPaymentSummary({
+      const settings = applicationPaymentPolicy(application, await paymongoRepository.getMembershipPaymentSettings());
+      const summary = await installmentRepository.publicPaymentSummary({
         application,
         settings,
         environment: config.mode === "live" ? "Live" : "Test",
         gatewayEnabled: config.enabled,
         mode: config.mode,
       });
+      return { ...summary, capitalCompletion: await paymongoRepository.getMembershipCapitalProgress?.(application.id) ?? null };
     },
   };
 }

@@ -1,4 +1,4 @@
-export const ANALYTICS_SECTORS = ["Rice", "Corn", "Fishery", "Livestock", "High-value crops (gulayan)"] as const;
+export const ANALYTICS_SECTORS = ["Rice", "Corn", "Fishery", "Livestock", "High-value crops (gulayan)", "Coffee"] as const;
 export const ENGAGEMENT_LABELS = ["Active", "Needs Monitoring", "Inactive", "Not Yet Scored"] as const;
 export type EngagementLabel = typeof ENGAGEMENT_LABELS[number];
 export type AnalyticsFilters = {
@@ -8,6 +8,7 @@ export type AnalyticsFilters = {
 };
 export type AnalyticsSelection = { kind?: string; value?: string; sector?: string };
 export type AnalyticsMember = {
+  selectedSectors?: string[];
   memberCode?: string; fullName?: string;
   id: string; barangay: string | null; sector: string | null; membershipType: string;
   approvalStatus: string; officialStatus: string; approvedAt: string | null;
@@ -64,6 +65,7 @@ export type AnalyticsResult = {
     contributions: number; interest: number; otherCredits: number; deductions: number;
     overdue: number; provisional: number; reconciled: number; unknown: number;
     completions: Array<{ month: string; count: number }>; medianDays: number | null; averageDays: number | null };
+  unassignedSectorCount?: number;
   sectors: CountItem[];
   sectorDetails: Array<{ sector: string; members: number; newApprovals: number; previousMembers: number; change: number; engagement: CountItem[]; eligibleCapital: number; completedCapital: number; completionRate: number | null; recruitment: Array<{ month: string; count: number }> }>;
   geography: Array<{ barangay: string; totalMembers: number; trueMembers: number; associates: number;

@@ -40,10 +40,27 @@ function reference(
 class FakeReconciliationConnection {
   readonly existing = new Set<string>();
   readonly inserted: Array<{ paymentReferenceId: string; memberId: string }> = [];
+  readonly payments = new Map<string, { id: string; memberId: string; amount: number; paymentStatus: string }>();
+  readonly credits = new Map<string, { memberId: string; amount: number; transactionDate: string; referenceNumber: string }>();
+  balance = 0;
   paymentLinks = 0;
   financeLinks = 0;
 
   async execute<T = any>(sql: string, values: any[] = []): Promise<[T, any]> {
+    if (sql.includes("FROM member_profiles") && sql.includes("FOR UPDATE")) return [[{ id: "800" }] as T, null];
+    if (sql.trimStart().startsWith("SELECT") && sql.includes("FROM share_capital_payments WHERE payment_reference_id")) return [[this.payments.get(String(values[0]))].filter(Boolean) as T, null];
+    if (sql.includes("FROM share_capital_transactions") && sql.includes("source_type = ?")) {
+      const key = String(values[1]); return [this.credits.has(key) ? [{ id: key }] as T : [] as T, null];
+    }
+    if (sql.includes("INSERT INTO share_capital_accounts")) return [{ affectedRows: 1 } as T, null];
+    if (sql.includes("FROM share_capital_accounts")) return [[{ accountId: "1", currentBalance: this.balance }] as T, null];
+    if (sql.includes("INSERT INTO share_capital_transactions")) {
+      const key = String(values[9]);
+      if (this.credits.has(key)) throw new Error("Duplicate ledger source");
+      this.credits.set(key, { memberId: String(values[1]), amount: Number(values[4]), transactionDate: String(values[2]), referenceNumber: String(values[7]) });
+      return [{ insertId: this.credits.size, affectedRows: 1 } as T, null];
+    }
+    if (sql.includes("UPDATE share_capital_accounts")) { this.balance = Number(values[4]); return [{ affectedRows: 1 } as T, null]; }
     if (sql.includes("FROM share_capital_payments s") && sql.includes("JOIN payment_references")) {
       return [[...this.existing].map((paymentReferenceId) => ({ paymentReferenceId })) as T, null];
     }
@@ -58,6 +75,7 @@ class FakeReconciliationConnection {
       const affectedRows = this.existing.has(paymentReferenceId) ? 0 : 1;
       if (affectedRows) {
         this.existing.add(paymentReferenceId);
+        this.payments.set(paymentReferenceId, { id: `share-${paymentReferenceId}`, memberId: String(values[0]), amount: Number(values[2]), paymentStatus: "Validated" });
         this.inserted.push({ paymentReferenceId, memberId: String(values[0]) });
       }
       return [{ affectedRows, insertId: this.inserted.length } as ResultSetHeader as T, null];
@@ -104,6 +122,9 @@ test("two validated installments are preserved as two member capital rows", asyn
   ]);
   assert.equal(connection.paymentLinks, 1);
   assert.equal(connection.financeLinks, 1);
+  assert.equal(connection.credits.size, 2);
+  assert.equal(connection.balance, 3000);
+  assert.equal(connection.credits.get("share-1")?.transactionDate, "2026-07-27");
 });
 
 test("reconciliation retry does not duplicate Share Capital rows", async () => {
@@ -123,6 +144,8 @@ test("reconciliation retry does not duplicate Share Capital rows", async () => {
   assert.equal(first.insertedCapitalRows, 2);
   assert.equal(second.insertedCapitalRows, 0);
   assert.equal(connection.inserted.length, 2);
+  assert.equal(connection.credits.size, 2);
+  assert.equal(connection.balance, 3000);
 });
 
 test("only Validated application references are converted", () => {
@@ -220,4 +243,24 @@ test("a webhook-sized PHP 3,000 total establishes eligibility but does not auto-
   assert.equal(decision.trueMemberEligible, true);
   assert.equal(application.applicationStatus, "Under Review");
   assert.equal(application.convertedMemberId, null);
+});
+
+
+test("previously reconciled payments missing ledger credits are posted once", async () => {
+ const connection = new FakeReconciliationConnection();
+ connection.existing.add("1");
+ connection.payments.set("1", { id: "existing-share", memberId: "800", amount: 1500, paymentStatus: "Validated" });
+ const input = { connection: connection as unknown as PoolConnection, applicationId: "500", applicationCode: "MEM-APP-2026-000500", memberId: "800", actorUserId: "9", maximumShareCapital: 15000, references: [reference("1",1500), reference("2",1500)] };
+ const first = await reconcileApplicationCapital(input);
+ assert.equal(first.insertedCapitalRows,1); assert.equal(connection.balance,3000); assert.equal(connection.credits.size,2);
+ const second = await reconcileApplicationCapital(input);
+ assert.equal(second.insertedCapitalRows,0); assert.equal(connection.balance,3000); assert.equal(connection.credits.size,2);
+});
+
+test("inconsistent historical payment rows are rejected without overwriting or crediting them", async () => {
+ const connection = new FakeReconciliationConnection();
+ connection.existing.add("1");
+ connection.payments.set("1", { id: "existing-share", memberId: "800", amount: 1000, paymentStatus: "Validated" });
+ await assert.rejects(()=>reconcileApplicationCapital({connection:connection as unknown as PoolConnection,applicationId:"500",applicationCode:"MEM-APP-2026-000500",memberId:"800",actorUserId:"9",maximumShareCapital:15000,references:[reference("1",1500)]}), (error)=>error instanceof AppError && error.code==="MEMBERSHIP_CAPITAL_POSTING_CONFLICT");
+ assert.equal(connection.payments.get("1")?.amount,1000); assert.equal(connection.credits.size,0);
 });

@@ -5,8 +5,6 @@ import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
-import { getFinancialTransparency } from "../finance/financial-transparency";
-import { calculateReferralRewardCredits, loadReferralRewardPolicy } from "../referrals/referral-policy";
 import type {
   MemberActivityQuery,
   MemberDashboardQuery,
@@ -489,7 +487,6 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [auth.user.id],
       );
       const hasFinancialAccess = canAccessMemberFinancials(member);
-      const financialTransparency = hasFinancialAccess ? await getFinancialTransparency(databasePool(), query) : null;
       const dividendActivities = canAccessMemberFinancials(member) ? await selectMemberDividendActivities(databasePool(), member.member_id) : [];
 
       const recentActivity = [...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
@@ -514,7 +511,6 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         "SELECT COUNT(*) as count FROM rental_bookings WHERE member_id = ?",
         [member.member_id],
       );
-      const referralRewardPolicy = await loadReferralRewardPolicy(databasePool());
       const [referralCounts] = await databasePool().execute<RowDataPacket[]>(
         `SELECT COUNT(*) AS total,
                 SUM(CASE WHEN referral_status = 'Pending' THEN 1 ELSE 0 END) AS pending,
@@ -548,16 +544,13 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         isLinked: true,
         membershipType: member.membership_type,
         canAccessFinancials: hasFinancialAccess,
-        shareCapital: hasFinancialAccess ? {
+        shareCapital: {
           total: validatedShareCapital,
           deadline: member.share_capital_deadline,
-        } : null,
+        },
         recentActivity,
         recentCapitalContributions: hasFinancialAccess ? recentCapitalContributions : [],
-        financialTransparency: hasFinancialAccess ? {
-          ...financialTransparency,
-          scope: "Posted cooperative records. Share Capital contributions are shown separately.",
-        } : null,
+        financialTransparency: null,
         memberFinancialSummary,
         stats: {
           announcements: allAnnouncements[0]?.count || 0,
@@ -570,10 +563,10 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           total: Number(referralCounts[0]?.total || 0),
           pending: Number(referralCounts[0]?.pending || 0),
           successful: Number(referralCounts[0]?.successful || 0),
-          rewardCredits: calculateReferralRewardCredits(Number(referralCounts[0]?.successful || 0), referralRewardPolicy),
-          rewardLabel: referralRewardPolicy.label,
-          rewardPolicyEnabled: referralRewardPolicy.enabled,
-          rewardPerSuccessfulReferral: referralRewardPolicy.creditsPerSuccessfulReferral,
+          rewardCredits: 0,
+          rewardLabel: "Referrals",
+          rewardPolicyEnabled: false,
+          rewardPerSuccessfulReferral: 0,
           items: referralItems,
         },
         member: {

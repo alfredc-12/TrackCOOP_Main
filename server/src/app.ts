@@ -1,3 +1,4 @@
+import { createMembershipProgressRouter } from "./modules/membership-policy/membership-progress.routes";
 import { createMembershipUpgradeRouter } from "./modules/members/membership-upgrade.routes";
 import { createFinancialOverviewRouter } from "./modules/financial-overview/overview.routes";
 import { createFinanceMonitoringRouter } from "./modules/finance-monitoring/finance-monitoring.routes";
@@ -175,6 +176,7 @@ export function createApp(options: CreateAppOptions = {}) {
   );
   app.use("/api", createMemberIndicatorRouter(options.authService));
   app.use("/api", createMembershipUpgradeRouter(options.authService));
+  app.use("/api", createMembershipProgressRouter(options.authService));
   app.use("/api", createMemberSelfRouter(options.authService));
   app.use("/api", createPaymongoRouter(options.authService));
   app.use("/api", createPaymentReferenceRouter(options.authService));
