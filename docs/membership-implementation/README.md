@@ -67,3 +67,7 @@ Durable reminders require the existing Resend outbox mode and worker configurati
 ## Verification
 
 See `verification.md` for the exact checks, local-only SQL coverage and browser screenshots. SQL integration tests are opt-in with `MEMBERSHIP_LOCAL_MYSQL=1` and hard-code a disposable localhost port/schema; they cannot target production through the project `.env` files.
+
+## Staging rollout gate
+
+PR #6 is merged into main at `3e95e6a`. The exact prerequisite checks, isolation/backup requirements and approved-future cutover order are in [Staging rollout](staging-rollout.md). Neither this document nor passing CI authorizes migration, PR #7 merge or deployment.

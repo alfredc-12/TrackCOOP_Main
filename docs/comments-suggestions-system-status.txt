@@ -17,7 +17,7 @@ Status legend:
 Details: The system has a Share Capital growth chart, current balance, initial capital, contributions, interest added, deductions, and posted transaction history.
 
 2. Clarify the Annual Interest on Share Capital declaration, distribution schedule, and member options to withdraw or add interest to Share Capital.
-Details: The system includes an annual declaration, coverage dates, distribution date, member withdrawal or Share Capital capitalization options, and Bookkeeper payout processing.
+Details: The system includes a fiscal-year selector, complete 12-month coverage validation, database-based net-surplus computation, approved-rate entry without a fixed 30% split, True Member-only allocation, distribution date, member withdrawal or Share Capital capitalization options, Chairman review/approval before publication, Bookkeeper payout processing, and all-status declaration history.
 
 3. Implement a member referral system and record successful referrals for recruitment monitoring.
 Details: The system provides active referral codes and shareable links, Copy/Share actions, live code validation, optional referral capture, duplicate-referral protection, pending-to-successful status tracking, referral progress display, in-app notifications, audit logging, member referral history, Chairman recruitment analytics with conversion rate, top referrers, barangay breakdowns, and an admin-configurable reward policy popup on Chairman > Members. Credits are tracking-only and do not create an automatic cash payout.

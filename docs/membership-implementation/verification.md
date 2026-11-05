@@ -47,3 +47,20 @@ The latest main commit `ab3b2f4` (another agent’s annual-interest task) was in
 ## Reconciliation ledger correction
 
 The follow-up Section 1 ledger posting correction and combined PR #6 integration results are recorded in [Reconciliation ledger verification](reconciliation-ledger.md). This correction supersedes the earlier incomplete initial-ledger coverage; production data was not repaired.
+
+## Synchronization with merged PR #6
+
+PR #7 was synchronized with `origin/main` at `3e95e6ad85ef4056aca1f7d166e3d4d5cc3cb2c9` after PR #6 merged. The merge was clean. Section 1 membership/reconciliation implementation is unchanged from `a724988`; the shared financial guard and ledger files match merged main. No business-rule or migration-script edits were made for this synchronization.
+
+Reverified on the synchronized branch:
+
+- `npm run typecheck` — passed (web and API).
+- `npm run lint:ci` — passed, baseline unchanged, 51 existing errors / 74 warnings.
+- `npm run test:api` — 687 passed, 12 opt-in tests skipped, zero failures.
+- `npm run test:paymongo-core` — 184 passed, one opt-in SQL test skipped.
+- `npm run test:records` — successful exit, zero tests discovered.
+- `npm run build` — passed (production frontend and API compilation).
+- Explicit local reconciliation/capacity SQL suites — 9 passed, zero failures/skips, on disposable localhost fixtures only. The SQL tests create their own ephemeral fixtures and do not execute `20261106_membership_policy_v2.sql` or either prerequisite migration. No staging/production database was accessed.
+- Secret scan and required GitHub Quality Gate are checked on the final synchronized PR revision.
+
+[Exact staging prerequisites, deployment hold, backup and rollout order](staging-rollout.md) are prepared for approval only. No migration, deployment or PR #7 merge was executed. The original main checkout and other agents’ worktrees are preserved.

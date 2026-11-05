@@ -13,6 +13,7 @@ import {
   isCompleteFiscalYearPeriod,
 } from "./dividend-period";
 import { MAX_SHARE_CAPITAL } from "./share-capital.constants";
+import { assertLockedMemberShareCapitalCapacity } from "./share-capital-capacity";
 import type {
   CreateDividendDeclarationInput,
   DividendCompletionInput,
@@ -114,6 +115,7 @@ type DividendRow = RowDataPacket & {
   memberId: string;
   memberCode: string;
   memberName: string;
+  membershipType: "Associate" | "True Member";
   declarationId: string;
   declarationName: string;
   declarationStatus: MemberDividend["declarationStatus"];
@@ -340,6 +342,7 @@ async function selectDividendPreview(
         AND transaction.transaction_date <= ?
         AND member.approval_status = 'Approved'
         AND member.official_member_status = 'Active'
+        AND member.membership_type = 'True Member'
       ORDER BY member.member_id ASC, transaction.transaction_date ASC,
                transaction.share_capital_transaction_id ASC`,
     [input.coverageEnd],
@@ -434,6 +437,7 @@ function dividendSelect() {
                  CAST(md.member_id AS CHAR) AS memberId,
                  member.member_code AS memberCode,
                  member.full_name AS memberName,
+                 member.membership_type AS membershipType,
                  CAST(md.dividend_declaration_id AS CHAR) AS declarationId,
                  declaration.declaration_name AS declarationName,
                  declaration.declaration_status AS declarationStatus,
@@ -478,16 +482,19 @@ function declarationSelect() {
                  declaration.interest_rate AS interestRate,
                  declaration.declaration_status AS status,
                  declaration.notes,
-                 COUNT(md.member_dividend_id) AS memberCount,
-                 SUM(md.dividend_status = 'Available') AS availableCount,
-                 SUM(md.dividend_status = 'Added to Share Capital') AS capitalizedCount,
-                 SUM(md.dividend_status = 'Withdrawal Requested') AS withdrawalRequestedCount,
-                 SUM(md.dividend_status = 'Capitalization Requested') AS capitalizationRequestedCount,
-                 SUM(md.dividend_status = 'Withdrawn') AS withdrawnCount,
+                 COUNT(member.member_id) AS memberCount,
+                 SUM(CASE WHEN member.member_id IS NOT NULL AND md.dividend_status = 'Available' THEN 1 ELSE 0 END) AS availableCount,
+                 SUM(CASE WHEN member.member_id IS NOT NULL AND md.dividend_status = 'Added to Share Capital' THEN 1 ELSE 0 END) AS capitalizedCount,
+                 SUM(CASE WHEN member.member_id IS NOT NULL AND md.dividend_status = 'Withdrawal Requested' THEN 1 ELSE 0 END) AS withdrawalRequestedCount,
+                 SUM(CASE WHEN member.member_id IS NOT NULL AND md.dividend_status = 'Capitalization Requested' THEN 1 ELSE 0 END) AS capitalizationRequestedCount,
+                 SUM(CASE WHEN member.member_id IS NOT NULL AND md.dividend_status = 'Withdrawn' THEN 1 ELSE 0 END) AS withdrawnCount,
                  declaration.created_at AS createdAt
             FROM dividend_declarations declaration
             LEFT JOIN member_dividends md
-              ON md.dividend_declaration_id = declaration.dividend_declaration_id`;
+              ON md.dividend_declaration_id = declaration.dividend_declaration_id
+            LEFT JOIN member_profiles member
+              ON member.member_id = md.member_id
+             AND member.membership_type = 'True Member'`;
 }
 
 async function activateDueDividends(connection: Pool | PoolConnection) {
@@ -495,6 +502,9 @@ async function activateDueDividends(connection: Pool | PoolConnection) {
     `UPDATE member_dividends dividend
      JOIN dividend_declarations declaration
        ON declaration.dividend_declaration_id = dividend.dividend_declaration_id
+     JOIN member_profiles member
+       ON member.member_id = dividend.member_id
+      AND member.membership_type = 'True Member'
         SET dividend.dividend_status = 'Available'
       WHERE declaration.declaration_status = 'Published'
         AND dividend.dividend_status = 'Pending'
@@ -508,6 +518,9 @@ async function activateDueDividends(connection: Pool | PoolConnection) {
        FROM member_dividends dividend
        JOIN dividend_declarations declaration
          ON declaration.dividend_declaration_id = dividend.dividend_declaration_id
+       JOIN member_profiles member
+         ON member.member_id = dividend.member_id
+        AND member.membership_type = 'True Member'
       WHERE declaration.declaration_status = 'Published'
         AND dividend.dividend_status = 'Available'
         AND NOT EXISTS (
@@ -597,6 +610,9 @@ export async function postShareCapitalPaymentToLedger(input: {
 
   const balanceBefore = money(account.currentBalance);
   const balanceAfter = money(balanceBefore + amount);
+  if (balanceAfter > MAX_SHARE_CAPITAL) {
+    throw new AppError("Validated share capital cannot exceed PHP 15,000", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
+  }
   const transactionType = balanceBefore === 0
     ? "Initial Share Capital"
     : "Additional Capital Contribution";
@@ -1026,6 +1042,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           throw new AppError("The dividend amount must be greater than zero", 409, "DIVIDEND_AMOUNT_INVALID");
         }
         await connection.execute(
+          `SELECT member_id FROM member_profiles WHERE member_id = ? LIMIT 1 FOR UPDATE`,
+          [dividend.memberId],
+        );
+        await connection.execute(
           `INSERT INTO share_capital_accounts (member_id) VALUES (?)
            ON DUPLICATE KEY UPDATE member_id = member_id`,
           [dividend.memberId],
@@ -1037,6 +1057,14 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
         if (balanceAfter > MAX_SHARE_CAPITAL) {
           throw new AppError("Adding this dividend would exceed the PHP 15,000 Share Capital limit", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
         }
+        await assertLockedMemberShareCapitalCapacity(connection, {
+          memberId: dividend.memberId,
+          requestedAmount: amount,
+          currentAccountBalance: balanceBefore,
+          excludeDividendId: dividendId,
+          lockMember: false,
+          errorMessage: "Adding this dividend would exceed the PHP 15,000 Share Capital limit",
+        });
         const [transactionResult] = await connection.execute<ResultSetHeader>(
           `INSERT INTO share_capital_transactions
              (share_capital_account_id, member_id, transaction_date, transaction_type,
@@ -1165,6 +1193,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
            FROM member_dividends dividend
            JOIN member_profiles member ON member.member_id = dividend.member_id
           WHERE dividend.dividend_declaration_id = ?
+            AND member.membership_type = 'True Member'
           ORDER BY member.full_name ASC, member.member_id ASC`,
         [declarationId],
       );
@@ -1353,6 +1382,9 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           `UPDATE member_dividends dividend
            JOIN dividend_declarations declaration
              ON declaration.dividend_declaration_id = dividend.dividend_declaration_id
+           JOIN member_profiles member
+             ON member.member_id = dividend.member_id
+            AND member.membership_type = 'True Member'
               SET dividend.dividend_status = CASE
                     WHEN COALESCE(dividend.available_at, declaration.available_at) <= UTC_TIMESTAMP()
                     THEN 'Available' ELSE 'Pending' END,
@@ -1365,8 +1397,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
              (member_dividend_id, previous_status, new_status, action_name, remarks, performed_by)
            SELECT member_dividend_id, 'Pending', 'Available', 'Dividend published',
                   'Dividend became available for member decision.', ?
-             FROM member_dividends
-            WHERE dividend_declaration_id = ? AND dividend_status = 'Available'`,
+             FROM member_dividends dividend
+             JOIN member_profiles member ON member.member_id = dividend.member_id
+              AND member.membership_type = 'True Member'
+            WHERE dividend.dividend_declaration_id = ? AND dividend.dividend_status = 'Available'`,
           [actorUserId, declarationId],
         );
         const [rows] = await connection.execute<DeclarationRow[]>(
@@ -1384,6 +1418,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
       const [rows] = await databasePool().execute<DividendRow[]>(
         `${dividendSelect()}
           WHERE md.dividend_status IN ('Withdrawal Requested', 'Capitalization Requested')
+            AND member.membership_type = 'True Member'
           ORDER BY md.decided_at DESC, md.member_dividend_id DESC`,
       );
       return rows.map((row) => ({ ...mapDividend(row), memberId: row.memberId, memberCode: row.memberCode, memberName: row.memberName }));
@@ -1393,6 +1428,7 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
       const [rows] = await databasePool().execute<DividendRow[]>(
         `${dividendSelect()}
           WHERE md.dividend_status IN ('Withdrawn', 'Added to Share Capital')
+            AND member.membership_type = 'True Member'
           ORDER BY md.processed_at DESC, md.member_dividend_id DESC`,
       );
       return rows.map((row) => ({ ...mapDividend(row), memberId: row.memberId, memberCode: row.memberCode, memberName: row.memberName }));
@@ -1408,6 +1444,9 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
         );
         const dividend = rows[0];
         if (!dividend) throw new AppError("Dividend was not found", 404, "DIVIDEND_NOT_FOUND");
+        if (dividend.membershipType !== "True Member") {
+          throw new AppError("Only True Members can receive Interest on Share Capital", 409, "DIVIDEND_TRUE_MEMBER_REQUIRED");
+        }
         if (dividend.status !== "Withdrawal Requested" && dividend.status !== "Capitalization Requested") {
           throw new AppError("This dividend is not awaiting Bookkeeper processing", 409, "DIVIDEND_ACTION_NOT_PENDING");
         }
@@ -1464,6 +1503,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           );
         } else {
           await connection.execute(
+            `SELECT member_id FROM member_profiles WHERE member_id = ? LIMIT 1 FOR UPDATE`,
+            [dividend.memberId],
+          );
+          await connection.execute(
             `INSERT INTO share_capital_accounts (member_id) VALUES (?)
              ON DUPLICATE KEY UPDATE member_id = member_id`,
             [dividend.memberId],
@@ -1476,6 +1519,14 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           if (balanceAfter > MAX_SHARE_CAPITAL) {
             throw new AppError("Adding this dividend would exceed the PHP 15,000 Share Capital limit", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
           }
+          await assertLockedMemberShareCapitalCapacity(connection, {
+            memberId: dividend.memberId,
+            requestedAmount: amount,
+            currentAccountBalance: balanceBefore,
+            excludeDividendId: dividendId,
+            lockMember: false,
+            errorMessage: "Adding this dividend would exceed the PHP 15,000 Share Capital limit",
+          });
           const [transactionResult] = await connection.execute<ResultSetHeader>(
             `INSERT INTO share_capital_transactions
                (share_capital_account_id, member_id, transaction_date, transaction_type,

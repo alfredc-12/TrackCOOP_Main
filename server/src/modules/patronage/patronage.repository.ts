@@ -212,7 +212,7 @@ export function createPatronageRepository(pool?: Pool): PatronageRepository {
         otherExpenses,
         totalOperatingExpenses,
         adjustments,
-        netOperatingSurplus: totalOperatingIncome - totalOperatingExpenses + adjustments,
+        netOperatingSurplus: Math.round((totalOperatingIncome - totalOperatingExpenses + Number.EPSILON) * 100) / 100,
         eligibleMemberPatronage,
         estimatedRefund: calculatePatronageAllocations(eligibleSources).reduce((sum, item) => sum + moneyCents(item.refundAmount), 0) / 100,
         refundRate: PATRONAGE_RATE,

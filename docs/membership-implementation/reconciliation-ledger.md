@@ -14,7 +14,7 @@ Any posting/ceiling failure rolls back newly inserted payment rows, account/ledg
 
 PR #6 owns the unified PHP 15,000 capacity calculations and the ledger ceiling guard. PR #7 reuses its unchanged posting API. No changes to PR #6’s helper or financial-integrity files were required.
 
-The three ceiling-specific SQL tests are enabled only in the combined checkout with `MEMBERSHIP_CAPACITY_GUARDS_SQL_TEST=1`. They must not be presented as standalone-main coverage of the not-yet-merged PR #6 guard. The final release should include PR #6’s guard before or together with PR #7’s reconciliation fix. Neither PR has been merged by this work.
+The three ceiling-specific SQL tests are enabled only in the combined checkout with `MEMBERSHIP_CAPACITY_GUARDS_SQL_TEST=1`. They must not be presented as standalone-main coverage of the not-yet-merged PR #6 guard. PR #6’s guard is now merged into main at `3e95e6ad85ef4056aca1f7d166e3d4d5cc3cb2c9`; PR #7 is synchronized with that main revision. PR #7 remains unmerged.
 
 ## Integration snapshot
 
@@ -63,3 +63,7 @@ The standalone PR #7 SQL run passes the common reconciliation cases and skips th
 - The strengthened approval/conversion SQL regression passed as well, including the new assertion that the initial PHP 1,500 appears in the member ledger. Its temporary test-only connection override used localhost port 3401; the tracked fixture remains unchanged at its original local port.
 
 No browser retest is needed for this backend-only correction; the previous PR #7 UI evidence remains available. No staging/production migrations, financial data repairs or deployments were executed.
+
+## Staging readiness after PR #6 merge
+
+See [Staging rollout prerequisites and sequence](staging-rollout.md). No migration or deployment is executed by this synchronization. The former PR #6 merge-order dependency is satisfied by main `3e95e6a`; external staging isolation, backup and release approvals remain required.

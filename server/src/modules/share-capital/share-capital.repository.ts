@@ -29,6 +29,10 @@ import {
   postShareCapitalPaymentToLedger,
   reverseShareCapitalPaymentInLedger,
 } from "./share-capital-ledger.repository";
+import {
+  assertLockedMemberShareCapitalCapacity,
+  selectMemberShareCapitalCapacity,
+} from "./share-capital-capacity";
 import { assertShareCapitalPaymentUpdateAllowed } from "./share-capital.rules";
 
 type ShareRow = RowDataPacket & {
@@ -51,7 +55,6 @@ type ShareRow = RowDataPacket & {
 };
 
 type CountRow = RowDataPacket & { total: number };
-type SumRow = RowDataPacket & { total: string | number | null };
 type SummaryRow = RowDataPacket & {
   validatedTotal: string | number | null;
   pendingTotal: string | number | null;
@@ -119,19 +122,11 @@ async function getValidatedTotal(
   memberId: string,
   excludingPaymentId?: string,
 ) {
-  const excludedAmount = excludingPaymentId
-    ? "COALESCE((SELECT amount FROM share_capital_payments WHERE share_payment_id = ? AND member_id = ? AND payment_status = 'Validated'), 0)"
-    : "0";
-  const [rows] = await pool.execute<SumRow[]>(
-    `SELECT COALESCE(
-       (SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1) - ${excludedAmount},
-       SUM(amount), 0) AS total
-       FROM share_capital_payments
-      WHERE member_id = ? AND payment_status = 'Validated'${excludingPaymentId ? " AND share_payment_id <> ?" : ""}`,
-    [memberId, ...(excludingPaymentId ? [excludingPaymentId, memberId] : []), memberId, ...(excludingPaymentId ? [excludingPaymentId] : [])],
-  );
-
-  return Number(rows[0]?.total ?? 0);
+  const snapshot = await selectMemberShareCapitalCapacity(pool, {
+    memberId,
+    excludingPaymentId,
+  });
+  return snapshot.totalCommittedAndReserved;
 }
 
 export interface ShareCapitalRepository {
@@ -199,6 +194,13 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
 
     async create(input, auth) {
       return withTransaction(async (connection) => {
+        if ((input.paymentStatus ?? "Pending") === "Validated") {
+          await assertLockedMemberShareCapitalCapacity(connection, {
+            memberId: input.memberId,
+            requestedAmount: input.amount,
+            lockMember: true,
+          });
+        }
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO share_capital_payments
              (member_id, payment_reference_id, amount, payment_date, payment_status, verified_by, verified_at, remarks)
@@ -255,21 +257,12 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
         const nextPaymentDate = input.paymentDate ?? new Date(existing.paymentDate).toISOString().slice(0, 10);
 
         if (existing.paymentStatus !== "Validated" && nextStatus === "Validated") {
-          await connection.execute(
-            `SELECT member_id
-               FROM member_profiles
-              WHERE member_id = ?
-              LIMIT 1 FOR UPDATE`,
-            [nextMemberId],
-          );
-          const currentTotal = await getValidatedTotal(connection, nextMemberId, paymentId);
-          if (currentTotal + nextAmount > MAX_SHARE_CAPITAL) {
-            throw new AppError(
-              "Validated share capital cannot exceed PHP 15,000",
-              409,
-              "SHARE_CAPITAL_LIMIT_EXCEEDED",
-            );
-          }
+          await assertLockedMemberShareCapitalCapacity(connection, {
+            memberId: nextMemberId,
+            requestedAmount: nextAmount,
+            excludingPaymentId: paymentId,
+            lockMember: true,
+          });
         }
         await connection.execute(
           `UPDATE share_capital_payments
@@ -341,7 +334,21 @@ export function createShareCapitalRepository(pool?: Pool): ShareCapitalRepositor
                   m.member_code AS memberCode,
                   m.full_name AS memberName,
                   m.share_capital_deadline AS shareCapitalDeadline,
-                  COALESCE(SUM(CASE WHEN s.payment_status = 'Validated' THEN s.amount ELSE 0 END), 0) AS validatedTotal
+                  GREATEST(
+                    COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = m.member_id LIMIT 1), 0) +
+                    COALESCE(SUM(CASE
+                      WHEN s.payment_status = 'Validated'
+                       AND NOT EXISTS (
+                         SELECT 1
+                           FROM share_capital_transactions t
+                          WHERE t.member_id = s.member_id
+                            AND t.source_type = 'share_capital_payment'
+                            AND t.source_id = s.share_payment_id
+                            AND t.transaction_status = 'Posted'
+                       )
+                      THEN s.amount ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN s.payment_status = 'Validated' THEN s.amount ELSE 0 END), 0)
+                  ) AS validatedTotal
              FROM member_profiles m
              LEFT JOIN share_capital_payments s ON s.member_id = m.member_id
             WHERE m.member_id = ?

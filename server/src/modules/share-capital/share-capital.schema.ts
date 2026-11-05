@@ -64,7 +64,7 @@ export const createDividendDeclarationSchema = z.object({
   availableAt: z.iso.datetime({ offset: true }),
   netSurplus: z.coerce.number().nonnegative(),
   statutoryReserves: z.coerce.number().nonnegative(),
-  interestAllocationRate: z.coerce.number().nonnegative().max(70),
+  interestAllocationRate: z.coerce.number().nonnegative().max(100),
   notes: z.string().trim().max(1000).nullable().optional(),
 }).refine((value) => value.coverageEnd >= value.coverageStart, {
   message: "Coverage end must be on or after coverage start",
@@ -82,7 +82,7 @@ export const dividendDeclarationPreviewSchema = z.object({
   coverageEnd: z.iso.date(),
   netSurplus: z.coerce.number().nonnegative(),
   statutoryReserves: z.coerce.number().nonnegative(),
-  interestAllocationRate: z.coerce.number().nonnegative().max(70),
+  interestAllocationRate: z.coerce.number().nonnegative().max(100),
 }).refine((value) => value.coverageEnd >= value.coverageStart, {
   message: "Coverage end must be on or after coverage start",
   path: ["coverageEnd"],
