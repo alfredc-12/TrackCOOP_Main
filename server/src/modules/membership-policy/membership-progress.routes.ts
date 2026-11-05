@@ -90,17 +90,22 @@ export function createMembershipProgressRouter(
     "/members/me/membership-sectors",
     ...member,
     asyncHandler(async (req, res) => {
-      const input = z
-        .object({
+      const input = parseQuery(
+        z.object({
           sectors: z
             .array(z.enum(SECTORS))
             .min(1)
             .max(6)
             .refine((s) => new Set(s).size === s.length),
-        })
-        .parse(req.body);
+        }),
+        req.body,
+      );
       const m = await ownMember(req.auth!.user.id);
       await withTransaction(async (connection) => {
+        await connection.execute(
+          "SELECT member_id FROM member_profiles WHERE member_id=? FOR UPDATE",
+          [m.id],
+        );
         await saveSectors(connection, "member", m.id, input.sectors);
         await connection.execute(
           "UPDATE member_profiles SET sector=? WHERE member_id=?",
@@ -205,7 +210,7 @@ export function createMembershipProgressRouter(
         req.query,
       );
       if (
-        input.start > input.end ||
+        input.start > input.end || input.end > today ||
         Date.parse(input.end) - Date.parse(input.start) > 732 * 86400000
       )
         throw new AppError(

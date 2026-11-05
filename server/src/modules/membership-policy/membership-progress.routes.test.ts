@@ -107,11 +107,20 @@ test("Member cannot inspect staff capital progress or monthly finance aggregates
   );
   assert.equal(calls.length, 0);
 });
-test("Unbounded pagination and invalid dates are rejected before querying personal data", async () => {
+test("Unbounded pagination is rejected before querying personal data", async () => {
   const { app } = fixture();
   assert.equal(
     (await request(app).get("/api/members/me/referrals?pageSize=999999"))
       .status,
     400,
   );
+});
+
+test("invalid self-service sector values are rejected without a write", async () => {
+  const { app, calls } = fixture();
+  const response = await request(app)
+    .put("/api/members/me/membership-sectors")
+    .send({ sectors: ["Unapproved sector"] });
+  assert.equal(response.status, 400);
+  assert.ok(!calls.some((c) => /INSERT|UPDATE|DELETE/.test(c.sql)));
 });
