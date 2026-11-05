@@ -67,9 +67,10 @@ async function allocation(connection: Database, id: string, memberId: string) {
   return rows[0];
 }
 
-async function capacity(connection: Database, memberId: string, lock = false) {
+async function capacity(connection: Database, memberId: string, lock = false, excludePendingAmount = 0) {
   const [accounts] = await connection.execute<RowDataPacket[]>(
-    `SELECT CAST(share_capital_account_id AS CHAR) AS id, current_balance AS balance
+    `SELECT CAST(share_capital_account_id AS CHAR) AS id,
+            GREATEST(current_balance, COALESCE((SELECT SUM(amount) FROM share_capital_payments WHERE member_id = share_capital_accounts.member_id AND payment_status = 'Validated'), 0)) AS balance
        FROM share_capital_accounts WHERE member_id = ? LIMIT 1${lock ? " FOR UPDATE" : ""}`, [memberId],
   );
   if (!accounts[0]) throw new AppError("Please ask the cooperative office to set up your Share Capital ledger.", 409, "SHARE_CAPITAL_ACCOUNT_REQUIRED");
@@ -96,8 +97,19 @@ async function capacity(connection: Database, memberId: string, lock = false) {
             AND pr.submitted_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? MINUTE))
         )`, [memberId, env.PAYMONGO_CHECKOUT_REUSE_MINUTES],
   );
+  const [pendingTransfers] = await connection.execute<RowDataPacket[]>(
+    `SELECT COALESCE(SUM(CASE WHEN transfer_status = 'Pending' THEN amount ELSE 0 END), 0) AS pendingCapitalAmount
+       FROM patronage_capital_transfers WHERE member_id = ?`, [memberId],
+  );
+  const otherPendingTransfersCents = Math.max(
+    0,
+    moneyCents(pendingTransfers[0]?.pendingCapitalAmount ?? 0) - moneyCents(excludePendingAmount),
+  );
   return { accountId: String(accounts[0].id), currentCapital: Number(accounts[0].balance),
-    availableCapacity: Math.max(0, moneyCents(maximum) - moneyCents(accounts[0].balance) - moneyCents(pending[0]?.amount ?? 0)) / 100 };
+    availableCapacity: Math.max(
+      0,
+      moneyCents(maximum) - moneyCents(accounts[0].balance) - moneyCents(pending[0]?.amount ?? 0) - otherPendingTransfersCents,
+    ) / 100 };
 }
 
 async function audit(connection: Database, action: string, id: string, auth: AuthContext, values: unknown) {
@@ -189,7 +201,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
           if (refund.periodStatus !== "Finalized" || refund.paymentStatus === "Paid") throw new AppError("The refund is no longer available.", 409, "PATRONAGE_REFUND_UNAVAILABLE");
           await assertRefundSourcesUnchanged(connection, refund.id);
           const totals = await patronageCapitalTotals(connection, refund.id);
-          const capital = await capacity(connection, transfer.memberId, true);
+          const capital = await capacity(connection, transfer.memberId, true, Number(transfer.amount));
           assertPatronageCapitalAmount(Number(transfer.amount), availablePatronageRefund({ ...refund, ...totals, pendingCapitalAmount: (moneyCents(totals.pendingCapitalAmount) - moneyCents(transfer.amount)) / 100 }), capital.availableCapacity);
           const balanceAfter = (moneyCents(capital.currentCapital) + moneyCents(transfer.amount)) / 100;
           const [posted] = await connection.execute<ResultSetHeader>(

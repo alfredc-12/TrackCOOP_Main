@@ -30,10 +30,11 @@ export async function loadPatronageSources(
         AND b.booking_status = 'Completed' AND b.payment_status = 'Paid' AND b.total_amount > 0
         AND payment.payment_purpose = 'Rental' AND payment.validation_status = 'Validated'
         AND payment.amount >= b.total_amount
+        AND NOT (COALESCE(payment.payment_channel, '') = 'PayMongo' AND COALESCE(payment.gateway_environment, '') = 'Test')
         AND LOWER(COALESCE(payment.gateway_status, '')) NOT IN ('refunded', 'partially_refunded', 'reversed')
         AND COALESCE(payment.validated_at, payment.paid_at) IS NOT NULL
-        AND GREATEST(COALESCE(b.completed_at, b.end_datetime), COALESCE(payment.validated_at, payment.paid_at)) >= ?
-        AND GREATEST(COALESCE(b.completed_at, b.end_datetime), COALESCE(payment.validated_at, payment.paid_at)) < DATE_ADD(?, INTERVAL 1 DAY)
+        AND GREATEST(COALESCE(b.completed_at, b.end_datetime), TIMESTAMPADD(HOUR, 8, COALESCE(payment.validated_at, payment.paid_at))) >= ?
+        AND GREATEST(COALESCE(b.completed_at, b.end_datetime), TIMESTAMPADD(HOUR, 8, COALESCE(payment.validated_at, payment.paid_at))) < DATE_ADD(?, INTERVAL 1 DAY)
         ${memberFilter}
       GROUP BY m.member_id ORDER BY m.full_name ASC`, params,
   );

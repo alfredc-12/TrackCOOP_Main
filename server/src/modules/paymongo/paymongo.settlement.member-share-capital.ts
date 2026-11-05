@@ -130,7 +130,7 @@ export async function postMemberShareCapitalSettlement(input: {
     15000,
   );
   const [capitalRows] = await input.connection.execute<AmountRow[]>(
-    `SELECT COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), SUM(amount), 0) AS total
+    `SELECT GREATEST(COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), 0), COALESCE(SUM(amount), 0)) AS total
        FROM share_capital_payments
       WHERE member_id = ?
         AND payment_status = 'Validated'
