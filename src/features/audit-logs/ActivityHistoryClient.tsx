@@ -3,8 +3,6 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Activity,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Filter,
   RefreshCcw,
@@ -15,7 +13,7 @@ import { PageHeader } from "@/components/portal/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { LoadingSkeleton } from "@/components/portal/PortalPrimitives";
+import { LoadingSkeleton, PaginationControls } from "@/components/portal/PortalPrimitives";
 import {
   getActivity,
   getActivityOptions,
@@ -475,39 +473,20 @@ export function ActivityHistoryClient() {
             </div>
           </>
         )}
-        <nav
-          className={`${styles.toolbar} mt-4`}
-          aria-label="Activity pagination"
-          hidden={Boolean(state.error)}
-        >
-          <span className={styles.hint}>
-            {state.total
-              ? `${(state.page - 1) * Number(query.pageSize) + 1}–${Math.min(state.page * Number(query.pageSize), state.total)}`
-              : "0"}{" "}
-            of {state.total}
-          </span>
-          <div className={styles.actions}>
-            <Button
-              variant="secondary"
-              aria-label="Previous activity page"
-              disabled={loading || state.page <= 1}
-              onClick={() => apply({ ...query, page: String(state.page - 1) })}
-            >
-              <ChevronLeft className="size-4" aria-hidden="true" />
-            </Button>
-            <span>
-              {state.page} / {pages}
-            </span>
-            <Button
-              variant="secondary"
-              aria-label="Next activity page"
-              disabled={loading || state.page >= pages}
-              onClick={() => apply({ ...query, page: String(state.page + 1) })}
-            >
-              <ChevronRight className="size-4" aria-hidden="true" />
-            </Button>
-          </div>
-        </nav>
+        {!state.error ? (
+          <PaginationControls
+            currentPage={state.page}
+            totalPages={pages}
+            totalItems={state.total}
+            itemName="activity records"
+            onPageChange={(nextPage) => apply({ ...query, page: String(nextPage) })}
+            pageSize={Number(query.pageSize)}
+            pageSizeOptions={[10, 20, 50, 100]}
+            onPageSizeChange={(nextPageSize) => apply({ ...query, page: "1", pageSize: String(nextPageSize) })}
+            disabled={loading}
+            className="mt-4"
+          />
+        ) : null}
       </section>
       <ActivityDrawer item={item} onClose={() => setItem(null)} />
     </div>

@@ -955,6 +955,7 @@ export function RfmWorkspace() {
               pageSize={data.pageSize}
               total={data.total}
               onPage={(page) => update({ page })}
+              onPageSizeChange={(pageSize) => update({ page: 1, pageSize })}
             />
           </section>
         </>

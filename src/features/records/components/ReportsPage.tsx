@@ -31,6 +31,7 @@ import {
   ErrorState,
   FormDialog,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -74,6 +75,30 @@ type ReportsLandingData = {
   filterOptions: ReportFilterOptions;
 };
 
+type ReportPeriodPreset = "custom" | "daily" | "weekly" | "monthly" | "yearly";
+
+function localIsoDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function periodRange(preset: Exclude<ReportPeriodPreset, "custom">) {
+  const today = new Date();
+  const end = localIsoDate(today);
+  if (preset === "daily") return { dateFrom: end, dateTo: end };
+  if (preset === "monthly") {
+    return { dateFrom: localIsoDate(new Date(today.getFullYear(), today.getMonth(), 1)), dateTo: end };
+  }
+  if (preset === "yearly") {
+    return { dateFrom: localIsoDate(new Date(today.getFullYear(), 0, 1)), dateTo: end };
+  }
+  const day = today.getDay();
+  const mondayOffset = day === 0 ? 6 : day - 1;
+  return {
+    dateFrom: localIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset)),
+    dateTo: end,
+  };
+}
+
 const emptyReportFilterOptions: ReportFilterOptions = {
   barangays: [],
   sectors: [],
@@ -114,6 +139,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   const [selectedReportKey, setSelectedReportKey] = useState("");
   const [selected, setSelected] = useState<ReportDefinition | null>(null);
   const [filters, setFilters] = useState<ReportFilters>({});
+  const [periodPreset, setPeriodPreset] = useState<ReportPeriodPreset>("custom");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -159,6 +185,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   function chooseReport(definition: ReportDefinition) {
     setSelected(definition);
     setFilters({});
+    setPeriodPreset("custom");
     setResult(null);
     setIsGeneratorOpen(true);
   }
@@ -321,15 +348,27 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         >
           {selected.filters.length ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {selected.filters.includes("dateFrom") && selected.filters.includes("dateTo") ? (
+                <ReportPeriodPresetField
+                  value={periodPreset}
+                  onChange={(value) => {
+                    setPeriodPreset(value);
+                    if (value !== "custom") {
+                      setFilters((current) => ({ ...current, ...periodRange(value) }));
+                    }
+                  }}
+                />
+              ) : null}
               {selected.filters.map((key) => (
                 <ReportFilterField
                   key={key}
                   filterKey={key}
                   value={filters[key] ?? ""}
                   options={data.filterOptions}
-                  onChange={(value) =>
-                    setFilters((current) => ({ ...current, [key]: value }))
-                  }
+                  onChange={(value) => {
+                    if (key === "dateFrom" || key === "dateTo") setPeriodPreset("custom");
+                    setFilters((current) => ({ ...current, [key]: value }));
+                  }}
                 />
               ))}
             </div>
@@ -344,6 +383,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               type="button"
               onClick={() => {
                 setFilters({});
+                setPeriodPreset("custom");
                 setResult(null);
               }}
               className={secondaryButtonClass}
@@ -492,6 +532,29 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         </div>
       </FormDialog>
     </div>
+  );
+}
+
+function ReportPeriodPresetField({
+  value,
+  onChange,
+}: {
+  value: ReportPeriodPreset;
+  onChange: (value: ReportPeriodPreset) => void;
+}) {
+  return (
+    <SelectField
+      label="Quick period"
+      value={value}
+      onChange={(nextValue) => onChange(nextValue as ReportPeriodPreset)}
+      items={[
+        { value: "custom", label: "Custom date range" },
+        { value: "daily", label: "Daily (today)" },
+        { value: "weekly", label: "Weekly (this week)" },
+        { value: "monthly", label: "Monthly (this month)" },
+        { value: "yearly", label: "Yearly (this year)" },
+      ]}
+    />
   );
 }
 
@@ -959,7 +1022,7 @@ function ReportPreview({
 }) {
   const exportBase = expressApiUrl(`/api/reports/generate/${result.reportKey}/export`);
   const [page, setPage] = useState(1);
-  const pageSize = 25;
+  const [pageSize, setPageSize] = useState(10);
   const totalPages = Math.max(1, Math.ceil(result.rows.length / pageSize));
   const visibleRows = result.rows.slice((page - 1) * pageSize, page * pageSize);
   return (
@@ -979,6 +1042,12 @@ function ReportPreview({
           className={secondaryButtonClass}
         >
           <Download className="size-4" /> Export CSV
+        </a>
+        <a
+          href={`${exportBase}?format=xlsx&${exportQuery}`}
+          className={secondaryButtonClass}
+        >
+          <Download className="size-4" /> Export Excel
         </a>
         <button
           type="button"
@@ -1039,37 +1108,17 @@ function ReportPreview({
                   rows={visibleRows}
                   rowOffset={(page - 1) * pageSize}
                 />
-                {totalPages > 1 ? (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
-                    <span className="text-[#5D6D63]">
-                      Page {page} of {totalPages} · {result.total} records
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={page === 1}
-                        onClick={() =>
-                          setPage((current) => Math.max(1, current - 1))
-                        }
-                        className={secondaryButtonClass}
-                      >
-                        Previous
-                      </button>
-                      <button
-                        type="button"
-                        disabled={page === totalPages}
-                        onClick={() =>
-                          setPage((current) =>
-                            Math.min(totalPages, current + 1),
-                          )
-                        }
-                        className={secondaryButtonClass}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
+                <PaginationControls
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalItems={result.rows.length}
+                  itemName="records"
+                  onPageChange={setPage}
+                  pageSize={pageSize}
+                  pageSizeOptions={[10, 25, 50]}
+                  onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+                  className="mt-3"
+                />
               </div>
               <div data-records-print-only>
                 <ReportTable

@@ -6,7 +6,7 @@ import * as Select from "@radix-ui/react-select";
 import { Calculator, Check, CheckCircle2, ChevronDown, Eye, EyeOff, HandCoins, History, Info, Plus, Send, Users, WalletCards, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CurrencyDisplay, DataTable, EmptyState, ErrorState, StatusBadge } from "@/components/portal/PortalPrimitives";
+import { CurrencyDisplay, DataTable, EmptyState, ErrorState, PaginationControls, StatusBadge } from "@/components/portal/PortalPrimitives";
 import { ApiClientError } from "@/lib/api-client";
 import {
   completeDividendAction,
@@ -125,6 +125,7 @@ function MemberPagination({
   page,
   pageCount,
   total,
+  onPageChange,
   onPrevious,
   onNext,
   label = "member",
@@ -132,19 +133,34 @@ function MemberPagination({
   page: number;
   pageCount: number;
   total: number;
-  onPrevious: () => void;
-  onNext: () => void;
+  onPageChange?: (page: number) => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
   label?: string;
 }) {
-  return (
-    <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-[#E5ECE5] pt-4 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-xs font-semibold text-[#6C7A70]">Page {page} of {pageCount} - {total} {label}{total === 1 ? "" : "s"}</span>
-      <div className="flex gap-2">
-        <button type="button" disabled={page <= 1} onClick={onPrevious} className="inline-flex h-10 min-w-24 items-center justify-center rounded-lg border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-        <button type="button" disabled={page >= pageCount} onClick={onNext} className="inline-flex h-10 min-w-20 items-center justify-center rounded-lg border border-[#CAD8CB] px-3 text-xs font-bold text-[#123D2A] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">Next</button>
-      </div>
-    </div>
-  );
+  const changePage = (nextPage: number) => {
+    if (onPageChange) {
+      onPageChange(nextPage);
+    } else if (nextPage < page) {
+      for (let currentPage = page; currentPage > nextPage; currentPage -= 1) {
+        onPrevious?.();
+      }
+    } else if (nextPage > page) {
+      for (let currentPage = page; currentPage < nextPage; currentPage += 1) {
+        onNext?.();
+      }
+    }
+  };
+
+  return <PaginationControls
+    currentPage={page}
+    totalPages={pageCount}
+    totalItems={total}
+    itemName={`${label}${total === 1 ? "" : "s"}`}
+    onPageChange={changePage}
+    pageSize={5}
+    className="mt-4 shrink-0 border-t border-[#E5ECE5] pt-4"
+  />;
 }
 
 function DeclarationActionCard({
@@ -274,8 +290,7 @@ function PublishedMembersModal({
   pageCount,
   total,
   onSearchChange,
-  onPrevious,
-  onNext,
+  onPageChange,
   onViewCalculation,
   onClose,
 }: {
@@ -289,8 +304,7 @@ function PublishedMembersModal({
   pageCount: number;
   total: number;
   onSearchChange: (value: string) => void;
-  onPrevious: () => void;
-  onNext: () => void;
+  onPageChange: (page: number) => void;
   onViewCalculation: () => void;
   onClose: () => void;
 }) {
@@ -336,7 +350,7 @@ function PublishedMembersModal({
               <p className="mt-1 text-2xl font-black text-[#123D2A]">{capitalizedCount}</p>
             </div>
           </div>
-          {loading ? <p className="mt-5 text-sm font-semibold text-[#5D6D63]">Loading member allocations...</p> : error ? <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : members.length ? <div className="mt-5"><MemberSearch inputId="published-member-search" className="max-w-none" search={search} onSearchChange={onSearchChange} /><div className="mt-3 max-h-[28rem] overflow-auto rounded-lg border border-[#DDE8DD] bg-white"><table className="min-w-[900px] w-full text-left text-sm"><thead className="sticky top-0 z-10 bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3">Member</th><th className="px-4 py-3">Membership</th><th className="px-4 py-3 text-right">Average share month</th><th className="px-4 py-3 text-right">Interest</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Decision</th></tr></thead><tbody className="divide-y divide-[#EEF2EC]">{visibleMembers.length ? visibleMembers.map((member) => <tr key={member.memberId}><td className="px-4 py-3"><p className="font-bold text-[#123D2A]">{member.memberName}</p><p className="text-xs text-[#6C7A70]">{member.memberCode}</p></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.membershipType}</td><td className="px-4 py-3 text-right">{money(member.averageShareMonth)}</td><td className="px-4 py-3 text-right font-bold text-[#123D2A]">{money(member.dividendAmount)}</td><td className="px-4 py-3"><StatusBadge tone={member.status === "Available" || member.status === "Added to Share Capital" || member.status === "Withdrawn" ? "success" : "warning"}>{member.status}</StatusBadge></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.decision ?? "-"}</td></tr>) : <tr><td colSpan={6} className="px-4 py-8 text-center text-sm font-semibold text-[#6C7A70]">No matching members found.</td></tr>}</tbody></table></div><MemberPagination page={page} pageCount={pageCount} total={total} onPrevious={onPrevious} onNext={onNext} /></div> : <p className="mt-5 rounded-lg border border-[#E7DDBD] bg-[#FFF9E8] p-3 text-sm font-semibold text-[#6E5B1C]">No member allocations were found for this published declaration.</p>}
+          {loading ? <p className="mt-5 text-sm font-semibold text-[#5D6D63]">Loading member allocations...</p> : error ? <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : members.length ? <div className="mt-5"><MemberSearch inputId="published-member-search" className="max-w-none" search={search} onSearchChange={onSearchChange} /><div className="mt-3 max-h-[28rem] overflow-auto rounded-lg border border-[#DDE8DD] bg-white"><table className="min-w-[900px] w-full text-left text-sm"><thead className="sticky top-0 z-10 bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3">Member</th><th className="px-4 py-3">Membership</th><th className="px-4 py-3 text-right">Average share month</th><th className="px-4 py-3 text-right">Interest</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Decision</th></tr></thead><tbody className="divide-y divide-[#EEF2EC]">{visibleMembers.length ? visibleMembers.map((member) => <tr key={member.memberId}><td className="px-4 py-3"><p className="font-bold text-[#123D2A]">{member.memberName}</p><p className="text-xs text-[#6C7A70]">{member.memberCode}</p></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.membershipType}</td><td className="px-4 py-3 text-right">{money(member.averageShareMonth)}</td><td className="px-4 py-3 text-right font-bold text-[#123D2A]">{money(member.dividendAmount)}</td><td className="px-4 py-3"><StatusBadge tone={member.status === "Available" || member.status === "Added to Share Capital" || member.status === "Withdrawn" ? "success" : "warning"}>{member.status}</StatusBadge></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.decision ?? "-"}</td></tr>) : <tr><td colSpan={6} className="px-4 py-8 text-center text-sm font-semibold text-[#6C7A70]">No matching members found.</td></tr>}</tbody></table></div><MemberPagination page={page} pageCount={pageCount} total={total} onPageChange={onPageChange} /></div> : <p className="mt-5 rounded-lg border border-[#E7DDBD] bg-[#FFF9E8] p-3 text-sm font-semibold text-[#6E5B1C]">No member allocations were found for this published declaration.</p>}
         </div>
       </div>
     </div>
@@ -1193,12 +1207,12 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
                     </div>
                   </div>
                   <div className="mt-6 rounded-xl border border-[#DDE8DD] bg-white p-4 shadow-sm sm:p-5">
-                    {membersLoading ? <p className="text-sm font-semibold text-[#5D6D63]">Loading member allocations...</p> : membersError ? <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 sm:flex-row sm:items-center sm:justify-between"><span>{membersError}</span><button type="button" onClick={() => openMembersModal(membersDeclaration)} className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-red-300 px-3 text-xs font-bold text-red-800 hover:bg-red-100">Try again</button></div> : declarationMembers.length ? <div><div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)] lg:items-end"><MemberSearch inputId="declaration-member-search" search={declarationMemberSearch} onSearchChange={(value) => { setDeclarationMemberSearch(value); setDeclarationMemberPage(1); }} />{membersDeclaration.status === "Draft" || membersDeclaration.status === "Approved" ? <DeclarationActionCard declaration={membersDeclaration} approvalBusyId={approvalBusyId} approvalBusyAction={approvalBusyAction} onApprove={approveDraft} onReject={rejectDraft} onPublish={(declaration) => { setError(""); setDialog({ kind: "publish", declaration }); }} /> : null}</div><div ref={declarationMembersListRef} className="mt-3 max-h-80 overflow-auto overscroll-contain rounded-lg border border-[#DDE8DD] bg-white"><table className="min-w-[900px] text-left text-sm"><thead className="sticky top-0 z-10 bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3">Member</th><th className="px-4 py-3">Membership</th><th className="px-4 py-3 text-right">Average share month</th><th className="px-4 py-3 text-right">Interest</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Decision</th></tr></thead><tbody className="divide-y divide-[#EEF2EC]">{visibleDeclarationMembers.map((member) => <tr key={member.memberId}><td className="px-4 py-3"><p className="font-bold text-[#123D2A]">{member.memberName}</p><p className="text-xs text-[#6C7A70]">{member.memberCode}</p></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.membershipType}</td><td className="px-4 py-3 text-right">{money(member.averageShareMonth)}</td><td className="px-4 py-3 text-right font-bold text-[#123D2A]">{money(member.dividendAmount)}</td><td className="px-4 py-3"><StatusBadge tone={member.status === "Available" || member.status === "Added to Share Capital" || member.status === "Withdrawn" ? "success" : "warning"}>{member.status}</StatusBadge></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.decision ?? "-"}</td></tr>)}</tbody></table></div><MemberPagination page={currentDeclarationMemberPage} pageCount={declarationPageCount} total={filteredDeclarationMembers.length} onPrevious={() => setDeclarationMemberPage((page) => Math.max(1, page - 1))} onNext={() => setDeclarationMemberPage((page) => Math.min(declarationPageCount, page + 1))} /></div> : <p className="rounded-lg border border-[#E7DDBD] bg-[#FFF9E8] p-3 text-sm font-semibold text-[#6E5B1C]">No member allocations were found for this declaration.</p>}
+                    {membersLoading ? <p className="text-sm font-semibold text-[#5D6D63]">Loading member allocations...</p> : membersError ? <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 sm:flex-row sm:items-center sm:justify-between"><span>{membersError}</span><button type="button" onClick={() => openMembersModal(membersDeclaration)} className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-red-300 px-3 text-xs font-bold text-red-800 hover:bg-red-100">Try again</button></div> : declarationMembers.length ? <div><div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)] lg:items-end"><MemberSearch inputId="declaration-member-search" search={declarationMemberSearch} onSearchChange={(value) => { setDeclarationMemberSearch(value); setDeclarationMemberPage(1); }} />{membersDeclaration.status === "Draft" || membersDeclaration.status === "Approved" ? <DeclarationActionCard declaration={membersDeclaration} approvalBusyId={approvalBusyId} approvalBusyAction={approvalBusyAction} onApprove={approveDraft} onReject={rejectDraft} onPublish={(declaration) => { setError(""); setDialog({ kind: "publish", declaration }); }} /> : null}</div><div ref={declarationMembersListRef} className="mt-3 max-h-80 overflow-auto overscroll-contain rounded-lg border border-[#DDE8DD] bg-white"><table className="min-w-[900px] text-left text-sm"><thead className="sticky top-0 z-10 bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3">Member</th><th className="px-4 py-3">Membership</th><th className="px-4 py-3 text-right">Average share month</th><th className="px-4 py-3 text-right">Interest</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Decision</th></tr></thead><tbody className="divide-y divide-[#EEF2EC]">{visibleDeclarationMembers.map((member) => <tr key={member.memberId}><td className="px-4 py-3"><p className="font-bold text-[#123D2A]">{member.memberName}</p><p className="text-xs text-[#6C7A70]">{member.memberCode}</p></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.membershipType}</td><td className="px-4 py-3 text-right">{money(member.averageShareMonth)}</td><td className="px-4 py-3 text-right font-bold text-[#123D2A]">{money(member.dividendAmount)}</td><td className="px-4 py-3"><StatusBadge tone={member.status === "Available" || member.status === "Added to Share Capital" || member.status === "Withdrawn" ? "success" : "warning"}>{member.status}</StatusBadge></td><td className="px-4 py-3 text-xs text-[#5D6D63]">{member.decision ?? "-"}</td></tr>)}</tbody></table></div><MemberPagination page={currentDeclarationMemberPage} pageCount={declarationPageCount} total={filteredDeclarationMembers.length} onPageChange={setDeclarationMemberPage} /></div> : <p className="rounded-lg border border-[#E7DDBD] bg-[#FFF9E8] p-3 text-sm font-semibold text-[#6E5B1C]">No member allocations were found for this declaration.</p>}
                   </div>
                 </div>
               ) : null}
       {role === "chairman" ? declarations.length ? <DataTable><table className="min-w-[940px] w-full text-left text-sm"><thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#365F4A]"><tr><th className="px-4 py-3">Declaration</th><th className="px-4 py-3">Coverage</th><th className="px-4 py-3 text-right">Rate / ASM</th><th className="px-4 py-3 text-right">Declared total</th><th className="px-4 py-3 text-center">Members</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#E5ECE5]">{declarations.map((item) => <tr key={item.id}><td className="px-4 py-4"><p className="font-bold text-[#123D2A]">{item.name}</p><p className="mt-1 text-xs text-[#6C7A70]">{item.calculationMethod}</p></td><td className="px-4 py-4">{date(item.coverageStart)} - {date(item.coverageEnd)}</td><td className="px-4 py-4 text-right font-bold">{interestRate(item.interestRate)}</td><td className="px-4 py-4 text-right"><CurrencyDisplay value={item.totalDeclaredAmount} /></td><td className="px-4 py-4 text-center">{item.memberCount}</td><td className="px-4 py-4"><StatusBadge tone={item.status === "Published" ? "success" : item.status === "Cancelled" ? "danger" : "warning"}>{item.status}</StatusBadge></td><td className="px-4 py-4 text-right"><div className="flex flex-wrap justify-end gap-2"><button type="button" disabled={Boolean(dialog)} onClick={() => openMembersModal(item)} className="inline-flex items-center gap-2 rounded-md border border-[#CAD8CB] px-3 py-2 text-xs font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:opacity-50"><Eye className="size-3.5" /> Members</button>{item.status === "Approved" ? <button type="button" disabled={Boolean(dialog)} onClick={() => { setError(""); setDialog({ kind: "publish", declaration: item }); }} className="inline-flex items-center gap-2 rounded-md bg-[#123D2A] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-50"><Send className="size-3.5" /> Publish</button> : item.status === "Draft" ? <span className="self-center text-xs font-semibold text-[#6C7A70]">Awaiting approval</span> : <span className="self-center text-xs text-[#6C7A70]">{item.capitalizedCount} capitalized - {item.withdrawnCount} withdrawn</span>}</div></td></tr>)}</tbody></table></DataTable> : !loading && !error ? <div className="p-6"><EmptyState icon={HandCoins} title="No annual declaration yet" description="Create a draft to calculate Interest on Share Capital from approved net surplus and average paid-up share months." /></div> : null : actionRequests.length ? <DividendActionRequestTable requests={actionRequests} pageSize={actionRequestPageSize} dialogOpen={Boolean(dialog)} onOpen={(item) => { setError(""); setPayout(EMPTY_PAYOUT); setDialog({ kind: "action", request: item }); }} /> : !loading && !error ? <div className="p-6"><EmptyState icon={WalletCards} title="No Annual Interest requests" description="Member withdrawal and Share Capital requests will appear here automatically." /></div> : null}
-      {role === "bookkeeper" && allActionRequests.length ? <div className="px-6 pb-6 sm:px-7"><MemberPagination page={currentActionRequestPage} pageCount={actionRequestPageCount} total={allActionRequests.length} label="request" onPrevious={() => setActionRequestPage((page) => Math.max(1, page - 1))} onNext={() => setActionRequestPage((page) => Math.min(actionRequestPageCount, page + 1))} /></div> : null}
+      {role === "bookkeeper" && allActionRequests.length ? <div className="px-6 pb-6 sm:px-7"><MemberPagination page={currentActionRequestPage} pageCount={actionRequestPageCount} total={allActionRequests.length} label="request" onPageChange={setActionRequestPage} /></div> : null}
 
             </div>
           </div>
@@ -1240,8 +1254,7 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
           total={filteredActionHistory.length}
           onSearchChange={(value) => { setActionHistorySearch(value); setActionHistoryPage(1); }}
           onDeclarationChange={(value) => { setActionHistoryDeclaration(value); setActionHistoryPage(1); }}
-          onPrevious={() => setActionHistoryPage((page) => Math.max(1, page - 1))}
-          onNext={() => setActionHistoryPage((page) => Math.min(actionHistoryPageCount, page + 1))}
+          onPageChange={setActionHistoryPage}
           onClose={() => setActionHistoryOpen(false)}
         />
       ) : null}
@@ -1258,8 +1271,7 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
           pageCount={declarationPageCount}
           total={filteredDeclarationMembers.length}
           onSearchChange={(value) => { setDeclarationMemberSearch(value); setDeclarationMemberPage(1); }}
-          onPrevious={() => setDeclarationMemberPage((page) => Math.max(1, page - 1))}
-          onNext={() => setDeclarationMemberPage((page) => Math.min(declarationPageCount, page + 1))}
+          onPageChange={setDeclarationMemberPage}
           onViewCalculation={() => openDeclarationCalculation(publishedMembersDeclaration)}
           onClose={closePublishedMembersModal}
         />
@@ -1359,8 +1371,7 @@ function DividendActionHistoryModal({
   total,
   onSearchChange,
   onDeclarationChange,
-  onPrevious,
-  onNext,
+  onPageChange,
   onClose,
 }: {
   history: DividendActionRequest[];
@@ -1374,8 +1385,7 @@ function DividendActionHistoryModal({
   total: number;
   onSearchChange: (value: string) => void;
   onDeclarationChange: (value: string) => void;
-  onPrevious: () => void;
-  onNext: () => void;
+  onPageChange?: (page: number) => void;
   onClose: () => void;
 }) {
   return (
@@ -1465,7 +1475,7 @@ function DividendActionHistoryModal({
           </table>
         </div> : <p className="mt-6 rounded-lg border border-[#E7DDBD] bg-[#FFF9E8] p-4 text-sm font-semibold text-[#6E5B1C]">{search.trim() || declarationFilter !== "all" ? "No matching history found." : "No successful withdrawals or Share Capital additions yet."}</p>}
 
-        {!loading && !error && total ? <MemberPagination page={page} pageCount={pageCount} total={total} label="completed action" onPrevious={onPrevious} onNext={onNext} /> : null}
+        {!loading && !error && total ? <MemberPagination page={page} pageCount={pageCount} total={total} label="completed action" onPageChange={onPageChange} /> : null}
       </div>
     </div>
   );

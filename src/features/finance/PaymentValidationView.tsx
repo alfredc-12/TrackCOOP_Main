@@ -32,6 +32,7 @@ import {
   FormDialog,
   FormField,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -469,15 +470,14 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
       <StatCard label="All-time validated (includes test)" value={money(summary.validatedAmount)} icon={Banknote} />
     </div>
 
-    <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(11rem,13rem)_auto_auto]">
+      <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(11rem,13rem)_auto]">
         <label className="relative block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
           <input value={filters.search ?? ""} onChange={(e) => setFilter("search", e.target.value)} type="search"
             placeholder="Search payer or reference number"
             className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" />
         </label>
         <Select value={filters.validationStatus ?? ""} onChange={(v) => setFilter("validationStatus", v)} options={statusOptions} label="All statuses" />
-        <Select value={String(filters.pageSize ?? 5)} onChange={(v) => setFilter("pageSize", Number(v))} options={["5", "10", "20", "50", "100"]} label="5 per page" />
         <button type="button" onClick={() => void load()} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC]"><RefreshCcw className="size-4" />Refresh</button>
       </div>
     </div>
@@ -501,11 +501,18 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
       </table>
     </DataTable>}
 
-    <div className="flex flex-col gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-semibold text-[#5D6D63]">Page {page} of {pages} · {resultTotal} payment references</p>
-      <div className="flex gap-2"><button type="button" disabled={page <= 1 || isLoading} onClick={() => setFilter("page", page - 1)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold disabled:opacity-50"><ChevronLeft className="size-4" />Previous</button>
-        <button type="button" disabled={page >= pages || isLoading} onClick={() => setFilter("page", page + 1)} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] px-4 text-sm font-bold disabled:opacity-50">Next<ChevronRight className="size-4" /></button></div>
-    </div>
+    <PaginationControls
+      currentPage={page}
+      totalPages={pages}
+      totalItems={resultTotal}
+      itemName="payment references"
+      onPageChange={(nextPage) => setFilter("page", nextPage)}
+      pageSize={pageSize}
+      pageSizeOptions={[5, 10, 20, 50, 100]}
+      onPageSizeChange={(nextPageSize) => setFilter("pageSize", nextPageSize)}
+      disabled={isLoading}
+      className="mt-0 rounded-lg border border-[#CAD8CB] bg-white p-4"
+    />
 
     <FormDialog open={Boolean(selected) && !dialog.open} onOpenChange={(open: boolean) => { if (!open && !dialog.open) setSelected(null); }} title={selected?.referenceNumber ?? "Payment reference"}
       description={selected ? `${selected.paymentPurpose} / ${selected.paymentChannel}` : undefined} contentClassName="w-[min(74rem,calc(100vw-2rem))]">

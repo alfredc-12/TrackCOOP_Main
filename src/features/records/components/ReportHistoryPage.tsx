@@ -21,6 +21,7 @@ import {
   ErrorState,
   FormDialog,
   LoadingSkeleton,
+  PaginationControls,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import type { GeneratedReportRecord, ReportFilters } from "../records-types";
@@ -56,7 +57,7 @@ export function ReportHistoryPage({
   const [archiveReason, setArchiveReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
 
   const load = useCallback(async () => {
     try {
@@ -307,13 +308,17 @@ export function ReportHistoryPage({
               </article>
             ))}
           </div>
-          <div className="flex flex-col gap-3 border-t border-[#E1E9E2] pt-4 text-sm text-[#5D6D63] sm:flex-row sm:items-center sm:justify-between">
-            <span>Page {page} of {totalPages} · {reports.length} generated reports</span>
-            <div className="flex gap-2">
-              <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className={secondaryButtonClass}>Previous</button>
-              <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className={secondaryButtonClass}>Next</button>
-            </div>
-          </div>
+          <PaginationControls
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={reports.length}
+            itemName="generated reports"
+            onPageChange={setPage}
+            pageSize={pageSize}
+            pageSizeOptions={[5, 10, 20, 50]}
+            onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+            className="border-t border-[#E1E9E2] pt-4"
+          />
         </>
       ) : null}
 
@@ -360,6 +365,12 @@ export function ReportHistoryPage({
                 className={secondaryButtonClass}
               >
                 <Download className="size-4" /> Export Current CSV
+              </a>
+              <a
+                href={exportHref(viewTarget, "xlsx")}
+                className={secondaryButtonClass}
+              >
+                <Download className="size-4" /> Export Current Excel
               </a>
               {viewTarget.documentId ? (
                 <Link
@@ -457,7 +468,7 @@ export function ReportHistoryPage({
   );
 }
 
-function exportHref(report: GeneratedReportRecord, format: "pdf" | "csv") {
+function exportHref(report: GeneratedReportRecord, format: "pdf" | "csv" | "xlsx") {
   const query = new URLSearchParams({ format });
   Object.entries(report.filters).forEach(([key, value]) => {
     if (value) query.set(key, value);
@@ -531,6 +542,9 @@ function HistoryActions({
       </button>
       <a href={exportHref(report, "pdf")} className={secondaryButtonClass}>
         <Download className="size-4" /> PDF
+      </a>
+      <a href={exportHref(report, "xlsx")} className={secondaryButtonClass}>
+        <Download className="size-4" /> Excel
       </a>
       <button type="button" onClick={onPrint} className={secondaryButtonClass}>
         <Printer className="size-4" /> Print

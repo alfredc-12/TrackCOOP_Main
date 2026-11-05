@@ -36,6 +36,6 @@ TrackCOOP tokens, custom StyledSelect, existing buttons/modals and calendar beha
 
 ## Integration
 
-The feature started at GitHub main `b905358`. Local original main remains untouched at `65e17e9` with its original untracked desktop.ini. A subsequent GitHub inventory/pagination commit (`8a7f939`) overlaps the Chairman MembersClient pagination area; integrate it on the feature branch preserving both changes before PR publication. The feature PR must contain only membership changes relative to the latest main.
+The feature started at GitHub main `b905358`. Local original main remains untouched at `65e17e9` with its original untracked desktop.ini. The subsequent GitHub inventory/pagination commit (`8a7f939`) was integrated on the feature branch. The Chairman MembersClient auto-merge was reviewed: its shared pagination controls and this task’s sectors, progress and classification controls are all retained. The feature PR must contain only membership changes relative to the latest main.
 
 No merge, direct main push, production migration, credential change or deployment is authorized. A future approved PR merge may trigger existing staging workflows.

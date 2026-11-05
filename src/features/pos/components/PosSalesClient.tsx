@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCcw, Loader2, RefreshCw, CalendarDays, CircleDollarSign } from "lucide-react";
+import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronDown, RotateCcw, Loader2, RefreshCw, CalendarDays } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 
 type PosOrderItem = {
   name: string;
@@ -63,13 +64,11 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
   const [loadError, setLoadError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   const refreshInFlight = useRef(false);
 
   // Modal States
   const [orderToConfirmId, setOrderToConfirmId] = useState<number | null>(null);
-  const [confirmDiscountAmount, setConfirmDiscountAmount] = useState<string>("");
-  const [confirmDiscountError, setConfirmDiscountError] = useState<string>("");
   const [isConfirming, setIsConfirming] = useState(false);
   const [orderToRejectId, setOrderToRejectId] = useState<number | null>(null);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -154,7 +153,8 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
       const matchesDate = dateFilter === "All time"
         || (dateFilter === "Today" && saleDate.toDateString() === now.toDateString())
         || (dateFilter === "This week" && saleTime >= startOfToday - 7 * 24 * 60 * 60 * 1000 && saleTime <= now.getTime())
-        || (dateFilter === "This month" && saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear() && saleTime <= now.getTime());
+        || (dateFilter === "This month" && saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear() && saleTime <= now.getTime())
+        || (dateFilter === "This year" && saleDate.getFullYear() === now.getFullYear() && saleTime <= now.getTime());
       const matchesSearch =
         order.sale_number.toLowerCase().includes(query) ||
         (order.customer_name ?? "").toLowerCase().includes(query) ||
@@ -167,7 +167,7 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredOrders.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredOrders, currentPage]);
+  }, [filteredOrders, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
 
@@ -181,34 +181,21 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
 
   const confirmPayment = (orderId: number) => {
     setOrderToConfirmId(orderId);
-    setConfirmDiscountAmount("");
-    setConfirmDiscountError("");
   };
 
   const processConfirmPayment = async () => {
     if (orderToConfirmId === null) return;
     if (isConfirming) return;
-    
-    if (Number(confirmDiscountAmount) > 100) {
-      setConfirmDiscountError("Discount cannot exceed 100%");
-      return;
-    }
 
     setIsConfirming(true);
     try {
       const confirmedOrder = orders.find(o => o.id === orderToConfirmId);
       const subtotal = Number(confirmedOrder?.subtotal_amount || confirmedOrder?.total_amount || 0);
-      const memberDiscountAmount = Number(confirmedOrder?.discount_amount || 0);
-      
-      const additionalDiscountPercent = confirmDiscountAmount ? Number(confirmDiscountAmount) : 0;
-      const additionalDiscountAmount = subtotal * (additionalDiscountPercent / 100);
-      
-      const totalDiscountAmount = memberDiscountAmount + additionalDiscountAmount;
 
       const response = await expressFetch(`/api/pos/orders/${orderToConfirmId}/confirm`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ discount_amount: totalDiscountAmount }),
+        body: JSON.stringify({}),
       });
       
       if (!response.ok) {
@@ -219,13 +206,12 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
 
       toast.success("Payment confirmed!");
       if (confirmedOrder) {
-        const newTotal = Math.max(0, subtotal - totalDiscountAmount);
         setReceiptOrder({
           ...confirmedOrder,
           sale_status: "Paid",
           payment_status: "Paid",
-          discount_amount: totalDiscountAmount,
-          total_amount: newTotal,
+          discount_amount: 0,
+          total_amount: subtotal,
           subtotal_amount: subtotal,
         });
       }
@@ -325,21 +311,6 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
   return (
     <main className="-mx-4 -my-6 flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7">
-          <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative operations</div>
-              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">POS Sales Command Center</h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">{canValidatePayments ? "Verify cash payments and keep cooperative sales moving." : "Release verified cooperative store orders when they are ready for pickup."}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-[#CDE8D4]/20 bg-[#D8F0DE]/10 px-4 py-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><CircleDollarSign className="size-5" /></div>
-              <div><p className="text-xs font-semibold text-white/60">Sales health</p><p className="font-bold">{pendingCount ? `${pendingCount} order${pendingCount > 1 ? "s" : ""} pending` : "All payments validated"}</p></div>
-            </div>
-          </div>
-        </div>
-
         <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             ["Pending Orders", String(pendingCount), "Orders awaiting review"],
@@ -369,7 +340,7 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
           </div>
           <div className="flex items-center gap-2">
             <CalendarDays className="hidden size-4 text-[#52705D] sm:block" />
-            <PosThemedSelect value={dateFilter} onChange={(value) => { setDateFilter(value); setCurrentPage(1); }} ariaLabel="Filter sales by date" options={['All time', 'Today', 'This week', 'This month'].map((date) => ({ value: date, label: date }))} />
+            <PosThemedSelect value={dateFilter} onChange={(value) => { setDateFilter(value); setCurrentPage(1); }} ariaLabel="Filter sales by date" options={['All time', 'Today', 'This week', 'This month', 'This year'].map((date) => ({ value: date, label: date }))} />
             <button type="button" onClick={() => void refreshOrders()} disabled={isRefreshing} aria-busy={isRefreshing} className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60"><RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">{isRefreshing ? "Refreshing..." : "Refresh"}</span></button>
           </div>
           </div>
@@ -530,63 +501,17 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
             
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-[#d8e4d6] bg-[#fbfcfa] px-4 py-3">
-                <div className="flex flex-1 justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-center gap-4">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                      className="p-1 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
-                    >
-                      <ChevronsLeft className="size-4" />
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="p-1 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </button>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#123D2A]">
-                      Page <span className="font-bold">{currentPage}</span> of <span className="font-bold">{totalPages}</span> <span className="mx-1 text-gray-300">•</span> <span className="font-bold">{filteredOrders.length}</span> orders
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                      className="p-1 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
-                    >
-                      <ChevronRight className="size-4" />
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                      className="p-1 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition"
-                    >
-                      <ChevronsRight className="size-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredOrders.length}
+                itemName="orders"
+                onPageChange={setCurrentPage}
+                pageSize={itemsPerPage}
+                pageSizeOptions={[5, 10, 20]}
+                onPageSizeChange={(nextPageSize) => { setItemsPerPage(nextPageSize); setCurrentPage(1); }}
+                className="mt-0 border-t border-[#d8e4d6] bg-[#fbfcfa] px-4 py-3"
+              />
             )}
           </div>
         )}
@@ -652,36 +577,9 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
               Please ensure you have received the exact amount. Stock will be automatically deducted upon confirmation.
             </p>
             
-            <div className="mb-6 text-left">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Add Discount % (Optional)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="any"
-                  onKeyDown={(e) => {
-                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
-                  }}
-                  placeholder="0.00"
-                  value={confirmDiscountAmount}
-                  onChange={(e) => {
-                    let val = e.target.value.replace(/[^0-9.]/g, '');
-                    if ((val.match(/\./g) || []).length > 1) val = val.substring(0, val.lastIndexOf('.'));
-                    if (Number(val) > 100) val = "100";
-                    setConfirmDiscountAmount(val);
-                    if (confirmDiscountError) setConfirmDiscountError("");
-                  }}
-                  className={`w-full rounded-xl border ${confirmDiscountError ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-[#123D2A]'} bg-gray-50 p-3 pl-8 text-sm outline-none transition focus:bg-white focus:ring-1`}
-                />
-              </div>
-              {confirmDiscountError && <p className="mt-1 text-xs text-red-500">{confirmDiscountError}</p>}
-            </div>
-
             <div className="flex gap-3">
               <button
-                onClick={() => { setOrderToConfirmId(null); setConfirmDiscountAmount(""); }}
+                onClick={() => setOrderToConfirmId(null)}
                 className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
               >
                 Cancel
@@ -788,35 +686,14 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
                   <span>₱{Number(receiptOrder.subtotal_amount || receiptOrder.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
                 {(() => {
-                  const subtotal = Number(receiptOrder.subtotal_amount || receiptOrder.total_amount);
                   const totalDiscount = Number(receiptOrder.discount_amount);
                   
                   if (totalDiscount <= 0) return null;
-
-                  // We check if member discount was applied by seeing if there's an email (or assuming member if discount exists and no other clear way to check in this component right now)
-                  // Let's use the same heuristic as before: 5% member discount.
-                  const expectedMemberDiscount = subtotal * 0.05;
-                  
-                  // If they have at least the member discount amount, assume they got the member discount
-                  const hasMemberDiscount = totalDiscount >= expectedMemberDiscount - 0.01;
-                  const actualMemberDiscount = hasMemberDiscount ? expectedMemberDiscount : 0;
-                  const additionalDiscount = Math.max(0, totalDiscount - actualMemberDiscount);
-                  
                   return (
-                      <>
-                          {actualMemberDiscount > 0 && (
-                              <div className="flex justify-between items-center text-sm text-red-500 font-medium">
-                                  <span>Member Discount (5%)</span>
-                                  <span>- ₱{actualMemberDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                              </div>
-                          )}
-                          {additionalDiscount > 0.01 && (
-                              <div className="flex justify-between items-center text-sm text-red-500 font-medium">
-                                  <span>Additional Discount ({Math.round((additionalDiscount / subtotal) * 100)}%)</span>
-                                  <span>- ₱{additionalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                              </div>
-                          )}
-                      </>
+                    <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                      <span>Discount</span>
+                      <span>- ₱{totalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
                   );
                 })()}
                 <div className="flex justify-between items-center text-base font-bold text-gray-900 pt-2 border-t border-gray-100">

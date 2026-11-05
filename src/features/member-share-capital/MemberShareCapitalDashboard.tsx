@@ -32,6 +32,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -52,8 +53,6 @@ import type {
   MemberDividend,
   DividendWithdrawalMethod,
 } from "./types";
-
-const PAGE_SIZE = 10;
 
 function currency(value: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -83,6 +82,7 @@ export function MemberShareCapitalDashboard() {
   const [growth, setGrowth] = useState<MemberCapitalGrowthPoint[]>([]);
   const [dividends, setDividends] = useState<MemberDividend[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [transactionFilters, setTransactionFilters] = useState<MemberCapitalTransactionFilters>({});
   const [loading, setLoading] = useState(true);
@@ -108,7 +108,7 @@ export function MemberShareCapitalDashboard() {
     try {
       const [nextOverview, transactionPage, nextGrowth, nextDividends] = await Promise.all([
         getMemberCapitalOverview(),
-        getMemberCapitalTransactions(page, PAGE_SIZE, transactionFilters),
+        getMemberCapitalTransactions(page, pageSize, transactionFilters),
         getMemberCapitalGrowth(),
         getMemberDividends(),
       ]);
@@ -125,7 +125,7 @@ export function MemberShareCapitalDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, transactionFilters]);
+  }, [page, pageSize, transactionFilters]);
 
   useEffect(() => {
     const firstLoad = window.setTimeout(() => void load(), 0);
@@ -138,7 +138,7 @@ export function MemberShareCapitalDashboard() {
     };
   }, [load]);
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const chartData = growth.map((point) => ({
     ...point,
     label: displayDate(point.date),
@@ -454,13 +454,17 @@ export function MemberShareCapitalDashboard() {
                     ))}
                   </tbody>
                 </table>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-5 py-4 text-sm">
-                  <span className="font-semibold text-[#6C7A70]">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} transactions</span>
-                  <div className="flex gap-2">
-                    <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
-                    <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
-                  </div>
-                </div>
+                <PaginationControls
+                  currentPage={page}
+                  totalPages={pageCount}
+                  totalItems={total}
+                  itemName="transactions"
+                  onPageChange={setPage}
+                  pageSize={pageSize}
+                  pageSizeOptions={[10, 20, 50]}
+                  onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+                  className="mt-0 border-t border-[#E2E8E2] px-5 py-4 text-sm"
+                />
               </DataTable>
             ) : (
               <EmptyState icon={WalletCards} title="No Share Capital transactions yet" description="Validated contributions and capitalized dividends will appear here." />

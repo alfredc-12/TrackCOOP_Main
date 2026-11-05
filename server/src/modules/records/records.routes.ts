@@ -30,6 +30,7 @@ import {
   reportCatalogSummary,
   reportToCsv,
   reportToPdf,
+  reportToXlsx,
   saveGeneratedReportToDocuments,
 } from "./report-service";
 import type {
@@ -477,7 +478,12 @@ async function generateReportRoute(request: Request, response: Response) {
 async function exportGeneratedReportRoute(request: Request, response: Response) {
   try {
     const actor = user(request);
-    const format = param(request, "format") === "csv" ? "CSV" : "PDF";
+    const requestedFormat = param(request, "format")?.toLowerCase();
+    const format = requestedFormat === "csv"
+      ? "CSV"
+      : requestedFormat === "xlsx"
+        ? "XLSX"
+        : "PDF";
     const result = await generateReport(
       routeParam(request, "reportType"),
       reportFiltersFromQuery(request),
@@ -499,6 +505,19 @@ async function exportGeneratedReportRoute(request: Request, response: Response) 
           "Cache-Control": "private, no-store",
         })
         .send(reportToCsv(result));
+      return;
+    }
+    if (format === "XLSX") {
+      const workbook = await reportToXlsx(result);
+      response
+        .set({
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${safeName}.xlsx"`,
+          "Content-Length": String(workbook.length),
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        })
+        .send(workbook);
       return;
     }
     const pdf = await reportToPdf(result);

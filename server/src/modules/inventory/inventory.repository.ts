@@ -42,6 +42,7 @@ type InventoryHistoryRow = RowDataPacket & {
 export type ListInventoryProductsOptions = {
   includeHistory?: boolean;
   publicOnly?: boolean;
+  archivedOnly?: boolean;
   demandPeriod?: "all" | "7d" | "30d" | "year";
 };
 
@@ -103,6 +104,7 @@ export interface InventoryRepository {
   createProduct(input: InventoryProductInput, userId: string): Promise<number>;
   updateProduct(productId: string, input: InventoryProductInput, userId: string): Promise<void>;
   archiveProduct(productId: string, userId: string): Promise<boolean>;
+  restoreProduct(productId: string, userId: string): Promise<boolean>;
   updateStock(productId: string, input: InventoryStockInput, userId: string): Promise<void>;
   listHistory(): Promise<Array<{
     id: number | string;
@@ -117,7 +119,7 @@ export function createInventoryRepository(pool?: Pool): InventoryRepository {
   const databasePool = () => pool ?? getPool();
 
   return {
-    async listProducts({ includeHistory = false, publicOnly = false, demandPeriod = "all" }: ListInventoryProductsOptions = {}) {
+    async listProducts({ includeHistory = false, publicOnly = false, archivedOnly = false, demandPeriod = "all" }: ListInventoryProductsOptions = {}) {
       const [rows] = await databasePool().execute<InventoryProductRow[]>(`
         SELECT
           p.product_id as id,
@@ -146,7 +148,7 @@ export function createInventoryRepository(pool?: Pool): InventoryRepository {
           p.reorder_level
         FROM products p
         LEFT JOIN v_product_inventory_balance v ON p.product_id = v.product_id
-        WHERE p.product_status <> 'Archived'
+        WHERE p.product_status ${archivedOnly ? "=" : "<>"} 'Archived'
         ORDER BY p.product_name ASC
       `);
 
@@ -297,6 +299,25 @@ export function createInventoryRepository(pool?: Pool): InventoryRepository {
              (user_id, action, entity_table, record_id, description)
            VALUES (?, 'inventory.product.archived', 'products', ?, 'Inventory product was archived.')`,
           [userId, productId],
+          );
+        }
+        return result.affectedRows > 0;
+      }, databasePool());
+    },
+
+    async restoreProduct(productId, userId) {
+      return withTransaction(async (connection) => {
+        const [result] = await connection.execute<ResultSetHeader>(
+          "UPDATE products SET product_status = 'Active' WHERE product_id = ? AND product_status = 'Archived'",
+          [productId],
+        );
+
+        if (result.affectedRows > 0) {
+          await connection.execute(
+            `INSERT INTO audit_logs
+               (user_id, action, entity_table, record_id, description)
+             VALUES (?, 'inventory.product.restored', 'products', ?, 'Inventory product was restored.')`,
+            [userId, productId],
           );
         }
         return result.affectedRows > 0;

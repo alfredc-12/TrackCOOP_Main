@@ -40,6 +40,7 @@ import {
   FormDialog,
   FormField,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -495,6 +496,7 @@ export function ChairmanRentalAssetsClient() {
   const [statusFilter, setStatusFilter] = useState<AssetStatusFilter>("All");
   const [sort, setSort] = useState("updated-desc");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [pending, setPending] = useState<PendingAction>();
   const [pendingRunning, setPendingRunning] = useState(false);
   const [maintenanceAsset, setMaintenanceAsset] = useState<RentalService>();
@@ -614,7 +616,6 @@ export function ChairmanRentalAssetsClient() {
     visibility,
   ]);
 
-  const pageSize = 5;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const visibleAssets = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -831,14 +832,17 @@ export function ChairmanRentalAssetsClient() {
             ))}
           </div>
           {filtered.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-white px-4 py-3 text-xs text-[#5D6D63]">
-              <span>Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} assets</span>
-              <div className="flex items-center gap-2">
-                <button type="button" disabled={currentPage === 1} onClick={() => setPage(Math.max(1, currentPage - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-                <span className="font-bold text-[#123D2A]">Page {currentPage} of {totalPages}</span>
-                <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(Math.min(totalPages, currentPage + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40">Next</button>
-              </div>
-            </div>
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              itemName="assets"
+              onPageChange={setPage}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 20]}
+              onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+              className="mt-0 rounded-lg border border-[#CAD8CB] bg-white px-4 py-3 text-xs"
+            />
           ) : null}
         </>
       )}

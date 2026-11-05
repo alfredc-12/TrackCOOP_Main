@@ -22,6 +22,7 @@ import {
   FormDialog,
   FormField,
   LoadingSkeleton,
+  PaginationControls,
   StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
@@ -113,22 +114,6 @@ function ManualChannelSelect({ value, onChange }: { value: ManualChannel; onChan
   );
 }
 
-function PageSizeSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  const [open, setOpen] = useState(false);
-  const options = [5, 10, 20, 50];
-  return (
-    <div className="relative">
-      <button type="button" aria-label="Payments per page" aria-expanded={open} onClick={() => setOpen((current) => !current)}
-        className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-        <span>{value} per page</span><ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-      {open ? <div role="listbox" aria-label="Payments per page options" className="absolute z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
-        {options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} onClick={() => { onChange(option); setOpen(false); }}
-          className={`flex w-full items-center rounded px-3 py-2 text-left text-sm transition ${option === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option} per page</button>)}
-      </div> : null}
-    </div>
-  );
-}
 const associateMembershipFee = 200;
 const trueMemberInitialCapital = 1500;
 
@@ -641,7 +626,7 @@ export function MembershipPaymentsView() {
       </div>
 
       <div className="rounded-lg border border-[#CAD8CB] bg-white p-3">
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px_150px_auto]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
           <label className="relative block">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" aria-hidden="true" />
             <input
@@ -662,7 +647,6 @@ export function MembershipPaymentsView() {
               setPaymentPage(1);
             }}
           />
-          <PageSizeSelect value={paymentsPerPage} onChange={(value) => { setPaymentsPerPage(value); setPaymentPage(1); }} />
           <button
             type="button"
             onClick={() => void load()}
@@ -790,13 +774,17 @@ export function MembershipPaymentsView() {
                   </tbody>
                 </table>
               </DataTable>
-              <div className="flex items-center justify-between rounded-lg border border-[#CAD8CB] bg-white p-3 text-sm">
-                <span className="font-semibold text-[#6C7A70]">Page {paymentPage} of {paymentPageCount} · {filteredPayments.length} payments</span>
-                <div className="flex gap-2">
-                  <button type="button" disabled={paymentPage <= 1} onClick={() => setPaymentPage((current) => Math.max(1, current - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button>
-                  <button type="button" disabled={paymentPage >= paymentPageCount} onClick={() => setPaymentPage((current) => Math.min(paymentPageCount, current + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button>
-                </div>
-              </div>
+              <PaginationControls
+                currentPage={paymentPage}
+                totalPages={paymentPageCount}
+                totalItems={filteredPayments.length}
+                itemName="payments"
+                onPageChange={setPaymentPage}
+                pageSize={paymentsPerPage}
+                pageSizeOptions={[5, 10, 20, 50]}
+                onPageSizeChange={(nextPageSize) => { setPaymentsPerPage(nextPageSize); setPaymentPage(1); }}
+                className="mt-0 rounded-lg border border-[#CAD8CB] bg-white p-3"
+              />
               </>
             ) : (
               <EmptyState

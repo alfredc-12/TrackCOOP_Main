@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ChevronDown, RefreshCcw, Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
-import { CurrencyDisplay, DataTable, EmptyState, ErrorState, LoadingSkeleton, StatusBadge } from "@/components/portal/PortalPrimitives";
+import { CurrencyDisplay, DataTable, EmptyState, ErrorState, LoadingSkeleton, PaginationControls, StatusBadge } from "@/components/portal/PortalPrimitives";
 import { ApiClientError } from "@/lib/api-client";
 import {
   listShareCapitalAccounts,
@@ -10,9 +10,6 @@ import {
   type ShareCapitalAccount,
   type ShareCapitalLedgerTransaction,
 } from "./finance-api";
-
-const ACCOUNT_PAGE_SIZE = 10;
-const TRANSACTION_PAGE_SIZE = 10;
 
 function date(value: string) {
   return new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
@@ -101,10 +98,12 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
   const [accounts, setAccounts] = useState<ShareCapitalAccount[]>([]);
   const [accountSearch, setAccountSearch] = useState("");
   const [accountPage, setAccountPage] = useState(1);
+  const [accountPageSize, setAccountPageSize] = useState(10);
   const [accountTotal, setAccountTotal] = useState(0);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<ShareCapitalLedgerTransaction[]>([]);
   const [transactionPage, setTransactionPage] = useState(1);
+  const [transactionPageSize, setTransactionPageSize] = useState(10);
   const [transactionTotal, setTransactionTotal] = useState(0);
   const [direction, setDirection] = useState<"" | "Credit" | "Debit">("");
   const [status, setStatus] = useState<"" | "Posted" | "Reversed">("");
@@ -119,7 +118,7 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
     setLoading(true);
     setError("");
     try {
-      const result = await listShareCapitalAccounts(accountSearch, accountPage, ACCOUNT_PAGE_SIZE);
+      const result = await listShareCapitalAccounts(accountSearch, accountPage, accountPageSize);
       setAccounts(result.items);
       setAccountTotal(Number(result.meta.total ?? 0));
     } catch (caught) {
@@ -127,7 +126,7 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
     } finally {
       setLoading(false);
     }
-  }, [accountPage, accountSearch]);
+  }, [accountPage, accountPageSize, accountSearch]);
 
   const loadTransactions = useCallback(async () => {
     if (!selectedMemberId) {
@@ -143,7 +142,7 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
       const result = await listShareCapitalLedgerTransactions({
         memberId: selectedMemberId,
         page: transactionPage,
-        pageSize: TRANSACTION_PAGE_SIZE,
+        pageSize: transactionPageSize,
         direction: direction || undefined,
         status: status || undefined,
       });
@@ -154,7 +153,7 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
     } finally {
       setTransactionsLoading(false);
     }
-  }, [direction, selectedMemberId, status, transactionPage]);
+  }, [direction, selectedMemberId, status, transactionPage, transactionPageSize]);
 
   useEffect(() => {
     if (!ledgerOpen) return;
@@ -223,8 +222,8 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
     setSelectedMemberId(memberId);
   };
 
-  const accountPageCount = Math.max(1, Math.ceil(accountTotal / ACCOUNT_PAGE_SIZE));
-  const transactionPageCount = Math.max(1, Math.ceil(transactionTotal / TRANSACTION_PAGE_SIZE));
+  const accountPageCount = Math.max(1, Math.ceil(accountTotal / accountPageSize));
+  const transactionPageCount = Math.max(1, Math.ceil(transactionTotal / transactionPageSize));
   const selectedAccount = accounts.find((account) => account.memberId === selectedMemberId) ?? null;
 
   return (
@@ -281,7 +280,17 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
                         ))}
                       </tbody>
                     </table>
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-4 py-4 text-sm"><span className="font-semibold text-[#6C7A70]">Page {accountPage} of {accountPageCount} - {accountTotal} account{accountTotal === 1 ? "" : "s"}</span><div className="flex gap-2"><button type="button" disabled={accountPage <= 1} onClick={() => setAccountPage((page) => Math.max(1, page - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button><button type="button" disabled={accountPage >= accountPageCount} onClick={() => setAccountPage((page) => Math.min(accountPageCount, page + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button></div></div>
+                    <PaginationControls
+                      currentPage={accountPage}
+                      totalPages={accountPageCount}
+                      totalItems={accountTotal}
+                      itemName="accounts"
+                      onPageChange={setAccountPage}
+                      pageSize={accountPageSize}
+                      pageSizeOptions={[10, 20, 50]}
+                      onPageSizeChange={(nextPageSize) => { setAccountPageSize(nextPageSize); setAccountPage(1); }}
+                      className="mt-0 border-t border-[#E2E8E2] px-4 py-4"
+                    />
                   </DataTable>
                 </div>
               ) : <div className="mt-4"><EmptyState title="No Share Capital accounts" description="Accounts will appear after the ledger migration or the first validated contribution." /></div>}
@@ -301,7 +310,7 @@ export function ShareCapitalLedgerPanel({ role }: { role: "chairman" | "bookkeep
               <div className="mt-5 flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-lg font-black text-[#123D2A]">Posted transactions</h3><p className="mt-1 text-sm text-[#6C7A70]">Read-only history for reconciliation.</p></div><div className="flex w-full flex-wrap items-end justify-end gap-3 rounded-lg border border-[#E2E8E2] bg-[#F7FAF5] p-3 sm:w-auto"><FilterSelect label="Direction" value={direction} onChange={(value) => { setDirection(value as typeof direction); setTransactionPage(1); }} options={[{ value: "", label: "All directions" }, { value: "Credit", label: "Credits" }, { value: "Debit", label: "Deductions" }]} /><FilterSelect label="Status" value={status} onChange={(value) => { setStatus(value as typeof status); setTransactionPage(1); }} options={[{ value: "", label: "All statuses" }, { value: "Posted", label: "Posted" }, { value: "Reversed", label: "Reversed" }]} /></div></div>
 
               {transactionsError ? <div className="mt-4"><ErrorState message={transactionsError} onRetry={() => void loadTransactions()} /></div> : null}
-              {transactionsLoading ? <div className="mt-4"><LoadingSkeleton /></div> : transactions.length ? <div className="mt-4"><DataTable><table className="min-w-[940px] w-full text-left text-sm"><thead className="bg-[#F7F8F3] text-xs uppercase tracking-wide text-[#5D6D63]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Balance after</th><th className="px-3 py-2">Status</th></tr></thead><tbody className="divide-y divide-[#E5ECE5] bg-white">{transactions.map((transaction) => <tr key={transaction.id}><td className="px-3 py-3">{date(transaction.transactionDate)}</td><td className="px-3 py-3 font-bold text-[#123D2A]">{transaction.transactionType}</td><td className="px-3 py-3 font-mono text-xs">{transaction.referenceNumber}</td><td className={`px-3 py-3 text-right font-bold ${transaction.direction === "Credit" ? "text-[#1F6B43]" : "text-[#A13B2B]"}`}>{transaction.direction === "Credit" ? "+" : "-"}<CurrencyDisplay value={transaction.amount} /></td><td className="px-3 py-3 text-right"><CurrencyDisplay value={transaction.balanceAfter} /></td><td className="px-3 py-3"><StatusBadge tone={transaction.status === "Posted" ? "success" : "warning"}>{transaction.status}</StatusBadge></td></tr>)}</tbody></table><div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8E2] px-3 py-3 text-sm"><span className="font-semibold text-[#6C7A70]">Page {transactionPage} of {transactionPageCount} - {transactionTotal} transaction{transactionTotal === 1 ? "" : "s"}</span><div className="flex gap-2"><button type="button" disabled={transactionPage <= 1} onClick={() => setTransactionPage((page) => Math.max(1, page - 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Previous</button><button type="button" disabled={transactionPage >= transactionPageCount} onClick={() => setTransactionPage((page) => Math.min(transactionPageCount, page + 1))} className="rounded-md border border-[#CAD8CB] px-3 py-2 font-bold text-[#123D2A] disabled:opacity-40">Next</button></div></div></DataTable></div> : <p className="mt-4 rounded-md border border-[#E5ECE5] bg-[#F7FAF5] p-4 text-sm font-semibold text-[#6C7A70]">No transactions match the selected filters.</p>}
+              {transactionsLoading ? <div className="mt-4"><LoadingSkeleton /></div> : transactions.length ? <div className="mt-4"><DataTable><table className="min-w-[940px] w-full text-left text-sm"><thead className="bg-[#F7F8F3] text-xs uppercase tracking-wide text-[#5D6D63]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Balance after</th><th className="px-3 py-2">Status</th></tr></thead><tbody className="divide-y divide-[#E5ECE5] bg-white">{transactions.map((transaction) => <tr key={transaction.id}><td className="px-3 py-3">{date(transaction.transactionDate)}</td><td className="px-3 py-3 font-bold text-[#123D2A]">{transaction.transactionType}</td><td className="px-3 py-3 font-mono text-xs">{transaction.referenceNumber}</td><td className={`px-3 py-3 text-right font-bold ${transaction.direction === "Credit" ? "text-[#1F6B43]" : "text-[#A13B2B]"}`}>{transaction.direction === "Credit" ? "+" : "-"}<CurrencyDisplay value={transaction.amount} /></td><td className="px-3 py-3 text-right"><CurrencyDisplay value={transaction.balanceAfter} /></td><td className="px-3 py-3"><StatusBadge tone={transaction.status === "Posted" ? "success" : "warning"}>{transaction.status}</StatusBadge></td></tr>)}</tbody></table><PaginationControls currentPage={transactionPage} totalPages={transactionPageCount} totalItems={transactionTotal} itemName="transactions" onPageChange={setTransactionPage} pageSize={transactionPageSize} pageSizeOptions={[10, 20, 50]} onPageSizeChange={(nextPageSize) => { setTransactionPageSize(nextPageSize); setTransactionPage(1); }} className="mt-0 border-t border-[#E2E8E2] px-3 py-3" /></DataTable></div> : <p className="mt-4 rounded-md border border-[#E5ECE5] bg-[#F7FAF5] p-4 text-sm font-semibold text-[#6C7A70]">No transactions match the selected filters.</p>}
             </div>
           </div>
         </div>

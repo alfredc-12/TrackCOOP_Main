@@ -793,6 +793,7 @@ export function FinancialOverviewClient() {
           total={activity.data?.total ?? 0}
           loading={activity.loading}
           onPage={(page) => patch({ page: String(page) })}
+          onPageSizeChange={(pageSize) => patch({ page: "1", pageSize: String(pageSize) })}
         />
       </section>
       <section

@@ -47,6 +47,14 @@ export function createInventoryController(service: InventoryService) {
       }
     }),
 
+    listArchivedProducts: asyncHandler(async (request, response) => {
+      try {
+        return response.json(await service.listProducts({ includeHistory: true, archivedOnly: true }));
+      } catch (error) {
+        return sendError(response, error, "Failed to fetch archived products");
+      }
+    }),
+
     listPublicProducts: asyncHandler(async (_request, response) => {
       try {
         return response.json(await service.listProducts({ publicOnly: true }));
@@ -80,6 +88,16 @@ export function createInventoryController(service: InventoryService) {
         return response.json({ success: true });
       } catch (error) {
         return sendError(response, error, "Failed to archive product");
+      }
+    }),
+
+    restoreProduct: asyncHandler(async (request, response) => {
+      try {
+        const restored = await service.restoreProduct(requireProductId(request.params.id), requireAuth(request.auth).user.id);
+        if (!restored) return response.status(404).json({ error: "Archived product not found" });
+        return response.json({ success: true });
+      } catch (error) {
+        return sendError(response, error, "Failed to restore product");
       }
     }),
 
