@@ -161,9 +161,40 @@ async function selectPaymentReference(
 
 async function validatedCapital(connection: Pool | PoolConnection, memberId: string) {
   const [rows] = await connection.execute<AmountRow[]>(
-    `SELECT COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), SUM(amount), 0) AS total
+    `SELECT GREATEST(
+              COALESCE((SELECT current_balance FROM share_capital_accounts WHERE member_id = ? LIMIT 1), 0) +
+              COALESCE(SUM(CASE
+                WHEN NOT EXISTS (
+                  SELECT 1
+                    FROM share_capital_transactions t
+                   WHERE t.member_id = share_capital_payments.member_id
+                     AND t.source_type = 'share_capital_payment'
+                     AND t.source_id = share_capital_payments.share_payment_id
+                     AND t.transaction_status = 'Posted'
+                )
+                THEN amount ELSE 0 END), 0),
+              COALESCE(SUM(amount), 0)
+            ) AS total
        FROM share_capital_payments
       WHERE member_id = ? AND payment_status = 'Validated'`,
+    [memberId, memberId],
+  );
+  return memberCapitalMoney(Number(rows[0]?.total ?? 0));
+}
+
+async function pendingCapitalReservations(connection: Pool | PoolConnection, memberId: string) {
+  const [rows] = await connection.execute<AmountRow[]>(
+    `SELECT COALESCE((
+              SELECT SUM(t.amount)
+                FROM patronage_capital_transfers t
+               WHERE t.member_id = ?
+                 AND t.transfer_status = 'Pending'
+            ), 0) + COALESCE((
+              SELECT SUM(md.dividend_amount)
+                FROM member_dividends md
+               WHERE md.member_id = ?
+                 AND md.dividend_status = 'Capitalization Requested'
+            ), 0) AS total`,
     [memberId, memberId],
   );
   return memberCapitalMoney(Number(rows[0]?.total ?? 0));
@@ -204,6 +235,7 @@ async function activeContributions(
         AND pr.related_entity_type = 'member_profile'
         AND pr.validation_status IN ('Pending', 'Needs Clarification')
         AND pr.payment_channel = 'PayMongo'
+        AND pr.gateway_environment = ?
         AND (
           (a.checkout_url IS NOT NULL
            AND a.reusable_until > UTC_TIMESTAMP()
@@ -217,7 +249,7 @@ async function activeContributions(
         ${exclusion}
       ORDER BY pr.payment_reference_id DESC
       ${input.forUpdate ? "FOR UPDATE" : ""}`,
-    [input.environment, input.memberId, input.reuseMinutes, ...(input.excludePaymentReferenceId ? [input.excludePaymentReferenceId] : [])],
+    [input.environment, input.memberId, input.environment, input.reuseMinutes, ...(input.excludePaymentReferenceId ? [input.excludePaymentReferenceId] : [])],
   );
   return rows.map((row) => ({ ...row, amount: Number(row.amount) }));
 }
@@ -264,8 +296,9 @@ export function createPaymongoMemberShareCapitalRepository(
         );
       }
       assertMemberShareCapitalProfileEligible(profile);
-      const [validated, activeRows, historyRows] = await Promise.all([
+      const [validated, reservedPending, activeRows, historyRows] = await Promise.all([
         validatedCapital(databasePool(), profile.id),
+        pendingCapitalReservations(databasePool(), profile.id),
         activeContributions(databasePool(), {
           memberId: profile.id,
           environment: input.environment,
@@ -292,7 +325,7 @@ export function createPaymongoMemberShareCapitalRepository(
         ).then(([rows]) => rows),
       ]);
       const activePendingCapital = memberCapitalMoney(
-        activeRows.reduce((total, row) => total + row.amount, 0),
+        activeRows.reduce((total, row) => total + row.amount, 0) + reservedPending,
       );
       const latest = activeRows[0] ?? null;
       return buildMemberShareCapitalSummary({
@@ -387,10 +420,13 @@ export function createPaymongoMemberShareCapitalRepository(
             "MEMBER_SHARE_CAPITAL_CHECKOUT_ACTIVE",
           );
         }
-        const currentCapital = await validatedCapital(connection, profile.id);
+        const [currentCapital, reservedPending] = await Promise.all([
+          validatedCapital(connection, profile.id),
+          pendingCapitalReservations(connection, profile.id),
+        ]);
         assertMemberShareCapitalCapacity({
           validatedCapital: currentCapital,
-          activePendingCapital: 0,
+          activePendingCapital: reservedPending,
           requestedAmount: input.checkout.requestedAmount,
           maximumShareCapital: input.settings.maximumShareCapital,
         });
@@ -491,9 +527,13 @@ export function createPaymongoMemberShareCapitalRepository(
           "MEMBER_SHARE_CAPITAL_CHECKOUT_ACTIVE",
         );
       }
+      const [currentCapital, reservedPending] = await Promise.all([
+        validatedCapital(connection, profile.id),
+        pendingCapitalReservations(connection, profile.id),
+      ]);
       assertMemberShareCapitalCapacity({
-        validatedCapital: await validatedCapital(connection, profile.id),
-        activePendingCapital: 0,
+        validatedCapital: currentCapital,
+        activePendingCapital: reservedPending,
         requestedAmount: input.amount,
         maximumShareCapital: input.settings.maximumShareCapital,
       });

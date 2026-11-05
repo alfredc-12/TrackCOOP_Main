@@ -67,9 +67,27 @@ async function allocation(connection: Database, id: string, memberId: string) {
   return rows[0];
 }
 
-async function capacity(connection: Database, memberId: string, lock = false) {
+async function capacity(connection: Database, memberId: string, lock = false, excludePendingAmount = 0) {
+  const gatewayEnvironment = env.PAYMONGO_MODE === "live" ? "Live" : "Test";
   const [accounts] = await connection.execute<RowDataPacket[]>(
-    `SELECT CAST(share_capital_account_id AS CHAR) AS id, current_balance AS balance
+    `SELECT CAST(share_capital_account_id AS CHAR) AS id,
+            GREATEST(
+              current_balance + COALESCE((
+                SELECT SUM(s.amount)
+                  FROM share_capital_payments s
+                 WHERE s.member_id = share_capital_accounts.member_id
+                   AND s.payment_status = 'Validated'
+                   AND NOT EXISTS (
+                     SELECT 1
+                       FROM share_capital_transactions t
+                      WHERE t.member_id = s.member_id
+                        AND t.source_type = 'share_capital_payment'
+                        AND t.source_id = s.share_payment_id
+                        AND t.transaction_status = 'Posted'
+                   )
+              ), 0),
+              COALESCE((SELECT SUM(amount) FROM share_capital_payments WHERE member_id = share_capital_accounts.member_id AND payment_status = 'Validated'), 0)
+            ) AS balance
        FROM share_capital_accounts WHERE member_id = ? LIMIT 1${lock ? " FOR UPDATE" : ""}`, [memberId],
   );
   if (!accounts[0]) throw new AppError("Please ask the cooperative office to set up your Share Capital ledger.", 409, "SHARE_CAPITAL_ACCOUNT_REQUIRED");
@@ -78,26 +96,40 @@ async function capacity(connection: Database, memberId: string, lock = false) {
   );
   const maximum = Number(settings[0]?.value ?? MAX_SHARE_CAPITAL);
   if (!Number.isFinite(maximum) || maximum <= 0) throw new AppError("Share Capital limit is not configured.", 409, "SHARE_CAPITAL_LIMIT_REQUIRED");
-  // Use the same lifetime rules as QRPH checkout reuse; expired attempts do not reserve capital.
+  // Use the same lifetime rules as QRPH checkout reuse; expired attempts and other gateway environments do not reserve capital.
   const [pending] = await connection.execute<RowDataPacket[]>(
     `SELECT COALESCE(SUM(pr.amount), 0) AS amount FROM payment_references pr
       WHERE pr.member_id = ? AND pr.payment_purpose = 'Share Capital'
         AND pr.related_entity_type = 'member_profile' AND pr.payment_channel = 'PayMongo'
+        AND pr.gateway_environment = ?
         AND pr.validation_status IN ('Pending', 'Needs Clarification')
         AND (
           EXISTS (SELECT 1 FROM payment_gateway_checkout_attempts a
             WHERE a.payment_reference_id = pr.payment_reference_id
               AND a.payment_gateway_checkout_attempt_id = (SELECT MAX(latest.payment_gateway_checkout_attempt_id)
-                FROM payment_gateway_checkout_attempts latest WHERE latest.payment_reference_id = pr.payment_reference_id)
+                FROM payment_gateway_checkout_attempts latest WHERE latest.payment_reference_id = pr.payment_reference_id
+                  AND latest.gateway_name = 'PayMongo' AND latest.gateway_environment = ?)
               AND a.checkout_url IS NOT NULL AND a.reusable_until > UTC_TIMESTAMP()
               AND a.superseded_at IS NULL AND a.completed_at IS NULL
               AND LOWER(COALESCE(a.gateway_status, 'active')) NOT IN ('expired', 'paid', 'cancelled', 'canceled'))
-          OR (NOT EXISTS (SELECT 1 FROM payment_gateway_checkout_attempts a WHERE a.payment_reference_id = pr.payment_reference_id)
+          OR (NOT EXISTS (SELECT 1 FROM payment_gateway_checkout_attempts a WHERE a.payment_reference_id = pr.payment_reference_id
+              AND a.gateway_name = 'PayMongo' AND a.gateway_environment = ?)
             AND pr.submitted_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? MINUTE))
-        )`, [memberId, env.PAYMONGO_CHECKOUT_REUSE_MINUTES],
+        )`, [memberId, gatewayEnvironment, gatewayEnvironment, gatewayEnvironment, env.PAYMONGO_CHECKOUT_REUSE_MINUTES],
+  );
+  const [pendingTransfers] = await connection.execute<RowDataPacket[]>(
+    `SELECT COALESCE(SUM(CASE WHEN transfer_status = 'Pending' THEN amount ELSE 0 END), 0) AS pendingCapitalAmount
+       FROM patronage_capital_transfers WHERE member_id = ?`, [memberId],
+  );
+  const otherPendingTransfersCents = Math.max(
+    0,
+    moneyCents(pendingTransfers[0]?.pendingCapitalAmount ?? 0) - moneyCents(excludePendingAmount),
   );
   return { accountId: String(accounts[0].id), currentCapital: Number(accounts[0].balance),
-    availableCapacity: Math.max(0, moneyCents(maximum) - moneyCents(accounts[0].balance) - moneyCents(pending[0]?.amount ?? 0)) / 100 };
+    availableCapacity: Math.max(
+      0,
+      moneyCents(maximum) - moneyCents(accounts[0].balance) - moneyCents(pending[0]?.amount ?? 0) - otherPendingTransfersCents,
+    ) / 100 };
 }
 
 async function audit(connection: Database, action: string, id: string, auth: AuthContext, values: unknown) {
@@ -189,7 +221,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
           if (refund.periodStatus !== "Finalized" || refund.paymentStatus === "Paid") throw new AppError("The refund is no longer available.", 409, "PATRONAGE_REFUND_UNAVAILABLE");
           await assertRefundSourcesUnchanged(connection, refund.id);
           const totals = await patronageCapitalTotals(connection, refund.id);
-          const capital = await capacity(connection, transfer.memberId, true);
+          const capital = await capacity(connection, transfer.memberId, true, Number(transfer.amount));
           assertPatronageCapitalAmount(Number(transfer.amount), availablePatronageRefund({ ...refund, ...totals, pendingCapitalAmount: (moneyCents(totals.pendingCapitalAmount) - moneyCents(transfer.amount)) / 100 }), capital.availableCapacity);
           const balanceAfter = (moneyCents(capital.currentCapital) + moneyCents(transfer.amount)) / 100;
           const [posted] = await connection.execute<ResultSetHeader>(

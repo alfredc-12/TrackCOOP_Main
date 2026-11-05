@@ -185,3 +185,23 @@ test("changed rental sources block cash payouts and transfer approval without lo
   await repo.decide("1", { decision: "Reject" }, bookkeeper);
   assert.equal(db.state.transfers[0].status, "Rejected");
 });
+
+test("existing pending patronage transfer on another allocation reduces available Share Capital capacity", async () => {
+  const db = new Database();
+  db.state.balance = 14600;
+  db.state.transfers.push({
+    id: "99",
+    allocationId: "9",
+    memberId: "1",
+    amount: 200,
+    requestKey: "prior-allocation-pending",
+    status: "Pending",
+    capitalTransactionId: null,
+  });
+  const repo = createPatronageCapitalRepository(db.pool());
+  await assert.rejects(
+    repo.request(request, member),
+    (error) => error instanceof AppError && error.code === "SHARE_CAPITAL_LIMIT_EXCEEDED",
+  );
+  assert.equal(db.state.transfers.length, 1);
+});

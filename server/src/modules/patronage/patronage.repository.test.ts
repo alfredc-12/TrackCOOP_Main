@@ -151,3 +151,28 @@ test("True Members with a missing effective date receive guidance rather than an
   assert.equal(result.currentYear.estimatedRefund, 0);
   assert.equal(result.refunds.pendingTotal, 0);
 });
+
+test("financialBasis excludes reversal adjustments from netOperatingSurplus and applies Manila +08:00 and Test gateway filters in source SQL", async () => {
+  const { pool, state } = fakePool([
+    [{ memberId: "1", memberCode: "M-1", memberName: "True Member", membershipType: "True Member", purchasePatronage: 0, rentalPatronage: 10000 }],
+    [{
+      posIncome: 50000,
+      rentalIncome: 30000,
+      posExpenses: 10000,
+      rentalExpenses: 5000,
+      otherExpenses: 5000,
+      adjustments: -4000,
+      postedRecordCount: 8,
+      unpostedRecordCount: 1,
+    }],
+  ]);
+  const basis = await createPatronageRepository(pool as never).financialBasis("2025-01-01", "2025-12-31");
+  assert.equal(basis.totalOperatingIncome, 80000);
+  assert.equal(basis.totalOperatingExpenses, 20000);
+  assert.equal(basis.adjustments, -4000);
+  assert.equal(basis.netOperatingSurplus, 60000);
+  assert.equal(basis.eligibleMemberPatronage, 10000);
+  assert.equal(basis.estimatedRefund, 300);
+  assert.match(state.queries[0], /TIMESTAMPADD\(HOUR, 8, COALESCE\(payment\.validated_at, payment\.paid_at\)\)/);
+  assert.match(state.queries[0], /COALESCE\(payment\.gateway_environment, ''\) = 'Test'/);
+});

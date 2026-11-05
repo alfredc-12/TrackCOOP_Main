@@ -13,6 +13,7 @@ import {
   isCompleteFiscalYearPeriod,
 } from "./dividend-period";
 import { MAX_SHARE_CAPITAL } from "./share-capital.constants";
+import { assertLockedMemberShareCapitalCapacity } from "./share-capital-capacity";
 import type {
   CreateDividendDeclarationInput,
   DividendCompletionInput,
@@ -609,6 +610,9 @@ export async function postShareCapitalPaymentToLedger(input: {
 
   const balanceBefore = money(account.currentBalance);
   const balanceAfter = money(balanceBefore + amount);
+  if (balanceAfter > MAX_SHARE_CAPITAL) {
+    throw new AppError("Validated share capital cannot exceed PHP 15,000", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
+  }
   const transactionType = balanceBefore === 0
     ? "Initial Share Capital"
     : "Additional Capital Contribution";
@@ -1038,6 +1042,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           throw new AppError("The dividend amount must be greater than zero", 409, "DIVIDEND_AMOUNT_INVALID");
         }
         await connection.execute(
+          `SELECT member_id FROM member_profiles WHERE member_id = ? LIMIT 1 FOR UPDATE`,
+          [dividend.memberId],
+        );
+        await connection.execute(
           `INSERT INTO share_capital_accounts (member_id) VALUES (?)
            ON DUPLICATE KEY UPDATE member_id = member_id`,
           [dividend.memberId],
@@ -1049,6 +1057,14 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
         if (balanceAfter > MAX_SHARE_CAPITAL) {
           throw new AppError("Adding this dividend would exceed the PHP 15,000 Share Capital limit", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
         }
+        await assertLockedMemberShareCapitalCapacity(connection, {
+          memberId: dividend.memberId,
+          requestedAmount: amount,
+          currentAccountBalance: balanceBefore,
+          excludeDividendId: dividendId,
+          lockMember: false,
+          errorMessage: "Adding this dividend would exceed the PHP 15,000 Share Capital limit",
+        });
         const [transactionResult] = await connection.execute<ResultSetHeader>(
           `INSERT INTO share_capital_transactions
              (share_capital_account_id, member_id, transaction_date, transaction_type,
@@ -1487,6 +1503,10 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           );
         } else {
           await connection.execute(
+            `SELECT member_id FROM member_profiles WHERE member_id = ? LIMIT 1 FOR UPDATE`,
+            [dividend.memberId],
+          );
+          await connection.execute(
             `INSERT INTO share_capital_accounts (member_id) VALUES (?)
              ON DUPLICATE KEY UPDATE member_id = member_id`,
             [dividend.memberId],
@@ -1499,6 +1519,14 @@ export function createShareCapitalLedgerRepository(pool?: Pool): ShareCapitalLed
           if (balanceAfter > MAX_SHARE_CAPITAL) {
             throw new AppError("Adding this dividend would exceed the PHP 15,000 Share Capital limit", 409, "SHARE_CAPITAL_LIMIT_EXCEEDED");
           }
+          await assertLockedMemberShareCapitalCapacity(connection, {
+            memberId: dividend.memberId,
+            requestedAmount: amount,
+            currentAccountBalance: balanceBefore,
+            excludeDividendId: dividendId,
+            lockMember: false,
+            errorMessage: "Adding this dividend would exceed the PHP 15,000 Share Capital limit",
+          });
           const [transactionResult] = await connection.execute<ResultSetHeader>(
             `INSERT INTO share_capital_transactions
                (share_capital_account_id, member_id, transaction_date, transaction_type,
