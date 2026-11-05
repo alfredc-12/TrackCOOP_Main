@@ -58,6 +58,11 @@ export type MembershipApplicationSettlementRow = RowDataPacket & {
   id: string;
   applicationCode: string;
   applicationStatus: string;
+  membershipFeeAmount?: number;
+  initialShareCapitalAmount?: number;
+  targetShareCapitalAmount?: number;
+  deadlineMonths?: number;
+  newMembershipPolicy?: boolean;
   requestedMembershipType: "Associate" | "True Member";
   convertedMemberId: string | null;
   memberUserId: string | null;

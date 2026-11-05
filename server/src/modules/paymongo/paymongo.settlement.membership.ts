@@ -1,3 +1,4 @@
+import { recordApplicationCapitalEvent } from "../membership-policy/membership-progress.repository";
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import { synchronizedInitialCapitalRequirementStatus } from "../membership-applications/membership-application.capital";
@@ -33,7 +34,7 @@ async function synchronizeFeeRequirement(input: {
   requirement: RequirementSettlementRow;
   actorUserId: string;
 }) {
-  const expectedFee = await membershipNumberSetting(
+  const expectedFee = input.application.membershipFeeAmount ?? await membershipNumberSetting(
     input.connection,
     "membership.associate_fee",
     200,
@@ -82,11 +83,11 @@ async function synchronizeCapitalRequirement(input: {
       "membership.maximum_share_capital",
       15000,
     ),
-    membershipNumberSetting(
+    input.application.initialShareCapitalAmount == null ? membershipNumberSetting(
       input.connection,
       "membership.initial_share_capital",
       1500,
-    ),
+    ) : Promise.resolve(Number(input.application.initialShareCapitalAmount)),
     validatedApplicationPaymentTotal(
       input.connection,
       input.application.id,
@@ -165,24 +166,24 @@ async function maybeMarkApplicationPaymentConfirmed(input: {
 }) {
   if (input.application.applicationStatus !== "Payment Required") return;
 
-  const expectedFee = await membershipNumberSetting(
+  const expectedFee = input.application.membershipFeeAmount ?? await membershipNumberSetting(
     input.connection,
     "membership.associate_fee",
     200,
   );
   const [feeTotal, initialCapital] = await Promise.all([
-    input.application.requestedMembershipType === "Associate"
+    expectedFee > 0
       ? validatedApplicationPaymentTotal(
           input.connection,
           input.application.id,
           "Associate Membership Fee",
         )
       : Promise.resolve(expectedFee),
-    membershipNumberSetting(
+    input.application.initialShareCapitalAmount == null ? membershipNumberSetting(
       input.connection,
       "membership.initial_share_capital",
       1500,
-    ),
+    ) : Promise.resolve(Number(input.application.initialShareCapitalAmount)),
   ]);
   const capitalTotal = input.application.requestedMembershipType === "True Member"
     ? await validatedApplicationPaymentTotal(
@@ -277,7 +278,7 @@ export async function postMembershipSettlement(input: {
     );
   }
   if (
-    (application.requestedMembershipType === "True Member" && input.payment.paymentPurpose !== "Share Capital")
+    (application.requestedMembershipType === "True Member" && input.payment.paymentPurpose !== "Share Capital" && !(input.payment.paymentPurpose === "Associate Membership Fee" && Number(application.membershipFeeAmount) > 0))
     || (application.requestedMembershipType === "Associate" && input.payment.paymentPurpose !== "Associate Membership Fee")
   ) {
     throw new AppError("Payment purpose does not match the requested membership type", 409, "MEMBERSHIP_PAYMENT_PURPOSE_MISMATCH");
@@ -295,6 +296,7 @@ export async function postMembershipSettlement(input: {
     );
   }
 
+  if (input.payment.paymentPurpose === "Share Capital") await recordApplicationCapitalEvent(input.connection, input.payment.id);
   await synchronizeMembershipRequirement({
     connection: input.connection,
     application,

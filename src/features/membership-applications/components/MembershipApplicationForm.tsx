@@ -1,4 +1,5 @@
 "use client";
+import { AgriculturalSectorFields, MembershipLocationFields } from "@/features/membership/MembershipSelectionFields";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -165,9 +166,12 @@ const applicationSchema = z
     placeOfBirth: optionalText,
     dateOfBirth: requiredText("Date of birth"),
     currentAddress: requiredText("Current address"),
-    barangay: optionalText,
+    barangay: requiredText("Barangay"),
     municipality: requiredText("Municipality"),
     province: requiredText("Province"),
+    municipalityPsgc: optionalText,
+    barangayPsgc: optionalText,
+    sectors: z.array(z.string()).optional(),
     sector: requiredText("Primary sector").refine(
       (value) => PRIMARY_SECTOR_OPTIONS.includes(value as (typeof PRIMARY_SECTOR_OPTIONS)[number]),
       "Select a valid primary sector.",
@@ -200,13 +204,12 @@ const applicationSchema = z
     }
 
     if (
-      value.requestedMembershipType === "Associate"
-      && value.membershipFeeCommitmentAccepted !== true
+      value.membershipFeeCommitmentAccepted !== true
     ) {
       ctx.addIssue({
         code: "custom",
         path: ["membershipFeeCommitmentAccepted"],
-        message: "Membership fee commitment is required for Associate applicants.",
+        message: "Membership fee commitment is required for all applicants.",
       });
     }
 
@@ -242,6 +245,9 @@ const defaultValues: MembershipApplicationFormValues = {
   municipality: "Nasugbu",
   province: "Batangas",
   sector: "",
+  sectors: [],
+  municipalityPsgc: "",
+  barangayPsgc: "",
   fatherName: "",
   motherName: "",
   spouseName: "",
@@ -847,7 +853,9 @@ function ApplicationSummaryRail({
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 text-sm lg:grid-cols-1">
           <SummaryMetric label="Membership Path" value={membershipPath} />
-          <SummaryMetric label="Membership Fee" value={membershipPath === "Associate" ? "PHP 200" : "Not required"} />
+          <SummaryMetric label="Membership Fee" value="PHP 200" />
+          <SummaryMetric label="Initial total" value={membershipPath === "True Member" ? "PHP 1,700" : "PHP 200"} />
+          <SummaryMetric label="Full total" value={membershipPath === "True Member" ? "PHP 3,200" : "PHP 200"} />
           <SummaryMetric label="Share Capital" value={membershipPath === "True Member" ? "PHP 1,500 initial / PHP 3,000 target" : "Not required for Associate"} />
           <SummaryMetric label="Payment" value="Not required yet" />
           <SummaryMetric label="Current step" value={`Step ${completed} of 5`} />
@@ -1089,9 +1097,8 @@ function FamilyStep({
 
       <ApplicationFieldGroup icon={MapPin} title="Current address">
         <TextField label="Current address" error={errors.currentAddress?.message} inputProps={register("currentAddress")} className="md:col-span-2" />
-        <TextField label="Barangay" error={errors.barangay?.message} inputProps={register("barangay")} />
-        <TextField label="Municipality" error={errors.municipality?.message} inputProps={register("municipality")} />
-        <TextField label="Province" error={errors.province?.message} inputProps={register("province")} />
+        <MembershipLocationFields municipality={watch("municipality")} barangay={watch("barangay")??""} onChange={location=>{for(const [key,value] of Object.entries(location)) setValue(key as "municipality" | "barangay" | "province" | "municipalityPsgc" | "barangayPsgc",value,{shouldDirty:true,shouldValidate:true});}} />
+        {errors.barangay?.message && <p role="alert" className="text-sm text-coop-danger md:col-span-2">{errors.barangay.message}</p>}
       </ApplicationFieldGroup>
 
       <ApplicationFieldGroup icon={UsersRound} title="Family">
@@ -1155,15 +1162,8 @@ function MembershipStep({
       </div>
 
       <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
-        <StyledOptionSelect
-          label="Primary sector"
-          required
-          value={watch("sector") || ""}
-          options={PRIMARY_SECTOR_OPTIONS}
-          error={errors.sector?.message}
-          onChange={(value) => setValue("sector", value, { shouldDirty: true, shouldValidate: true })}
-        />
-        <p className="mt-2 text-xs leading-5 text-[#6C7A70]">Select the member&apos;s primary cooperative sector. Multiple active sectors are not currently supported.</p>
+        <AgriculturalSectorFields value={watch("sectors")?.length ? watch("sectors")! : watch("sector") ? [watch("sector")] : []} onChange={sectors=>{setValue("sectors",sectors,{shouldDirty:true});setValue("sector",sectors[0]??"",{shouldDirty:true,shouldValidate:true});}} />
+        {errors.sector?.message && <p role="alert" className="mt-2 text-sm text-coop-danger">{errors.sector.message}</p>}
       </section>
 
       <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
@@ -1375,11 +1375,13 @@ function FinalReviewStep({
 
         <ReviewPanel title="Membership" icon={<WalletCards className="size-4" />} onEdit={() => onEditStep(2)}>
           <div className="grid gap-3">
-            <ReviewFact label="Primary sector" value={values.sector || "Not selected"} strong />
+            <ReviewFact label="Agricultural sectors" value={values.sectors?.join(", ") || values.sector || "Not selected"} strong />
             <ReviewFact label="Type" value={values.requestedMembershipType} strong />
+            <ReviewFact label="Initial total" value={values.requestedMembershipType === "True Member" ? "PHP 1,700" : "PHP 200"} />
+            <ReviewFact label="Full total" value={values.requestedMembershipType === "True Member" ? "PHP 3,200" : "PHP 200"} />
             <ReviewFact
               label="Membership fee"
-              value={values.requestedMembershipType === "Associate" ? "PHP 200" : "Not required"}
+              value="PHP 200"
             />
             <ReviewFact
               label="Share capital"
@@ -2044,6 +2046,9 @@ function toPayload(values: MembershipApplicationFormValues): PublicMembershipApp
     municipality: values.municipality.trim(),
     province: values.province.trim(),
     sector: values.sector as (typeof PRIMARY_SECTOR_OPTIONS)[number],
+    sectors: values.sectors?.length ? values.sectors : [values.sector],
+    municipalityPsgc: values.municipalityPsgc,
+    barangayPsgc: values.barangayPsgc,
     fatherName: values.fatherName?.trim() || undefined,
     motherName: values.motherName?.trim() || undefined,
     spouseName: values.spouseName?.trim() || undefined,

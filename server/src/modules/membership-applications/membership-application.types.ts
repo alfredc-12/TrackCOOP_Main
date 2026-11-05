@@ -22,6 +22,7 @@ export const primarySectorOptions = [
   "Fishery",
   "Livestock",
   "High-value crops (gulayan)",
+  "Coffee",
 ] as const;
 
 export const civilStatuses = [
@@ -93,6 +94,9 @@ export type PublicMembershipApplicationInput = {
   municipality: string;
   province: string;
   sector?: string | null;
+  sectors?: string[];
+  municipalityPsgc?: string | null;
+  barangayPsgc?: string | null;
   fatherName?: string | null;
   motherName?: string | null;
   spouseName?: string | null;
@@ -390,6 +394,7 @@ export type StatusTransitionInput = {
 };
 
 export type ApprovalInput = {
+  approveTrueMembership?: boolean;
   boardMeetingDate: string;
   secretaryName: string;
   decisionReason: string;

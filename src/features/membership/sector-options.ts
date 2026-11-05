@@ -4,9 +4,10 @@ export const PRIMARY_SECTOR_OPTIONS = [
   "Fishery",
   "Livestock",
   "High-value crops (gulayan)",
+  "Coffee",
 ] as const;
 
 export type PrimarySector = (typeof PRIMARY_SECTOR_OPTIONS)[number];
 
 export const PRIMARY_SECTOR_POLICY =
-  "Each member has one primary sector. A member may have no sector yet while the profile is incomplete, but multiple active sectors are not currently supported.";
+  "Members may select multiple agricultural sectors; a legacy primary designation is retained for existing integrations.";

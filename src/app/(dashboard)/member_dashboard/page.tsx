@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { MemberMembershipPanel, MembershipHistory } from "@/features/membership/MembershipProgress";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -44,9 +45,7 @@ import {
   ShoppingBag,
   Store,
   Tractor,
-  Printer,
   RefreshCw,
-  PieChart,
   ShieldCheck,
   AlertCircle,
   Info,
@@ -92,22 +91,6 @@ function formatPeso(value: number) {
   }).format(Number(value) || 0);
 }
 
-function referralStage(item: { status?: string; applicationStatus?: string }) {
-  if (item.status === "Successful") return 3;
-  if (["Rejected", "Cancelled"].includes(String(item.status))) return 2;
-  if (["Approved", "Payment Confirmed"].includes(String(item.applicationStatus))) return 2;
-  return 1;
-}
-
-function escapeHtml(value: unknown) {
-  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
-}
 
 type FinancialPeriod = "year" | "month" | "30d" | "all" | "custom";
 
@@ -167,9 +150,7 @@ export default function MemberDashboardPage() {
   const [financialPeriod, setFinancialPeriod] = useState<FinancialPeriod>("year");
   const [financialStartDate, setFinancialStartDate] = useState("");
   const [financialEndDate, setFinancialEndDate] = useState("");
-  const [financialDefinitionsOpen, setFinancialDefinitionsOpen] = useState(false);
   const [selectedFinancialCategory, setSelectedFinancialCategory] = useState<FinancialCategorySelection | null>(null);
-  const [financialCategoryPage, setFinancialCategoryPage] = useState(1);
   const [patronageData, setPatronageData] = useState<MemberPatronageSummary | null>(null);
   const [isFetchingPatronage, setIsFetchingPatronage] = useState(true);
   const [patronageLoadError, setPatronageLoadError] = useState(false);
@@ -207,58 +188,9 @@ export default function MemberDashboardPage() {
   const referralLink = referralCode
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/membership/apply?ref=${encodeURIComponent(referralCode)}`
     : "";
-  const financialTransparency = dashboardData?.financialTransparency;
-  const financialIncomeTotal = Number(financialTransparency?.incomeTotal || 0);
-  const financialExpenseTotal = Number(financialTransparency?.expenseTotal || 0);
-  const financialIncomeItems = (financialTransparency?.incomeByCategory || []) as FinancialCategoryItem[];
-  const financialExpenseItems = (financialTransparency?.expenseByCategory || []) as FinancialCategoryItem[];
   const memberFinancialSummary = dashboardData?.memberFinancialSummary;
   const memberIncomeItems = (memberFinancialSummary?.incomeByCategory || []) as FinancialCategoryItem[];
   const memberExpenseItems = (memberFinancialSummary?.expenseByCategory || []) as FinancialCategoryItem[];
-  const financialComparison = financialTransparency?.comparison as { label: string; incomeTotal: number; expenseTotal: number; netTotal: number } | null | undefined;
-  const financialGeneratedAt = financialTransparency?.generatedAt ? new Date(financialTransparency.generatedAt) : null;
-  const financialCategoryPageSize = 6;
-  const financialCategoryPageCount = Math.max(
-    1,
-    Math.ceil(Math.max(
-      financialIncomeItems.filter((item) => Number(item.amount) > 0).length,
-      financialExpenseItems.filter((item) => Number(item.amount) > 0).length,
-    ) / financialCategoryPageSize),
-  );
-  const safeFinancialCategoryPage = Math.min(financialCategoryPage, financialCategoryPageCount);
-
-  function financialComparisonMeta(current: number, previous: number, kind: "income" | "expense" | "net") {
-    if (!financialComparison) return { label: "No previous-period comparison", className: "text-[#6C7A70]" };
-    const delta = current - previous;
-    if (previous === 0) {
-      return delta === 0
-        ? { label: "No change from previous period", className: "text-[#6C7A70]" }
-        : { label: "New activity this period", className: kind === "expense" ? "text-[#A15C16]" : "text-coop-green" };
-    }
-    const percentage = Math.abs((delta / previous) * 100);
-    const favorable = kind === "expense" ? delta <= 0 : delta >= 0;
-    return {
-      label: `${delta >= 0 ? "↑" : "↓"} ${percentage.toFixed(1)}% vs ${financialComparison.label.toLowerCase()}`,
-      className: favorable ? "text-coop-green" : "text-[#B42318]",
-    };
-  }
-
-  const printFinancialReport = () => {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=960,height=720");
-    if (!printWindow) {
-      toast.error("Please allow pop-ups to print the financial report.");
-      return;
-    }
-    const categoryRows = [
-      ...financialIncomeItems.filter((item) => Number(item.amount) > 0).map((item) => `<tr><td>Income</td><td>${escapeHtml(item.category)}</td><td class="income">${escapeHtml(formatPeso(Number(item.amount)))}</td></tr>`),
-      ...financialExpenseItems.filter((item) => Number(item.amount) > 0).map((item) => `<tr><td>Expense</td><td>${escapeHtml(item.category)}</td><td class="expense">${escapeHtml(formatPeso(Number(item.amount)))}</td></tr>`),
-    ].join("");
-    printWindow.document.write(`<!doctype html><html><head><title>TrackCOOP Financial Transparency</title><style>body{font-family:Arial,sans-serif;color:#173626;padding:32px}h1{margin:0 0 6px}p{color:#657169}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.card{border:1px solid #dce6dd;border-radius:12px;padding:14px;background:#f8fbf8}.label{font-size:11px;text-transform:uppercase;color:#6c7a70;font-weight:bold}.value{font-size:20px;font-weight:800;margin-top:8px}.income{color:#1f6b43}.expense{color:#a15c16}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e5ebe6}th{background:#eef4ef;font-size:12px;text-transform:uppercase;color:#52705e}td:last-child,th:last-child{text-align:right}@media print{body{padding:0}}</style></head><body><h1>Financial transparency</h1><p>Cooperative-wide posted income and expenses · ${escapeHtml(FINANCIAL_PERIOD_LABELS[financialPeriod])}</p><p>Generated: ${escapeHtml(financialGeneratedAt?.toLocaleString("en-PH") || new Date().toLocaleString("en-PH"))}</p><div class="summary"><div class="card"><div class="label">Money received</div><div class="value income">${escapeHtml(formatPeso(financialIncomeTotal))}</div></div><div class="card"><div class="label">Money spent</div><div class="value expense">${escapeHtml(formatPeso(financialExpenseTotal))}</div></div><div class="card"><div class="label">Income minus spending</div><div class="value">${escapeHtml(formatPeso(financialIncomeTotal - financialExpenseTotal))}</div></div></div><table><thead><tr><th>Type</th><th>Category</th><th>Amount</th></tr></thead><tbody>${categoryRows || '<tr><td colspan="3">No posted financial records.</td></tr>'}</tbody></table><p>This report shows records checked and approved by the cooperative. Members’ Share Capital payments are kept separate from income. Income minus spending is not a bank balance.</p></body></html>`);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  };
-
   const refreshDashboard = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) setIsFetchingDashboard(true);
     try {
@@ -988,7 +920,6 @@ export default function MemberDashboardPage() {
               <p className="mt-2 break-all text-2xl font-black tracking-wider text-coop-forest">
                 {referralCode || "Loading..."}
               </p>
-              <p className="mt-2 text-xs text-coop-muted">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Referral rewards are currently disabled." : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} ${dashboardData?.referrals?.rewardLabel || "referral credits"} per successful referral. Tracking only unless the cooperative approves a separate redemption policy.`}</p>
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <button
@@ -1073,52 +1004,10 @@ export default function MemberDashboardPage() {
               <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">Successful</p>
               <p className="mt-2 text-2xl font-black text-coop-green">{Number(dashboardData?.referrals?.successful || 0)}</p>
             </div>
-            <div className="rounded-2xl border border-[#DDE8D8] bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#6C7A70]">{dashboardData?.referrals?.rewardLabel || "Referral credits"}</p>
-              <p className="mt-2 text-2xl font-black text-coop-forest">{Number(dashboardData?.referrals?.rewardCredits || 0)}</p>
-              <p className="mt-1 text-[11px] text-[#6C7A70]">{dashboardData?.referrals?.rewardPolicyEnabled === false ? "Policy disabled" : `${Number(dashboardData?.referrals?.rewardPerSuccessfulReferral || 0)} per successful referral`}</p>
-            </div>
+
           </div>
 
-          {dashboardData?.referrals?.items?.length ? (
-            <div className="overflow-x-auto rounded-2xl border border-[#DDE8D8] bg-white">
-              <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="bg-[#F7FAF7] text-xs uppercase tracking-wider text-[#6C7A70]">
-                  <tr>
-                    <th className="px-4 py-3 font-bold">Applicant</th>
-                    <th className="px-4 py-3 font-bold">Application</th>
-                    <th className="px-4 py-3 font-bold">Status</th>
-                    <th className="px-4 py-3 font-bold">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-coop-subtle">
-                  {dashboardData.referrals.items.map((item: any) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3 font-semibold text-[#173626]">{item.applicantName || "Applicant"}</td>
-                      <td className="px-4 py-3 text-[#6C7A70]">{item.applicationCode}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.status === "Successful" ? "bg-green-50 text-green-700" : item.status === "Pending" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-                          {item.status}
-                        </span>
-                        <p className="mt-1 text-[11px] text-[#6C7A70]">Application: {item.applicationStatus || "Submitted"}</p>
-                        <div className="mt-2 flex max-w-[150px] items-center gap-1" aria-label={`Referral progress: ${item.status}`}>
-                          {[1, 2, 3].map((step) => (
-                            <span key={step} className={`h-1.5 flex-1 rounded-full ${step <= referralStage(item) ? (item.status === "Rejected" || item.status === "Cancelled" ? "bg-[#B42318]" : "bg-coop-green") : "bg-[#E6EEE7]"}`} />
-                          ))}
-                        </div>
-                        <p className="mt-1 text-[10px] text-[#7A887E]">Submitted · Review · Successful</p>
-                      </td>
-                      <td className="px-4 py-3 text-[#6C7A70]">{new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="rounded-2xl border border-dashed border-[#BFD9C5] bg-white/70 p-5 text-center text-sm font-semibold text-[#6C7A70]">
-              No referrals yet. Share your code to start tracking invitations.
-            </p>
-          )}
+          <MembershipHistory kind="referrals" />
         </div>
       </Modal>
 
@@ -1171,7 +1060,8 @@ export default function MemberDashboardPage() {
                           <p className="mt-2 text-xs leading-5 text-[#DFF5E8]/80">Only validated contributions count. True Membership requires chairman approval.</p>
                         </> : <p role="status" className="mt-3 text-sm">{upgradeStatus === null ? "Progress could not be loaded. Open your application to retry." : "Loading your contributions…"}</p>}
                         <button onClick={() => setUpgradeOpen(true)} className="mt-4 inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-xl bg-white px-4 py-2 text-sm font-bold text-coop-forest transition hover:bg-coop-sage focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{upgradeStatus?.application?.status === "Pending" ? "View Pending Application" : "Apply for True Membership"}<ArrowRight className="size-4 shrink-0" aria-hidden="true" /></button>
-                      </section> : <div className="rounded-2xl bg-coop-forest p-3 text-white">
+                      </section>
+ : <div className="rounded-2xl bg-coop-forest p-3 text-white">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-medium text-[#DFF5E8]">{canAccessFinancials ? "My Share Capital" : "True Member Benefits"}</p>
                           <Wallet className="size-5 text-[#A9D5B5]" aria-hidden="true" />
@@ -1181,6 +1071,7 @@ export default function MemberDashboardPage() {
                       </div>}
                     </div>
                   </section>
+                  <MemberMembershipPanel />
                   {dashboardLoadError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><p>We couldn’t load your records. Please try again.</p><button onClick={() => void refreshDashboard()} className="min-h-10 rounded-lg px-3 font-bold underline">Try again</button></div>}
 
                   <section aria-label="My activity summary" className={`${isAssociate ? "mt-5" : "mt-4"} grid grid-cols-2 gap-3 ${canAccessFinancials ? "lg:grid-cols-4" : "sm:grid-cols-3"}`}>
@@ -1301,7 +1192,6 @@ export default function MemberDashboardPage() {
                 </div>
                 <Tabs.List aria-label="Financial sections" className="flex shrink-0 gap-1 rounded-2xl lg:w-[420px] border border-[#DDE8D8] bg-white p-2">
                   <Tabs.Trigger value="personal" className="flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-[#52705D] outline-none focus-visible:ring-2 focus-visible:ring-coop-green data-[state=active]:bg-coop-forest data-[state=active]:text-white"><Wallet className="size-4 shrink-0" />My money</Tabs.Trigger>
-                  <Tabs.Trigger value="cooperative" className="flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-[#52705D] outline-none focus-visible:ring-2 focus-visible:ring-coop-green data-[state=active]:bg-coop-forest data-[state=active]:text-white"><PieChart className="size-4 shrink-0" />Cooperative money</Tabs.Trigger>
                 </Tabs.List>
               </div>
               {dashboardData?.isLinked === false ? (
@@ -1420,186 +1310,7 @@ export default function MemberDashboardPage() {
                 </p>
                 </div>
                 </Tabs.Content>
-                <Tabs.Content value="cooperative" className="rounded-3xl border border-[#DDE8D8] bg-white p-4 outline-none focus-visible:ring-2 focus-visible:ring-coop-green sm:p-4">
-                  <div className="space-y-2">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                      <div>
-                        <h3 className="text-lg font-bold text-[#173626]">Cooperative earnings and spending</h3>
-                        <p className="mt-1 text-sm text-[#6B7280]">For the whole cooperative, separate from your personal money.</p>
-                      </div>
-                      <div className="flex flex-wrap items-end gap-2">
-                        <div><p className="mb-1 text-xs font-semibold text-[#42594B]">Choose dates</p>
-            <Select.Root value={financialPeriod} onValueChange={(value) => setFinancialPeriod(value as FinancialPeriod)}>
-              <Select.Trigger aria-label="Choose dates" className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-coop-border bg-white px-3 text-left text-sm font-bold text-coop-forest outline-none transition hover:border-[#9FB7A4] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20 sm:w-48">
-                <Select.Value />
-                <Select.Icon><ChevronDown className="size-4 text-coop-green" aria-hidden="true" /></Select.Icon>
-              </Select.Trigger>
-              <Select.Portal>
-                <Select.Content position="popper" sideOffset={6} className="z-[120] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-coop-border bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
-                  <Select.Viewport>
-                    <Select.Item value="year" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
-                      <Select.ItemText>This Year</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
-                    </Select.Item>
-                    <Select.Item value="month" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
-                      <Select.ItemText>This Month</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
-                    </Select.Item>
-                    <Select.Item value="30d" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
-                      <Select.ItemText>Last 30 Days</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
-                    </Select.Item>
-                    <Select.Item value="all" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
-                      <Select.ItemText>All records</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
-                    </Select.Item>
-                    <Select.Item value="custom" className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-coop-secondary outline-none data-[highlighted]:bg-coop-sage data-[highlighted]:text-coop-forest">
-                      <Select.ItemText>Choose dates</Select.ItemText>
-                      <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-coop-green" aria-hidden="true" /></Select.ItemIndicator>
-                    </Select.Item>
-                  </Select.Viewport>
-                </Select.Content>
-              </Select.Portal>
-            </Select.Root>
-                        </div>
-            <div className="flex flex-wrap gap-2">
-              <a href="/statement" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center min-h-11 rounded-lg border border-coop-border bg-white px-4 py-2 text-sm font-bold text-coop-forest hover:bg-coop-subtle">View full report</a>
-              <button type="button" onClick={() => void refreshDashboard()} className="inline-flex items-center gap-2 min-h-11 rounded-lg border border-coop-border bg-white px-4 py-2 text-sm font-bold text-coop-forest hover:bg-coop-subtle disabled:opacity-60" disabled={isFetchingDashboard}><RefreshCw className={`size-4 ${isFetchingDashboard ? "animate-spin" : ""}`} /> Update</button>
-              <button type="button" onClick={printFinancialReport} className="inline-flex items-center gap-2 min-h-11 rounded-lg bg-coop-forest px-4 py-2 text-sm font-bold text-white hover:bg-coop-green"><Printer className="size-4" /> Print or save report</button>
-            </div>
-                      </div>
-                    </div>
-          {dashboardLoadError ? (
-            <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              <AlertCircle className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-              <div>
-                <p className="font-bold">We could not get the latest amounts.</p>
-                <p className="mt-1">The amounts shown may be old. Please press Update to try again.</p>
-              </div>
-            </div>
-          ) : null}
 
-
-          {financialPeriod === "custom" ? (
-            <div className="grid gap-3 rounded-xl border border-[#DDE8D8] bg-white p-4 sm:grid-cols-2">
-              <label className="text-sm font-bold text-coop-body">Start date<input type="date" value={financialStartDate} onChange={(event) => setFinancialStartDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-coop-border px-3 font-normal text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
-              <label className="text-sm font-bold text-coop-body">End date<input type="date" value={financialEndDate} onChange={(event) => setFinancialEndDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-coop-border px-3 font-normal text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20" /></label>
-              {financialStartDate && financialEndDate && financialStartDate > financialEndDate ? <p className="sm:col-span-2 text-xs font-semibold text-red-700">End date must be on or after the start date.</p> : null}
-            </div>
-          ) : null}
-
-          {financialDefinitionsOpen ? (
-            <div className="rounded-xl border border-[#DDE8D8] bg-[#F8F6EF] p-4 text-xs leading-relaxed text-coop-muted">
-              <p className="font-bold text-coop-body">A simple guide</p>
-              <p className="mt-1">Last updated: {financialGeneratedAt && !Number.isNaN(financialGeneratedAt.getTime()) ? financialGeneratedAt.toLocaleString("en-PH") : "Not available"}</p>
-              <ul className="mt-2 space-y-1.5">
-                <li><span className="font-bold text-[#173626]">Money received:</span> income checked and approved by the cooperative. Members’ Share Capital payments are not included.</li>
-                <li><span className="font-bold text-[#173626]">Money spent:</span> expenses checked and approved by the cooperative for your chosen dates.</li>
-                <li><span className="font-bold text-[#173626]">Income minus spending:</span> money received less money spent. For example, ₱1,000 received minus ₱600 spent gives ₱400. This does not show cash available to withdraw.</li>
-              </ul>
-            </div>
-          ) : null}
-
-          {isFetchingDashboard && !dashboardData ? (
-            <div className="grid gap-4" role="status" aria-label="Loading financial transparency">
-              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-                {["income", "expenses", "net"].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl border border-[#E5E7EB] bg-[#F3F7F3]" />)}
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                {["income", "expenses"].map((item) => <div key={item} className="h-64 animate-pulse rounded-xl border border-[#E5E7EB] bg-[#F8FBF8]" />)}
-              </div>
-            </div>
-          ) : (
-            <>
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              { label: "Money received", help: "Income recorded by the cooperative.", value: financialIncomeTotal, previous: financialComparison?.incomeTotal, kind: "income" as const, className: "text-coop-green" },
-              { label: "Money spent", help: "Expenses paid by the cooperative.", value: financialExpenseTotal, previous: financialComparison?.expenseTotal, kind: "expense" as const, className: "text-[#A15C16]" },
-              { label: "Income minus spending", help: "Income less spending. Not a bank balance.", value: financialTransparency?.netTotal, previous: financialComparison?.netTotal, kind: "net" as const, className: "text-coop-forest" },
-            ].map((summary) => (
-              <div key={summary.label} className="min-w-0 rounded-xl border border-[#E5E7EB] bg-[#F8FBF8] p-3">
-                <p className="text-sm font-bold text-[#42594B]">{summary.label}</p>
-                <p className={`mt-1 whitespace-nowrap text-xl font-black ${summary.className}`}>{isFetchingDashboard && !dashboardData ? "..." : formatPeso(Number(summary.value || 0))}</p>
-                <p className="mt-1 text-sm leading-relaxed text-coop-muted">{summary.help}</p>
-                <details className="mt-1 text-sm text-coop-secondary">
-                  <summary className="cursor-pointer py-1 font-semibold">Compare with earlier dates</summary>
-                  <p className={`mt-1 ${financialComparisonMeta(Number(summary.value || 0), Number(summary.previous || 0), summary.kind).className}`}>
-                    {financialComparisonMeta(Number(summary.value || 0), Number(summary.previous || 0), summary.kind).label}
-                  </p>
-                </details>
-              </div>
-            ))}
-          </div>
-
-          {!dashboardLoadError && financialIncomeTotal === 0 && financialExpenseTotal === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-coop-border bg-[#FBFCFA] px-5 py-8 text-center">
-              <FileText className="size-8 text-[#7A9A84]" aria-hidden="true" />
-              <p className="mt-3 text-sm font-bold text-coop-body">No records for these dates</p>
-              <p className="mt-1 max-w-md text-xs leading-relaxed text-[#6C7A70]">Try choosing different dates, or ask the cooperative office about missing records.</p>
-            </div>
-          ) : null}
-
-          <div className="grid min-w-0 gap-4 md:grid-cols-2">
-            {[
-              { title: "Where the money came from", kind: "Income" as const, items: financialIncomeItems, total: financialIncomeTotal, empty: "No income recorded for these dates.", color: "bg-coop-green", amountClass: "text-coop-green" },
-              { title: "What the money was spent on", kind: "Expense" as const, items: financialExpenseItems, total: financialExpenseTotal, empty: "No spending recorded for these dates.", color: "bg-[#A15C16]", amountClass: "text-[#A15C16]" },
-            ].map((group) => {
-              const visibleItems = group.items.filter((item) => Number(item.amount) > 0);
-              const pagedItems = visibleItems.slice((safeFinancialCategoryPage - 1) * financialCategoryPageSize, safeFinancialCategoryPage * financialCategoryPageSize);
-              return (
-                <div key={group.title} className="min-w-0 rounded-xl border border-[#E5E7EB] p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-bold text-[#173626]">{group.title}</h4>
-                    <span className="text-[11px] font-semibold text-[#6C7A70]">Select an item to learn more</span>
-                  </div>
-                  <div className="mt-1 max-h-24 overflow-y-auto divide-y divide-coop-subtle">
-                    {visibleItems.length ? pagedItems.map((item) => {
-                      const percentage = group.total > 0 ? (Number(item.amount) / group.total) * 100 : 0;
-                      return (
-                        <button
-                          key={item.category}
-                          type="button"
-                          onClick={() => setSelectedFinancialCategory({ ...item, kind: group.kind, total: group.total })}
-                          className="group w-full py-2 text-left text-sm outline-none transition hover:bg-[#F8FBF8] focus-visible:ring-2 focus-visible:ring-coop-green"
-                          aria-label={`View details for ${group.kind.toLowerCase()} category ${item.category}`}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <span className="min-w-0 break-words font-medium text-[#42594B]">{item.category}</span>
-                            <div className="shrink-0 text-right">
-                              <span className={`whitespace-nowrap font-bold ${group.amountClass}`}>{formatPeso(Number(item.amount))}</span>
-                              <span className="ml-2 text-xs font-bold text-[#6C7A70]">{percentage.toFixed(1)}%</span>
-                            </div>
-                          </div>
-                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-coop-subtle" aria-hidden="true"><div className={`h-full rounded-full ${group.color}`} style={{ width: `${Math.min(100, percentage)}%` }} /></div>
-                          <span className="sr-only">See details</span>
-                        </button>
-                      );
-                    }) : <p className="py-3 text-sm text-[#6B7280]">{group.empty}</p>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-            </>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE8D8] bg-[#F8F6EF] px-3 py-2 text-xs text-coop-muted">
-            <p>Approved records only. Members’ Share Capital payments are separate from income.</p>
-            <button type="button" onClick={() => setFinancialDefinitionsOpen((open) => !open)} aria-expanded={financialDefinitionsOpen} className="inline-flex min-h-7 items-center gap-1 font-semibold text-[#2F7D57] hover:underline"><Info className="size-4" />What do these amounts mean?</button>
-          </div>
-
-          {financialCategoryPageCount > 1 ? (
-            <div className="flex items-center justify-between gap-3 border-t border-[#DDE8D8] pt-2">
-              <span className="text-xs font-bold text-[#6C7A70]">Page {safeFinancialCategoryPage} of {financialCategoryPageCount}</span>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.max(1, page - 1))} disabled={safeFinancialCategoryPage === 1} className="rounded-lg border border-coop-border px-3 py-2 text-xs font-bold text-coop-secondary disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-                <button type="button" onClick={() => setFinancialCategoryPage((page) => Math.min(financialCategoryPageCount, page + 1))} disabled={safeFinancialCategoryPage === financialCategoryPageCount} className="rounded-lg border border-[#8FB49A] bg-[#F5FAF5] px-3 py-2 text-xs font-bold text-coop-green disabled:cursor-not-allowed disabled:opacity-40">Next</button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-                </Tabs.Content>
               </Tabs.Root>
             </section>
           )}

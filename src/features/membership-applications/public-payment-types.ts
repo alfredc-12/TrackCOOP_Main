@@ -11,6 +11,7 @@ export type PublicMembershipPaymentState =
   | "Unavailable";
 
 export type PublicMembershipPaymentStatus = PublicApplicationStatus & {
+  capitalCompletion?: import("@/features/membership/MembershipProgress").CapitalProgress | null;
   paymongoMode: "test" | "live";
   membershipFee: {
     requiredAmount: number;

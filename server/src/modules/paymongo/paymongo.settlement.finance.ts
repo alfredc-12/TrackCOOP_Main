@@ -15,8 +15,8 @@ function categoryCodes(paymentPurpose: string) {
     : ["ASSOCIATE_MEMBERSHIP_FEE", "MEMBERSHIP_FEE", "OTHER_INCOME"];
 }
 
-async function categoryId(connection: PoolConnection, paymentPurpose: string) {
-  const codes = categoryCodes(paymentPurpose);
+async function categoryId(connection: PoolConnection, paymentPurpose: string, strictCapital = false) {
+  const codes = strictCapital ? ["SHARE_CAPITAL"] : categoryCodes(paymentPurpose);
   const [rows] = await connection.execute<IdRow[]>(
     `SELECT CAST(financial_category_id AS CHAR) AS id
        FROM financial_categories
@@ -43,16 +43,19 @@ export async function insertSettlementFinanceRecord(input: {
   actorUserId: string;
   gatewayDetails?: GatewaySettlementDetails | null;
 }) {
+  const isNewCapital = Boolean(input.application.newMembershipPolicy && input.payment.paymentPurpose === "Share Capital");
+  const sourceModule = isNewCapital ? "Share Capital" : "Membership";
   const financialCategoryId = await categoryId(
     input.connection,
     input.payment.paymentPurpose,
+    isNewCapital,
   );
   const [result] = await input.connection.execute(
     `INSERT IGNORE INTO financial_records
        (record_number, payment_reference_id, member_id, financial_category_id,
         recorded_by, approved_by, record_type, source_module, source_record_id,
         amount, record_date, remarks)
-     VALUES (?, ?, ?, ?, ?, ?, 'Income', 'Membership', ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, 'Income', '${sourceModule}', ?, ?, ?, ?)`,
     [
       `PAY-FIN-${input.payment.id}`,
       input.payment.id,

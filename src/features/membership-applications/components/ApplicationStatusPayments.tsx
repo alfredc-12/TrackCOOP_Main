@@ -1,4 +1,5 @@
 "use client";
+import { CapitalProgressCard } from "@/features/membership/MembershipProgress";
 
 import {
   AlertCircle,
@@ -562,6 +563,7 @@ function StatusDashboard({
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
+        {status.capitalCompletion && <CapitalProgressCard capital={status.capitalCompletion} />}
         <ApplicationInformationPanel status={status} />
         <CheckoutActivityCard status={status} />
       </div>
@@ -618,15 +620,13 @@ function ApplicantNextActionCard({
   ) => Promise<void>;
   onPreviewFollowUpDocument: (requirement: PublicStatusRequirement) => Promise<void>;
 }) {
-  const isPaymentStage = isPaymentRequiredStatus(status.applicationStatus);
+  const isPaymentStage = isPaymentRequiredStatus(status.applicationStatus) || Boolean(status.capitalCompletion && status.applicationStatus === "Payment Confirmed" && status.shareCapital.canStartCheckout);
   const isPaymentConfirmed = status.applicationStatus === "Payment Confirmed";
   const needsInformation = status.applicationStatus === "Needs Information";
   const shareCapitalDue = status.requestedMembershipType === "True Member"
     ? Math.max(0, Number(shareCapitalAmount || 0))
     : 0;
-  const membershipFeeDue = status.requestedMembershipType === "Associate"
-    ? status.membershipFee.remainingAmount
-    : 0;
+  const membershipFeeDue = status.membershipFee.remainingAmount;
   const totalDue = membershipFeeDue + shareCapitalDue;
   const heading = needsInformation
     ? "Action required"
@@ -671,7 +671,7 @@ function ApplicantNextActionCard({
 
       {isPaymentStage ? (
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          {status.requestedMembershipType === "Associate" ? (
+          {status.membershipFee.requiredAmount > 0 ? (
             <ReviewActionCard
               status={status}
               checkoutAction={checkoutAction}
@@ -688,7 +688,7 @@ function ApplicantNextActionCard({
             />
           ) : null}
           <div className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 xl:col-span-2">
-            {status.requestedMembershipType === "Associate" ? (
+            {status.membershipFee.requiredAmount > 0 ? (
               <div className="flex justify-between text-sm font-semibold text-[#365F4A]">
                 <span>Membership Fee</span>
                 <strong className="text-[#123D2A]">{peso(membershipFeeDue)}</strong>
@@ -878,7 +878,7 @@ function ReviewActionCard({
     paymentPurpose: "Associate Membership Fee" | "Share Capital",
   ) => Promise<void>;
 }) {
-  const isPaymentStage = isPaymentRequiredStatus(status.applicationStatus);
+  const isPaymentStage = isPaymentRequiredStatus(status.applicationStatus) || Boolean(status.capitalCompletion && status.applicationStatus === "Payment Confirmed" && status.shareCapital.canStartCheckout);
   const feeStillDue = status.membershipFee.status !== "Confirmed";
   const reusableFeeCheckout =
     status.latestCheckout?.paymentPurpose === "Associate Membership Fee"
@@ -900,7 +900,7 @@ function ReviewActionCard({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-black text-[#123D2A]">
-                Associate Membership Fee
+                Membership Fee
               </p>
               <p className="mt-1 text-xs text-[#5D6D63]">
                 Remaining:{" "}
@@ -1079,7 +1079,7 @@ function ShareCapitalActionCard({
               max={status.shareCapital.remainingToMaximum}
               step="0.01"
               value={shareCapitalAmount}
-              readOnly
+              readOnly={!status.capitalCompletion}
               disabled={status.shareCapital.pendingAmount > 0}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 onShareCapitalAmountChange(event.target.value)

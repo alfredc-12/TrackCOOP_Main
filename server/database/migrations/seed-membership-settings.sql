@@ -25,7 +25,7 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.true_member_required_capital',
-        '1500',
+        '3000',
         'Number',
         'Share-capital target required for true-member approval in Philippine pesos.',
         0
@@ -41,9 +41,9 @@ INSERT INTO system_settings (
     (
         'membership',
         'membership.share_capital_deadline_months',
-        '1',
+        '6',
         'Number',
-        'Number of months allowed to complete the true-member share-capital target after approval.',
+        'Number of months allowed to complete the true-member share-capital target from submission for new applications.',
         0
     ),
     (
@@ -97,7 +97,7 @@ INSERT INTO system_settings (
     (
         'Referrals',
         'referrals.reward_policy',
-        '{"enabled":true,"creditsPerSuccessfulReferral":1,"label":"Referral credits"}',
+        '{"enabled":false,"creditsPerSuccessfulReferral":0,"label":"Referrals"}',
         'JSON',
         'Controls the tracking credits shown for successful member referrals. This does not create a cash payout or redemption obligation.',
         0

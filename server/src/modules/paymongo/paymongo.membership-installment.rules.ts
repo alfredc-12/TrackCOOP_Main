@@ -51,6 +51,7 @@ export type PublicLatestCheckoutState = {
 } | null;
 
 export type PublicMembershipPaymentSummary = {
+  capitalCompletion?: unknown;
   paymongoMode: "test" | "live";
   membershipFee: PublicMembershipFeeSummary;
   shareCapital: PublicShareCapitalSummary;
@@ -88,6 +89,7 @@ export function validateApplicationShareCapitalAmount(input: {
   otherActivePendingAmount: number;
   initialShareCapital: number;
   maximumShareCapital: number;
+  allowFullInitial?: boolean;
 }) {
   const requested = roundMoney(input.requestedAmount);
   const validated = roundMoney(input.validatedAmount);
@@ -110,7 +112,7 @@ export function validateApplicationShareCapitalAmount(input: {
       "SHARE_CAPITAL_AMOUNT_BELOW_MINIMUM",
     );
   }
-  if (validated + pending === 0 && requested !== roundMoney(input.initialShareCapital)) {
+  if (!input.allowFullInitial && validated + pending === 0 && requested !== roundMoney(input.initialShareCapital)) {
     throw new AppError(
       `True Member payment must be PHP ${input.initialShareCapital.toLocaleString("en-US")}`,
       400,
@@ -132,6 +134,7 @@ export function buildPublicMembershipPaymentSummary(input: {
   mode: "test" | "live";
   gatewayEnabled: boolean;
   applicationStatus: string;
+  newMembershipPolicy?: boolean;
   requestedMembershipType: PaymongoMembershipApplicationRecord["requestedMembershipType"];
   settings: PaymongoMembershipSettings;
   feeValidatedAmount: number;
@@ -143,8 +146,8 @@ export function buildPublicMembershipPaymentSummary(input: {
   feeRequirementStatus: MembershipRequirementStatus | null;
   capitalRequirementStatus: MembershipRequirementStatus | null;
 }): PublicMembershipPaymentSummary {
-  const eligibleApplication = input.applicationStatus === "Payment Required";
-  const associateFeeRequired = input.requestedMembershipType === "Associate";
+  const eligibleApplication = input.applicationStatus === "Payment Required" || Boolean(input.newMembershipPolicy && input.applicationStatus === "Payment Confirmed");
+  const associateFeeRequired = input.requestedMembershipType === "Associate" || (input.feeRequirementStatus !== null && input.settings.associateFee > 0);
   const feeRequired = associateFeeRequired
     ? roundMoney(input.settings.associateFee)
     : 0;

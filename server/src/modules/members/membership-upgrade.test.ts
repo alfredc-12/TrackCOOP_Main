@@ -105,7 +105,7 @@ test("associate dashboard omits financial payloads and financial recent activity
   const data = await createMemberSelfRepository(pool).dashboard(auth);
   assert.equal(data.membershipType, "Associate");
   assert.equal(data.canAccessFinancials, false);
-  assert.equal(data.shareCapital, null);
+  assert.deepEqual(data.shareCapital, {total:0,deadline:undefined});
   assert.equal(data.financialTransparency, null);
   assert.equal(data.memberFinancialSummary, null);
   assert.deepEqual(data.recentCapitalContributions, []);

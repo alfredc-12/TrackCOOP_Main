@@ -1,3 +1,4 @@
+import { capitalCases, caseProgress } from "../membership-policy/membership-progress.repository";
 import type { Pool, RowDataPacket } from "mysql2/promise";
 import {
   renderStatusMessage,
@@ -132,6 +133,17 @@ export async function renderOutboxEmail(row: OutboxRow, ctx: { pool: Pool; confi
   const name = text(payload.name, row.recipientName ?? "there");
 
   switch (row.eventKey) {
+    case "membership.capital.reminder": {
+      const cases=await capitalCases(ctx.pool,"c.capital_case_id=? AND c.closed_at IS NULL",[String(row.payload.caseId)]);
+      if(!cases[0]) return fail("cancel","capital_case_closed");
+      const progress=await caseProgress(ctx.pool,cases[0],new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Manila",year:"numeric",month:"2-digit",day:"2-digit"}).format(ctx.now));
+      if(progress.status==='Completed') return fail("cancel","capital_completed");
+      if(progress.status==='In Progress' || (row.payload.milestone==='three-month' && progress.status==='Overdue')) return fail("cancel","capital_milestone_changed");
+      const subject=progress.status==='Overdue'?'Share capital completion overdue':'Share capital completion reminder';
+      const message=`Your validated capital is PHP ${progress.validated.toFixed(2)} of PHP ${progress.target.toFixed(2)}. Remaining: PHP ${progress.remaining.toFixed(2)}. Deadline: ${progress.deadline}. This is an advisory reminder; your membership is not suspended.`;
+      return {ok:true,message:{subject,text:message,html:renderEmailLayout({eyebrow:"TrackCOOP membership",title:subject,note:message})}};
+    }
+
     case "membership.application.submitted":
       return { ok: true, message: renderSubmittedMessage({ name, applicationCode: text(payload.applicationCode), baseUrl: config.frontendUrl }) };
 

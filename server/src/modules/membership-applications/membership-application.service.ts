@@ -1,3 +1,4 @@
+import { membershipLocation } from "../membership-policy/membership-location";
 import crypto from "node:crypto";
 import path from "node:path";
 import { hash } from "bcryptjs";
@@ -263,6 +264,7 @@ async function buildPrintablePdf(detail: ChairmanApplicationDetail) {
     addPdfLine(document, "Municipality", detail.municipality);
     addPdfLine(document, "Province", detail.province);
     addPdfLine(document, "Occupation", detail.occupation);
+    addPdfLine(document, "Agricultural sectors", detail.sectors?.join(", ") || detail.sector);
     document.moveDown();
 
     document.font("Helvetica-Bold").fontSize(14).text("Beneficiaries");
@@ -640,7 +642,13 @@ export function createMembershipApplicationService(
       return application;
     },
 
-    updateApplication(applicationId, input, auth) {
+    async updateApplication(applicationId, input, auth) {
+      if (["municipality","barangay","province","municipalityPsgc","barangayPsgc"].some(key=>Object.prototype.hasOwnProperty.call(input,key))) {
+        const existing = await repository.findChairmanApplicationById(applicationId);
+        if (!existing) throw new AppError("Application not found",404,"MEMBERSHIP_APPLICATION_NOT_FOUND");
+        const changed = (["municipality","barangay","province"] as const).some(key => input[key] !== undefined && input[key] !== existing[key]) || Boolean(input.municipalityPsgc || input.barangayPsgc);
+        if (changed) input = { ...input, ...membershipLocation({ ...existing,...input,municipality:input.municipality??existing.municipality,province:input.province??existing.province }) };
+      }
       return repository.updateApplication(applicationId, {
         ...input,
         email: Object.prototype.hasOwnProperty.call(input, "email")

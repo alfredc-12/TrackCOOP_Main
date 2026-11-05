@@ -28,6 +28,7 @@
     "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",
     "db:migrate:share-capital-ledger": "tsx server/src/scripts/migrate-share-capital-ledger.ts",
     "db:migrate:email-outbox": "tsx server/src/scripts/migrate-email-outbox.ts",
+    "membership:reminders": "tsx server/src/scripts/run-capital-reminders.ts",
     "email:worker": "tsx server/src/scripts/run-email-outbox.ts",
     "records:verify": "tsx scripts/verify-records-modules.ts",
     "test:records": "tsx --test src/features/records/**/*.test.ts",

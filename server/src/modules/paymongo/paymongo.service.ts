@@ -1,3 +1,4 @@
+import { applicationPaymentPolicy } from "../membership-policy/membership-policy";
 import crypto from "node:crypto";
 import { AppError } from "../../utils/app-error";
 import {
@@ -107,7 +108,7 @@ function assertCanAccessPayment(record: PaymongoPaymentReferenceRecord, auth: Au
 }
 
 function assertApplicationCanStartCheckout(application: PaymongoMembershipApplicationRecord) {
-  if (application.applicationStatus !== "Payment Required") {
+  if (application.applicationStatus !== "Payment Required" && !(application.newMembershipPolicy && application.applicationStatus === "Payment Confirmed")) {
     throw new AppError(
       "The Chairman must approve this application for payment before checkout can start",
       409,
@@ -539,9 +540,9 @@ export function createPaymongoService(options: {
       assertValidBirthDateCredential(application, rawDateOfBirth);
       assertApplicationCanStartCheckout(application);
 
-      const settings = await repository.getMembershipPaymentSettings();
+      const settings = applicationPaymentPolicy(application, await repository.getMembershipPaymentSettings());
       const environment = gatewayEnvironment(config.mode);
-      if (input.paymentPurpose === "Associate Membership Fee" && application.requestedMembershipType === "True Member") {
+      if (input.paymentPurpose === "Associate Membership Fee" && settings.associateFee <= 0) {
         throw new AppError(
           "True Member applicants pay the initial Share Capital instead of the associate membership fee",
           409,

@@ -1,3 +1,4 @@
+import { membershipLocation } from "../membership-policy/membership-location";
 import { z } from "zod";
 import { csvEnum, isoDateSchema, refineDateRange } from "../../utils/people-filters";
 import {
@@ -115,7 +116,10 @@ export const publicMembershipApplicationSchema = z
     barangay: optionalText(120),
     municipality: requiredText(120).default("Nasugbu"),
     province: requiredText(120).default("Batangas"),
-    sector: z.enum(primarySectorOptions),
+    sector: z.enum(primarySectorOptions).optional(),
+    sectors: z.array(z.enum(primarySectorOptions)).min(1).max(6).refine(v => new Set(v).size === v.length, "Choose each sector once").optional(),
+    municipalityPsgc: optionalText(10),
+    barangayPsgc: optionalText(10),
     fatherName: requiredText(190),
     motherName: requiredText(190),
     spouseName: optionalText(190),
@@ -136,6 +140,8 @@ export const publicMembershipApplicationSchema = z
     website: z.string().max(0).optional().default(""),
   })
   .superRefine((value, context) => {
+    if (value.sectors?.length && value.sector && !value.sectors.includes(value.sector)) context.addIssue({code:"custom",path:["sector"],message:"Primary sector must be one of the selected sectors"});
+    if (!value.sector && !value.sectors?.length) context.addIssue({ code: "custom", path: ["sectors"], message: "Choose at least one agricultural sector" });
     if (value.civilStatus === "Married" && !value.spouseName) {
       context.addIssue({
         code: "custom",
@@ -145,8 +151,7 @@ export const publicMembershipApplicationSchema = z
     }
 
     if (
-      value.requestedMembershipType === "Associate"
-      && value.membershipFeeCommitmentAccepted !== true
+      value.membershipFeeCommitmentAccepted !== true
     ) {
       context.addIssue({
         code: "custom",
@@ -165,7 +170,7 @@ export const publicMembershipApplicationSchema = z
   })
   .transform(({ website, ...value }) => {
     void website;
-    return value;
+    return { ...value, ...membershipLocation(value), sector: value.sector ?? value.sectors?.[0], sectors: value.sectors ?? (value.sector ? [value.sector] : []) };
   });
 
 export const publicStatusParamsSchema = z.object({
@@ -250,8 +255,11 @@ export const chairmanMembershipApplicationUpdateSchema = z
     municipality: requiredText(120).optional(),
     province: requiredText(120).optional(),
     sector: z.enum(primarySectorOptions).optional().nullable(),
-    fatherName: requiredText(190),
-    motherName: requiredText(190),
+    sectors: z.array(z.enum(primarySectorOptions)).min(1).max(6).optional(),
+    municipalityPsgc: optionalText(10),
+    barangayPsgc: optionalText(10),
+    fatherName: requiredText(190).optional(),
+    motherName: requiredText(190).optional(),
     spouseName: optionalText(190),
     occupation: optionalText(190),
     orientationCommitmentAccepted: z.boolean().optional(),
@@ -338,6 +346,7 @@ export const statusTransitionSchema = z.object({
 });
 
 export const approvalSchema = z.object({
+  approveTrueMembership: z.boolean().optional().default(false),
   boardMeetingDate: requiredText(10),
   secretaryName: requiredText(190),
   decisionReason: requiredText(4000),

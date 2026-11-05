@@ -1,4 +1,5 @@
-import type { Pool, RowDataPacket } from "mysql2/promise";
+import { createUpgradeCapitalCase } from "../membership-policy/membership-progress.repository";
+import type { Pool, RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
@@ -37,7 +38,8 @@ export function createMembershipUpgradeService(pool?: Pool) {
           "SELECT upgrade_request_id FROM membership_upgrade_requests WHERE member_id = ? AND request_status = 'Pending'", [member.member_id],
         );
         if (pending.length) throw new AppError("Your application is already pending", 409, "UPGRADE_ALREADY_PENDING");
-        await connection.execute("INSERT INTO membership_upgrade_requests (member_id, application_message) VALUES (?, ?)", [member.member_id, message.trim()]);
+        const [created] = await connection.execute<ResultSetHeader>("INSERT INTO membership_upgrade_requests (member_id, application_message,created_at) VALUES (?, ?,UTC_TIMESTAMP())", [member.member_id, message.trim()]);
+        await createUpgradeCapitalCase(connection, String(created.insertId), String(member.member_id));
         await connection.execute("INSERT INTO audit_logs (user_id, action, entity_table, record_id, description) VALUES (?, 'membership_upgrade.submitted', 'member_profiles', ?, 'Associate applied for True Membership.')", [auth.user.id, member.member_id]);
         return { success: true };
       }, database());
@@ -77,6 +79,7 @@ export function createMembershipUpgradeService(pool?: Pool) {
           }
         }
         await connection.execute("UPDATE membership_upgrade_requests SET request_status = ?, decision_reason = ?, reviewed_by = ?, reviewed_at = UTC_TIMESTAMP() WHERE upgrade_request_id = ?", [decision, reason.trim(), auth.user.id, id]);
+        if (decision === "Rejected") await connection.execute("UPDATE membership_capital_cases SET closed_at=UTC_TIMESTAMP() WHERE upgrade_request_id=? AND closed_at IS NULL",[id]);
         await connection.execute("INSERT INTO audit_logs (user_id, action, entity_table, record_id, description, new_values) VALUES (?, 'membership_upgrade.reviewed', 'membership_upgrade_requests', ?, ?, ?)", [auth.user.id, id, reason.trim(), JSON.stringify({ decision, memberId })]);
         return { success: true };
       }, database());

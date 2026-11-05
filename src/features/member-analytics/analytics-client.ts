@@ -3,7 +3,7 @@ import { apiPaginatedRequest, apiRequest } from "@/lib/api-client";
 import { env } from "@/config/env";
 import type { MemberListQuery, MemberProfile } from "@/features/chairman/people-api";
 export type { AnalyticsFilters, AnalyticsResult, AnalyticsSelection };
-export const sectors = ["Rice", "Corn", "Fishery", "Livestock", "High-value crops (gulayan)"];
+export const sectors = ["Rice", "Corn", "Fishery", "Livestock", "High-value crops (gulayan)", "Coffee"];
 export const labels = ["Active", "Needs Monitoring", "Inactive", "Not Yet Scored"];
 export const stages = ["Zero balance", "Below required", "Required to maximum", "At maximum", "Above maximum", "Unknown ledger"];
 export function defaultAnalyticsFilters(today: string): AnalyticsFilters {

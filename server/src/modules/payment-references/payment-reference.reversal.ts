@@ -1,3 +1,4 @@
+import { recordApplicationCapitalEvent } from "../membership-policy/membership-progress.repository";
 import { manilaToday } from "../../utils/manila-calendar";
 import { reverseShareCapitalPaymentInLedger } from "../share-capital/share-capital-ledger.repository";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
@@ -80,6 +81,7 @@ export function createPaymentReferenceReversalService(pool?: Pool): PaymentRefer
               AND reversal_of_record_id IS NULL`,
           [`\nReversed payment reference: ${reason}`, input.paymentReferenceId],
         );
+        if (payment.paymentPurpose === "Share Capital" && payment.relatedEntityType === "membership_application") await recordApplicationCapitalEvent(connection, input.paymentReferenceId, true);
         if (payment.paymentPurpose === "Share Capital") {
         const [capitalPayments] = await connection.execute<(RowDataPacket & { id: string; memberId: string })[]>(
           `SELECT CAST(share_payment_id AS CHAR) AS id, CAST(member_id AS CHAR) AS memberId

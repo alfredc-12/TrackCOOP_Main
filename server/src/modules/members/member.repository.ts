@@ -1,3 +1,4 @@
+import { readSectors, saveSectors } from "../membership-policy/membership-sectors";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
@@ -184,7 +185,7 @@ export function memberFilterConditions(filters: MemberFilters, options: { omitPa
     conditions.push(
       filters.sector.trim().toLowerCase() === "unspecified"
         ? { sql: "(m.sector IS NULL OR TRIM(m.sector) = '')", values: [] }
-        : { sql: "m.sector = ?", values: [filters.sector.trim()] },
+        : { sql: "(m.sector = ? OR EXISTS(SELECT 1 FROM member_sectors ms JOIN cooperative_sectors cs ON cs.sector_id=ms.sector_id WHERE ms.member_id=m.member_id AND cs.sector_name=?))", values: [filters.sector.trim(),filters.sector.trim()] },
     );
   }
   if (filters.accountLink === "linked") conditions.push({ sql: "m.user_id IS NOT NULL", values: [] });
@@ -448,6 +449,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
 
       return {
         ...mapMember(row),
+        sectors: await readSectors(databasePool(), "member", memberId),
         shareCapital: capital,
         recentPayments: payments,
         recentPosActivity: posActivity,
@@ -485,6 +487,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
           ],
         );
         const memberId = String(result.insertId);
+        if (input.sectors?.length) await saveSectors(connection, "member", memberId, input.sectors);
 
         await connection.execute(
           `INSERT INTO audit_logs
@@ -557,6 +560,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
             memberId,
           ],
         );
+        if (input.sectors) await saveSectors(connection, "member", memberId, input.sectors);
         await connection.execute(
           `INSERT INTO audit_logs
              (user_id, action, entity_table, record_id, description, new_values)
@@ -622,7 +626,7 @@ export function createMemberRepository(pool?: Pool): MemberRepository {
           }
           if (!capital.fullRequirementMet) {
             throw new AppError(
-              "True Member promotion requires at least PHP 1,500 validated share capital",
+              "True Member promotion requires at least PHP 3,000 validated share capital",
               409,
               "TRUE_MEMBER_CAPITAL_REQUIREMENT_NOT_MET",
             );

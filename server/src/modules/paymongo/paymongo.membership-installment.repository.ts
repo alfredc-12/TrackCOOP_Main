@@ -1,3 +1,4 @@
+import { applicationPaymentPolicy } from "../membership-policy/membership-policy";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -82,6 +83,7 @@ export function createPaymongoMembershipInstallmentRepository(
     async prepareMembershipPaymentReference(input) {
       return withTransaction(async (connection) => {
         const application = await lockApplication(connection, input.application.id);
+        const settings = applicationPaymentPolicy(application, input.settings);
         const requirement = await selectRequirement(
           connection,
           input.application.id,
@@ -95,7 +97,7 @@ export function createPaymongoMembershipInstallmentRepository(
             "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
           );
         }
-        if (input.purpose === "Associate Membership Fee" && application.requestedMembershipType !== "Associate") {
+        if (input.purpose === "Associate Membership Fee" && settings.associateFee <= 0) {
           throw new AppError("True Member applicants pay share capital only", 409, "MEMBERSHIP_FEE_NOT_REQUIRED");
         }
 
@@ -111,7 +113,7 @@ export function createPaymongoMembershipInstallmentRepository(
         );
 
         if (input.purpose === "Associate Membership Fee") {
-          if (aggregate.validatedAmount >= input.settings.associateFee) {
+          if (aggregate.validatedAmount >= settings.associateFee) {
             throw new AppError(
               "The associate membership fee has already been paid",
               409,
@@ -123,7 +125,7 @@ export function createPaymongoMembershipInstallmentRepository(
             connection,
             application: input.application,
             purpose: input.purpose,
-            amount: roundMoney(input.settings.associateFee),
+            amount: roundMoney(settings.associateFee),
             referenceNumber: `${input.application.applicationCode}-FEE`,
             requirement,
           });
@@ -151,8 +153,9 @@ export function createPaymongoMembershipInstallmentRepository(
           requestedAmount: input.requestedAmount,
           validatedAmount: aggregate.validatedAmount,
           otherActivePendingAmount: aggregate.pendingAmount,
-          initialShareCapital: input.settings.initialShareCapital,
-          maximumShareCapital: input.settings.maximumShareCapital,
+          initialShareCapital: settings.initialShareCapital,
+          maximumShareCapital: settings.maximumShareCapital,
+          allowFullInitial: Number(application.membershipFeeAmount) > 0 && application.requestedMembershipType === "True Member",
         });
 
         const [sequenceRows] = await connection.execute<SequenceRow[]>(
@@ -185,6 +188,7 @@ export function createPaymongoMembershipInstallmentRepository(
     async assertCheckoutCapacity(input) {
       const check = async (connection: PoolConnection) => {
         const application = await lockApplication(connection, input.applicationId);
+        const settings = applicationPaymentPolicy(application, input.settings);
         if (input.purpose === "Share Capital" && application.requestedMembershipType !== "True Member") {
           throw new AppError(
             "Share capital checkout is only available for True Member applicants",
@@ -192,7 +196,7 @@ export function createPaymongoMembershipInstallmentRepository(
             "SHARE_CAPITAL_TRUE_MEMBER_REQUIRED",
           );
         }
-        if (input.purpose === "Associate Membership Fee" && application.requestedMembershipType !== "Associate") {
+        if (input.purpose === "Associate Membership Fee" && settings.associateFee <= 0) {
           throw new AppError("True Member applicants pay share capital only", 409, "MEMBERSHIP_FEE_NOT_REQUIRED");
         }
 
@@ -204,14 +208,14 @@ export function createPaymongoMembershipInstallmentRepository(
         });
 
         if (input.purpose === "Associate Membership Fee") {
-          if (aggregate.validatedAmount >= input.settings.associateFee) {
+          if (aggregate.validatedAmount >= settings.associateFee) {
             throw new AppError(
               "The associate membership fee has already been paid",
               409,
               "MEMBERSHIP_FEE_ALREADY_VALIDATED",
             );
           }
-          if (roundMoney(input.amount) !== roundMoney(input.settings.associateFee)) {
+          if (roundMoney(input.amount) !== roundMoney(settings.associateFee)) {
             throw new AppError(
               "Associate membership fee amount does not match the configured fee",
               409,
@@ -225,8 +229,9 @@ export function createPaymongoMembershipInstallmentRepository(
           requestedAmount: input.amount,
           validatedAmount: aggregate.validatedAmount,
           otherActivePendingAmount: aggregate.pendingAmount,
-          initialShareCapital: input.settings.initialShareCapital,
-          maximumShareCapital: input.settings.maximumShareCapital,
+          initialShareCapital: settings.initialShareCapital,
+          maximumShareCapital: settings.maximumShareCapital,
+          allowFullInitial: Number(application.membershipFeeAmount) > 0 && application.requestedMembershipType === "True Member",
         });
       };
 
@@ -316,6 +321,7 @@ export function createPaymongoMembershipInstallmentRepository(
         mode: input.mode,
         gatewayEnabled: input.gatewayEnabled,
         applicationStatus: input.application.applicationStatus,
+        newMembershipPolicy: input.application.newMembershipPolicy,
         requestedMembershipType: input.application.requestedMembershipType,
         settings: input.settings,
         feeValidatedAmount: fee.validatedAmount,

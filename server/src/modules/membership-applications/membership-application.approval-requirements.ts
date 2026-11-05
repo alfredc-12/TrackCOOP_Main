@@ -66,7 +66,7 @@ export function validateApplicationForApproval(
   if (
     !application.orientationCommitmentAccepted
     || (
-      application.requestedMembershipType === "Associate"
+      (application.requestedMembershipType === "Associate" || Number(application.membershipFeeAmount)>0)
       && !application.membershipFeeCommitmentAccepted
     )
     || !application.shareSubscriptionCommitmentAccepted
@@ -94,7 +94,7 @@ export async function synchronizeApprovalRequirements(input: {
   const feeRequirement = input.requirements.find(
     (item) => item.requirementType === "Associate Membership Fee",
   );
-  if (input.requestedMembershipType === "Associate" && !feeRequirement) {
+  if (input.settings.associateFee > 0 && !feeRequirement) {
     throw new AppError(
       "The Associate Membership Fee requirement is incomplete",
       409,
@@ -107,7 +107,7 @@ export async function synchronizeApprovalRequirements(input: {
   );
   const latestFeeReferenceId = input.feeReferences.at(-1)?.id ?? null;
   if (
-    input.requestedMembershipType === "Associate"
+    input.settings.associateFee > 0
     && feeRequirement
     && feeRequirement.requirementStatus !== "Waived"
     && feeTotal >= approvalMoney(input.settings.associateFee)
@@ -166,9 +166,8 @@ export function validateApprovalRequirements(
   ];
   if (application.requestedMembershipType === "True Member") {
     requiredTypes.push("Initial Share Capital");
-  } else {
-    requiredTypes.push("Associate Membership Fee");
   }
+  if (application.requestedMembershipType === "Associate" || Number(application.membershipFeeAmount) > 0) requiredTypes.push("Associate Membership Fee");
 
   const incomplete = requiredTypes.find((type) => {
     const requirement = byType.get(type);

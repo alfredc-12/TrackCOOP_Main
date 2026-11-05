@@ -36,6 +36,10 @@ export type PaymentReferenceRow = RowDataPacket & {
 
 export type ApplicationLockRow = RowDataPacket & {
   id: string;
+  newMembershipPolicy?: boolean;
+  membershipFeeAmount?: number;
+  initialShareCapitalAmount?: number;
+  targetShareCapitalAmount?: number;
   requestedMembershipType: PaymongoMembershipApplicationRecord["requestedMembershipType"];
   applicationStatus: string;
 };
@@ -116,6 +120,10 @@ export async function lockApplication(
 ) {
   const [rows] = await connection.execute<ApplicationLockRow[]>(
     `SELECT CAST(membership_application_id AS CHAR) AS id,
+            EXISTS(SELECT 1 FROM membership_capital_cases c WHERE c.membership_application_id=membership_applications.membership_application_id) AS newMembershipPolicy,
+            membership_fee_amount AS membershipFeeAmount,
+            initial_share_capital_amount AS initialShareCapitalAmount,
+            target_share_capital_amount AS targetShareCapitalAmount,
             requested_membership_type AS requestedMembershipType,
             ${membershipApplicationStatusSql} AS applicationStatus
        FROM membership_applications
@@ -132,7 +140,7 @@ export async function lockApplication(
       "MEMBERSHIP_APPLICATION_NOT_FOUND",
     );
   }
-  if (row.applicationStatus !== "Payment Required") {
+  if (row.applicationStatus !== "Payment Required" && !(row.newMembershipPolicy && row.applicationStatus === "Payment Confirmed")) {
     throw new AppError(
       "The Chairman must approve this application for payment before checkout can start",
       409,

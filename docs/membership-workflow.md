@@ -17,3 +17,7 @@ The Chairman reviews these applications in **Members → True Membership Applica
 Apply the additive database migration with `npm run db:migrate:membership-upgrades`. It creates only the upgrade request table and preserves existing data. For a fresh schema installation, run this migration after loading the main database schema.
 
 In development, `npm run user:create-associate-test` creates a separate approved, active Associate account and prints its generated credentials. It refuses to overwrite an existing account. The MySQL workflow test can be enabled with `RUN_MEMBERSHIP_UPGRADE_MYSQL_TESTS=true`; it uses session-local temporary tables and does not edit real members or financial records.
+
+## New applications and capital completion
+
+The v2 policy and release prerequisites are documented in [Membership implementation](membership-implementation/README.md). Existing obligations remain preserved; new applications require the one-time PHP 200 fee for both requested membership types.
