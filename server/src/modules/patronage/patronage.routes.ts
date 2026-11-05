@@ -1,3 +1,4 @@
+import { requireTrueMember } from "../../middleware/true-member";
 import { createPatronageCapitalRouter } from "./patronage-capital.routes";
 import { Router } from "express";
 import { createAuthenticate } from "../../middleware/authenticate";
@@ -15,7 +16,7 @@ export function createPatronageRouter(
   const authenticate = createAuthenticate(authService);
   const staff = [authenticate, requireRoles("chairman", "bookkeeper")];
   const chairmanOnly = [authenticate, requireRoles("chairman")];
-  const memberOnly = [authenticate, requireRoles("member")];
+  const memberOnly = [authenticate, requireRoles("member"), requireTrueMember()];
 
   router.get("/patronage", ...staff, controller.overview);
   router.get("/patronage/financial-basis", ...chairmanOnly, controller.financialBasis);

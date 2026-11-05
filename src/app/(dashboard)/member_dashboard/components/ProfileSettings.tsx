@@ -22,7 +22,7 @@ const emptyProfile: Profile = { contact_number: "", email: "", barangay: "", mun
 const emptyPassword: Password = { currentPassword: "", newPassword: "", confirmPassword: "" };
 const inputClass = "min-h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-sm text-[#173626] outline-none transition focus:border-[#2F7D57] focus:ring-2 focus:ring-[#2F7D57]/15 disabled:bg-gray-50";
 
-export function ProfileSettings({ initialSection, onSaved }: { initialSection?: string; onSaved?: () => void }) {
+export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { membershipLabel?: string; initialSection?: string; onSaved?: () => void }) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -129,6 +129,7 @@ export function ProfileSettings({ initialSection, onSaved }: { initialSection?: 
           <h2 id="personal-information-heading" className="mb-4 flex items-center gap-2 text-lg font-bold text-[#173626]"><User className="size-5 text-[#2F7D57]" aria-hidden="true" />Personal Information</h2>
           {isLoading ? <p role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm text-[#52705D]"><Loader2 className="size-5 animate-spin" />Loading your profile…</p> : loadError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{loadError}</p><button type="button" onClick={() => void loadProfile()} className="mt-2 min-h-11 rounded-lg px-2 font-bold underline">Try again</button></div> : (
             <form onSubmit={saveProfile}>
+              <p className="mb-4 text-sm font-bold text-coop-forest">Membership: {membershipLabel || "Cooperative Member"}</p>
               <fieldset disabled={isSavingProfile} className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {([['contact_number', 'Contact Number', 'tel'], ['email', 'Email Address', 'email']] as const).map(([name, label, type]) => <ProfileField key={name} name={name} label={label} type={type} value={profile[name]} onChange={(value) => { setProfile({ ...profile, [name]: value }); setProfileMsg(null); }} />)}

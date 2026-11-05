@@ -1,3 +1,4 @@
+import { requireTrueMember } from "../../middleware/true-member";
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import { withTransaction } from "../../db/transaction";
@@ -606,7 +607,7 @@ export function createRecordsRouter(authService: AuthService = createAuthService
   router.patch("/reports/:id", ...staff, updateReportRoute);
   router.get("/reports", ...staff, reportsHomeRoute);
 
-  router.get("/members/me/statement", ...memberOnly, statementRoute);
+  router.get("/members/me/statement", ...memberOnly, requireTrueMember(), statementRoute);
 
   return router;
 }

@@ -1,3 +1,4 @@
+import { requireTrueMember } from "../../middleware/true-member";
 import { Router } from "express";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
@@ -16,7 +17,7 @@ export function createShareCapitalRouter(
   const controller = createShareCapitalController(shareCapitalService);
   const staff = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper")];
   const bookkeeperOnly = [createAuthenticate(authService), requireRoles("bookkeeper")];
-  const memberOnly = [createAuthenticate(authService), requireRoles("member")];
+  const memberOnly = [createAuthenticate(authService), requireRoles("member"), requireTrueMember()];
   const chairmanOnly = [createAuthenticate(authService), requireRoles("chairman")];
 
   router.get("/members/me/share-capital/overview", ...memberOnly, controller.memberOverview);

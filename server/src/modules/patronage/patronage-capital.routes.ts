@@ -1,4 +1,6 @@
+import { requireTrueMember } from "../../middleware/true-member";
 import { Router } from "express";
+import type { Pool } from "mysql2/promise";
 import { z } from "zod";
 import { createAuthenticate } from "../../middleware/authenticate";
 import { requireRoles } from "../../middleware/authorize";
@@ -23,9 +25,10 @@ function requireAuth(auth: Express.Request["auth"]) {
 export function createPatronageCapitalRouter(
   authService: AuthService = createAuthService(),
   repository: PatronageCapitalRepository = createPatronageCapitalRepository(),
+  membershipPool?: Pool,
 ) {
   const router = Router();
-  const member = [createAuthenticate(authService), requireRoles("member")];
+  const member = [createAuthenticate(authService), requireRoles("member"), requireTrueMember(membershipPool)];
   const staff = [createAuthenticate(authService), requireRoles("chairman", "bookkeeper")];
   const bookkeeper = [createAuthenticate(authService), requireRoles("bookkeeper")];
   router.get("/members/me/patronage-capital", ...member, asyncHandler(async (request, response) => {

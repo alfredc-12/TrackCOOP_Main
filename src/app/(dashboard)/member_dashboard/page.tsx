@@ -63,6 +63,7 @@ import { MemberShareOverview } from "@/features/member-share-capital/MemberShare
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
 import { SeasonGuide } from "@/features/member-livelihoods/SeasonGuide";
+import { TrueMembershipApplication, type UpgradeStatus } from "@/features/membership/TrueMembershipApplication";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { HelpCenter } from "./components/HelpCenter";
 import {
@@ -131,9 +132,10 @@ const FINANCIAL_PERIOD_LABELS: Record<FinancialPeriod, string> = {
 
 export default function MemberDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [activeTab, setActiveTabState] = useState("Dashboard");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeStatus, setUpgradeStatus] = useState<UpgradeStatus | null>();
   const [profileSection, setProfileSection] = useState("");
-  const openLivelihoods = () => { setProfileSection("livelihoods"); setActiveTab("Profile"); };
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); }, [activeTab]);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -186,6 +188,19 @@ export default function MemberDashboardPage() {
   const [withdrawalQrFileName, setWithdrawalQrFileName] = useState("");
 
   const [user, setUser] = useState<AuthUser | null>(null);
+
+  const canAccessFinancials = dashboardData?.canAccessFinancials === true;
+  const isAssociate = dashboardData?.membershipType === "Associate";
+  const membershipLabel = canAccessFinancials ? "True Member" : isAssociate ? "Associate Member" : "Cooperative Member";
+  const selectTab = useCallback((tab: string) => {
+    if (["Financial", "Member & Share"].includes(tab) && !canAccessFinancials) {
+      if (isAssociate) setUpgradeOpen(true);
+      else toast.error("Please wait for your membership details to load.");
+      return;
+    }
+    setActiveTabState(tab);
+  }, [canAccessFinancials, isAssociate]);
+  const openLivelihoods = () => { setProfileSection("livelihoods"); selectTab("Profile"); };
 
   const shareCapitalTotal = Math.max(0, Number(dashboardData?.shareCapital?.total) || 0);
   const referralCode = String(dashboardData?.referrals?.code || "");
@@ -267,6 +282,7 @@ export default function MemberDashboardPage() {
   const refreshMemberDividends = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) setIsFetchingDividends(true);
     try {
+      if (!canAccessFinancials) { setMemberDividends([]); return; }
       setMemberDividends(await getMemberDividends());
       setDividendLoadError(false);
     } catch (error) {
@@ -275,11 +291,12 @@ export default function MemberDashboardPage() {
     } finally {
       setIsFetchingDividends(false);
     }
-  }, []);
+  }, [canAccessFinancials]);
 
   const refreshMemberPatronage = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) setIsFetchingPatronage(true);
     try {
+      if (!canAccessFinancials) { setPatronageData(null); return; }
       setPatronageData(await getMemberPatronage());
       setPatronageLoadError(false);
     } catch {
@@ -287,7 +304,7 @@ export default function MemberDashboardPage() {
     } finally {
       setIsFetchingPatronage(false);
     }
-  }, []);
+  }, [canAccessFinancials]);
 
   useEffect(() => {
     getAuthenticatedUser()
@@ -486,7 +503,8 @@ export default function MemberDashboardPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "Store") {
-      setActiveTab("Store");
+      const timer = window.setTimeout(() => setActiveTabState("Store"), 0);
+      return () => window.clearTimeout(timer);
     }
   }, []);
 
@@ -515,7 +533,7 @@ export default function MemberDashboardPage() {
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-2 px-3 sm:px-8">
           {/* Logo Section */}
           <div className="shrink-0 xl:w-[210px]">
-            <Link href="#" onClick={() => setActiveTab("Dashboard")} className="flex items-center gap-3">
+            <Link href="#" onClick={() => selectTab("Dashboard")} className="flex items-center gap-3">
               <span className="relative block size-10 overflow-hidden rounded-md sm:size-14">
                 <Image
                   src="/trackcoop-logo.svg"
@@ -532,7 +550,7 @@ export default function MemberDashboardPage() {
                   TrackCOOP
                 </span>
                 <span className="block text-[11px] italic text-[#4b6b5a]">
-                  Cooperative Member
+                  {membershipLabel}
                 </span>
               </span>
             </Link>
@@ -540,26 +558,28 @@ export default function MemberDashboardPage() {
 
           {/* Center Nav Links */}
           <nav aria-label="Member navigation" className="hidden items-center gap-1 xl:flex">
-            <button onClick={() => setActiveTab("Dashboard")} className={navClass("Dashboard")}>Dashboard</button>
-            <button onClick={() => setActiveTab("Member & Share")} className={navClass("Member & Share")}>Member & Share</button>
-            <button onClick={() => setActiveTab("Financial")} className={navClass("Financial")}>Financial</button>
-            <button onClick={() => setActiveTab("Rental")} className={navClass("Rental")}>Equipment Rental</button>
-            <button onClick={() => setActiveTab("Store")} className={navClass("Store")}>Coop Store</button>
+            <button onClick={() => selectTab("Dashboard")} className={navClass("Dashboard")}>Dashboard</button>
+            {canAccessFinancials && <>
+              <button onClick={() => selectTab("Member & Share")} className={navClass("Member & Share")}>Member & Share</button>
+              <button onClick={() => selectTab("Financial")} className={navClass("Financial")}>Financial</button>
+            </>}
+            <button onClick={() => selectTab("Rental")} className={navClass("Rental")}>Equipment Rental</button>
+            <button onClick={() => selectTab("Store")} className={navClass("Store")}>Coop Store</button>
           </nav>
 
           {/* Right Actions */}
           <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3">
 
-            {/* <button onClick={() => setActiveTab("Help")} className={`transition ${activeTab === "Help" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Help Center">
+            {/* <button onClick={() => selectTab("Help")} className={`transition ${activeTab === "Help" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Help Center">
               <MessageSquare className="size-5" />
             </button> */}
-            <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className={`transition ${activeTab === "Profile" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Profile & Settings">
+            <button onClick={() => { setProfileSection(""); selectTab("Profile"); }} className={`transition ${activeTab === "Profile" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Profile & Settings">
               <User className="size-5" />
             </button>
-            <button onClick={() => setActiveTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements">
+            <button onClick={() => selectTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements">
               <Bell className="size-5" />
             </button>
-            <button onClick={() => setActiveTab("Requests")} className={`transition ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests">
+            <button onClick={() => selectTab("Requests")} className={`transition ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests">
               <Inbox className="size-5" />
             </button>
             <button
@@ -589,8 +609,8 @@ export default function MemberDashboardPage() {
             { value: "Financial", label: "Financial" },
             { value: "Rental", label: "Equipment Rental" },
             { value: "Store", label: "Coop Store" },
-          ].map((item) => (
-            <button key={item.value} type="button" onClick={() => setActiveTab(item.value)} aria-current={activeTab === item.value ? "page" : undefined} className={`shrink-0 ${navClass(item.value)}`}>{item.label}</button>
+          ].filter((item) => canAccessFinancials || !["Financial", "Member & Share"].includes(item.value)).map((item) => (
+            <button key={item.value} type="button" onClick={() => selectTab(item.value)} aria-current={activeTab === item.value ? "page" : undefined} className={`shrink-0 ${navClass(item.value)}`}>{item.label}</button>
           ))}
         </nav>
       </header>
@@ -1121,39 +1141,56 @@ export default function MemberDashboardPage() {
                 </div>
               ) : (
                 <>
-                  <section aria-labelledby="member-dashboard-heading" className="rounded-2xl border border-[#DDE8D8] bg-gradient-to-r from-white to-[#EDF6EE] p-4 shadow-sm">
-                    <div className="grid items-center gap-5 md:grid-cols-[1fr_20rem]">
+                  <section aria-labelledby="member-dashboard-heading" className={`rounded-2xl border border-[#DDE8D8] bg-gradient-to-r from-white to-[#EDF6EE] shadow-sm ${isAssociate ? "p-5 sm:p-7" : "p-4"}`}>
+                    <div className={`grid items-center ${isAssociate ? "gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-10" : "gap-5 md:grid-cols-[1fr_20rem]"}`}>
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2F7D57]">My cooperative</p>
                         <h1 id="member-dashboard-heading" className="mt-2 text-2xl font-bold tracking-tight text-[#173626] sm:text-3xl">Welcome back, {user?.displayName?.split(" ")[0] || "Member"}</h1>
-                        <p className="mt-2 text-sm text-[#6B7280]">Your savings, activities, and cooperative updates in one place.</p>
+                        <div className={`flex flex-wrap items-center ${isAssociate ? "mt-4 gap-2" : "mt-3 gap-3"}`}>
+                          <span className="rounded-full border border-[#CFE2D1] bg-[#EDF6EE] px-3 py-1 text-sm font-bold text-coop-forest">{membershipLabel}</span>
+                          {isAssociate && <TrueMembershipApplication open={upgradeOpen} onOpenChange={setUpgradeOpen} onStatus={setUpgradeStatus} />}
+                        </div>
+                        <p className={`${isAssociate ? "mt-4 leading-6" : "mt-2"} text-sm text-[#6B7280]`}>Your activities and cooperative updates in one place.</p>
                         {!dashboardLoadError && !isFetchingDashboard && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="My occupations and livelihoods">
                           {(dashboardData?.member?.occupation || "").split("; ").filter(Boolean).map((occupation: string) => <span key={occupation} className="rounded-full border border-[#CFE2D1] bg-white px-2.5 py-1 text-xs font-semibold text-coop-secondary">{occupation}</span>)}
                           {(dashboardData?.member?.livelihoods ?? []).map((item: { activity: string }) => <span key={item.activity} className="rounded-full bg-[#E4F0DE] px-2.5 py-1 text-xs font-semibold text-coop-secondary">{item.activity}</span>)}
-                          <SeasonGuide livelihoods={dashboardData?.member?.livelihoods ?? []} province={dashboardData?.member?.province ?? ""} municipality={dashboardData?.member?.municipality ?? ""} onEdit={openLivelihoods} onFinancial={() => { setFinancialView("personal"); setActiveTab("Financial"); }} />
-                          {!dashboardData?.member?.occupation && <button onClick={() => { setProfileSection(""); setActiveTab("Profile"); }} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-coop-green underline">Add your occupation</button>}
+                          <SeasonGuide livelihoods={dashboardData?.member?.livelihoods ?? []} province={dashboardData?.member?.province ?? ""} municipality={dashboardData?.member?.municipality ?? ""} onEdit={openLivelihoods} onFinancial={() => { setFinancialView("personal"); selectTab("Financial"); }} />
+                          {!dashboardData?.member?.occupation && <button onClick={() => { setProfileSection(""); selectTab("Profile"); }} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-coop-green underline">Add your occupation</button>}
                         </div>}
                       </div>
-                      <div className="rounded-2xl bg-coop-forest p-3 text-white">
+                      {isAssociate ? <section aria-labelledby="associate-capital-heading" className="rounded-2xl border border-white/10 bg-coop-forest p-5 text-white shadow-coop-card sm:p-6">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium text-[#DFF5E8]">My Share Capital</p>
+                          <h2 id="associate-capital-heading" className="text-sm font-semibold text-[#DFF5E8]">My Share Capital Progress</h2>
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/10"><Wallet className="size-4 text-coop-mint" aria-hidden="true" /></span>
+                        </div>
+                        {upgradeStatus ? <>
+                          <p className="mt-3 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl">{formatPeso(upgradeStatus.requirements.validatedTotal)}</p>
+                          <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#DFF5E8]"><p>of {formatPeso(upgradeStatus.requirements.fullRequirement)} required</p><span className="rounded-full bg-white/10 px-2 py-1 font-semibold tabular-nums">{Math.min(100, Math.round(upgradeStatus.requirements.validatedTotal / upgradeStatus.requirements.fullRequirement * 100))}%</span></div>
+                          <progress aria-label="Progress toward True Membership capital requirement" max={upgradeStatus.requirements.fullRequirement} value={Math.min(upgradeStatus.requirements.validatedTotal, upgradeStatus.requirements.fullRequirement)} className="mt-3 block h-2 w-full overflow-hidden rounded-full accent-[#82E6A7] [&::-webkit-progress-bar]:bg-white/15 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[#82E6A7] [&::-moz-progress-bar]:bg-[#82E6A7]" />
+                          <p className="mt-3 text-sm font-semibold leading-6">{upgradeStatus.requirements.fullRequirementMet && upgradeStatus.requirements.validatedTotal <= upgradeStatus.requirements.maximumAllowed ? "Capital requirement met — eligible for True Membership review" : upgradeStatus.requirements.validatedTotal > upgradeStatus.requirements.maximumAllowed ? "Contribution limit exceeded. Please contact the cooperative." : `${formatPeso(upgradeStatus.requirements.remainingToFull)} more to reach the capital requirement`}</p>
+                          <p className="mt-2 text-xs leading-5 text-[#DFF5E8]/80">Only validated contributions count. True Membership requires chairman approval.</p>
+                        </> : <p role="status" className="mt-3 text-sm">{upgradeStatus === null ? "Progress could not be loaded. Open your application to retry." : "Loading your contributions…"}</p>}
+                        <button onClick={() => setUpgradeOpen(true)} className="mt-4 inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-xl bg-white px-4 py-2 text-sm font-bold text-coop-forest transition hover:bg-coop-sage focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{upgradeStatus?.application?.status === "Pending" ? "View Pending Application" : "Apply for True Membership"}<ArrowRight className="size-4 shrink-0" aria-hidden="true" /></button>
+                      </section> : <div className="rounded-2xl bg-coop-forest p-3 text-white">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-[#DFF5E8]">{canAccessFinancials ? "My Share Capital" : "True Member Benefits"}</p>
                           <Wallet className="size-5 text-[#A9D5B5]" aria-hidden="true" />
                         </div>
-                        <p className="mt-2 text-3xl font-bold tracking-tight" aria-live="polite">{isFetchingDashboard ? "Loading…" : dashboardLoadError ? "—" : formatPeso(dashboardData?.shareCapital?.total ?? 0)}</p>
-                        <button onClick={() => setActiveTab("Member & Share")} className="mt-2 inline-flex min-h-8 items-center gap-2 rounded-lg text-sm font-semibold text-[#DFF5E8] underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">View My Savings<ArrowRight className="size-4" aria-hidden="true" /></button>
-                      </div>
+                        <p className="mt-2 text-3xl font-bold tracking-tight" aria-live="polite">{isFetchingDashboard ? "Loading…" : dashboardLoadError ? "—" : (canAccessFinancials ? formatPeso(dashboardData?.shareCapital?.total ?? 0) : "Exclusive to True Members")}</p>
+                        <button onClick={() => selectTab("Member & Share")} className="mt-2 inline-flex min-h-8 items-center gap-2 rounded-lg text-sm font-semibold text-[#DFF5E8] underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{canAccessFinancials ? "View My Savings" : "Apply for True Membership"}<ArrowRight className="size-4" aria-hidden="true" /></button>
+                      </div>}
                     </div>
                   </section>
                   {dashboardLoadError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><p>We couldn’t load your records. Please try again.</p><button onClick={() => void refreshDashboard()} className="min-h-10 rounded-lg px-3 font-bold underline">Try again</button></div>}
 
-                  <section aria-label="My activity summary" className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <section aria-label="My activity summary" className={`${isAssociate ? "mt-5" : "mt-4"} grid grid-cols-2 gap-3 ${canAccessFinancials ? "lg:grid-cols-4" : "sm:grid-cols-3"}`}>
                     {[
                       { label: "Capital Deposits", value: dashboardData?.stats?.deposits ?? 0, icon: Wallet, tab: "Member & Share", detail: "Recorded additions" },
                       { label: "Store Purchases", value: dashboardData?.stats?.purchases ?? 0, icon: ShoppingBag, tab: "Store", detail: "Purchase records" },
                       { label: "Rental Bookings", value: dashboardData?.stats?.rentals ?? 0, icon: Tractor, tab: "Rental", detail: "All bookings" },
                       { label: "Announcements", value: dashboardData?.stats?.announcements ?? 0, icon: Megaphone, tab: "Announcements", detail: "Cooperative updates" },
-                    ].map((stat) => (
-                      <button key={stat.label} onClick={() => setActiveTab(stat.tab)} className="flex items-center justify-between gap-2 rounded-2xl border border-[#DDE8D8] bg-white p-4 text-left shadow-sm transition hover:border-[#2F7D57] hover:bg-[#F5FAF4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F7D57]">
+                    ].filter((stat) => canAccessFinancials || stat.tab !== "Member & Share").map((stat) => (
+                      <button key={stat.label} onClick={() => selectTab(stat.tab)} className={`flex items-center justify-between gap-2 rounded-2xl border border-[#DDE8D8] bg-white text-left shadow-sm transition hover:border-[#2F7D57] hover:bg-[#F5FAF4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F7D57] ${isAssociate ? "p-5 last:col-span-2 sm:last:col-span-1" : "p-4"}`}>
                         <div>
                           <p className="text-2xl font-bold text-[#173626]">{isFetchingDashboard ? "…" : dashboardLoadError ? "—" : stat.value}</p>
                           <h2 className="mt-1 text-sm font-semibold text-coop-secondary">{stat.label}</h2>
@@ -1174,7 +1211,7 @@ export default function MemberDashboardPage() {
                   </div>
 
                   <div className="max-h-56 overflow-auto" tabIndex={0} role="region" aria-label="Recent activity records">
-                    <table className="w-full min-w-[32rem] text-left text-sm">
+                    <table className={`w-full text-left text-sm ${isAssociate ? "min-w-[42rem] [&_th]:pr-4 [&_td]:pr-4 [&_td:nth-child(2)]:whitespace-nowrap [&_td:nth-child(3)]:whitespace-nowrap" : "min-w-[32rem]"}`}>
                       <thead className="border-b border-[#E5E7EB] text-[#6B7280]">
                         <tr>
                           <th className="pb-3 font-semibold">Transaction</th>
@@ -1227,12 +1264,12 @@ export default function MemberDashboardPage() {
                   <h2 id="dashboard-actions-heading" className="mb-3 text-lg font-bold text-[#173626]">Quick Actions</h2>
                   <div className="grid gap-1">
                     {[
-                      { label: "View My Savings", detail: "Share Capital and earnings", icon: Wallet, action: () => setActiveTab("Member & Share") },
-                      { label: "Rent Equipment", detail: "Find equipment for your farm", icon: Tractor, action: () => setActiveTab("Rental") },
-                      { label: "Visit Coop Store", detail: "Browse farm supplies", icon: ShoppingBag, action: () => setActiveTab("Store") },
-                      { label: "My Requests", detail: "Ask for help and check replies", icon: Inbox, action: () => setActiveTab("Requests") },
+                      { label: "View My Savings", detail: "Share Capital and earnings", icon: Wallet, action: () => selectTab("Member & Share") },
+                      { label: "Rent Equipment", detail: "Find equipment for your farm", icon: Tractor, action: () => selectTab("Rental") },
+                      { label: "Visit Coop Store", detail: "Browse farm supplies", icon: ShoppingBag, action: () => selectTab("Store") },
+                      { label: "My Requests", detail: "Ask for help and check replies", icon: Inbox, action: () => selectTab("Requests") },
                       { label: "Refer a Friend", detail: "Invite someone to join", icon: UserPlus, action: () => setReferralModalOpen(true) },
-                    ].map((item) => (
+                    ].filter((item) => canAccessFinancials || item.label !== "View My Savings").map((item) => (
                       <button key={item.label} onClick={item.action} className="group flex min-h-11 items-center gap-3 rounded-xl px-2 py-1 text-left transition hover:bg-[#F1F7EF] focus-visible:outline-2 focus-visible:outline-[#2F7D57]">
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[#EDF6EE] text-[#2F7D57]"><item.icon className="size-4" aria-hidden="true" /></span>
                         <span className="flex-1"><span className="block text-sm font-bold text-[#173626]">{item.label}</span><span className="block text-xs text-[#6B7280]">{item.detail}</span></span>
@@ -1245,7 +1282,7 @@ export default function MemberDashboardPage() {
 
               <div className="mb-14 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDE8D8] bg-[#EDF6EE] px-4 py-2 text-sm text-coop-secondary">
                 <p>Need help with your account? Send a request to the cooperative.</p>
-                <button onClick={() => setActiveTab("Requests")} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 font-bold text-coop-forest hover:bg-white">Get Help<ArrowRight className="size-4" aria-hidden="true" /></button>
+                <button onClick={() => selectTab("Requests")} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 font-bold text-coop-forest hover:bg-white">Get Help<ArrowRight className="size-4" aria-hidden="true" /></button>
               </div>
               </>
               )}
@@ -1253,7 +1290,7 @@ export default function MemberDashboardPage() {
           )}
 
           {/* ======================= FINANCIAL TAB ======================= */}
-          {activeTab === "Financial" && (
+          {activeTab === "Financial" && canAccessFinancials && (
             <section className="animate-in fade-in slide-in-from-bottom-4 duration-500" aria-labelledby="financial-heading">
               <Tabs.Root value={financialView} onValueChange={setFinancialView}>
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1568,7 +1605,7 @@ export default function MemberDashboardPage() {
           )}
 
           {/* ======================= MEMBER & SHARE CAPITAL TAB ======================= */}
-          {activeTab === "Member & Share" && (
+          {activeTab === "Member & Share" && canAccessFinancials && (
             <MemberShareOverview
               capital={shareCapitalTotal}
               linked={Boolean(dashboardData?.isLinked)}
@@ -1795,7 +1832,7 @@ export default function MemberDashboardPage() {
 
           {/* ======================= PROFILE TAB ======================= */}
           {activeTab === "Profile" && (
-            <ProfileSettings initialSection={profileSection} onSaved={() => void refreshDashboard({ silent: true })} />
+            <ProfileSettings membershipLabel={membershipLabel} initialSection={profileSection} onSaved={() => void refreshDashboard({ silent: true })} />
           )}
 
           {/* ======================= HELP CENTER TAB ======================= */}

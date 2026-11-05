@@ -3,6 +3,7 @@ import test from "node:test";
 import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
+import type { Pool } from "mysql2/promise";
 import { AppError } from "../../utils/app-error";
 import { errorHandler } from "../../middleware/error-handler";
 import type { AuthService } from "../auth/auth.service";
@@ -10,7 +11,7 @@ import type { AuthUser } from "../auth/auth.types";
 import { createPatronageCapitalRouter } from "./patronage-capital.routes";
 import type { PatronageCapitalRepository } from "./patronage-capital.repository";
 
-function app() {
+function app(membershipType = "True Member") {
   const calls: Array<{ method: string; actor: string; input?: unknown }> = [];
   const auth = { authenticate: async (role: AuthUser["role"] | undefined) => { if (!role) throw new AppError("Authentication required.", 401, "UNAUTHENTICATED"); return { user: { id: role, role }, sessionId: "1", tokenHash: "test" }; } } as unknown as AuthService;
   const repo = {
@@ -20,11 +21,19 @@ function app() {
     decide: async (_id, input, actor) => { calls.push({ method: "decide", actor: actor.user.id, input }); return { id: "1", status: "Approved" } as never; },
   } satisfies PatronageCapitalRepository;
   const server = express(); server.use(express.json()); server.use(cookieParser());
-  server.use("/api", createPatronageCapitalRouter(auth, repo)); server.use(errorHandler);
+  const membershipPool = { async execute() { return [[{ membership_type: membershipType }], []]; } } as unknown as Pool;
+  server.use("/api", createPatronageCapitalRouter(auth, repo, membershipPool)); server.use(errorHandler);
   return { server, calls };
 }
 
 const body = { allocationId: "10", amount: 100, requestKey: "4c106f59-1548-4c75-8eb3-351a33817fc0" };
+
+test("associates cannot read refunds or request refund transfers", async () => {
+  const { server, calls } = app("Associate");
+  assert.equal((await request(server).get("/api/members/me/patronage-capital").set("Cookie", "trackcoop_session=member")).status, 403);
+  assert.equal((await request(server).post("/api/members/me/patronage-capital").set("Cookie", "trackcoop_session=member").send(body)).status, 403);
+  assert.equal(calls.length, 0);
+});
 
 test("member requests use the authenticated owner and cannot select a different member", async () => {
   const { server, calls } = app();

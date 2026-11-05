@@ -1,3 +1,4 @@
+import { canAccessMemberFinancials } from "../../middleware/true-member";
 import bcrypt from "bcryptjs";
 import { readLivelihoods, validateLivelihoods } from "./member-livelihoods";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
@@ -17,6 +18,7 @@ import type {
 
 type MemberProfileRow = RowDataPacket & {
   member_id: number | string;
+  membership_type?: string;
   member_code?: string | null;
   referral_code?: string | null;
   application_date?: Date | string | null;
@@ -313,7 +315,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
 
   async function getMemberForUser(userId: string | number) {
     const [members] = await databasePool().execute<MemberProfileRow[]>(
-      "SELECT member_id FROM member_profiles WHERE user_id = ?",
+      "SELECT member_id, membership_type FROM member_profiles WHERE user_id = ?",
       [userId],
     );
     return members[0] ?? null;
@@ -327,7 +329,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
 
   async function selectMemberProfile(auth: AuthContext) {
       const [members] = await databasePool().execute<SelfProfileRow[]>(
-        `SELECT m.contact_number, m.email, m.barangay, m.municipality, m.province, m.livelihoods,
+        `SELECT m.membership_type, m.contact_number, m.email, m.barangay, m.municipality, m.province, m.livelihoods,
                 COALESCE(m.occupation, (
                   SELECT a.occupation FROM membership_applications a
                    WHERE a.converted_member_id = m.member_id AND a.occupation IS NOT NULL
@@ -346,7 +348,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       let members: MemberProfileRow[];
       try {
         [members] = await databasePool().execute<MemberProfileRow[]>(
-          `SELECT member_id, member_code, referral_code, application_date, approved_at, true_member_since, created_at,
+          `SELECT member_id, membership_type, member_code, referral_code, application_date, approved_at, true_member_since, created_at,
                   share_capital_deadline, contact_number, email, barangay, municipality, province, sector
              FROM member_profiles
             WHERE user_id = ?`,
@@ -355,7 +357,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       } catch {
         // Keep the dashboard available while the referral migration is still pending.
         [members] = await databasePool().execute<MemberProfileRow[]>(
-          `SELECT member_id, member_code, application_date, approved_at, true_member_since, created_at,
+          `SELECT member_id, membership_type, member_code, application_date, approved_at, true_member_since, created_at,
                   share_capital_deadline, contact_number, email, barangay, municipality, province, sector
              FROM member_profiles
             WHERE user_id = ?`,
@@ -486,10 +488,11 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           LIMIT 5`,
         [auth.user.id],
       );
-      const financialTransparency = await getFinancialTransparency(databasePool(), query);
-      const dividendActivities = await selectMemberDividendActivities(databasePool(), member.member_id);
+      const hasFinancialAccess = canAccessMemberFinancials(member);
+      const financialTransparency = hasFinancialAccess ? await getFinancialTransparency(databasePool(), query) : null;
+      const dividendActivities = canAccessMemberFinancials(member) ? await selectMemberDividendActivities(databasePool(), member.member_id) : [];
 
-      const recentActivity = [...sales, ...deposits, ...pendingDeposits, ...dividendActivities, ...rentals, ...announcements]
+      const recentActivity = [...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
         .slice(0, 5);
       const recentCapitalContributions = [...deposits, ...unledgeredDividendAdditions]
@@ -538,26 +541,28 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           LIMIT 10`,
         [member.member_id],
       ).catch(() => [[] as RowDataPacket[]]);
-      const memberFinancialSummary = await selectMemberFinancialSummary(databasePool(), member.member_id, query);
+      const memberFinancialSummary = hasFinancialAccess ? await selectMemberFinancialSummary(databasePool(), member.member_id, query) : null;
       const memberProfile = await selectMemberProfile(auth);
 
       return {
         isLinked: true,
-        shareCapital: {
+        membershipType: member.membership_type,
+        canAccessFinancials: hasFinancialAccess,
+        shareCapital: hasFinancialAccess ? {
           total: validatedShareCapital,
           deadline: member.share_capital_deadline,
-        },
+        } : null,
         recentActivity,
-        recentCapitalContributions,
-        financialTransparency: {
+        recentCapitalContributions: hasFinancialAccess ? recentCapitalContributions : [],
+        financialTransparency: hasFinancialAccess ? {
           ...financialTransparency,
           scope: "Posted cooperative records. Share Capital contributions are shown separately.",
-        },
+        } : null,
         memberFinancialSummary,
         stats: {
           announcements: allAnnouncements[0]?.count || 0,
           purchases: purchaseCount[0]?.count || 0,
-          deposits: depositCount[0]?.count || 0,
+          deposits: hasFinancialAccess ? depositCount[0]?.count || 0 : 0,
           rentals: rentalCount[0]?.count || 0,
         },
         referrals: {
@@ -572,6 +577,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           items: referralItems,
         },
         member: {
+          membershipType: member.membership_type,
           occupation: memberProfile.occupation,
           livelihoods: memberProfile.livelihoods,
           code: member.member_code,
@@ -634,9 +640,9 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
            FROM announcements
           WHERE announcement_status = 'Published'`,
       );
-      const dividendActivities = await selectMemberDividendActivities(databasePool(), member.member_id);
+      const dividendActivities = canAccessMemberFinancials(member) ? await selectMemberDividendActivities(databasePool(), member.member_id) : [];
       const searchPattern = search.trim().toLowerCase();
-      const allRecords = [...sales, ...deposits, ...pendingDeposits, ...dividendActivities, ...rentals, ...announcements]
+      const allRecords = [...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
         .filter((record) => !searchPattern || `${record.type} ${record.status}`.toLowerCase().includes(searchPattern))
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime());
       const total = allRecords.length;

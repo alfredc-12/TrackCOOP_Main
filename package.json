@@ -21,6 +21,8 @@
     "test:e2e": "playwright test",
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
+    "db:migrate:membership-upgrades": "tsx server/src/scripts/migrate-membership-upgrades.ts",
+    "user:create-associate-test": "tsx server/src/scripts/create-associate-test-account.ts",
     "db:migrate:records": "tsx server/src/scripts/migrate-records.ts",
     "db:migrate:patronage-capital": "tsx server/src/scripts/migrate-patronage-capital.ts",
     "db:migrate:rental": "tsx server/src/scripts/migrate-rental-operations.ts",

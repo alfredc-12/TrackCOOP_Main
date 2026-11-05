@@ -1,5 +1,6 @@
 "use client";
 
+import { MembershipUpgradeReviews } from "@/features/membership/MembershipUpgradeReviews";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -870,6 +871,7 @@ function MembersWorkspace({ context, initialTab }: { context: string; initialTab
 
   return (
     <div className="grid gap-6">
+      <MembershipUpgradeReviews onChanged={() => { void loadDirectory(); }} />
       <div className="flex flex-col gap-5 border-b border-[#CAD8CB] pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.34em] text-[#D99A0B]">People</p>

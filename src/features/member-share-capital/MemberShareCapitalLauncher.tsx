@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { expressFetch } from "@/lib/express-api";
 import { PatronageCapitalMemberPanel } from "@/features/patronage/PatronageCapitalMemberPanel";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
@@ -40,6 +41,19 @@ function errorMessage(error: unknown) {
 
 export function MemberShareCapitalLauncher() {
   const [open, setOpen] = useState(false);
+  const [membershipType, setMembershipType] = useState<string | null>(null);
+  const isTrueMember = membershipType === "True Member";
+  useEffect(() => {
+    const loadMembership = async () => {
+      try {
+        const response = await expressFetch("/api/members/me/true-membership");
+        if (response.ok) setMembershipType((await response.json()).membershipType);
+      } catch { /* Keep refund features closed until membership is verified. */ }
+    };
+    void loadMembership();
+    const timer = window.setInterval(() => void loadMembership(), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [method, setMethod] = useState<"cash" | "refund" | null>(null);
   const [summary, setSummary] = useState<MemberShareCapitalSummary | null>(null);
   const [amount, setAmount] = useState("");
@@ -127,7 +141,7 @@ export function MemberShareCapitalLauncher() {
 
   return (
     <Modal
-      title="Add Share Capital"
+      title={isTrueMember ? "Add Share Capital" : "Contribute toward True Membership"}
       description="Choose how you want to add to your Share Capital."
       open={open}
       onOpenChange={(next) => { setOpen(next); if (!next) setMethod(null); }}
@@ -138,16 +152,16 @@ export function MemberShareCapitalLauncher() {
           className="fixed bottom-6 right-6 z-40 flex items-center gap-3 rounded-full bg-[#123D2A] px-5 py-3 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-[#1F6B43] focus:outline-none focus:ring-4 focus:ring-[#1F6B43]/25"
         >
           <Wallet className="size-5" />
-          Add Share Capital
+          {isTrueMember ? "Add Share Capital" : "Contribute Share Capital"}
         </button>
       }
     >
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Ways to add Share Capital">
         <button type="button" aria-pressed={method === "cash"} onClick={() => setMethod("cash")} className={`rounded-xl border p-4 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "cash" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="block font-bold text-[#123D2A]">Add money through QRPH</span><span className="mt-1 block text-[#5D6D63]">Pay using your bank or e-wallet.</span></button>
-        <button type="button" aria-pressed={method === "refund"} onClick={() => setMethod("refund")} className={`rounded-xl border p-4 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "refund" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="block font-bold text-[#123D2A]">Use my patronage refund</span><span className="mt-1 block text-[#5D6D63]">Add an available refund instead of receiving cash.</span></button>
+        {isTrueMember && <button type="button" aria-pressed={method === "refund"} onClick={() => setMethod("refund")} className={`rounded-xl border p-4 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "refund" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="block font-bold text-[#123D2A]">Use my patronage refund</span><span className="mt-1 block text-[#5D6D63]">Add an available refund instead of receiving cash.</span></button>}
       </div>
       <p className="mb-4 rounded-xl bg-[#F8F6EF] p-3 text-sm leading-6 text-[#5D6D63]">Adding to your Share Capital may increase your future interest. The amount depends on the cooperative’s approved computation and when you add it.</p>
-      {method === "refund" ? <PatronageCapitalMemberPanel /> : null}
+      {method === "refund" && isTrueMember ? <PatronageCapitalMemberPanel /> : null}
       {method === "cash" ? <>
       {loading && !summary ? (
         <div className="flex min-h-48 items-center justify-center text-[#365f4a]">
@@ -254,9 +268,9 @@ export function MemberShareCapitalLauncher() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] pt-4">
             <p className="text-xs text-[#5b7164]">Member {summary.memberCode} · {summary.membershipType}</p>
-            <Link href="/statement" target="_blank" className="inline-flex items-center gap-2 text-sm font-bold text-[#1F6B43] hover:underline">
+            {isTrueMember && <Link href="/statement" target="_blank" className="inline-flex items-center gap-2 text-sm font-bold text-[#1F6B43] hover:underline">
               <History className="size-4" /> Payment history
-            </Link>
+            </Link>}
           </div>
 
           {summary.history.length > 0 ? (

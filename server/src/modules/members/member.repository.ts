@@ -1,4 +1,4 @@
-import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { limitOffsetSql } from "../../db/pagination";
 import { barangayFilter, inFilter, joinFilters, likeTerm, manilaDateRangeFilter, type SqlFilter } from "../../utils/people-filters";
@@ -116,7 +116,7 @@ export interface MemberRepository {
   unifiedStatusHistoryActors(filters?: UnifiedStatusHistoryFilters): Promise<HistoryActorOptions>;
   summary(filters?: MemberFilters): Promise<MemberSummary>;
   barangayDistribution(): Promise<BarangayDistribution[]>;
-  shareCapitalProgress(memberId: string): Promise<ShareCapitalProgress>;
+  shareCapitalProgress(memberId: string, connection?: PoolConnection): Promise<ShareCapitalProgress>;
 }
 
 function memberSelect() {
@@ -295,8 +295,8 @@ export function unifiedHistoryConditions(
 export function createMemberRepository(pool?: Pool): MemberRepository {
   const databasePool = () => pool ?? getPool();
 
-  async function shareCapitalProgress(memberId: string): Promise<ShareCapitalProgress> {
-    const [rows] = await databasePool().execute<ShareCapitalRow[]>(
+  async function shareCapitalProgress(memberId: string, connection?: PoolConnection): Promise<ShareCapitalProgress> {
+    const [rows] = await (connection ?? databasePool()).execute<ShareCapitalRow[]>(
       `SELECT COALESCE(SUM(CASE WHEN payment_status = 'Validated' THEN amount ELSE 0 END), 0) AS validatedTotal,
               COALESCE(SUM(CASE WHEN payment_status = 'Pending' THEN amount ELSE 0 END), 0) AS pendingTotal,
               SUM(payment_status = 'Validated') AS validatedPayments
