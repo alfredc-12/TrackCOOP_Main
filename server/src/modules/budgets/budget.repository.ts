@@ -1,3 +1,4 @@
+import { controlledFinanceMode, type ControlledFinanceMode } from "../finance/controlled-finance.mode";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -39,6 +40,13 @@ type BudgetLineRow = RowDataPacket & {
   hardLimit: number;
   spentAmount: string | number;
 };
+
+async function lockControlledBudget(connection: PoolConnection) {
+  try {
+    const [rows] = await connection.execute<RowDataPacket[]>("SELECT mutex_id FROM budget_control_mutex WHERE mutex_id=1 FOR UPDATE");
+    if (!rows.length) throw new Error("Missing budget guard");
+  } catch { throw new AppError("Controlled budget guard is unavailable",503,"BUDGET_UNAVAILABLE"); }
+}
 
 function numberValue(value: unknown) {
   return Number(value ?? 0) || 0;
@@ -149,7 +157,7 @@ export interface BudgetRepository {
   summary(): Promise<BudgetSummary>;
 }
 
-export function createBudgetRepository(pool?: Pool): BudgetRepository {
+export function createBudgetRepository(pool?: Pool, mode: () => ControlledFinanceMode = controlledFinanceMode): BudgetRepository {
   const databasePool = () => pool ?? getPool();
   return {
     async list(query) {
@@ -194,6 +202,7 @@ export function createBudgetRepository(pool?: Pool): BudgetRepository {
     async create(input, auth) {
       assertChairman(auth);
       return withTransaction(async (connection) => {
+        if (mode() === "Active") await lockControlledBudget(connection);
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO budgets
              (budget_name, coverage_start, coverage_end, budget_status, notes, created_by)
@@ -223,6 +232,7 @@ export function createBudgetRepository(pool?: Pool): BudgetRepository {
     async transition(id, action, auth) {
       assertChairman(auth);
       return withTransaction(async (connection) => {
+        if (mode() === "Active") await lockControlledBudget(connection);
         const existing = await findBudget(connection, id);
         if (!existing) throw new AppError("Budget was not found", 404, "BUDGET_NOT_FOUND");
         const nextStatus: BudgetStatus = action === "submit"

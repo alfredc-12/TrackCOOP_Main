@@ -1,0 +1,42 @@
+﻿import assert from "node:assert/strict";
+import test from "node:test";
+import { assertControlledPostingInactive, decideApproval, evaluateControlledRecord, type ControlledRecord, type EvaluationInput } from "./controlled-posting.model";
+import type { PolicyRevision } from "../financial-policy/financial-policy.model";
+const rev = (kind: "threshold" | "restrictions", config: PolicyRevision["config"]): PolicyRevision => ({ kind, version: 2, state: "APPROVED", config, createdBy: "1", createdAt: "2026-01-01T00:00:00Z", approvedBy: "2", approvedAt: "2026-01-01T00:00:00Z", effectiveAt: "2026-01-01T00:00:00Z" });
+const record: ControlledRecord = { id: "1", makerId: "1", recordType: "Expense", sourceModule: "Manual", sourceRecordId: null, paymentReferenceId: null, memberId: null, categoryId: "4", categoryActive: true, categoryType: "Expense", categoryCode: "FUEL", categoryName: "Fuel", amount: "9.99", recordStatus: "Active", approvedBy: null };
+const input: EvaluationInput = { record, evidenceVerified: true, threshold: rev("threshold", { amountPhp: "10.00" }), restrictions: rev("restrictions", { categoryIds: [], sources: [] }), expectedPolicy: { threshold: 2, restrictions: 2 }, budget: { state: "WITHIN_BUDGET", blocked: false, basis: "basis" }, now: new Date("2026-11-06T00:00:00Z") };
+test("missing evidence, missing or stale policies, and budget failures never become approvable", () => {
+  assert.equal(evaluateControlledRecord({ ...input, evidenceVerified: false }).state, "INCOMPLETE_EVIDENCE");
+  assert.equal(evaluateControlledRecord({ ...input, evidenceVerified: false, threshold: null }).configurationCode, "POLICY_CONFIGURATION_REQUIRED");
+  assert.equal(evaluateControlledRecord({ ...input, threshold: null }).code, "POLICY_CONFIGURATION_REQUIRED");
+  assert.equal(evaluateControlledRecord({ ...input, restrictions: { ...input.restrictions!, state: "DRAFT" } }).state, "CONFIGURATION_BLOCKED");
+  assert.equal(evaluateControlledRecord({ ...input, expectedPolicy: { threshold: 1, restrictions: 2 } }).state, "CONFIGURATION_BLOCKED");
+  assert.equal(evaluateControlledRecord({ ...input, budget: { state: "HARD_LIMIT_EXCEEDED", blocked: true, basis: "basis" } }).state, "BUDGET_BLOCKED");
+  assert.equal(evaluateControlledRecord({ ...input, budget: { state: "UNBUDGETED", blocked: true, basis: null } }).code, "UNBUDGETED_REVIEW_REQUIRED");
+  assert.equal(evaluateControlledRecord({ ...input, record: { ...record, sourceModule: "POS" } }).code, "SOURCE_OR_RECORD_INVALID");
+  assert.equal(evaluateControlledRecord({ ...input, record: { ...record, categoryActive: false } }).code, "SOURCE_OR_RECORD_INVALID");
+  assert.equal(evaluateControlledRecord({ ...input, record: { ...record, memberId: "55" } }).code, "SOURCE_OR_RECORD_INVALID");
+  assert.equal(evaluateControlledRecord({ ...input, record: { ...record, categoryCode: "SHARE_CAPITAL" } }).code, "SOURCE_OR_RECORD_INVALID");
+});
+test("approved-empty schedule is valid and exact threshold or restriction requires approval", () => {
+  assert.equal(evaluateControlledRecord(input).state, "ROUTINE_POST_ELIGIBLE");
+  assert.equal(evaluateControlledRecord({ ...input, record: { ...record, amount: "10.00" } }).state, "PENDING_APPROVAL");
+  assert.equal(evaluateControlledRecord({ ...input, restrictions: rev("restrictions", { categoryIds: ["4"], sources: [] }) }).state, "PENDING_APPROVAL");
+});
+test("maker-checker requires a distinct Chairman, a reason and a current pending case", () => {
+  const current = evaluateControlledRecord({ ...input, record: { ...record, amount: "10.00" } });
+  const op = { version: 3, state: "PENDING_APPROVAL" as const, makerId: "1", thresholdVersion: 2, restrictionVersion: 2, budgetBasis: "basis" };
+  assert.throws(() => decideApproval(op, 3, { id: "1", role: "chairman" }, "approve", "reason", current));
+  assert.throws(() => decideApproval(op, 3, { id: "2", role: "bookkeeper" }, "approve", "reason", current));
+  assert.throws(() => decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", " ", current));
+  assert.throws(() => decideApproval(op, 2, { id: "2", role: "chairman" }, "approve", "reason", current));
+  assert.throws(() => decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", "reason", { ...current, budgetBasis: "changed" }));
+  assert.equal(decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", "reason", current), "APPROVED_FOR_POSTING");
+  assert.equal(decideApproval(op, 3, { id: "2", role: "chairman" }, "reject", "reason", current), "REJECTED");
+  const unbudgeted = evaluateControlledRecord({ ...input, budget: { state: "UNBUDGETED", blocked: true, basis: null } });
+  const unbudgetedOp = { ...op, budgetBasis: null };
+  assert.equal(decideApproval(unbudgetedOp, 3, { id: "2", role: "chairman" }, "approve", "reason", unbudgeted), "UNBUDGETED_REVIEWED");
+  const hardLimit = evaluateControlledRecord({ ...input, budget: { state: "HARD_LIMIT_EXCEEDED", blocked: true, basis: "basis" } });
+  assert.throws(() => decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", "reason", hardLimit));
+  assert.throws(() => assertControlledPostingInactive());
+});

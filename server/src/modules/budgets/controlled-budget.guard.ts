@@ -1,4 +1,5 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+import { AppError } from "../../utils/app-error";
 import { createHash } from "node:crypto";
 import { withTransaction } from "../../db/transaction";
 import { postedOperatingSql } from "../finance/financial-posting-rules";
@@ -6,7 +7,7 @@ import { calculateAssignedTotals, evaluateAssignedBudget, selectBudgetLine, cent
 
 type CandidateRow = RowDataPacket & BudgetCandidate;
 type FinancialRow = RowDataPacket & SpendRow;
-export type GuardInput = ExpenseKey & { amount: string; expectedBasis: string; operationKey: string; actorId: string };
+export type GuardInput = ExpenseKey & { amount: string; expectedBasis: string; operationKey: string; actorId: string; subjectId?: string };
 export type GuardResult = { state: "POSTED" | "REPLAY"; operationReference: string } | BudgetEvaluation;
 const denied = (state: BudgetEvaluation["state"]): BudgetEvaluation => ({ state, blocked: true, lineId: null, unresolvedCount: 0, posted: "0.00", drafts: "0.00", pending: "0.00", limit: null, remaining: null, projected: null });
 export function budgetBasis(line: BudgetCandidate): string {
@@ -35,10 +36,10 @@ async function totals(connection: PoolConnection, line: BudgetCandidate) {
 
 // Internal-only foundation. The callback and its source write must use this connection;
 // all future controlled writers and budget transitions must acquire the same mutex.
-// This function is not connected to any current route or posting service.
+// Connected only to the inactive controlled workflow; legacy posting remains separate.
 export async function withControlledBudget(pool: Pool, input: GuardInput, post: (connection: PoolConnection, line: BudgetCandidate) => Promise<string>): Promise<GuardResult> {
-  if (!/^[a-f0-9]{64}$/.test(input.operationKey) || !/^[a-f0-9]{64}$/.test(input.expectedBasis) || !/^[1-9]\d*$/.test(input.actorId)) throw new Error("Invalid budget guard request");
-  const requestHash = createHash("sha256").update(JSON.stringify([input.date, input.categoryId, input.seasonId, input.amount, input.expectedBasis, input.actorId])).digest("hex");
+  if (!/^[a-f0-9]{64}$/.test(input.operationKey) || !/^[a-f0-9]{64}$/.test(input.expectedBasis) || !/^[1-9]\d*$/.test(input.actorId) || (input.subjectId !== undefined && !/^[1-9]\d*$/.test(input.subjectId))) throw new Error("Invalid budget guard request");
+  const requestHash = createHash("sha256").update(JSON.stringify([input.date, input.categoryId, input.seasonId, input.amount, input.expectedBasis, input.actorId, input.subjectId ?? null])).digest("hex");
   let postAttempted = false;
   try { return await withTransaction(async (connection) => {
     let lines: BudgetCandidate[];
@@ -47,12 +48,12 @@ export async function withControlledBudget(pool: Pool, input: GuardInput, post: 
       if (!mutex.length) return denied("BUDGET_UNAVAILABLE");
       const [prior] = await connection.execute<RowDataPacket[]>("SELECT request_hash AS requestHash, operation_reference AS operationReference FROM budget_guard_operations WHERE operation_key=?", [input.operationKey]);
       if (prior.length) {
-        if (prior[0].requestHash !== requestHash) throw new Error("Idempotency key reused with different request");
+        if (prior[0].requestHash !== requestHash) throw new AppError("Idempotency key reused with different request",409,"IDEMPOTENCY_CONFLICT");
         return { state: "REPLAY", operationReference: String(prior[0].operationReference) };
       }
       lines = await candidates(connection, input);
     } catch (error) {
-      if (error instanceof Error && error.message === "Idempotency key reused with different request") throw error;
+      if (error instanceof AppError && error.code === "IDEMPOTENCY_CONFLICT") throw error;
       return denied("BUDGET_UNAVAILABLE");
     }
     const assignment = selectBudgetLine(input, lines);
@@ -65,15 +66,15 @@ export async function withControlledBudget(pool: Pool, input: GuardInput, post: 
     postAttempted = true;
     const operationReference = await post(connection, assignment.line);
     if (!/^[1-9]\d*$/.test(operationReference)) throw new Error("Invalid controlled financial record ID");
-    const [records] = await connection.execute<RowDataPacket[]>(`SELECT CAST(fr.financial_category_id AS CHAR) AS categoryId, CAST(fr.season_id AS CHAR) AS seasonId, DATE_FORMAT(fr.record_date,'%Y-%m-%d') AS recordDate, CAST(fr.amount AS CHAR) AS amount, (${postedOperatingSql("fr", "fc")}) AS eligible FROM financial_records fr LEFT JOIN financial_categories fc ON fc.financial_category_id=fr.financial_category_id WHERE fr.financial_record_id=? FOR UPDATE`, [operationReference]);
+    const [records] = await connection.execute<RowDataPacket[]>(`SELECT fr.record_type AS recordType, CAST(fr.financial_category_id AS CHAR) AS categoryId, CAST(fr.season_id AS CHAR) AS seasonId, DATE_FORMAT(fr.record_date,'%Y-%m-%d') AS recordDate, CAST(fr.amount AS CHAR) AS amount, (${postedOperatingSql("fr", "fc")}) AS eligible FROM financial_records fr LEFT JOIN financial_categories fc ON fc.financial_category_id=fr.financial_category_id WHERE fr.financial_record_id=? FOR UPDATE`, [operationReference]);
     const record = records[0];
-    if (!record || !record.eligible || record.categoryId !== input.categoryId || record.seasonId !== input.seasonId || record.recordDate !== input.date || cents(String(record.amount)) !== cents(input.amount)) throw new Error("Controlled post does not match guarded expense");
+    if (!record || record.recordType !== "Expense" || !record.eligible || record.categoryId !== input.categoryId || record.seasonId !== input.seasonId || record.recordDate !== input.date || cents(String(record.amount)) !== cents(input.amount)) throw new Error("Controlled post does not match guarded expense");
     await connection.execute("INSERT INTO budget_expense_assignments(financial_record_id,budget_line_id,assigned_by) VALUES(?,?,?)", [operationReference, assignment.line.lineId, input.actorId]);
     await connection.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,new_values,action_time) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())", [input.actorId, "budget.assignment_created", "financial_records", operationReference, "A controlled expense was assigned to a budget line.", JSON.stringify({ budgetLineId: assignment.line.lineId, recordId: operationReference })]);
     await connection.execute("INSERT INTO budget_guard_operations(operation_key,request_hash,operation_reference) VALUES(?,?,?)", [input.operationKey, requestHash, operationReference]);
     return { state: "POSTED", operationReference };
   }, pool); } catch (error) {
-    if (postAttempted || (error instanceof Error && error.message === "Idempotency key reused with different request")) throw error;
+    if (postAttempted || (error instanceof AppError && error.code === "IDEMPOTENCY_CONFLICT")) throw error;
     return denied("BUDGET_UNAVAILABLE");
   }
 }
@@ -88,4 +89,15 @@ export async function previewControlledBudget(pool: Pool, input: ExpenseKey & { 
       return { evaluation: evaluateAssignedBudget(line, await totals(connection, line), input.amount), basis: budgetBasis(line) };
     }, pool);
   } catch { return { evaluation: denied("BUDGET_UNAVAILABLE"), basis: null }; }
+}
+
+// For a caller-owned transaction; the lock remains held through its commit.
+export async function evaluateBudgetWithinTransaction(connection: PoolConnection, input: ExpenseKey & { amount: string }): Promise<{ evaluation: BudgetEvaluation; basis: string | null }> {
+  try {
+    const [mutex] = await connection.execute<RowDataPacket[]>("SELECT mutex_id FROM budget_control_mutex WHERE mutex_id=1 FOR UPDATE");
+    if (!mutex.length) throw new Error("Missing budget mutex");
+    const assignment = selectBudgetLine(input, await candidates(connection, input));
+    if (assignment.state !== "ASSIGNED") return { evaluation: denied(assignment.state), basis: null };
+    return { evaluation: evaluateAssignedBudget(assignment.line, await totals(connection, assignment.line), input.amount), basis: budgetBasis(assignment.line) };
+  } catch { throw new AppError("Budget evaluation is unavailable", 503, "BUDGET_UNAVAILABLE"); }
 }
