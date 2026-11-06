@@ -39,6 +39,8 @@ test("inactive default denies controlled draft creation without touching a datab
   const repo=createControlledPostingRepository(pool);
   const auth={ sessionId:"1",tokenHash:"test",user:{id:"1",role:"bookkeeper",displayName:"Fixture"} } as AuthContext;
   await assert.rejects(repo.createDraft({recordNumber:"D1",categoryId:"4",recordType:"Expense",amount:"1.00",date:"2026-06-01",seasonId:null,remarks:null,idempotencyKey:"a".repeat(64)},auth),(error:unknown)=>(error as AppError).code==="CONTROLLED_FINANCE_INACTIVE");
+  await assert.rejects(repo.create("1","bad",auth),(error:unknown)=>(error as AppError).code==="INVALID_CONTROLLED_REQUEST");
+  await assert.rejects(repo.requestLegacyCorrection("1","bad","reason",auth),(error:unknown)=>(error as AppError).code==="INVALID_CONTROLLED_REQUEST");
   assert.equal(touched,false);
 });
 

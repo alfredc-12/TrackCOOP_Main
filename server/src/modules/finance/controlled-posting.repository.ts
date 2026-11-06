@@ -78,6 +78,7 @@ export function createControlledPostingRepository(pool?: Pool, verifyEvidence: E
   }
   async function create(recordId: string, key: string, auth: AuthContext) {
     role(auth, "bookkeeper");
+    if (!/^[1-9]\d{0,19}$/.test(recordId) || !/^[a-f0-9]{64}$/.test(key)) throw new AppError("Invalid controlled request",422,"INVALID_CONTROLLED_REQUEST");
     try { return await withTransaction(async (c) => {
       await lockControl(c);
       const record = await recordForUpdate(c, recordId);
@@ -177,6 +178,7 @@ export function createControlledPostingRepository(pool?: Pool, verifyEvidence: E
   }
   async function requestLegacyCorrection(recordId: string, key: string, reason: string, auth: AuthContext) {
     role(auth,"bookkeeper");
+    if (!/^[1-9]\d{0,19}$/.test(recordId) || !/^[a-f0-9]{64}$/.test(key)) throw new AppError("Invalid controlled request",422,"INVALID_CONTROLLED_REQUEST");
     if (!reason.trim() || reason.trim().length > 2000) throw new AppError("A reason is required",422,"DECISION_REASON_REQUIRED");
     const hash=createHash("sha256").update(JSON.stringify(["correction",auth.user.id,recordId,reason.trim()])).digest("hex");
     try { return await withTransaction(async (c) => {
