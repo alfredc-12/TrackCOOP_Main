@@ -1,3 +1,4 @@
+import { createFinancialPolicyRouter } from "./modules/financial-policy/financial-policy.routes";
 import { createMembershipProgressRouter } from "./modules/membership-policy/membership-progress.routes";
 import { createMembershipUpgradeRouter } from "./modules/members/membership-upgrade.routes";
 import { createFinancialOverviewRouter } from "./modules/financial-overview/overview.routes";
@@ -185,6 +186,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createPatronageRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
+  app.use("/api", createFinancialPolicyRouter(options.authService));
   app.use("/api", createExpenseOverviewRouter(options.authService));
   app.use("/api", createFinancialOverviewRouter(options.authService));
   app.use("/api", createBudgetRouter(options.authService));

@@ -1,0 +1,22 @@
+# Financial policy configuration foundation (PR 1A)
+
+This feature stores policy configuration only. It does not enforce or activate controlled finance. Existing posting, budgets, gateway and source services are not connected to it. The publication risk documented in PR #13 remains a release blocker pending its separately approved remediation.
+
+```text
+Threshold:     ABSENT -> DRAFT -> APPROVED_VALID_AMOUNT -> DRAFT -> ...
+Restrictions:  ABSENT -> DRAFT -> APPROVED_EMPTY or APPROVED_WITH_ENTRIES -> DRAFT -> ...
+                   Each arrow appends a revision; previous revisions remain.
+Lifecycle:     Inactive [this PR]    StagingVerified -> Active [future work only]
+```
+
+An approval revision copies the current draft; it never edits it. Changes after approval require another draft and approval. A per-kind head is locked in the same transaction as the insert and audit record; stale expected versions return 409. The audit record contains the old version and the new configuration, actor and decision time. Both draft and approval are Chairman-only, including reads; Bookkeepers and members cannot read or write these routes. Authentication supplies the actor, never request input. Approval here is configuration governance, not financial-record maker-checker.
+
+`GET /api/financial-policy` returns revision history and a conservative assessment. `POST /api/financial-policy/:kind/drafts` takes `{expectedVersion, configuration}`. `POST /api/financial-policy/:kind/approve` takes `{expectedVersion, effectiveAt}` with an ISO timestamp. Kinds are `threshold` and `restrictions`. Threshold configuration is `{amountPhp: "0.01"}` (illustrative synthetic value only): the input is a decimal string, positive, at most 12 integer digits and two fractional digits. Restrictions are `{categoryIds: [], sources: []}`; categories must currently exist and be active at both draft and approval, and sources come from the existing financial-source enum. Empty restrictions are approved only by an explicit approval. There is no preselected threshold, source or category.
+
+A future-dated approved revision is `NOT_YET_EFFECTIVE`; absent, draft, future, invalid and obsolete expected versions cannot be interpreted as unlimited authority. `assessConfiguration` reports configuration completeness and a hypothetical configuration-blocked result, but `futureActivationEligible` is always false and lifecycle always `Inactive`. When the latest version is a draft or not yet effective, this assessment blocks conservatively even if older approvals exist; PR 1C must explicitly design its as-of selection and transactional re-evaluation. There is no activation endpoint or state mutation in this PR.
+
+## Migration and release
+
+`20261106_finance_policy_configuration.sql` creates separate policy heads and append-only revision tables, seeds only the two empty heads, and references existing `users`. Mutable `system_settings` cannot alone preserve independent approval versions, effective timestamps and immutable history. The migration does not modify financial tables or preexisting records. The owner-attested export shows `users.user_id` as `BIGINT UNSIGNED`; runtime target compatibility and migration ordering remain unverified. The SQL has not been applied to any database. Before an explicitly authorized deployment, inspect `SHOW CREATE TABLE users`, MySQL version, constraints, charset, permissions and migration history on the target; test the exact migration and repository transactions on an isolated disposable MySQL instance. MySQL DDL commits independently: recover using the reviewed managed backup/restore procedure and forward corrective migration; do not silently drop tables containing approvals. Deploy application and schema in coordinated order. Until the migration is installed, the new configuration routes may fail; existing financial posting does not depend on the tables.
+
+PR 1B must establish budget assignment and concurrency. PR 1C must verify legacy/alternate write-path coverage, source ownership, authoritative as-of version selection, transactional re-evaluation, protected posting and maker-checker tests before a separately authorized activation mechanism is implemented. Configuration alone is not activation authorization. The cooperative must still approve an actual PHP threshold and a category/source schedule (including an explicitly approved empty schedule if intended); retention policy remains a separate unresolved decision. No values are supplied by this PR.
