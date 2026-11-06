@@ -9,7 +9,8 @@ import type { AuthService } from "../auth/auth.service";
 import type { AuthContext } from "../auth/auth.types";
 import { fingerprint,taxonomy,transition } from "./finance-exception.model";
 import { createFinanceExceptionRouter } from "./finance-exception.routes";
-import type { FinanceExceptionRepository } from "./finance-exception.repository";
+import { createFinanceExceptionRepository, type FinanceExceptionRepository } from "./finance-exception.repository";
+import type { Pool } from "mysql2/promise";
 
 test("exception identity is deterministic and separates source and code",()=>{
  assert.equal(fingerprint("payment_reference","9","MISSING_POSTING"),fingerprint("payment_reference","9","MISSING_POSTING"));
@@ -41,4 +42,14 @@ test("routes deny anonymous and members and reject arbitrary free-text metadata"
  assert.equal(calls,0);
  assert.equal((await request(app).post(path).set("Cookie",cookie).send({sourceType:"payment_reference",sourceId:"1",code:"MISSING_POSTING",requestKey:"a".repeat(64)})).status,201);
  assert.equal(calls,1);
+});
+
+test("deadlocks and lock timeouts from each mutation become safe conflicts",async()=>{
+ for(const code of ["ER_LOCK_DEADLOCK","ER_LOCK_WAIT_TIMEOUT","ER_DUP_ENTRY"]) {
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async execute(){throw Object.assign(new Error("fixture"),{code});}};
+  const pool={async getConnection(){return connection;}} as unknown as Pool;const repo=createFinanceExceptionRepository(pool);
+  const auth={sessionId:"1",tokenHash:"fixture",user:{id:"1",role:"bookkeeper",displayName:"Fixture"}} as AuthContext;
+  for(const call of [()=>repo.create({sourceType:"payment_reference",sourceId:"1",code:"MISSING_POSTING",requestKey:"a".repeat(64)},auth),()=>repo.act("1",{action:"review",reason:"INVESTIGATION",expectedVersion:1,requestKey:"b".repeat(64)},auth),()=>repo.assign("1",{assignedTo:"2",expectedVersion:1,requestKey:"c".repeat(64)},auth)])
+   await assert.rejects(call,(error:unknown)=>(error as AppError).code==="EXCEPTION_CONFLICT" && (error as AppError).statusCode===409);
+ }
 });
