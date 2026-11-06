@@ -157,10 +157,10 @@ export function MemberShareCapitalLauncher() {
       }
     >
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Ways to add Share Capital">
-        <button type="button" aria-pressed={method === "cash"} onClick={() => setMethod("cash")} className={`rounded-xl border p-4 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "cash" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="block font-bold text-[#123D2A]">Add money through QRPH</span><span className="mt-1 block text-[#5D6D63]">Pay using your bank or e-wallet.</span></button>
-        {isTrueMember && <button type="button" aria-pressed={method === "refund"} onClick={() => setMethod("refund")} className={`rounded-xl border p-4 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "refund" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="block font-bold text-[#123D2A]">Use my patronage refund</span><span className="mt-1 block text-[#5D6D63]">Add an available refund instead of receiving cash.</span></button>}
+        <button type="button" aria-pressed={method === "cash"} onClick={() => setMethod("cash")} className={`flex min-h-[5.5rem] w-full items-center justify-between gap-4 rounded-xl border p-4 text-left text-sm leading-5 transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "cash" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="min-w-0"><span className="block font-bold text-[#123D2A]">Add money through QRPH</span><span className="mt-1 block text-[#5D6D63]">Pay using your bank or e-wallet.</span></span>{method === "cash" ? <CheckCircle2 className="size-5 shrink-0 text-[#1F6B43]" aria-hidden="true" /> : null}</button>
+        {isTrueMember && <button type="button" aria-pressed={method === "refund"} onClick={() => setMethod("refund")} className={`flex min-h-[5.5rem] w-full items-center justify-between gap-4 rounded-xl border p-4 text-left text-sm leading-5 transition focus-visible:ring-2 focus-visible:ring-[#1F6B43] ${method === "refund" ? "border-[#1F6B43] bg-[#EAF3E8]" : "border-[#CAD8CB] hover:bg-[#F3F7F1]"}`}><span className="min-w-0"><span className="block font-bold text-[#123D2A]">Use my patronage refund</span><span className="mt-1 block text-[#5D6D63]">Add an available refund instead of receiving cash.</span></span>{method === "refund" ? <CheckCircle2 className="size-5 shrink-0 text-[#1F6B43]" aria-hidden="true" /> : null}</button>}
       </div>
-      <p className="mb-4 rounded-xl bg-[#F8F6EF] p-3 text-sm leading-6 text-[#5D6D63]">Adding to your Share Capital may increase your future interest. The amount depends on the cooperative’s approved computation and when you add it.</p>
+      <p className="mb-4 rounded-xl bg-[#F8F6EF] p-3 text-sm leading-6 text-[#5D6D63]">A Share Capital contribution may be included in a future Annual Interest on Share Capital calculation. Any amount depends on the cooperative&apos;s approved policy, annual declaration, and when the contribution is recorded.</p>
       {method === "refund" && isTrueMember ? <PatronageCapitalMemberPanel /> : null}
       {method === "cash" ? <>
       {loading && !summary ? (
@@ -179,7 +179,7 @@ export function MemberShareCapitalLauncher() {
           </div>
         </div>
       ) : summary ? (
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           {summary.mode === "test" ? (
             <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               <ShieldCheck className="mt-0.5 size-5 shrink-0" />
@@ -266,7 +266,7 @@ export function MemberShareCapitalLauncher() {
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] pt-4">
+          <div className="mx-auto flex w-full max-w-md flex-col items-center justify-center gap-2 border-t border-[#E5E7EB] pt-4 text-center">
             <p className="text-xs text-[#5b7164]">Member {summary.memberCode} · {summary.membershipType}</p>
             {isTrueMember && <Link href="/statement" target="_blank" className="inline-flex items-center gap-2 text-sm font-bold text-[#1F6B43] hover:underline">
               <History className="size-4" /> Payment history

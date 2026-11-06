@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import { Button } from "@/components/ui/Button";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { AgriculturalSectorFields } from "./MembershipSelectionFields";
 export type CapitalProgress = {
   caseId: string;
@@ -243,6 +244,7 @@ export function MembershipHistory({
   kind: "referrals" | "payments";
 }) {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [data, setData] = useState<{
     items: HistoryItem[];
     total: number;
@@ -252,7 +254,7 @@ export function MembershipHistory({
   useEffect(() => {
     let active = true;
     apiRequest<{ items: HistoryItem[]; total: number }>(
-      `/api/members/me/${kind === "referrals" ? "referrals" : "membership-payments"}?page=${page}&pageSize=10`,
+      `/api/members/me/${kind === "referrals" ? "referrals" : "membership-payments"}?page=${page}&pageSize=${pageSize}`,
     )
       .then((d) => {
         if (active) {
@@ -266,7 +268,7 @@ export function MembershipHistory({
     return () => {
       active = false;
     };
-  }, [page, kind, retry]);
+  }, [page, pageSize, kind, retry]);
   if (error)
     return (
       <div role="alert">
@@ -278,7 +280,7 @@ export function MembershipHistory({
     );
   if (!data) return <p role="status">Loading history…</p>;
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <div
         className="overflow-x-auto"
         tabIndex={0}
@@ -336,27 +338,21 @@ export function MembershipHistory({
       {!data.items.length && (
         <p className="py-4 text-sm text-coop-muted">No {kind} recorded.</p>
       )}
-      <div className="mt-3 flex items-center justify-end gap-3">
-        <span className="text-sm text-coop-muted">
-          Page {page} of {Math.max(1, Math.ceil(data.total / 10))}
-        </span>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={page === 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={page * 10 >= data.total}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </Button>
-      </div>
+      <PaginationControls
+        currentPage={page}
+        totalPages={Math.max(1, Math.ceil(data.total / pageSize))}
+        totalItems={data.total}
+        itemName={kind === "referrals" ? "referrals" : "payments"}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        pageSizeOptions={[5, 10, 20]}
+        onPageSizeChange={(nextPageSize) => {
+          setPageSize(nextPageSize);
+          setPage(1);
+        }}
+        centerControls
+        className="sticky bottom-0 z-10 mt-auto border-t border-coop-border bg-coop-surface pb-1 pt-3"
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { apiRequest } from "@/lib/api-client";
 import { expressFetch } from "@/lib/express-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { toast } from "sonner";
 import { resolveUploadUrl } from "@/lib/upload-url";
 import {
@@ -33,6 +34,7 @@ import {
   FileText,
   Briefcase,
   ChevronDown,
+  Menu,
   ArrowRight,
   Leaf,
   LogOut,
@@ -132,6 +134,8 @@ export default function MemberDashboardPage() {
   const [allAnnouncementsModalOpen, setAllAnnouncementsModalOpen] = useState(false);
   const [announcementSearch, setAnnouncementSearch] = useState("");
   const [announcementPage, setAnnouncementPage] = useState(1);
+  const [announcementFeedPage, setAnnouncementFeedPage] = useState(1);
+  const [announcementFeedPageSize, setAnnouncementFeedPageSize] = useState(3);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   
@@ -141,6 +145,7 @@ export default function MemberDashboardPage() {
   const [isReferralCodeCopied, setIsReferralCodeCopied] = useState(false);
   const [isReferralLinkCopied, setIsReferralLinkCopied] = useState(false);
   const [referralModalOpen, setReferralModalOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [restoreModalStack, setRestoreModalStack] = useState<{readMore: boolean, viewAll: boolean}>({readMore: false, viewAll: false});
 
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -179,6 +184,7 @@ export default function MemberDashboardPage() {
       else toast.error("Please wait for your membership details to load.");
       return;
     }
+    setMobileMenuOpen(false);
     setActiveTabState(tab);
   }, [canAccessFinancials, isAssociate]);
   const openLivelihoods = () => { setProfileSection("livelihoods"); selectTab("Profile"); };
@@ -316,7 +322,7 @@ export default function MemberDashboardPage() {
         toast.success("Withdrawal request submitted.");
       } else {
         await addDividendToShareCapital(actionDividend.id);
-        toast.success("Dividend added to Share Capital.");
+        toast.success("Annual Interest added to Share Capital.");
       }
       resetDividendAction();
       await Promise.all([refreshMemberDividends({ silent: true }), refreshDashboard({ silent: true })]);
@@ -441,9 +447,15 @@ export default function MemberDashboardPage() {
   }, []);
 
   const navClass = (id: string) =>
-    `inline-flex h-9 items-center border-b-2 px-1 text-sm font-semibold transition ${activeTab === id
+    `inline-flex h-8 items-center border-b-2 px-1 text-sm font-semibold transition ${activeTab === id
       ? "border-coop-green text-coop-forest"
       : "border-transparent text-coop-secondary hover:border-[#1F6B43]/55 hover:text-coop-forest"
+    }`;
+
+  const mobileNavClass = (id: string) =>
+    `flex min-h-10 w-full items-center rounded-lg px-3 text-left text-sm font-semibold transition ${activeTab === id
+      ? "bg-coop-sage text-coop-forest"
+      : "text-coop-secondary hover:text-coop-forest"
     }`;
 
   async function handleLogout() {
@@ -458,15 +470,22 @@ export default function MemberDashboardPage() {
     }
   }
 
+  const announcementFeedTotalPages = Math.max(1, Math.ceil(announcements.length / announcementFeedPageSize));
+  const currentAnnouncementFeedPage = Math.min(announcementFeedPage, announcementFeedTotalPages);
+  const visibleAnnouncementFeed = announcements.slice(
+    (currentAnnouncementFeedPage - 1) * announcementFeedPageSize,
+    currentAnnouncementFeedPage * announcementFeedPageSize,
+  );
+
   return (
-    <div className="flex min-h-[101vh] flex-col bg-[#F8F6EF] font-sans">
+    <div className="flex min-h-[101vh] min-w-0 flex-col bg-[#F8F6EF] font-sans">
       {/* 1. TOP NAVBAR */}
-      <header className="sticky top-0 z-50 border-b-2 border-[#1F6B43]/55 bg-white/92 text-coop-forest shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-2 px-3 sm:px-8">
+      <header className="sticky top-0 z-50 w-full min-w-0 max-w-full overflow-x-clip border-b-2 border-[#1F6B43]/55 bg-white/92 text-coop-forest shadow-sm backdrop-blur-xl">
+        <div className="mx-auto flex h-[76px] w-full min-w-0 max-w-[1440px] items-center justify-between gap-3 px-4 sm:gap-5 sm:px-8 xl:px-10">
           {/* Logo Section */}
-          <div className="shrink-0 xl:w-[210px]">
-            <Link href="#" onClick={() => selectTab("Dashboard")} className="flex items-center gap-3">
-              <span className="relative block size-10 overflow-hidden rounded-md sm:size-14">
+          <div className="min-w-0 shrink-0 xl:w-[230px]">
+            <Link href="#" onClick={() => selectTab("Dashboard")} className="flex min-w-0 items-center gap-3">
+              <span className="relative block size-10 overflow-hidden rounded-md sm:size-12">
                 <Image
                   src="/trackcoop-logo.svg"
                   alt="TrackCOOP logo"
@@ -489,7 +508,7 @@ export default function MemberDashboardPage() {
           </div>
 
           {/* Center Nav Links */}
-          <nav aria-label="Member navigation" className="hidden items-center gap-1 xl:flex">
+          <nav aria-label="Member navigation" className="hidden items-center gap-2.5 text-sm font-semibold xl:flex">
             <button onClick={() => selectTab("Dashboard")} className={navClass("Dashboard")}>Dashboard</button>
             {canAccessFinancials && <>
               <button onClick={() => selectTab("Member & Share")} className={navClass("Member & Share")}>Member & Share</button>
@@ -500,25 +519,26 @@ export default function MemberDashboardPage() {
           </nav>
 
           {/* Right Actions */}
-          <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3">
+          <div className="flex min-w-0 shrink-0 items-center justify-end gap-1 sm:gap-3 xl:gap-4">
+            <div className="hidden items-center gap-2.5 xl:flex">
 
             {/* <button onClick={() => selectTab("Help")} className={`transition ${activeTab === "Help" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Help Center">
               <MessageSquare className="size-5" />
             </button> */}
-            <button onClick={() => { setProfileSection(""); selectTab("Profile"); }} className={`transition ${activeTab === "Profile" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Profile & Settings">
+            <button onClick={() => { setProfileSection(""); selectTab("Profile"); }} className={`grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Profile" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Profile & Settings">
               <User className="size-5" />
             </button>
-            <button onClick={() => selectTab("Announcements")} className={`transition ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements">
+            <button onClick={() => selectTab("Announcements")} className={`grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements">
               <Bell className="size-5" />
             </button>
-            <button onClick={() => selectTab("Requests")} className={`transition ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests">
+            <button onClick={() => selectTab("Requests")} className={`grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests">
               <Inbox className="size-5" />
             </button>
             <button
               type="button"
               onClick={() => setReferralModalOpen(true)}
               aria-haspopup="dialog"
-              className="flex min-h-10 items-center gap-2 rounded-full border border-[#A9C9B1] bg-coop-sage px-3 py-2.5 text-xs font-bold text-coop-green transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coop-green focus-visible:ring-offset-2 sm:px-4 sm:text-sm"
+              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border border-[#A9C9B1] bg-coop-sage px-4 py-2.5 text-sm font-bold text-coop-green transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coop-green focus-visible:ring-offset-2"
             >
               <UserPlus className="hidden size-4 sm:block" aria-hidden="true" />
               Refer a Friend
@@ -527,24 +547,46 @@ export default function MemberDashboardPage() {
               type="button"
               onClick={handleLogout}
               disabled={isSigningOut}
-              className="flex items-center gap-2 rounded-full border border-[#123D2A]/20 bg-coop-forest px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-coop-green sm:px-5 sm:text-sm disabled:cursor-wait disabled:opacity-70"
+              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border border-[#123D2A]/20 bg-coop-forest px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-coop-green disabled:cursor-wait disabled:opacity-70"
             >
               {isSigningOut ? "Logging out" : "Logout"}
               <LogOut className="size-4" />
             </button>
+            </div>
+            <button
+              type="button"
+              aria-label={mobileMenuOpen ? "Close member menu" : "Open member menu"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="member-mobile-menu"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              className="grid size-10 shrink-0 place-items-center rounded-lg border border-[#DDE8D8] bg-[var(--public-canvas)] text-coop-forest transition hover:bg-coop-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coop-green focus-visible:ring-offset-2 xl:hidden sm:size-11"
+            >
+              {mobileMenuOpen ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
+            </button>
           </div>
         </div>
-        <nav aria-label="Mobile member navigation" className="flex gap-1 overflow-x-auto border-t border-[#DDE8D8] px-4 py-2 xl:hidden">
-          {[
-            { value: "Dashboard", label: "Dashboard" },
-            { value: "Member & Share", label: "Member & Share" },
-            { value: "Financial", label: "Financial" },
-            { value: "Rental", label: "Equipment Rental" },
-            { value: "Store", label: "Coop Store" },
-          ].filter((item) => canAccessFinancials || !["Financial", "Member & Share"].includes(item.value)).map((item) => (
-            <button key={item.value} type="button" onClick={() => selectTab(item.value)} aria-current={activeTab === item.value ? "page" : undefined} className={`shrink-0 ${navClass(item.value)}`}>{item.label}</button>
-          ))}
-        </nav>
+        {mobileMenuOpen ? (
+          <div id="member-mobile-menu" className="border-t border-[#DDE8D8] bg-white px-4 py-3 shadow-xl xl:hidden">
+            <nav aria-label="Mobile member navigation" className="mx-auto grid max-w-7xl gap-0.5 text-sm">
+              {[
+                { value: "Dashboard", label: "Dashboard" },
+                { value: "Member & Share", label: "Member & Share" },
+                { value: "Financial", label: "Financial" },
+                { value: "Rental", label: "Equipment Rental" },
+                { value: "Store", label: "Coop Store" },
+              ].filter((item) => canAccessFinancials || !["Financial", "Member & Share"].includes(item.value)).map((item) => (
+                <button key={item.value} type="button" onClick={() => selectTab(item.value)} aria-current={activeTab === item.value ? "page" : undefined} className={mobileNavClass(item.value)}>{item.label}</button>
+              ))}
+            </nav>
+            <div className="mx-auto mt-2 grid max-w-7xl gap-0.5 border-t border-[#DDE8D8] pt-2 sm:grid-cols-2">
+              <button type="button" onClick={() => { setMobileMenuOpen(false); setProfileSection(""); selectTab("Profile"); }} className={mobileNavClass("Profile")}>Profile &amp; Settings</button>
+              <button type="button" onClick={() => selectTab("Announcements")} className={mobileNavClass("Announcements")}>Announcements</button>
+              <button type="button" onClick={() => selectTab("Requests")} className={mobileNavClass("Requests")}>My Requests</button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); setReferralModalOpen(true); }} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-coop-green transition hover:text-coop-forest">Refer a Friend</button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); void handleLogout(); }} disabled={isSigningOut} className="flex min-h-11 w-full items-center rounded-lg bg-coop-forest px-3 text-left text-sm font-bold text-white transition hover:bg-coop-green disabled:cursor-wait disabled:opacity-70">{isSigningOut ? "Logging out" : "Logout"}</button>
+            </div>
+          </div>
+        ) : null}
       </header>
       <Modal
         title="All Announcements"
@@ -909,11 +951,12 @@ export default function MemberDashboardPage() {
         title="Member referral program"
         description="Share your referral code and track invited applicants."
         maxWidth="max-w-4xl"
+        mobileFullScreen
         open={referralModalOpen}
         onOpenChange={setReferralModalOpen}
         trigger={<span className="hidden"></span>}
       >
-        <div className="mt-2 space-y-5">
+        <div className="mt-2 flex min-h-full flex-col gap-5">
           <div className="flex flex-col gap-4 rounded-2xl border border-[#CFE4D4] bg-gradient-to-br from-[#F2FAF3] to-[#FFF9EC] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-coop-green">Your referral code</p>
@@ -1102,7 +1145,7 @@ export default function MemberDashboardPage() {
                   </div>
 
                   <div className="max-h-56 overflow-auto" tabIndex={0} role="region" aria-label="Recent activity records">
-                    <table className={`w-full text-left text-sm ${isAssociate ? "min-w-[42rem] [&_th]:pr-4 [&_td]:pr-4 [&_td:nth-child(2)]:whitespace-nowrap [&_td:nth-child(3)]:whitespace-nowrap" : "min-w-[32rem]"}`}>
+                    <table className={`w-full text-left text-sm ${isAssociate ? "min-w-[42rem] [&_th]:pr-4 [&_td]:pr-4 [&_td:nth-child(2)]:whitespace-nowrap [&_td:nth-child(3)]:whitespace-nowrap" : "min-w-[32rem] [&_th]:pr-4 [&_td]:pr-4"}`}>
                       <thead className="border-b border-[#E5E7EB] text-[#6B7280]">
                         <tr>
                           <th className="pb-3 font-semibold">Transaction</th>
@@ -1130,7 +1173,7 @@ export default function MemberDashboardPage() {
                                 {item.amount == null ? '—' : `${item.type.includes('Withdrawal') ? '-' : item.type.includes('Deposit') || item.type.includes('Share Capital') ? '+' : '-'} ₱${Number(item.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
                               </td>
                               <td className="py-3">
-                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' || item.status === 'Withdrawn' ? 'bg-green-50 text-green-700 border-green-200' :
+                                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold border ${item.status === 'Completed' || item.status === 'Validated' || item.status === 'Paid' || item.status === 'Acknowledged' || item.status === 'Withdrawn' ? 'bg-green-50 text-green-700 border-green-200' :
                                     item.status === 'Pending' || item.status === 'Not Acknowledged' || item.status === 'Withdrawal Requested' || item.status === 'Capitalization Requested' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                       'bg-red-50 text-red-700 border-red-200'
                                   }`}>
@@ -1171,7 +1214,7 @@ export default function MemberDashboardPage() {
                 </section>
               </div>
 
-              <div className="mb-14 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDE8D8] bg-[#EDF6EE] px-4 py-2 text-sm text-coop-secondary">
+              <div className="mb-2 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDE8D8] bg-[#EDF6EE] px-4 py-2 text-sm text-coop-secondary">
                 <p>Need help with your account? Send a request to the cooperative.</p>
                 <button onClick={() => selectTab("Requests")} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 font-bold text-coop-forest hover:bg-white">Get Help<ArrowRight className="size-4" aria-hidden="true" /></button>
               </div>
@@ -1245,9 +1288,10 @@ export default function MemberDashboardPage() {
                   </div>
                 ) : null}
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                   {[
-                    { label: "What you earned", help: "Interest, patronage refund, and other earnings.", value: memberFinancialSummary?.totalEarnings, className: "text-coop-green", icon: ArrowDownLeft },
+                    { label: "What you earned", help: "Annual Interest on Share Capital, patronage refund, and other earnings.", value: memberFinancialSummary?.totalEarnings, className: "text-coop-green", icon: ArrowDownLeft },
+                    { label: "Annual Interest Earnings", help: "Published Annual Interest on Share Capital, whether received as cash or added to Share Capital.", value: memberFinancialSummary?.annualInterestEarnings, className: "text-coop-green", icon: Leaf },
                     { label: "What you paid", help: "Purchases, rentals, and other charges.", value: memberFinancialSummary?.totalExpenses, className: "text-[#A15C16]", icon: ArrowUpRight },
                     { label: "Earnings minus payments", help: "Earnings less payments. Not a cash balance.", value: memberFinancialSummary?.netResult, className: "text-coop-forest", icon: Wallet },
                     { label: "Share Capital payments", help: "Added in these dates. Not earnings or total balance.", value: memberFinancialSummary?.shareCapitalContributions, className: "text-[#52705D]", icon: Leaf },
@@ -1370,8 +1414,9 @@ export default function MemberDashboardPage() {
                       <p className="text-sm font-semibold text-[#6B7280]">No announcements found at the moment.</p>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-4">
-                      {announcements.slice(0, 3).map((ann, i) => (
+                    <div className="rounded-3xl border border-[#E5E7EB] bg-white p-4 pb-3 shadow-sm sm:p-6 sm:pb-3">
+                      <div className="flex flex-col gap-4">
+                      {visibleAnnouncementFeed.map((ann) => (
                         <div 
                           key={ann.id} 
                           className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-[#E5E7EB] transition-all hover:shadow-md flex flex-col md:flex-row cursor-pointer"
@@ -1381,7 +1426,7 @@ export default function MemberDashboardPage() {
                           }}
                         >
                           <div className="md:w-1/4 h-36 md:h-auto bg-[#e8f3ec] relative overflow-hidden shrink-0">
-                            {i === 0 && (
+                            {ann.id === announcements[0]?.id && (
                               <div className="absolute top-4 left-4 z-10 rounded-full bg-coop-forest px-3 py-1 text-xs font-bold text-white shadow-md">
                                 Latest Update
                               </div>
@@ -1436,14 +1481,22 @@ export default function MemberDashboardPage() {
                           </div>
                         </div>
                       ))}
-                      {announcements.length > 3 && (
-                        <button
-                          onClick={() => setAllAnnouncementsModalOpen(true)}
-                          className="mt-2 w-full rounded-2xl border border-gray-200 bg-white py-3 text-sm font-bold text-coop-forest transition hover:bg-gray-50 hover:shadow-sm"
-                        >
-                          View All Announcements
-                        </button>
-                      )}
+                      </div>
+                      <PaginationControls
+                        currentPage={currentAnnouncementFeedPage}
+                        totalPages={announcementFeedTotalPages}
+                        totalItems={announcements.length}
+                        itemName="announcements"
+                        onPageChange={setAnnouncementFeedPage}
+                        pageSize={announcementFeedPageSize}
+                        pageSizeOptions={[3, 6, 10]}
+                        onPageSizeChange={(nextPageSize) => {
+                          setAnnouncementFeedPageSize(nextPageSize);
+                          setAnnouncementFeedPage(1);
+                        }}
+                        centerControls
+                        className="mb-0 border-t border-[#E5E7EB] pt-5"
+                      />
                     </div>
                   )}
                 </div>
@@ -1536,7 +1589,7 @@ export default function MemberDashboardPage() {
 
           {/* ======================= REQUESTS TAB ======================= */}
           {activeTab === "Requests" && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mt-6 rounded-3xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden p-6">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mt-6 rounded-3xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden p-6 pb-3">
               <MemberRequestsClient />
             </div>
           )}
@@ -1554,7 +1607,7 @@ export default function MemberDashboardPage() {
         </div>
       </main>
       {/* FOOTER */}
-      <div className="mt-20">
+      <div className="mt-0">
         <SiteFooter />
       </div>
 
