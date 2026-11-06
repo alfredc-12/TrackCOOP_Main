@@ -38,7 +38,6 @@ import {
   useRef,
   useState,
   type PointerEvent,
-  type ChangeEvent,
   type ReactNode,
 } from "react";
 import {
@@ -55,6 +54,7 @@ import {
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { ApiClientError } from "@/lib/api-client";
 import {
   submitMembershipApplication,
@@ -184,8 +184,8 @@ const applicationSchema = z
     orientationCommitmentAccepted: trueLiteral("Orientation commitment is required."),
     membershipFeeCommitmentAccepted: z.boolean(),
     shareSubscriptionCommitmentAccepted: trueLiteral("Membership agreement is required."),
-    initialShareCapitalAcknowledged: trueLiteral("Initial share-capital acknowledgement is required."),
-    trueMemberRequirementAcknowledged: trueLiteral("True Member requirement acknowledgement is required."),
+    initialShareCapitalAcknowledged: z.boolean(),
+    trueMemberRequirementAcknowledged: z.boolean(),
     bylawsAgreementAccepted: trueLiteral("Bylaws agreement is required."),
     patronageRefundAcknowledged: trueLiteral("Patronage-refund acknowledgement is required."),
     privacyConsentAccepted: trueLiteral("Privacy consent is required."),
@@ -211,6 +211,24 @@ const applicationSchema = z
         path: ["membershipFeeCommitmentAccepted"],
         message: "Membership fee commitment is required for all applicants.",
       });
+    }
+
+    if (value.requestedMembershipType === "True Member") {
+      if (value.initialShareCapitalAcknowledged !== true) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["initialShareCapitalAcknowledged"],
+          message: "Initial share-capital acknowledgement is required for True Members.",
+        });
+      }
+
+      if (value.trueMemberRequirementAcknowledged !== true) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["trueMemberRequirementAcknowledged"],
+          message: "True Member requirement acknowledgement is required.",
+        });
+      }
     }
 
     if (value.dateOfBirth) {
@@ -571,7 +589,6 @@ export function MembershipApplicationForm() {
     if (currentStep === 2) {
       return (
         <MembershipStep
-          register={register}
           watch={watch}
           setValue={setValue}
           errors={errors}
@@ -1135,12 +1152,10 @@ function FamilyStep({
 }
 
 function MembershipStep({
-  register,
   watch,
   setValue,
   errors,
 }: {
-  register: UseFormRegister<MembershipApplicationFormValues>;
   watch: UseFormWatch<MembershipApplicationFormValues>;
   setValue: UseFormSetValue<MembershipApplicationFormValues>;
   errors: FieldErrors<MembershipApplicationFormValues>;
@@ -1167,13 +1182,17 @@ function MembershipStep({
       </section>
 
       <section className="rounded-lg border border-[var(--public-card-border)] bg-white p-5 shadow-sm">
-        <SelectField label="Requested membership type" error={errors.requestedMembershipType?.message} inputProps={register("requestedMembershipType")}>
-          {requestedMembershipTypes.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </SelectField>
+        <label className="block text-sm font-semibold text-[#365F4A]">
+          Requested membership type
+          <StyledSelect
+            value={watch("requestedMembershipType")}
+            options={[...requestedMembershipTypes]}
+            onChange={(value) => setValue("requestedMembershipType", value as MembershipApplicationFormValues["requestedMembershipType"], { shouldDirty: true, shouldValidate: true })}
+            aria-label="Requested membership type"
+            className={`mt-2 h-12 text-base ${errors.requestedMembershipType?.message ? "border-[#D92D20] bg-[#FFF6F5] text-[#B42318] focus:border-[#D92D20] focus:ring-[#D92D20]/20" : ""}`}
+          />
+          {errors.requestedMembershipType?.message ? <span className="mt-1 block text-xs text-red-700">{errors.requestedMembershipType.message}</span> : null}
+        </label>
       </section>
 
       <CommitmentReview setValue={setValue} watch={watch} errors={errors} />
@@ -1991,38 +2010,6 @@ function StyledOptionSelect({
           </Select.Content>
         </Select.Portal>
       </Select.Root>
-      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  error,
-  inputProps,
-  children,
-  value,
-  onChange,
-}: {
-  label: string;
-  error?: string;
-  inputProps: UseFormRegisterReturn;
-  children: ReactNode;
-  value?: string;
-  onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
-}) {
-  return (
-    <label className="block text-sm font-semibold text-[#365F4A]">
-      {label}
-      <select
-        className="mt-2 h-12 w-full rounded-lg border border-[var(--public-card-border)] bg-white px-4 text-base text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"
-        aria-invalid={Boolean(error)}
-        {...inputProps}
-        value={value}
-        onChange={onChange ?? inputProps.onChange}
-      >
-        {children}
-      </select>
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>
   );

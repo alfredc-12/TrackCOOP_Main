@@ -6,6 +6,7 @@ import type { RentalService } from "../_types/rental";
 import { emptyRentalCatalogFilters, filterRentalCatalog, rentalUnitLabel, type RentalCatalogFilters } from "../_lib/rentalCatalog";
 import { RentalServiceCard } from "./RentalServiceCard";
 import { RentalErrorState, RentalLoadingState } from "./RentalStates";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 
 type Option = { value: string; label: string };
 const availabilityOptions: Option[] = [
@@ -20,15 +21,21 @@ const sortOptions: Option[] = [
 
 export function RentalPublicCatalog({ services, loading, error, refresh }: { services: RentalService[]; loading: boolean; error?: string; refresh: () => Promise<void> }) {
   const [filters, setFilters] = useState<RentalCatalogFilters>(emptyRentalCatalogFilters);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
   const filtered = filterRentalCatalog(services, filters);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleServices = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const optionsFor = (values: string[], allLabel: string): Option[] => [{ value: "", label: allLabel }, ...[...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)).map((value) => ({ value, label: value }))];
   const categories = optionsFor(services.map((service) => service.category), "All categories");
   const activities = optionsFor(services.map((service) => service.suitableActivity), "All activities");
   const units = optionsFor(services.map((service) => rentalUnitLabel(service.unitOfUsage)), "Any rental unit");
   const areas = optionsFor(services.map((service) => service.serviceArea), "All service areas");
-  const update = (key: keyof RentalCatalogFilters, value: string) => setFilters((current) => ({ ...current, [key]: value }));
+  const update = (key: keyof RentalCatalogFilters, value: string) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); };
   const activeFilters = (Object.entries(filters) as [keyof RentalCatalogFilters, string][]).filter(([key, value]) => key !== "sort" && key !== "search" && Boolean(value));
   const hasFilters = Boolean(filters.search.trim() || activeFilters.length || filters.sort !== "recommended");
+  const clearFilters = () => { setFilters(emptyRentalCatalogFilters); setPage(1); };
 
   return (
     <section id="rental-catalog" aria-labelledby="rental-services-title" className="min-w-0 scroll-mt-20 px-4 pb-12 pt-5 sm:px-6 lg:px-5 xl:px-7">
@@ -54,14 +61,14 @@ export function RentalPublicCatalog({ services, loading, error, refresh }: { ser
               <CatalogSelect label="Intended use" value={filters.activity} options={activities} onChange={(value) => update("activity", value)} />
               {areas.length > 2 ? <CatalogSelect label="Service area" value={filters.area} options={areas} onChange={(value) => update("area", value)} /> : null}
             </div>
-            {hasFilters ? <button type="button" onClick={() => setFilters(emptyRentalCatalogFilters)} className="mt-2 min-h-11 rounded-md px-1 text-sm font-semibold text-[#1F6B43] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]">Clear filters</button> : null}
+            {hasFilters ? <button type="button" onClick={clearFilters} className="mt-2 min-h-11 rounded-md px-1 text-sm font-semibold text-[#1F6B43] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]">Clear filters</button> : null}
             {activeFilters.length ? <div aria-label="Active filters" className="mt-1 flex flex-wrap gap-2">{activeFilters.map(([key, value]) => {
               const label = key === "availability" ? availabilityOptions.find((option) => option.value === value)?.label ?? value : value;
               return <button key={key} type="button" onClick={() => update(key, "")} aria-label={`Remove filter: ${label}`} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#E6F0E2] px-3 text-sm font-semibold text-[#174B35] hover:bg-[#D4E6CE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]">{label}<X aria-hidden="true" className="size-3.5" /></button>;
             })}</div> : null}
           </div>
         </div>
-        {loading ? <RentalLoadingState label="Loading rental services" /> : error ? <RentalErrorState message={error} retry={() => void refresh()} /> : filtered.length ? <div className="grid gap-3">{filtered.map((service) => <RentalServiceCard key={service.serviceId} service={service} publicStyle />)}</div> : <div className="rounded-xl border border-[#C8D9C8] bg-white p-6 text-center"><h3 className="text-xl font-bold text-[#123D2A]">No equipment matches these filters</h3><p className="mt-2 text-base leading-7 text-[#365F4A]">Try a shorter search or remove a filter.</p>{hasFilters ? <button type="button" onClick={() => setFilters(emptyRentalCatalogFilters)} className="mt-4 min-h-11 rounded-md bg-[#123D2A] px-4 text-base font-semibold text-white">Show all equipment</button> : null}</div>}
+        {loading ? <RentalLoadingState label="Loading rental services" /> : error ? <RentalErrorState message={error} retry={() => void refresh()} /> : filtered.length ? <><div className="grid gap-3">{visibleServices.map((service) => <RentalServiceCard key={service.serviceId} service={service} publicStyle />)}</div><PaginationControls currentPage={currentPage} totalPages={totalPages} totalItems={filtered.length} itemName="services" onPageChange={setPage} pageSize={pageSize} pageSizeOptions={[6, 10, 20, 50]} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} centerControls className="mt-7 border-t border-[#C8D9C8] pt-5" /></> : <div className="rounded-xl border border-[#C8D9C8] bg-white p-6 text-center"><h3 className="text-xl font-bold text-[#123D2A]">No equipment matches these filters</h3><p className="mt-2 text-base leading-7 text-[#365F4A]">Try a shorter search or remove a filter.</p>{hasFilters ? <button type="button" onClick={clearFilters} className="mt-4 min-h-11 rounded-md bg-[#123D2A] px-4 text-base font-semibold text-white">Show all equipment</button> : null}</div>}
       </div>
     </section>
   );

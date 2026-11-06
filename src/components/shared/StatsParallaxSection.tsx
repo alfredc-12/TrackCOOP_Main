@@ -15,19 +15,19 @@ import {
   Waves,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import type { PublicLandingStats } from "@/features/landing-public/types";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
-// Edit these values to update the section without touching the component markup.
-const stats: {
-  value: number;
+const statDefinitions: {
+  key: keyof PublicLandingStats;
   suffix: string;
   label: string;
   icon: LucideIcon;
 }[] = [
-  { value: 1240, suffix: "+", label: "Farmer Members",     icon: UsersRound   },
-  { value: 380,  suffix: "+", label: "Farm Lots Assisted", icon: Sprout       },
-  { value: 90,   suffix: "+", label: "Fishery Partners",   icon: Waves        },
-  { value: 24,   suffix: "",  label: "Annual Programs",    icon: CalendarCheck },
+  { key: "activeFarmerMembers", suffix: "", label: "Active Farmer Members", icon: UsersRound },
+  { key: "farmCommunitiesReached", suffix: "", label: "Farm Communities Reached", icon: Sprout },
+  { key: "fisheryMembers", suffix: "", label: "Fishery Members", icon: Waves },
+  { key: "annualPrograms", suffix: "", label: "Programs This Year", icon: CalendarCheck },
 ];
 
 // ─── Animated counter ────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ function StatItem({
   index,
   isActive,
 }: {
-  stat: (typeof stats)[number];
+  stat: (typeof statDefinitions)[number] & { value: number | null };
   index: number;
   isActive: boolean;
 }) {
@@ -96,12 +96,12 @@ function StatItem({
       </div>
 
       {/* Animated number */}
-      <p className="public-stat-value font-black leading-none tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] [font-size:clamp(2.8rem,5vw,4.5rem)]">
-        <AnimatedNumber
-          target={stat.value}
-          suffix={stat.suffix}
-          isActive={isActive}
-        />
+      <p className="public-stat-value font-black leading-none tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] [font-size:clamp(2.8rem,5vw,4.5rem)]" aria-live="polite">
+        {stat.value === null ? (
+          <span aria-label="Statistic unavailable">—</span>
+        ) : (
+          <AnimatedNumber target={stat.value} suffix={stat.suffix} isActive={isActive} />
+        )}
       </p>
 
       {/* Label */}
@@ -120,7 +120,7 @@ function Divider() {
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
-export default function StatsParallaxSection() {
+export default function StatsParallaxSection({ stats }: { stats: PublicLandingStats | null }) {
   const sectionRef = useRef<HTMLElement>(null);
   const isInView   = useInView(sectionRef, { once: true, amount: 0.25 });
   const reducedMotion = useReducedMotion();
@@ -166,10 +166,14 @@ export default function StatsParallaxSection() {
 
         {/* Stats row */}
         <div className="flex w-full flex-col items-center gap-12 sm:grid sm:grid-cols-2 sm:gap-16 lg:flex lg:flex-row lg:items-center lg:justify-between lg:gap-0">
-          {stats.map((stat, i) => (
-            <div key={stat.label} className="flex items-center gap-0 lg:flex-1 lg:justify-center">
-              <StatItem stat={stat} index={i} isActive={isInView} />
-              {i < stats.length - 1 && <Divider />}
+          {statDefinitions.map((definition, i) => (
+            <div key={definition.key} className="flex items-center gap-0 lg:flex-1 lg:justify-center">
+              <StatItem
+                stat={{ ...definition, value: stats?.[definition.key] ?? null }}
+                index={i}
+                isActive={isInView}
+              />
+              {i < statDefinitions.length - 1 && <Divider />}
             </div>
           ))}
         </div>

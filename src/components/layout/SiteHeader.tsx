@@ -206,28 +206,131 @@ export default function SiteHeader({
         </div>
       </div>
       {mobileOpen ? (
-        <nav className="border-t border-[#DDE8D8] bg-white px-5 py-4 shadow-xl lg:hidden">
-          <div className="mx-auto grid max-w-7xl gap-2 text-sm font-semibold text-coop-secondary">
-            {[
-              { label: "Home", href: "/#home", id: "home" },
-              { label: "About", href: "/#about", id: "about" },
-              { label: "Services", href: "/#services", id: "services" },
-              { label: "Become a Member", href: "/membership/apply", id: "membership" },
-              { label: "Application Status", href: "/membership/application-status", id: "membership" },
-              { label: "Announcements", href: "/announcements", id: "announcements" },
-              { label: "Gallery", href: "/gallery", id: "gallery" },
-              { label: "Contact", href: "/contact", id: "contact" },
-              { label: "Track Inquiry", href: "/track", id: "contact" },
-            ].map((item) => (
+        <nav
+          aria-label="Mobile navigation"
+          className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-[#DDE8D8] bg-white px-5 py-4 shadow-xl lg:hidden"
+        >
+          <div className="mx-auto grid max-w-7xl gap-1 text-sm font-semibold text-coop-secondary">
+            <Link
+              href="/#home"
+              onClick={() => activateNav("home")}
+              className={`rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest ${
+                currentNav === "home" ? "bg-coop-sage text-coop-forest" : ""
+              }`}
+            >
+              Home
+            </Link>
+
+            <div className="mt-1 border-t border-[#DDE8D8] pt-2">
               <Link
-                key={`${item.href}-${item.label}`}
-                href={item.href}
-                onClick={() => activateNav(item.id)}
-                className="rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest"
+                href="/#about"
+                onClick={() => activateNav("about")}
+                className={`block rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest ${
+                  currentNav === "about" ? "bg-coop-sage text-coop-forest" : ""
+                }`}
               >
-                {item.label}
+                About
               </Link>
-            ))}
+              <div className="ml-3 border-l border-[#DDE8D8] pl-3">
+                <Link
+                  href="/about/our-cooperative"
+                  onClick={() => activateNav("about")}
+                  className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+                >
+                  Our Cooperative
+                </Link>
+                <Link
+                  href="/about/board-of-directors"
+                  onClick={() => activateNav("about")}
+                  className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+                >
+                  Board of Directors
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-1 border-t border-[#DDE8D8] pt-2">
+              <Link
+                href="/#services"
+                onClick={() => activateNav("services")}
+                className={`block rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest ${
+                  currentNav === "services" ? "bg-coop-sage text-coop-forest" : ""
+                }`}
+              >
+                Services
+              </Link>
+              <div className="ml-3 border-l border-[#DDE8D8] pl-3">
+                <Link
+                  href="/membership/apply"
+                  onClick={() => activateNav("membership")}
+                  className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+                >
+                  Become a Member
+                </Link>
+                <Link
+                  href="/membership/application-status"
+                  onClick={() => activateNav("membership")}
+                  className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+                >
+                  Application Status
+                </Link>
+                <Link
+                  href="/rental"
+                  onClick={() => activateNav("services")}
+                  className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+                >
+                  Equipment Rental
+                </Link>
+                <Link
+                  href="/store"
+                  onClick={() => activateNav("services")}
+                  className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+                >
+                  Cooperative Store
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-1 border-t border-[#DDE8D8] pt-2">
+              <Link
+                href="/announcements"
+                onClick={() => activateNav("announcements")}
+                className={`block rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest ${
+                  currentNav === "announcements" ? "bg-coop-sage text-coop-forest" : ""
+                }`}
+              >
+                Announcements
+              </Link>
+              <Link
+                href="/gallery"
+                onClick={() => activateNav("gallery")}
+                className={`block rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest ${
+                  currentNav === "gallery" ? "bg-coop-sage text-coop-forest" : ""
+                }`}
+              >
+                Gallery
+              </Link>
+            </div>
+
+            <div className="mt-1 border-t border-[#DDE8D8] pt-2">
+              <Link
+                href="/contact"
+                onClick={() => activateNav("contact")}
+                className={`block rounded-lg px-3 py-2.5 transition hover:bg-coop-sage hover:text-coop-forest ${
+                  currentNav === "contact" ? "bg-coop-sage text-coop-forest" : ""
+                }`}
+              >
+                Contact
+              </Link>
+              <Link
+                href="/track"
+                onClick={() => activateNav("contact")}
+                className="block rounded-lg px-3 py-2.5 text-coop-secondary transition hover:bg-coop-sage hover:text-coop-forest"
+              >
+                Track Inquiry
+              </Link>
+            </div>
+
             <Link href="/login" onClick={() => activateNav("portal")}>
               <Button className="mt-2 h-11 w-full rounded-full bg-coop-forest text-white hover:bg-coop-green">
                 Portal

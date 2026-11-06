@@ -1,4 +1,12 @@
 import type { LibraryPhoto } from "../gallery-placement/gallery-placement.types";
+
+export type PublicLandingStats = {
+  activeFarmerMembers: number;
+  farmCommunitiesReached: number;
+  fisheryMembers: number;
+  annualPrograms: number;
+};
+
 export type LandingCollection =
   | "partners"
   | "gallery";
@@ -31,6 +39,7 @@ export type PublicLandingPayload = {
   partners: LandingRow[];
   gallery: LandingRow[];
   recentPhotos: RecentLandingPhoto[];
+  stats: PublicLandingStats;
   landingPhotos?: Array<LibraryPhoto & { position: number }>;
 };
 

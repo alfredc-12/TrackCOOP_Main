@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { env } from "@/config/env";
 import { resolveUploadUrl } from "@/lib/upload-url";
+import type { LandingPhoto } from "./LandingPhotoLightbox";
+import type { PublicLandingStats } from "./types";
 
 export type PublishedLandingRow = Record<string, unknown> & {
   id: string;
@@ -18,10 +20,11 @@ export type RecentLandingPhoto = {
 };
 
 type PublishedLandingPayload = {
-  landingPhotos: import("./LandingPhotoLightbox").LandingPhoto[];
+  landingPhotos: LandingPhoto[];
   partners: PublishedLandingRow[];
   gallery: PublishedLandingRow[];
   recentPhotos: RecentLandingPhoto[];
+  stats: PublicLandingStats | null;
 };
 
 const emptyPayload: PublishedLandingPayload = {
@@ -29,6 +32,7 @@ const emptyPayload: PublishedLandingPayload = {
   partners: [],
   gallery: [],
   recentPhotos: [],
+  stats: null,
 };
 
 function asString(value: unknown, fallback = "") {
@@ -41,6 +45,15 @@ function resolveMediaPath(path: string) {
 
 function isPdfPath(path: string) {
   return path.toLowerCase().split("?")[0].endsWith(".pdf");
+}
+
+function mapRecentPhotosToLandingPhotos(photos: RecentLandingPhoto[]): LandingPhoto[] {
+  return photos.map((photo, index) => ({
+    id: photo.id,
+    imagePath: photo.imagePath,
+    altText: photo.title || photo.caption || "Cooperative gallery photo",
+    position: index,
+  }));
 }
 
 export function usePublishedLandingContent() {
@@ -64,7 +77,19 @@ export function usePublishedLandingContent() {
         };
         if (!response.ok || !payload.success || !payload.data) throw new Error("Landing content unavailable");
         if (controller.signal.aborted) return;
-        setContent({ ...payload.data, recentPhotos: payload.data.recentPhotos ?? [], landingPhotos: payload.data.landingPhotos ?? [] });
+        const recentPhotos = payload.data.recentPhotos ?? [];
+        const configuredLandingPhotos = payload.data.landingPhotos ?? [];
+        setContent({
+          ...payload.data,
+          recentPhotos,
+          // Use the published recent-photo feed when no homepage placement
+          // slots have been configured yet. This keeps the landing gallery
+          // data-driven without requiring a separate manual placement step.
+          landingPhotos: configuredLandingPhotos.length
+            ? configuredLandingPhotos
+            : mapRecentPhotosToLandingPhotos(recentPhotos),
+          stats: payload.data.stats ?? null,
+        });
         setLoadError(false);
       } catch {
         if (controller.signal.aborted) return;

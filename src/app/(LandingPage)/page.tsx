@@ -6,17 +6,14 @@ import type { MouseEvent, TouchEvent } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRight,
-  CalendarCheck,
   ChevronDown,
   FileCheck2,
   Maximize2,
   Menu,
-  Sprout,
   Store,
   Tractor,
   UserRoundPlus,
   UsersRound,
-  Waves,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -36,13 +33,6 @@ import {
 const cooperativeName =
   "Nasugbu Farmers and Fisherfolks Agriculture Cooperative";
 
-
-const stats = [
-  { label: "Farmer members", value: "1,240+", icon: UsersRound },
-  { label: "Farm lots assisted", value: "380+", icon: Sprout },
-  { label: "Fishery partners", value: "90+", icon: Waves },
-  { label: "Annual programs", value: "24", icon: CalendarCheck },
-];
 
 const heroSlides = [
   {
@@ -151,7 +141,7 @@ export default function Home() {
       <Hero />
       <ServicesSection items={services} />
       <AboutSection />
-      <StatsParallaxSection />
+      <StatsParallaxSection stats={published.stats} />
       <RecentPhotosSection photos={published.landingPhotos} isLoading={published.isLoading} loadError={published.loadError} onRetry={published.retry} />
       <CertificationsSection slides={publishedCertifications.length ? publishedCertifications : certifications} />
       <ContactSection />
@@ -387,14 +377,14 @@ function Hero() {
             }`}
           />
         ))}
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,41,29,0.96)_0%,rgba(3,41,29,0.80)_34%,rgba(3,41,29,0.40)_54%,rgba(247,238,220,0.70)_78%,rgba(247,238,220,0.94)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,41,29,0.16)_0%,rgba(3,41,29,0.30)_48%,rgba(3,41,29,0.72)_100%)] md:bg-[linear-gradient(90deg,rgba(3,41,29,0.96)_0%,rgba(3,41,29,0.80)_34%,rgba(3,41,29,0.40)_54%,rgba(247,238,220,0.70)_78%,rgba(247,238,220,0.94)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-3/5 bg-[linear-gradient(0deg,rgba(3,41,29,0.94)_0%,rgba(3,41,29,0.58)_48%,transparent_100%)]" />
-        <div className="absolute inset-y-0 right-0 w-1/2 bg-[linear-gradient(270deg,rgba(248,247,243,0.90)_0%,rgba(248,247,243,0.62)_38%,transparent_100%)]" />
+        <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-[linear-gradient(270deg,rgba(248,247,243,0.90)_0%,rgba(248,247,243,0.62)_38%,transparent_100%)] md:block" />
         <div className="absolute left-0 top-24 h-px w-2/5 bg-[linear-gradient(90deg,rgba(242,201,76,0.80),transparent)]" />
 
         <div className="relative z-10 grid h-full min-h-0 w-full grid-rows-[minmax(0,0.53fr)_minmax(300px,0.47fr)] gap-0 md:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] md:grid-rows-1 lg:grid-cols-[minmax(0,1.18fr)_minmax(460px,0.82fr)] xl:grid-cols-[minmax(0,1.26fr)_minmax(520px,0.74fr)]">
-          <div className="relative flex min-h-0 flex-col justify-end px-6 pb-5 pt-10 sm:px-8 sm:pb-8 md:h-full md:pb-20 lg:px-10 lg:pb-24 xl:px-14 xl:pb-28 [@media(max-height:560px)]:pb-4 [@media(max-height:560px)]:pt-6">
-            <div className="absolute right-6 top-8 flex items-center gap-2 rounded-full bg-[var(--public-canvas)]/12 px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur-md sm:right-8 sm:top-10 md:right-6 md:top-10 lg:right-10 lg:top-8 xl:right-12">
+          <div className="relative flex min-h-0 flex-col justify-start px-6 pb-5 pt-20 sm:px-8 sm:pb-8 sm:pt-16 md:h-full md:justify-end md:pb-20 md:pt-10 lg:px-10 lg:pb-24 xl:px-14 xl:pb-28 [@media(max-height:560px)]:pb-4 [@media(max-height:560px)]:pt-14">
+            <div className="absolute left-1/2 top-8 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[var(--public-canvas)]/12 px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur-md sm:top-10 md:top-10 lg:top-8">
               {heroSlides.map((item, index) => (
                 <button
                   key={item.title}
@@ -447,7 +437,7 @@ function Hero() {
 
           <aside
             id="announcements"
-            className="relative z-30 mb-5 ml-14 mr-2 h-[95%] min-h-0 self-center overflow-hidden rounded-[22px] bg-[var(--public-canvas)]/96 shadow-[0_34px_100px_rgba(18,61,42,0.28)] ring-1 ring-white/70 backdrop-blur-sm sm:mb-7 sm:ml-[5.5rem] sm:mr-2 md:mb-0 md:ml-16 md:mr-2 md:h-[calc(95%_-_2rem)] md:max-h-[665px] md:rounded-[28px] lg:ml-[5.5rem] lg:mr-2 lg:h-[calc(95%_-_2.25rem)] lg:max-h-[694px] xl:ml-[6.5rem] xl:mr-2"
+            className="relative z-30 mx-auto mb-5 h-[95%] w-[calc(100%-1rem)] min-h-0 self-center overflow-hidden rounded-[22px] bg-[var(--public-canvas)]/96 shadow-[0_34px_100px_rgba(18,61,42,0.28)] ring-1 ring-white/70 backdrop-blur-sm sm:mb-7 sm:w-[calc(100%-2rem)] md:mx-0 md:mb-0 md:ml-16 md:mr-2 md:w-auto md:h-[calc(95%_-_2rem)] md:max-h-[665px] md:rounded-[28px] lg:ml-[5.5rem] lg:mr-2 lg:h-[calc(95%_-_2.25rem)] lg:max-h-[694px] xl:ml-[6.5rem] xl:mr-2"
           >
             <AnnouncementsSection />
           </aside>
@@ -583,33 +573,6 @@ function HeroBottomDecor() {
     </div>
   );
 }
-
-
-function StatsBand() {
-  return (
-    <section className="bg-[var(--public-canvas)] px-5 py-14 sm:px-8">
-      <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            {...fadeUp}
-            transition={{ duration: 0.55, delay: index * 0.07, ease: "easeOut" }}
-            className="rounded-[26px] border border-[#E3EAD6] bg-white p-6 text-center shadow-sm"
-          >
-            <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[#EAF3E8] text-[#1F6B43]">
-              <stat.icon className="size-6" />
-            </div>
-            <p className="text-4xl font-black text-[#073f2b]">{stat.value}</p>
-            <p className="mt-2 text-sm font-semibold text-[#6B7280]">{stat.label}</p>
-          </motion.div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-
-
 function CertificationsSection({ slides }: { slides: CertificationSlide[] }) {
   return (
     <section id="certifications" className="relative overflow-hidden bg-white py-12 lg:py-16">
@@ -618,7 +581,7 @@ function CertificationsSection({ slides }: { slides: CertificationSlide[] }) {
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-[#9A6400]">
             Documents
           </p>
-          <h2 className="max-w-5xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl lg:text-8xl">
+          <h2 className="max-w-4xl text-4xl font-black leading-[1.02] tracking-normal text-[#073f2b] md:text-6xl lg:text-7xl">
             Proofs members can trust.
           </h2>
         </motion.div>

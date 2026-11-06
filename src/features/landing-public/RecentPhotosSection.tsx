@@ -65,7 +65,7 @@ export function RecentPhotosSection({
         </p>
         <h2
           id="recent-photos-heading"
-          className="max-w-6xl text-5xl font-black leading-[0.98] tracking-normal text-[#073f2b] md:text-7xl lg:text-8xl"
+          className="max-w-5xl text-4xl font-black leading-[1.02] tracking-normal text-[#073f2b] md:text-6xl lg:text-7xl"
         >
           Work moving through the field.
         </h2>
