@@ -128,7 +128,7 @@ function setup(t: TestContext, role: RoleSlug = "member", memberId: string | nul
       return [visible(sql, values).map((f) => ({ id: f.uploadedById, name: `Uploader ${f.uploadedById}` })), []];
     }
     if (sql.includes("SUM(d.uploaded_at")) {
-      const total = visible(sql, values).length;
+      const total = visible(sql, values.slice(2)).length;
       return [[{ total, recentlyUploaded: total, expiringSoon: 0, archived: 0, restricted: 0 }], []];
     }
     if (sql.includes("SELECT COUNT(*) AS total")) return [[{ total: visible(sql, values).length }], []];

@@ -10,7 +10,9 @@ export type DocumentStatus =
   | "ACTIVE"
   | "EXPIRING_SOON"
   | "EXPIRED"
-  | "ARCHIVED";
+  | "ARCHIVED"
+  | "REPLACED"
+  | "RESTRICTED";
 
 export type DocumentRecord = {
   id: string;

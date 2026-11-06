@@ -203,6 +203,9 @@ async function uploadDocumentRoute(request: Request, response: Response) {
       response.status(422).json({ error: "Choose a document file." });
       return;
     }
+    if (request.body?.expirationDate !== undefined && typeof request.body.expirationDate !== "string") {
+      throw new RecordsError("Expiration date must be a valid YYYY-MM-DD date.", 422, "INVALID_EXPIRATION_DATE");
+    }
     response.status(201).json(
       await uploadDocument(
         {
@@ -343,10 +346,11 @@ async function documentsExportRoute(request: Request, response: Response) {
   try {
     const actor = user(request);
     const input = { ...documentListInput(request, 100), page: 1, pageSize: 100 };
-    const first = await listDocuments(input, actor);
+    const now = new Date();
+    const first = await listDocuments(input, actor, now);
     const documents = [...first.documents];
     for (let page = 2; documents.length < first.total; page += 1) {
-      const result = await listDocuments({ ...input, page }, actor);
+      const result = await listDocuments({ ...input, page }, actor, now);
       documents.push(...result.documents);
       if (result.documents.length === 0) break;
     }
