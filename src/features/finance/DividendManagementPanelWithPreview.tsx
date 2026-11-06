@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { CurrencyDisplay, DataTable, EmptyState, ErrorState, PaginationControls, StatusBadge } from "@/components/portal/PortalPrimitives";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { ApiClientError } from "@/lib/api-client";
+import { getSettingsCatalog } from "@/features/system-settings/settings-client";
 import {
   completeDividendAction,
   approveDividendDeclaration,
@@ -380,11 +381,11 @@ function FieldInfoModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="rounded-xl border border-[#DDE8DD] bg-[#F7FAF5] p-4">
             <p className="font-black text-[#123D2A]">Statutory reserves (%)</p>
-            <p className="mt-1">The approved portion of net surplus set aside for statutory reserves before distributable surplus is calculated. The amount is calculated automatically from the net surplus.</p>
+            <p className="mt-1">CDA calls this the Reserve Fund within the statutory funds. At least 10% of net surplus is allocated to the Reserve Fund, or at least 50% during the first five years after registration, before the remaining surplus is distributed. Apply the cooperative&apos;s approved by-laws and policy.</p>
           </div>
           <div className="rounded-xl border border-[#DDE8DD] bg-[#F7FAF5] p-4">
             <p className="font-black text-[#123D2A]">Interest on Share Capital allocation (%)</p>
-            <p className="mt-1">The portion of distributable surplus allocated to the Interest on Share Capital pool. Enter the rate approved by the cooperative/NFFAC policy; the system does not apply a fixed 30% split.</p>
+            <p className="mt-1">Under the CDA formula, the Interest on Share Capital rate uses X × (net surplus less statutory reserves) ÷ total average share month. X is determined by the Board under the cooperative&apos;s by-laws; interest must not exceed the normal return on investment and allocation requires General Assembly approval. The 30% rule applies to patronage refund, not as a fixed Interest on Share Capital rate.</p>
           </div>
         </div>
         <div className="mt-6 flex justify-end border-t border-[#E5ECE5] pt-5">
@@ -912,7 +913,7 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
     setPanelOpen(true);
   }
 
-  function openCreateDialog() {
+  async function openCreateDialog() {
     setError("");
     setCreateFieldErrors({});
     setFinancialBasis(null);
@@ -924,7 +925,17 @@ export function DividendManagementPanel({ role }: { role: "chairman" | "bookkeep
     setShowQualifiedMembers(false);
     setPreviewMemberSearch("");
     setPreviewMemberPage(1);
-    setForm(getDefaultDividendForm());
+    let nextForm = getDefaultDividendForm();
+    try {
+      const catalog = await getSettingsCatalog();
+      const reserveSetting = catalog.settings.find((setting) => setting.key === "share_capital.statutory_reserve_rate");
+      const interestSetting = catalog.settings.find((setting) => setting.key === "share_capital.interest_allocation_rate");
+      if (typeof reserveSetting?.value === "number") nextForm = { ...nextForm, statutoryReservesRate: String(reserveSetting.value) };
+      if (typeof interestSetting?.value === "number") nextForm = { ...nextForm, interestAllocationRate: String(interestSetting.value) };
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Policy settings could not be loaded. Enter the approved values manually.");
+    }
+    setForm(nextForm);
     setDialog({ kind: "create" });
   }
 

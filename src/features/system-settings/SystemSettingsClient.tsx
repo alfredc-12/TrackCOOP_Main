@@ -11,6 +11,7 @@ import {
   Save,
   Info,
   LockKeyhole,
+  WalletCards,
 } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -30,6 +31,7 @@ import {
 import styles from "./SystemPages.module.css";
 const icons = {
   membership: UsersRound,
+  share_capital: WalletCards,
   referrals: Gift,
   indicators: Activity,
   inventory: Boxes,

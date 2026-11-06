@@ -21,6 +21,8 @@ The former combined `LandingSettingsView` no longer backs either route. It is le
 | `membership.orientation_required` | Creates the Orientation/Seminar item on new application checklists | Editable boolean; does **not** make orientation an approval/payment gate |
 | `membership.activation_token_hours` | Newly issued membership and account activation links | Editable positive whole hours; existing token expiries untouched |
 | `membership.terms_version` | Default version recorded for new applications when not otherwise supplied | Editable text, 1–40 characters; does not edit terms content |
+| `share_capital.statutory_reserve_rate` | Annual Interest declaration reserve calculation | Editable percentage from 0–100; defaults to the CDA baseline of 10% until the cooperative saves an approved value |
+| `share_capital.interest_allocation_rate` | Annual Interest declaration pool allocation | Editable approved percentage from 0–100; no fixed rate is invented when the cooperative has not configured one |
 | `referrals.reward_policy` | `loadReferralRewardPolicy` / existing credit calculation | Editable enabled flag, integer 0–100 credits and 1–80 character label; no cash payout |
 | `member_indicators.fallback_thresholds` | Existing `configurationFromSettings` / scoring engine | Typed boundaries and scores, add/remove supported rows, preserve evaluation order |
 | `member_indicators.label_thresholds` | Existing scoring-label minimums | Integer 3–15, Active strictly above Needs Monitoring; labels themselves remain fixed |

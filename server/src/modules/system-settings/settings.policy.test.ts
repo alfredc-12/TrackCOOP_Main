@@ -35,6 +35,18 @@ test("settings approve only real consumers and leave inconsistent capital/invent
   );
   assert.equal(new Set(definitions.map((d) => d.key)).size, definitions.length);
 });
+test("share-capital policy rates are editable percentages with a safe interest default", () => {
+  const reserve = byKey.get("share_capital.statutory_reserve_rate")!,
+    interest = byKey.get("share_capital.interest_allocation_rate")!;
+  assert.equal(reserve.editable, true);
+  assert.equal(reserve.fallback, 10);
+  assert.equal(interest.editable, true);
+  assert.equal(interest.fallback, null);
+  assert.equal(validateValue(reserve, 50), 50);
+  assert.equal(validateValue(interest, 25), 25);
+  assert.throws(() => validateValue(reserve, 100.01));
+  assert.throws(() => validateValue(interest, -1));
+});
 test("unapproved referral rewards are read-only; historical stored values remain readable", () => {
  const d=byKey.get("referrals.reward_policy")!;
  assert.equal(d.editable,false);

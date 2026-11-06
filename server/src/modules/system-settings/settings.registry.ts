@@ -47,6 +47,15 @@ const positive = z
     (v) => Math.abs(v * 100 - Math.round(v * 100)) < 0.0001,
     "Use at most two decimal places.",
   );
+const percentage = z
+  .number()
+  .finite()
+  .nonnegative()
+  .max(100)
+  .refine(
+    (v) => Math.abs(v * 100 - Math.round(v * 100)) < 0.0001,
+    "Use at most two decimal places.",
+  );
 const whole = z.number().int().positive().max(87600);
 const score = z.number().int().min(1).max(5);
 const thresholds = z
@@ -77,6 +86,11 @@ export const categories = [
     id: "membership",
     label: "Membership Rules",
     help: "Application, checklist and account activation rules.",
+  },
+  {
+    id: "share_capital",
+    label: "Share Capital Policy",
+    help: "Annual Interest on Share Capital and statutory reserve settings.",
   },
   {
     id: "referrals",
@@ -193,6 +207,30 @@ export const definitions: SettingDefinition[] = [
     fallback: "2026-07-24",
     editable: true,
     schema: z.string().trim().min(1).max(40),
+  },
+  {
+    key: "share_capital.statutory_reserve_rate",
+    category: "share_capital",
+    group: "share_capital",
+    label: "Statutory reserve rate",
+    help: "Percentage of net surplus allocated to the Reserve Fund before the remaining surplus is distributed. CDA Article 86 requires at least 10%; during the first five years after registration, at least 50% applies. Follow the cooperative's approved by-laws and policy.",
+    kind: "number",
+    unit: "%",
+    fallback: 10,
+    editable: true,
+    schema: percentage,
+  },
+  {
+    key: "share_capital.interest_allocation_rate",
+    category: "share_capital",
+    group: "share_capital",
+    label: "Interest on Share Capital allocation rate",
+    help: "CDA formula uses X × (net surplus less statutory reserves) ÷ total average share month, where X is the percentage determined by the Board under the cooperative's by-laws. Interest must not exceed the normal return on investment and allocation requires General Assembly approval. The 30% rule applies to patronage refund, not as a fixed Interest on Share Capital rate.",
+    kind: "number",
+    unit: "%",
+    fallback: null,
+    editable: true,
+    schema: percentage,
   },
   {
     key: "referrals.reward_policy",

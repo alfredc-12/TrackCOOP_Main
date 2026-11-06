@@ -59,10 +59,10 @@ export function draftError(s: SettingEntry, v: unknown) {
     s.kind === "number" &&
     (typeof v !== "number" ||
       !Number.isFinite(v) ||
-      v <= 0 ||
+      (s.unit === "%" ? v < 0 || v > 100 : v <= 0) ||
       (["hours", "months"].includes(s.unit ?? "") && !Number.isInteger(v)))
   )
-    return `Enter a valid positive ${s.unit === "PHP" ? "amount" : "whole number"} for ${s.label.toLowerCase()}.`;
+    return `Enter a valid ${s.unit === "%" ? "percentage from 0 to 100" : `positive ${s.unit === "PHP" ? "amount" : "whole number"}`} for ${s.label.toLowerCase()}.`;
   if (
     s.kind === "text" &&
     (typeof v !== "string" || !v.trim() || v.length > 40)
