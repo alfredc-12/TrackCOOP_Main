@@ -30,6 +30,9 @@ async function recordForUpdate(c: PoolConnection, id: string): Promise<RecordRow
   if (!rows[0]) throw new AppError("Financial record not found", 404, "FINANCIAL_RECORD_NOT_FOUND");
   return { ...rows[0], categoryActive: Boolean(rows[0].categoryActive) };
 }
+function recordFingerprint(record: RecordRow): string {
+  return createHash("sha256").update(JSON.stringify([record.id,record.makerId,record.recordNumber,record.memberId,record.remarks,record.recordType,record.sourceModule,record.sourceRecordId,record.paymentReferenceId,record.categoryId,record.categoryActive,record.categoryType,record.categoryCode,record.categoryName,record.seasonId,record.date,record.amount,record.recordStatus,record.approvedBy])).digest("hex");
+}
 async function operationForUpdate(c: PoolConnection, id: string): Promise<OperationRow> {
   const [rows] = await c.execute<OperationRow[]>(`${opSelect} WHERE operation_id=? FOR UPDATE`, [id]);
   if (!rows[0]) throw new AppError("Operation not found", 404, "CONTROLLED_OPERATION_NOT_FOUND");
@@ -68,7 +71,7 @@ export function createControlledPostingRepository(pool?: Pool, verifyEvidence: E
     if (record.makerId !== op.makerId) throw new AppError("Record ownership changed", 409, "CONTROLLED_REEVALUATION_REQUIRED");
     const evidence = await verifyEvidence(c, record);
     const evidenceVerified = evidence.verified && typeof evidence.fingerprint === "string" && /^[a-f0-9]{64}$/.test(evidence.fingerprint);
-    const fingerprint = createHash("sha256").update(JSON.stringify([record.id,record.makerId,record.recordNumber,record.memberId,record.remarks,record.recordType,record.sourceModule,record.sourceRecordId,record.paymentReferenceId,record.categoryId,record.categoryActive,record.categoryType,record.categoryCode,record.categoryName,record.seasonId,record.date,record.amount,record.recordStatus,record.approvedBy])).digest("hex");
+    const fingerprint = recordFingerprint(record);
     let budget: { state: string; blocked: boolean; basis: string | null } | null = null;
     if (record.recordType === "Expense" && evidenceVerified && assessConfiguration(policies.threshold, policies.restrictions, new Date(), expected).configurationComplete) {
       const checked = await evaluateBudgetWithinTransaction(c, { date: record.date, categoryId: record.categoryId, seasonId: record.seasonId, amount: record.amount });
@@ -126,7 +129,7 @@ export function createControlledPostingRepository(pool?: Pool, verifyEvidence: E
       throw error;
     }
   }
-  async function editDraft(id: string, expectedVersion: number, input: ControlledDraftEdit, auth: AuthContext) {
+  async function editDraft(id: string, expectedVersion: number, input: ControlledDraftEdit, auth: AuthContext, resubmissionReason?: string) {
     role(auth,"bookkeeper");
     if (!fixtureEnabled()) return assertControlledPostingInactive();
     const parsed=controlledDraftEditSchema.safeParse(input);
@@ -139,12 +142,18 @@ export function createControlledPostingRepository(pool?: Pool, verifyEvidence: E
       if (op.version!==expectedVersion || ["POSTED","CORRECTION_REQUESTED"].includes(op.state)) throw new AppError("Operation changed or is locked",409,"CONTROLLED_OPERATION_CONFLICT");
       const previous=await recordForUpdate(c,op.recordId);
       if (previous.makerId!==op.makerId || previous.approvedBy || previous.recordStatus!=="Active" || previous.sourceModule!=="Manual" || previous.sourceRecordId || previous.paymentReferenceId || previous.memberId) throw new AppError("Record changed or is not a manual draft",409,"CONTROLLED_SOURCE_INVALID");
+      if (op.state === "REJECTED") {
+        if (!resubmissionReason?.trim() || resubmissionReason.trim().length > 2000) throw new AppError("A resubmission reason is required",422,"RESUBMISSION_REASON_REQUIRED");
+        if (!op.recordFingerprint || op.recordFingerprint !== recordFingerprint(previous)) throw new AppError("Rejected record changed outside this workflow; review required",409,"CONTROLLED_REEVALUATION_REQUIRED");
+        const changedFinancialFacts = previous.categoryId !== data.categoryId || previous.recordType !== data.recordType || previous.seasonId !== data.seasonId || previous.amount !== data.amount || previous.date !== data.date;
+        if (!changedFinancialFacts) throw new AppError("Change the financial details before resubmitting",409,"RESUBMISSION_REVISION_REQUIRED");
+      }
       const [categories]=await c.execute<RowDataPacket[]>("SELECT category_type AS type,is_active AS active FROM financial_categories WHERE financial_category_id=? FOR UPDATE",[data.categoryId]);
       if (!categories[0] || !categories[0].active || ![data.recordType,"Both"].includes(categories[0].type)) throw new AppError("Category is unavailable or incompatible",422,"INVALID_FINANCIAL_CATEGORY");
       const [changed]=await c.execute<ResultSetHeader>("UPDATE financial_records SET record_number=?,financial_category_id=?,record_type=?,season_id=?,amount=?,record_date=?,remarks=? WHERE financial_record_id=? AND approved_by IS NULL AND record_status='Active' AND source_module='Manual' AND source_record_id IS NULL AND payment_reference_id IS NULL AND member_id IS NULL",[data.recordNumber,data.categoryId,data.recordType,data.seasonId,data.amount,data.date,data.remarks,op.recordId]);
       if (changed.affectedRows!==1) throw new AppError("Record changed",409,"CONTROLLED_OPERATION_CONFLICT");
       const cleared:ControlledEvaluation={state:"DRAFT",code:"DRAFT_EDITED",configurationCode:null,thresholdVersion:null,restrictionVersion:null,budgetBasis:null};
-      const result=await writeEvent(c,op,auth.user.id,"edited","DRAFT",null,cleared,{record:null,evidence:null});
+      const result=await writeEvent(c,op,auth.user.id,op.state === "REJECTED" ? "resubmitted" : "edited","DRAFT",op.state === "REJECTED" ? resubmissionReason!.trim() : null,cleared,{record:null,evidence:null});
       await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,old_values,new_values,action_time) VALUES(?,'controlled_finance.draft_edited','financial_records',?,'Controlled finance draft edited',?,?,UTC_TIMESTAMP())",[auth.user.id,op.recordId,JSON.stringify({categoryId:previous.categoryId,recordType:previous.recordType,amount:previous.amount,date:previous.date,seasonId:previous.seasonId}),JSON.stringify({categoryId:data.categoryId,recordType:data.recordType,amount:data.amount,date:data.date,seasonId:data.seasonId})]);
       return result;
     },db()); } catch(error) {
@@ -158,7 +167,7 @@ export function createControlledPostingRepository(pool?: Pool, verifyEvidence: E
       await lockControl(c);
       const op = await operationForUpdate(c,id);
       if (op.makerId !== auth.user.id) throw new AppError("Not authorized", 403, "FORBIDDEN");
-      if (op.version !== expectedVersion || ["POSTED", "CORRECTION_REQUESTED"].includes(op.state)) throw new AppError("Operation changed or is locked", 409, "CONTROLLED_OPERATION_CONFLICT");
+      if (op.version !== expectedVersion || ["POSTED", "CORRECTION_REQUESTED", "REJECTED"].includes(op.state)) throw new AppError("Operation changed or is locked", 409, "CONTROLLED_OPERATION_CONFLICT");
       const result = await evaluate(c,op);
       const updated=await writeEvent(c,op,auth.user.id,"evaluated",result.decision.state,null,result.decision,result.fingerprints);
       return { ...updated, code: result.decision.code, configurationCode: result.decision.configurationCode };

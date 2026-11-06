@@ -33,8 +33,8 @@ export function createControlledPostingRouter(auth: AuthService = createAuthServ
     return sendSuccess(res,await repository.create(body.recordId,body.idempotencyKey,req.auth!),{ statusCode: 201 });
   }));
   router.patch("/finance/controlled-operations/:id", ...maker, asyncHandler(async (req,res) => {
-    const body=parse(() => z.object({ expectedVersion:z.number().int().positive().max(4294967294), draft:controlledDraftEditSchema }).strict().parse(req.body));
-    return sendSuccess(res,await repository.editDraft(parse(() => id.parse(req.params.id)),body.expectedVersion,body.draft,req.auth!));
+    const body=parse(() => z.object({ expectedVersion:z.number().int().positive().max(4294967294), draft:controlledDraftEditSchema, resubmissionReason:z.string().trim().min(1).max(2000).optional() }).strict().parse(req.body));
+    return sendSuccess(res,await repository.editDraft(parse(() => id.parse(req.params.id)),body.expectedVersion,body.draft,req.auth!,body.resubmissionReason));
   }));
   router.get("/finance/controlled-operations/:id", ...staff, asyncHandler(async (req,res) => sendSuccess(res,await repository.get(parse(() => id.parse(req.params.id)),req.auth!))));
   router.post("/finance/controlled-operations/:id/evaluate", ...maker, asyncHandler(async (req,res) => {

@@ -3,7 +3,7 @@ import { cents } from "../budgets/controlled-budget.model";
 import { assessConfiguration, type PolicyRevision } from "../financial-policy/financial-policy.model";
 import { AppError } from "../../utils/app-error";
 
-export type ControlledState = "DRAFT" | "INCOMPLETE_EVIDENCE" | "CONFIGURATION_BLOCKED" | "BUDGET_BLOCKED" | "PENDING_APPROVAL" | "REJECTED" | "ROUTINE_POST_ELIGIBLE" | "APPROVED_FOR_POSTING" | "POSTED" | "CORRECTION_REQUESTED";
+export type ControlledState = "DRAFT" | "INCOMPLETE_EVIDENCE" | "CONFIGURATION_BLOCKED" | "BUDGET_BLOCKED" | "PENDING_APPROVAL" | "UNBUDGETED_REVIEWED" | "REJECTED" | "ROUTINE_POST_ELIGIBLE" | "APPROVED_FOR_POSTING" | "POSTED" | "CORRECTION_REQUESTED";
 export type ControlledRecord = {
   id: string; makerId: string; recordType: "Income" | "Expense" | "Adjustment";
   sourceModule: string; sourceRecordId: string | null; paymentReferenceId: string | null; memberId: string | null;
@@ -44,7 +44,8 @@ export function decideApproval(operation: OperationSnapshot, expectedVersion: nu
   if (!reason.trim() || reason.trim().length > 2000) throw new AppError("A decision reason is required", 422, "DECISION_REASON_REQUIRED");
   if (operation.version !== expectedVersion || operation.state !== "PENDING_APPROVAL") throw new AppError("Operation is stale or not awaiting approval", 409, "CONTROLLED_OPERATION_CONFLICT");
   if (current.state !== "PENDING_APPROVAL" || current.thresholdVersion !== operation.thresholdVersion || current.restrictionVersion !== operation.restrictionVersion || current.budgetBasis !== operation.budgetBasis) throw new AppError("Policy, evidence or budget changed; reevaluate", 409, "CONTROLLED_REEVALUATION_REQUIRED");
-  return decision === "approve" ? "APPROVED_FOR_POSTING" : "REJECTED";
+  if (decision === "reject") return "REJECTED";
+  return current.code === "UNBUDGETED_REVIEW_REQUIRED" ? "UNBUDGETED_REVIEWED" : "APPROVED_FOR_POSTING";
 }
 
 // PR 1C deliberately has no activation mechanism. No configuration can change this.

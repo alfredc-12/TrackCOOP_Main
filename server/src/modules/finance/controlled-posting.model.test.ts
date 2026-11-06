@@ -33,5 +33,10 @@ test("maker-checker requires a distinct Chairman, a reason and a current pending
   assert.throws(() => decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", "reason", { ...current, budgetBasis: "changed" }));
   assert.equal(decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", "reason", current), "APPROVED_FOR_POSTING");
   assert.equal(decideApproval(op, 3, { id: "2", role: "chairman" }, "reject", "reason", current), "REJECTED");
+  const unbudgeted = evaluateControlledRecord({ ...input, budget: { state: "UNBUDGETED", blocked: true, basis: null } });
+  const unbudgetedOp = { ...op, budgetBasis: null };
+  assert.equal(decideApproval(unbudgetedOp, 3, { id: "2", role: "chairman" }, "approve", "reason", unbudgeted), "UNBUDGETED_REVIEWED");
+  const hardLimit = evaluateControlledRecord({ ...input, budget: { state: "HARD_LIMIT_EXCEEDED", blocked: true, basis: "basis" } });
+  assert.throws(() => decideApproval(op, 3, { id: "2", role: "chairman" }, "approve", "reason", hardLimit));
   assert.throws(() => assertControlledPostingInactive());
 });
