@@ -212,7 +212,7 @@ export const definitions: SettingDefinition[] = [
     key: "share_capital.statutory_reserve_rate",
     category: "share_capital",
     group: "share_capital",
-    label: "Statutory reserve rate",
+    label: "Reserve Fund rate",
     help: "Percentage of net surplus allocated to the Reserve Fund before the remaining surplus is distributed. CDA Article 86 requires at least 10%; during the first five years after registration, at least 50% applies. Follow the cooperative's approved by-laws and policy.",
     kind: "number",
     unit: "%",

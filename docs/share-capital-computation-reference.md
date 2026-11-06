@@ -37,7 +37,7 @@ The new-declaration form follows these rules:
 | Coverage start and end | Required. Must cover one complete 12-month fiscal year. |
 | Distribution date | Required before the declaration can be created. |
 | Net surplus | Automatically calculated from posted financial records for the selected dates. |
-| Statutory reserves (%) | Editable from 0% to 100%. The UI suggests 10% as a starting point. |
+| Reserve Fund rate (%) | Editable from 0% to 100%. CDA baseline is at least 10%, or at least 50% during the first five years after registration. |
 | Fiscal year | Selectable in the new-declaration form; selecting a year sets January 1 through December 31 coverage dates. |
 | Interest on Share Capital allocation (%) | Required and editable from 0% to 100%. No fixed rate is preselected while the approved policy is pending. |
 | Notes | Optional policy or approval notes. |
