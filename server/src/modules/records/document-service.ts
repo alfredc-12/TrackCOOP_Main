@@ -6,6 +6,7 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { getPool } from "../../db/pool";
+import { manilaToday } from "../../utils/manila-calendar";
 import type { AuthorizedUser } from "./records-auth";
 import {
   DOCUMENT_ACCESS_LEVELS,
@@ -91,7 +92,7 @@ export type DocumentUploadInput = {
   category: string;
   documentType: string;
   accessLevel: DocumentAccessLevel;
-  expirationDate?: string;
+  expirationDate?: string | null;
   file: UploadedFileLike;
 };
 
@@ -120,22 +121,41 @@ function dateKey(value: string | null) {
   return value ? value.slice(0, 10) : null;
 }
 
-export function calculateDocumentStatus(
-  databaseStatus: string,
-  expirationDate: string | null,
-  now = new Date(),
-): DocumentStatus {
-  if (databaseStatus === "Archived") return "ARCHIVED";
-  if (!expirationDate) return "ACTIVE";
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const expiration = new Date(`${expirationDate.slice(0, 10)}T00:00:00`);
-  if (expiration < today) return "EXPIRED";
-  const warning = new Date(today);
-  warning.setDate(warning.getDate() + 30);
-  return expiration <= warning ? "EXPIRING_SOON" : "ACTIVE";
+// Operational warning only; this is not a document-retention period.
+export const DOCUMENT_EXPIRY_WARNING_DAYS = 30;
+
+function warningEndDate(today: string) {
+  return new Date(Date.parse(`${today}T00:00:00Z`) + DOCUMENT_EXPIRY_WARNING_DAYS * 86_400_000)
+    .toISOString().slice(0, 10);
 }
 
-function mapDocument(row: DocumentRow): DocumentRecord {
+function parseExpirationDate(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+      Number(value.slice(0, 4)) < 1000) {
+    throw new RecordsError("Expiration date must be a valid YYYY-MM-DD date.", 422, "INVALID_EXPIRATION_DATE");
+  }
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new RecordsError("Expiration date must be a valid YYYY-MM-DD date.", 422, "INVALID_EXPIRATION_DATE");
+  }
+  return value;
+}
+
+export function calculateDocumentStatus(databaseStatus: string, expirationDate: string | null, now = new Date()): DocumentStatus {
+  if (databaseStatus === "Archived") return "ARCHIVED";
+  if (databaseStatus === "Replaced") return "REPLACED";
+  if (databaseStatus === "Restricted") return "RESTRICTED";
+  // Fail closed on an unexpected stored state instead of portraying it as active.
+  if (databaseStatus !== "Active") return "RESTRICTED";
+  if (!expirationDate) return "ACTIVE";
+  const today = manilaToday(now);
+  if (expirationDate < today) return "EXPIRED";
+  return expirationDate <= warningEndDate(today) ? "EXPIRING_SOON" : "ACTIVE";
+}
+
+function mapDocument(row: DocumentRow, now = new Date()): DocumentRecord {
   const expirationDate = dateKey(row.expirationDate);
   return {
     id: row.id,
@@ -145,7 +165,7 @@ function mapDocument(row: DocumentRow): DocumentRecord {
     category: row.category ?? "OTHER",
     documentType: row.documentType,
     accessLevel: apiAccess(row.accessLevel),
-    status: calculateDocumentStatus(row.databaseStatus, expirationDate),
+    status: calculateDocumentStatus(row.databaseStatus, expirationDate, now),
     fileName: row.fileName ?? `document-${row.id}`,
     mimeType: row.mimeType ?? "application/octet-stream",
     fileExtension: row.fileExtension ?? "",
@@ -173,6 +193,7 @@ function documentSelect() {
            d.mime_type AS mimeType,
            '' AS fileExtension,
            d.file_size_bytes AS fileSizeBytes,
+           DATE_FORMAT(d.expiration_date, '%Y-%m-%d') AS expirationDate,
            u.display_name AS uploadedBy,
            CAST(d.uploaded_by AS CHAR) AS uploadedById,
            d.uploaded_at AS uploadedAt,
@@ -244,13 +265,17 @@ function validateMetadata(input: DocumentMetadataInput) {
     category: input.category,
     documentType: input.documentType,
     accessLevel: input.accessLevel,
+    expirationDate: parseExpirationDate(input.expirationDate),
   };
 }
 
 export async function listDocuments(
   input: DocumentListInput,
   user: AuthorizedUser,
+  now = new Date(),
 ): Promise<DocumentListResponse> {
+  const today = manilaToday(now);
+  const warningEnd = warningEndDate(today);
   const actor = await getActor(user);
   const visibility = documentVisibilitySql(actor);
   const where = [visibility.sql];
@@ -292,14 +317,27 @@ export async function listDocuments(
     where.push("d.original_file_name LIKE ?");
     values.push(`%.${input.fileType.trim().toLowerCase()}`);
   }
+  const expirationFrom = parseExpirationDate(input.expirationFrom);
+  const expirationTo = parseExpirationDate(input.expirationTo);
+  if (expirationFrom && expirationTo && expirationFrom > expirationTo) {
+    throw new RecordsError("Expiration date range is invalid.", 422, "INVALID_EXPIRATION_DATE");
+  }
+  if (expirationFrom) { where.push("d.expiration_date >= ?"); values.push(expirationFrom); }
+  if (expirationTo) { where.push("d.expiration_date <= ?"); values.push(expirationTo); }
   if (input.status === "ARCHIVED") {
     where.push("d.document_status = 'Archived'");
+  } else if (input.status === "REPLACED") {
+    where.push("d.document_status = 'Replaced'");
+  } else if (input.status === "RESTRICTED") {
+    where.push("d.document_status = 'Restricted'");
   } else if (input.status === "EXPIRED") {
-    where.push("1 = 0");
+    where.push("d.document_status = 'Active' AND d.expiration_date < ?"); values.push(today);
   } else if (input.status === "EXPIRING_SOON") {
-    where.push("1 = 0");
+    where.push("d.document_status = 'Active' AND d.expiration_date >= ? AND d.expiration_date <= ?");
+    values.push(today, warningEnd);
   } else if (input.status === "ACTIVE") {
-    where.push("d.document_status <> 'Archived'");
+    where.push("d.document_status = 'Active' AND (d.expiration_date IS NULL OR d.expiration_date > ?)");
+    values.push(warningEnd);
   }
 
   const page = Math.max(1, Number(input.page) || 1);
@@ -322,12 +360,12 @@ export async function listDocuments(
   const [summaryRows] = await db.query<SummaryRow[]>(
     `SELECT COUNT(*) AS total,
             SUM(d.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recentlyUploaded,
-            0 AS expiringSoon,
+            SUM(CASE WHEN d.document_status = 'Active' AND d.expiration_date >= ? AND d.expiration_date <= ? THEN 1 ELSE 0 END) AS expiringSoon,
             SUM(d.document_status = 'Archived') AS archived,
             SUM(d.access_level <> 'Public') AS restricted
        FROM documents d
       WHERE ${summaryVisibility.sql}`,
-    summaryVisibility.values,
+    [today, warningEnd, ...summaryVisibility.values],
   );
   const [uploaderRows] = await db.query<
     (RowDataPacket & { id: string; name: string })[]
@@ -340,7 +378,7 @@ export async function listDocuments(
   );
   const summary = summaryRows[0];
   return {
-    documents: rows.map(mapDocument),
+    documents: rows.map((row) => mapDocument(row, now)),
     total: Number(counts[0]?.total ?? 0),
     page,
     pageSize,
@@ -521,8 +559,8 @@ export async function uploadDocument(
       `INSERT INTO documents (
         document_reference, uploaded_by, title, category, document_type,
         access_level, document_status, file_path, original_file_name, mime_type,
-        file_size_bytes, description
-      ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?)`,
+        file_size_bytes, description, expiration_date
+      ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?, ?)`,
       [
         temporaryReference,
         user.numericId,
@@ -535,6 +573,7 @@ export async function uploadDocument(
         validated.mimeType,
         validated.size,
         details.description,
+        details.expirationDate ?? null,
       ],
     );
     const documentId = result.insertId;
@@ -561,6 +600,7 @@ export async function uploadDocument(
         title: details.title,
         category: details.category,
         accessLevel: details.accessLevel,
+        expirationDate: details.expirationDate ?? null,
       },
       metadata,
     );
@@ -611,6 +651,9 @@ export async function updateDocumentMetadata(
       "DOCUMENT_EDIT_FORBIDDEN",
     );
   }
+  if (details.expirationDate !== undefined && details.accessLevel !== existing.accessLevel) {
+    throw new RecordsError("Change document access separately from its expiration date.", 422, "DOCUMENT_ACCESS_CHANGE_REQUIRES_SEPARATE_UPDATE");
+  }
   if (
     !canUploadDocument(actor, {
       accessLevel: details.accessLevel,
@@ -630,7 +673,7 @@ export async function updateDocumentMetadata(
     await connection.query(
       `UPDATE documents
           SET title = ?, description = ?, category = ?, document_type = ?,
-              access_level = ?
+              access_level = ?, expiration_date = CASE WHEN ? THEN ? ELSE expiration_date END
         WHERE document_id = ?`,
       [
         details.title,
@@ -638,6 +681,8 @@ export async function updateDocumentMetadata(
         details.category,
         details.documentType,
         databaseAccess[details.accessLevel],
+        details.expirationDate !== undefined,
+        details.expirationDate ?? null,
         documentId,
       ],
     );
@@ -663,11 +708,13 @@ export async function updateDocumentMetadata(
         title: existing.title,
         category: existing.category,
         accessLevel: existing.accessLevel,
+        expirationDate: existing.expirationDate,
       },
       {
         title: details.title,
         category: details.category,
         accessLevel: details.accessLevel,
+        expirationDate: details.expirationDate === undefined ? existing.expirationDate : details.expirationDate,
       },
       metadata,
     );
@@ -708,6 +755,9 @@ export async function setDocumentArchived(
       403,
       "DOCUMENT_EDIT_FORBIDDEN",
     );
+  }
+  if (row.databaseStatus === "Replaced" || row.databaseStatus === "Restricted") {
+    throw new RecordsError("This document cannot be archived or restored in its current state.", 409, "DOCUMENT_STATUS_INVALID");
   }
   const connection = await db.getConnection();
   try {
