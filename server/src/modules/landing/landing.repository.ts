@@ -6,11 +6,17 @@ import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import { loadRecentLandingPhotos } from "./landing.recent-photos";
 import type { AuthContext } from "../auth/auth.types";
-import type { GallerySlotInput, LandingCollection, LandingListQuery, LandingListResult, LandingRow, PublicLandingPayload } from "./landing.types";
+import type { GallerySlotInput, LandingCollection, LandingListQuery, LandingListResult, LandingRow, PublicLandingPayload, PublicLandingStats } from "./landing.types";
 
 type CountRow = RowDataPacket & { total: number };
 type GenericRow = RowDataPacket & Record<string, unknown>;
 type SqlValue = string | number | boolean | Date | null;
+
+type PublicLandingStatsRow = RowDataPacket & {
+  activeFarmerMembers: number | string | null;
+  farmCommunitiesReached: number | string | null;
+  fisheryMembers: number | string | null;
+};
 
 type CollectionMeta = {
   table: string;
@@ -276,6 +282,10 @@ function sanitizeGalleryGroupInput(input: Record<string, unknown>) {
   return groupInput;
 }
 
+function numberValue(value: unknown) {
+  return Number(value ?? 0);
+}
+
 export interface LandingRepository {
   publicLanding(): Promise<PublicLandingPayload>;
   getGalleryGroup?(id:string): Promise<LandingRow|null>;
@@ -508,16 +518,54 @@ export function createLandingRepository(pool?: Pool): LandingRepository {
     return rows.map(mapRow);
   }
 
+  async function publicStats(): Promise<PublicLandingStats> {
+    // Expose aggregate counts only. Farmer communities are counted from the
+    // distinct barangays recorded on active farmer members because the current
+    // schema does not contain a farm-lot table.
+    const [memberRows] = await databasePool().execute<PublicLandingStatsRow[]>(
+      `SELECT
+         SUM(CASE
+               WHEN LOWER(COALESCE(m.sector, '')) REGEXP 'rice|corn|farm|crop|vegetable|livestock|coffee|agri'
+               THEN 1 ELSE 0
+             END) AS activeFarmerMembers,
+         COUNT(DISTINCT CASE
+           WHEN LOWER(COALESCE(m.sector, '')) REGEXP 'rice|corn|farm|crop|vegetable|livestock|coffee|agri'
+           THEN NULLIF(TRIM(m.barangay), '')
+         END) AS farmCommunitiesReached,
+         SUM(CASE
+               WHEN LOWER(COALESCE(m.sector, '')) REGEXP 'fish|aqua'
+               THEN 1 ELSE 0
+             END) AS fisheryMembers
+       FROM member_profiles m
+      WHERE m.approval_status = 'Approved'
+        AND m.official_member_status = 'Active'`,
+    );
+    const [programRows] = await databasePool().execute<CountRow[]>(
+      `SELECT COUNT(*) AS total
+         FROM cooperative_activities
+        WHERE YEAR(activity_date) = YEAR(CURDATE())`,
+    );
+    const memberStats = memberRows[0];
+
+    return {
+      activeFarmerMembers: numberValue(memberStats?.activeFarmerMembers),
+      farmCommunitiesReached: numberValue(memberStats?.farmCommunitiesReached),
+      fisheryMembers: numberValue(memberStats?.fisheryMembers),
+      annualPrograms: numberValue(programRows[0]?.total),
+    };
+  }
+
   return {
     getGalleryGroup: readGalleryGroup,
     async publicLanding() {
-      const [partners, gallery, recentPhotos, landingPhotos] = await Promise.all([
+      const [partners, gallery, recentPhotos, landingPhotos, stats] = await Promise.all([
         listPublic("partners"),
         listPublic("gallery"),
         loadRecentLandingPhotos(databasePool()),
         createGalleryPlacementRepository(databasePool()).publicPhotos(),
+        publicStats(),
       ]);
-      return { partners, gallery, recentPhotos, landingPhotos };
+      return { partners, gallery, recentPhotos, landingPhotos, stats };
     },
 
     async list(collection, query) {

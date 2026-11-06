@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronDown, ChevronLeft, ChevronRight, ImageOff, Minus, Plus, Search, ShoppingCart, X } from "lucide-react";
+import { ChevronDown, ImageOff, Minus, Plus, Search, ShoppingCart, X } from "lucide-react";
 import { useId, useState } from "react";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { availableStoreQuantity, emptyStoreFilters, filterStoreCatalog, type StoreCatalogFilters, type StoreProduct } from "../store-catalog";
 import styles from "./PublicStorefront.module.css";
 
-const pageSize = 8;
 const price = (value: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(value));
 const fieldClass = "h-11 w-full min-w-0 appearance-none rounded-md border border-[#CCDACC] bg-white pl-3 pr-9 text-base text-coop-forest outline-none focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/15";
 
@@ -24,6 +24,7 @@ export function PublicStorefront({ products, cart, loading, error, totalItems, t
 }) {
   const [filters, setFilters] = useState<StoreCatalogFilters>(emptyStoreFilters);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
   const availableProducts = products.filter((product) => product.status === "Available" && Number(product.stock) > 0);
   const filtered = filterStoreCatalog(products, filters);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -67,7 +68,18 @@ export function PublicStorefront({ products, cart, loading, error, totalItems, t
           : visible.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 sm:gap-5">{visible.map((product) => <PublicProduct key={product.id} product={product} quantity={cart.find((item) => item.id === product.id)?.quantity ?? 0} onAdd={() => onAdd(product.id)} onAdjust={(delta) => onAdjust(product.id, delta)} />)}</div>
           : <div className="rounded-xl border border-[var(--public-card-border)] bg-white p-8 text-center"><h3 className="text-xl font-bold text-coop-forest">{hasFilters ? "No products match your filters" : "No products are currently available"}</h3><p className="mt-2 text-base text-coop-secondary">{hasFilters ? "Try a shorter search or choose another category." : "Please check back for cooperative supplies."}</p>{hasFilters ? <button type="button" onClick={clear} className="mt-4 min-h-11 rounded-md bg-coop-forest px-5 text-base font-semibold text-white">Show all products</button> : null}</div>}
 
-        {pageCount > 1 ? <nav aria-label="Product pages" className="mt-7 flex flex-wrap items-center justify-center gap-3"><button type="button" aria-label="Previous product page" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-coop-forest disabled:opacity-40"><ChevronLeft aria-hidden="true" className="size-4" /></button><p role="status" className="text-sm font-semibold text-coop-secondary">Page {currentPage} of {pageCount}</p><button type="button" aria-label="Next product page" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} className="grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-coop-forest disabled:opacity-40"><ChevronRight aria-hidden="true" className="size-4" /></button></nav> : null}
+        {filtered.length > 0 ? <PaginationControls
+          currentPage={currentPage}
+          totalPages={pageCount}
+          totalItems={filtered.length}
+          itemName="products"
+          onPageChange={setPage}
+          pageSize={pageSize}
+          pageSizeOptions={[6, 10, 20, 50]}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+          centerControls
+          className="mt-7 border-t border-[var(--public-card-border)] pt-5"
+        /> : null}
       </section>
     </>
   );

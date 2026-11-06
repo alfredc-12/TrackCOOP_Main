@@ -87,7 +87,7 @@ export function AboutSection() {
           <figcaption className="px-3 pb-3 pt-4 text-sm leading-6 text-[#365F4A]">{cooperativeName}</figcaption>
         </motion.figure>
 
-        <motion.div {...reveal} className="min-w-0">
+        <motion.div {...reveal} className="min-w-0 text-center lg:text-left">
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.35em] text-[#9A6400]">About</p>
           <h2 id="about-heading" className="text-3xl font-black leading-[1.1] text-[#073f2b] sm:text-5xl lg:text-6xl">Rooted in Nasugbu agriculture.</h2>
           <p className="mt-6 text-base leading-8 text-[#365F4A]">{cooperativeName} supports local producers through cooperative services, farm coordination, fishery livelihood tracking, and accessible community information.</p>
@@ -104,8 +104,8 @@ export function AboutSection() {
 
 function SupportDetail({ icon: Icon, title, copy }: { icon: LucideIcon; title: string; copy: string }) {
   return (
-    <div className="public-card flex items-start gap-3 p-5">
-      <Icon aria-hidden="true" className="mt-1 size-6 shrink-0 text-[#1F6B43]" />
+    <div className="public-card flex items-center justify-center gap-3 p-5 text-center lg:items-start lg:justify-start lg:text-left">
+      <Icon aria-hidden="true" className="size-6 shrink-0 text-[#1F6B43] lg:mt-1" />
       <div className="min-w-0"><h3 className="text-lg font-bold text-[#123D2A]">{title}</h3><p className="mt-1 text-base leading-7 text-[#365F4A]">{copy}</p></div>
     </div>
   );

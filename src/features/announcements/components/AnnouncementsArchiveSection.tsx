@@ -2,21 +2,20 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronsLeft, ChevronsRight, ImageOff, Images, Search } from "lucide-react";
+import { ChevronDown, ImageOff, Images, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { expressFetch } from "@/lib/express-api";
 import { announcementContent, announcementDate, announcementImages, announcementPreview, announcementText, formatAnnouncementDate } from "../announcement-display";
 import type { PublicAnnouncement } from "../types";
 import { AnnouncementPostModal } from "./AnnouncementPostModal";
 
 const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const pageSize = 6;
-const actionClass = "public-action grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-[#123D2A] hover:bg-[#EAF3E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:pointer-events-none disabled:opacity-40";
-
 export default function AnnouncementsArchiveSection() {
   const reducedMotion = useReducedMotion();
   const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<PublicAnnouncement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
@@ -90,13 +89,18 @@ export default function AnnouncementsArchiveSection() {
             <div className="mt-7 grid items-stretch gap-6 md:grid-cols-2 xl:grid-cols-3">
               {visible.map((post, index) => <AnnouncementCard key={post.id} post={post} index={index} reducedMotion={Boolean(reducedMotion)} onOpen={() => setSelectedAnnouncement(post)} />)}
             </div>
-            {totalPages > 1 ? <nav aria-label="Announcement pages" className="mt-9 flex items-center justify-center gap-2">
-              <button type="button" aria-label="First page" disabled={page === 1} onClick={() => setCurrentPage(1)} className={actionClass}><ChevronsLeft aria-hidden="true" className="size-4" /></button>
-              <button type="button" aria-label="Previous page" disabled={page === 1} onClick={() => setCurrentPage((current) => Math.max(1, current - 1))} className={actionClass}><ArrowLeft aria-hidden="true" className="size-4" /></button>
-              <p aria-live="polite" className="px-2 text-sm font-semibold sm:px-4">Page {page} of {totalPages}</p>
-              <button type="button" aria-label="Next page" disabled={page === totalPages} onClick={() => setCurrentPage((current) => Math.min(totalPages, current + 1))} className={actionClass}><ArrowRight aria-hidden="true" className="size-4" /></button>
-              <button type="button" aria-label="Last page" disabled={page === totalPages} onClick={() => setCurrentPage(totalPages)} className={actionClass}><ChevronsRight aria-hidden="true" className="size-4" /></button>
-            </nav> : null}
+            <PaginationControls
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              itemName="announcements"
+              onPageChange={setCurrentPage}
+              pageSize={pageSize}
+              pageSizeOptions={[6, 10, 20, 50]}
+              onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setCurrentPage(1); }}
+              centerControls
+              className="mt-9 border-t border-[var(--public-card-border)] pt-5"
+            />
           </>}
       </div>
       {selectedAnnouncement ? <AnnouncementPostModal key={selectedAnnouncement.id} post={selectedAnnouncement} onClose={() => setSelectedAnnouncement(null)} /> : null}

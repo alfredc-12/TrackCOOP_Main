@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Maximize2 } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 import Image from "next/image";
 import { useMemo, useState } from "react";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import { usePublishedLandingContent } from "@/features/landing-public/usePublishedLandingContent";
 import { resolveUploadUrl } from "@/lib/upload-url";
 import { GalleryPhotoViewer, type GalleryPhoto } from "./GalleryPhotoViewer";
@@ -32,10 +33,9 @@ const photos = [
   "/images/stats/underlay.jpg",
 ];
 
-const photosPerPage = 9;
-
 export default function GalleryGrid() {
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [failedPhotos, setFailedPhotos] = useState<Set<string>>(new Set());
   const published = usePublishedLandingContent();
@@ -56,10 +56,10 @@ export default function GalleryGrid() {
     return [...collection.values()].filter((photo) => !failedPhotos.has(photo.src));
   }, [failedPhotos, published.gallery]);
 
-  const totalPages = Math.max(1, Math.ceil(galleryPhotos.length / photosPerPage));
-  const safeCurrentPage = Math.min(currentPage, totalPages - 1);
-  const start = safeCurrentPage * photosPerPage;
-  const visiblePhotos = galleryPhotos.slice(start, start + photosPerPage);
+  const totalPages = Math.max(1, Math.ceil(galleryPhotos.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const start = (safeCurrentPage - 1) * pageSize;
+  const visiblePhotos = galleryPhotos.slice(start, start + pageSize);
   const selected = galleryPhotos.find((photo) => photo.src === selectedPhoto);
 
   function handlePhotoError(src: string) {
@@ -74,7 +74,7 @@ export default function GalleryGrid() {
 
   function retryPhotos() {
     setFailedPhotos(new Set());
-    setCurrentPage(0);
+    setCurrentPage(1);
     published.retry();
   }
 
@@ -113,16 +113,18 @@ export default function GalleryGrid() {
             </button>)}
           </div> : <div className="public-card px-6 py-12 text-center"><h3 className="text-xl font-bold">No photos to display</h3><p className="mt-2 leading-7 text-[#365F4A]">Please check back for cooperative photos.</p><button type="button" onClick={retryPhotos} className="public-action mt-5 min-h-11 rounded-md bg-[#123D2A] px-5 text-sm font-bold text-white hover:bg-[#1F6B43]">Retry photos</button></div>}
 
-          {galleryPhotos.length ? <div className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <p className="text-sm font-semibold text-[#365F4A]">Showing {start + 1}–{Math.min(start + photosPerPage, galleryPhotos.length)} of {galleryPhotos.length} photos</p>
-            <nav aria-label="Gallery pages" className="flex items-center gap-2">
-              <button type="button" aria-label="Previous gallery page" disabled={totalPages === 1} onClick={() => setCurrentPage((page) => (Math.min(page, totalPages - 1) - 1 + totalPages) % totalPages)} className="public-action grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-[#123D2A] hover:bg-[#EAF3E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:opacity-40"><ArrowLeft aria-hidden="true" className="size-4" /></button>
-              <div className="flex gap-1">
-                {Array.from({ length: totalPages }, (_, index) => <button key={index} type="button" aria-label={`Go to gallery page ${index + 1}`} aria-current={safeCurrentPage === index ? "page" : undefined} onClick={() => setCurrentPage(index)} className="grid size-6 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-[#1F6B43]"><span className={`h-2.5 rounded-full transition-[width,background-color] ${safeCurrentPage === index ? "w-5 bg-[#123D2A]" : "w-2.5 bg-[#A6BCA7]"}`} /></button>)}
-              </div>
-              <button type="button" aria-label="Next gallery page" disabled={totalPages === 1} onClick={() => setCurrentPage((page) => (Math.min(page, totalPages - 1) + 1) % totalPages)} className="public-action grid size-11 place-items-center rounded-md border border-[var(--public-card-border)] bg-white text-[#123D2A] hover:bg-[#EAF3E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:opacity-40"><ArrowRight aria-hidden="true" className="size-4" /></button>
-            </nav>
-          </div> : null}
+          {galleryPhotos.length ? <PaginationControls
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={galleryPhotos.length}
+            itemName="photos"
+            onPageChange={setCurrentPage}
+            pageSize={pageSize}
+            pageSizeOptions={[6, 10, 20, 50]}
+            onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setCurrentPage(1); }}
+            centerControls
+            className="mt-8 border-t border-[var(--public-card-border)] pt-5"
+          /> : null}
         </div>
       </section>
       {selected ? <GalleryPhotoViewer key={selected.src} photo={selected} onClose={() => setSelectedPhoto(null)} onImageError={handlePhotoError} /> : null}

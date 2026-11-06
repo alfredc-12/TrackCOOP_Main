@@ -16,49 +16,40 @@ const boardMembers = [
   {
     name: "Rafael Santos",
     role: "Chairperson",
-    image: "https://randomuser.me/api/portraits/men/75.jpg",
     featured: true,
   },
   {
     name: "Elena Mercado",
     role: "Vice Chairperson",
-    image: "https://randomuser.me/api/portraits/women/65.jpg",
     featured: true,
   },
   {
     name: "Mario Reyes",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/men/32.jpg",
   },
   {
     name: "Lorna Castillo",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/women/44.jpg",
   },
   {
     name: "Victor Ramos",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/men/52.jpg",
   },
   {
     name: "Amelia Torres",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/women/72.jpg",
   },
   {
     name: "Daniel Cruz",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/men/62.jpg",
   },
   {
     name: "Nora Mendoza",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/women/79.jpg",
   },
   {
     name: "Samuel Aquino",
     role: "Director",
-    image: "https://randomuser.me/api/portraits/men/43.jpg",
   },
 ];
 
@@ -76,7 +67,7 @@ function BoardCard({
       }`}
     >
       <div className="public-media relative aspect-[4/5] overflow-hidden bg-[#EAF3E8]">
-        <BoardMemberPortrait name={member.name} role={member.role} image={member.image} featured={featured} />
+        <BoardMemberPortrait name={member.name} role={member.role} />
       </div>
       <div className="px-4 py-4 text-center sm:px-5 sm:py-5">
         <h3 className="break-words text-base font-bold leading-6 text-[#123D2A] sm:text-lg">{member.name}</h3>

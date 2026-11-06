@@ -49,6 +49,12 @@ function createLandingService() {
       return {
         partners: [],
         gallery: [{ id: "gallery-1", title: "Harvest Day" }],
+        stats: {
+          activeFarmerMembers: 12,
+          farmCommunitiesReached: 4,
+          fisheryMembers: 3,
+          annualPrograms: 6,
+        },
         recentPhotos: [{
           id: "announcement:1", source: "announcement", title: "Recent training",
           caption: "Training in the field", imagePath: "/uploads/announcements/training.jpg",
@@ -112,6 +118,7 @@ test("GET /api/public/landing is available without a session", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.data.gallery[0].title, "Harvest Day");
+  assert.equal(response.body.data.stats.activeFarmerMembers, 12);
   assert.equal(response.body.data.recentPhotos[0].id, "announcement:1");
   assert.equal(calls[0].method, "publicLanding");
 });
