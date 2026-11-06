@@ -52,6 +52,14 @@ test("isolated MySQL: migration, fallback/exact races, stale decisions, replay a
     }
     await runRace("4", "9", "10");
     await runRace("5", "7", "11");
+    await pool.execute("INSERT INTO financial_categories VALUES(9,'Both','BOTH','Both')");
+    await pool.execute("INSERT INTO budget_lines VALUES(99,1,9,NULL,100,80,1)");
+    const wrong = { date:"2026-06-01",categoryId:"9",seasonId:null,amount:"1.00" };
+    const wrongPreview = await previewControlledBudget(pool,wrong);
+    await assert.rejects(withControlledBudget(pool,{ ...wrong,actorId:"1",operationKey:"d".repeat(64),expectedBasis:wrongPreview.basis! },async(c)=>{
+      const [created]=await c.execute<mysql.ResultSetHeader>("INSERT INTO financial_records(financial_category_id,record_date,amount,record_type,record_status,approved_by,source_module) VALUES(9,'2026-06-01',1,'Income','Active',1,'Manual')");return String(created.insertId);
+    }));
+    const [wrongRows]=await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS n FROM financial_records WHERE financial_category_id=9");assert.equal(wrongRows[0].n,0);
     const [audit] = await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS count FROM audit_logs WHERE action='budget.assignment_created'");
     assert.equal(audit[0].count, 2);
     const staleInput = { date: "2026-06-01", categoryId: "6", seasonId: null, amount: "1.00" };

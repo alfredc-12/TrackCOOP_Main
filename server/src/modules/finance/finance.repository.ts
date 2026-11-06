@@ -1,3 +1,4 @@
+import { assertLegacyFinanceWriteAllowed, controlledFinanceMode, type ControlledFinanceMode } from "./controlled-finance.mode";
 import { postedOperatingSql, postedRecordSql } from "./financial-posting-rules";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
@@ -266,7 +267,7 @@ export interface FinanceRepository {
   trends(): Promise<FinancialTrend[]>;
 }
 
-export function createFinanceRepository(pool?: Pool): FinanceRepository {
+export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinanceMode = controlledFinanceMode): FinanceRepository {
   const databasePool = () => pool ?? getPool();
 
   async function ensureOperatingExpenseCategory(
@@ -338,6 +339,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async createCategory(input, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO financial_categories
@@ -368,6 +370,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async updateCategory(id, input, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         await connection.execute(
           `UPDATE financial_categories
@@ -476,6 +479,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async createRecord(input, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         if (input.recordType === "Expense") {
           const budgetCheck = await checkExpenseAgainstBudget(connection, {
@@ -522,6 +526,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async updateRecord(id, input, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         const existing = await this.findRecordById(id);
         if (!existing) throw new AppError("Financial record was not found", 404, "FINANCIAL_RECORD_NOT_FOUND");
@@ -571,6 +576,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async postRecord(id, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         const existing = await this.findRecordById(id);
         if (!existing) throw new AppError("Financial record was not found", 404, "FINANCIAL_RECORD_NOT_FOUND");
@@ -594,6 +600,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async voidRecord(id, reason, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         const existing = await this.findRecordById(id);
         if (!existing) throw new AppError("Financial record was not found", 404, "FINANCIAL_RECORD_NOT_FOUND");
@@ -617,6 +624,7 @@ export function createFinanceRepository(pool?: Pool): FinanceRepository {
     },
 
     async createOperatingExpense(input, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         const categoryId = await ensureOperatingExpenseCategory(connection, input.expenseType, auth);
         const budgetCheck = await checkExpenseAgainstBudget(connection, {

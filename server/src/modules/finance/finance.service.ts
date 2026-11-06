@@ -1,3 +1,4 @@
+import { assertLegacyFinanceWriteAllowed, controlledFinanceMode, type ControlledFinanceMode } from "./controlled-finance.mode";
 import { AppError } from "../../utils/app-error";
 import PDFDocument from "pdfkit";
 import type { AuthContext } from "../auth/auth.types";
@@ -180,6 +181,7 @@ export interface FinanceService {
 
 export function createFinanceService(
   repository: FinanceRepository = createFinanceRepository(),
+  mode: () => ControlledFinanceMode = controlledFinanceMode,
 ): FinanceService {
   return {
     listCategories() {
@@ -204,6 +206,7 @@ export function createFinanceService(
       return repository.updateRecord(id, input, auth);
     },
     async postRecord(id, auth) {
+      assertLegacyFinanceWriteAllowed(mode());
       const record = await repository.findRecordById(id);
       if (!record) throw new AppError("Financial record was not found", 404, "FINANCIAL_RECORD_NOT_FOUND");
       if (record.approvedBy) {
