@@ -9,7 +9,7 @@ export function MemberStorePhoto({ src, name, compact = false }: { src: string; 
     return src && failedSource !== src ? (
         // Product uploads may come from either local storage or the configured storage provider.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={name} loading="lazy" onError={() => setFailedSource(src)} className="h-full w-full object-contain p-3" />
+        <img src={src} alt={name} loading="lazy" onError={() => setFailedSource(src)} className="h-full w-full object-cover" />
     ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#EDF3E9] text-[#52705D]" role="img" aria-label={`${name}: photo unavailable`}>
             <ImageIcon className="size-9 text-[#8AA68F]" aria-hidden="true" />
@@ -43,7 +43,7 @@ export function MemberStoreProductCard({ product, quantity, onAdd, onAdjust }: {
 
     return (
         <article aria-label={product.name} className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-[#DDE8D8] bg-white shadow-sm transition hover:border-[#A8C7AE] hover:shadow-md">
-            <div className="relative h-28 border-b border-[#EDF2EA] bg-[#F6F8F2]">
+            <div className="relative h-40 border-b border-[#EDF2EA] bg-[#F6F8F2] sm:h-44">
                 <MemberStorePhoto src={product.img} name={product.name} />
                 <span className={`absolute left-3 top-3 rounded-full border px-2.5 py-1 text-xs font-semibold ${!canBuy ? "border-slate-200 bg-slate-100 text-slate-600" : available <= 5 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-[#C8DECB] bg-[#F0F8ED] text-[#25613E]"}`}>{stockLabel}</span>
             </div>

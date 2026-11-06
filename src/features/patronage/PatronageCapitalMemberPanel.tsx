@@ -60,16 +60,16 @@ export function PatronageCapitalMemberPanel() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-6 text-[#5D6D63]">True Members can add an approved annual rental patronage refund to Share Capital instead of receiving it as cash. Legacy refunds need cooperative review first. The Bookkeeper will check your request before adding it to your Share Capital.</p>
+      <p className="px-3 text-sm leading-6 text-[#5D6D63]">True Members can add an approved annual rental patronage refund to Share Capital instead of receiving it as cash. Legacy refunds need cooperative review first. The Bookkeeper will check your request before adding it to your Share Capital.</p>
       {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}<Button className="mt-2" variant="secondary" disabled={busy} onClick={() => void load()}>Try again</Button></div> : null}
       {success ? <p role="status" className="rounded-xl border border-[#BFD9C5] bg-[#EAF3E8] p-4 text-sm text-[#1F6B43]">{success}</p> : null}
       {!data && !error ? <p role="status">Loading your patronage refund…</p> : null}
       {data ? <>
-        <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#F3F7F1] p-4 text-sm text-[#365F4A]">
-          <p>Current Share Capital<strong className="mt-1 block text-lg text-[#123D2A]">{money(data.currentCapital)}</strong></p>
-          <p>You can still add<strong className="mt-1 block text-lg text-[#123D2A]">{money(data.availableCapacity)}</strong></p>
+        <div className="mx-auto grid w-full max-w-md grid-cols-2 items-center gap-3 rounded-xl bg-[#F3F7F1] p-4 text-center text-sm leading-5 text-[#365F4A]">
+          <p className="min-w-0">Current Share Capital<strong className="mt-1 block text-lg leading-6 text-[#123D2A]">{money(data.currentCapital)}</strong></p>
+          <p className="min-w-0">You can still add<strong className="mt-1 block text-lg leading-6 text-[#123D2A]">{money(data.availableCapacity)}</strong></p>
         </div>
-        {!data.refunds.length ? <p className="rounded-xl border border-dashed border-[#CAD8CB] p-4 text-sm text-[#5D6D63]">You have no patronage refund available yet. Refunds awaiting review are shown below.</p> : data.availableCapacity <= 0 ? <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Your Share Capital limit is already reached or reserved by pending payments.</p> : <>
+        {!data.refunds.length ? <p className="rounded-xl border border-dashed border-[#CAD8CB] p-4 text-center text-sm text-[#5D6D63]">You have no patronage refund available yet. Refunds awaiting review are shown below.</p> : data.availableCapacity <= 0 ? <p className="rounded-xl bg-amber-50 p-4 text-center text-sm text-amber-800">Your Share Capital limit is already reached or reserved by pending payments.</p> : <>
           <label className="block text-sm font-bold text-[#173626]" htmlFor="patronage-refund-period">Choose a refund</label>
           <StyledSelect id="patronage-refund-period" aria-label="Choose a refund" value={refund ? `${refund.periodName} — ${money(refund.availableAmount)} available` : ""} disabled={busy} options={data.refunds.map((item) => `${item.periodName} — ${money(item.availableAmount)} available`)} onChange={(value) => { setAllocationId(data.refunds.find((item) => `${item.periodName} — ${money(item.availableAmount)} available` === value)?.allocationId ?? ""); setAmount(""); setConfirming(false); setRequestKey(crypto.randomUUID()); }} />
           <div className="rounded-xl border border-[#CAD8CB] p-4">

@@ -58,7 +58,7 @@ export function MemberShareOverview(props: Props) {
     { label: "1 year member", earned: Boolean(anniversary && !Number.isNaN(anniversary.getTime()) && new Date() >= anniversary), unknown: unavailable.capital || props.loading.capital || !memberDate || Number.isNaN(memberDate.getTime()) },
     { label: "First capital addition", earned: props.contributionCount >= 1, unknown: unavailable.capital || props.loading.capital },
     { label: "3 capital additions", earned: props.contributionCount >= 3, unknown: unavailable.capital || props.loading.capital },
-    { label: "Interest reinvested", earned: interest.capitalized > 0, unknown: unavailable.interest || props.loading.interest },
+    { label: "Annual Interest reinvested", earned: interest.capitalized > 0, unknown: unavailable.interest || props.loading.interest },
   ];
   const display = (value: number, loading: boolean, error: boolean) => error ? "—" : loading ? "Loading…" : money(value);
 
@@ -82,11 +82,11 @@ export function MemberShareOverview(props: Props) {
         </div>
       </article>
 
-      <article aria-label="Share Capital Interest" className="flex flex-col rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm">
-        <h3 className="flex items-center gap-2 font-bold text-[#173626]"><PieChart className="size-4 text-[#A15C16]" />Share Capital Interest</h3>
+      <article aria-label="Annual Interest on Share Capital" className="flex flex-col rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 font-bold text-[#173626]"><PieChart className="size-4 text-[#A15C16]" />Annual Interest on Share Capital</h3>
         <p className="mt-2 text-sm text-[#5D6D63]">Available to use</p><p className="mt-1 text-2xl font-black text-[#1F6B43]">{display(interest.available, props.loading.interest, unavailable.interest)}</p>
         <MoneyRows summary={interest} unavailable={unavailable.interest || props.loading.interest} />
-        <button type="button" onClick={() => setInterestOpen(true)} className={`${actionClass} mt-auto w-full pt-2`}>View interest details</button>
+        <button type="button" onClick={() => setInterestOpen(true)} className={`${actionClass} mt-auto w-full pt-2`}>View annual interest details</button>
       </article>
 
       <article aria-label="Patronage Refund" className="flex flex-col rounded-2xl border border-[#DDE8D8] bg-white p-4 shadow-sm">
@@ -103,7 +103,7 @@ export function MemberShareOverview(props: Props) {
         <div className="flex items-center justify-between gap-2"><h3 className="font-bold text-[#173626]">Recent capital changes</h3><Link href="/portal/member/share-capital" className="text-sm font-bold text-[#1F6B43] hover:underline">Full history</Link></div>
         <div className="mt-2 max-h-32 divide-y divide-[#EEF2EC] overflow-y-auto">
           {unavailable.capital ? <p className="py-3 text-sm text-[#6C7A70]">Capital history is unavailable.</p> : props.loading.capital ? <p role="status" className="py-3 text-sm text-[#6C7A70]">Loading your capital history…</p> : props.activities.length ? props.activities.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-            <div className="min-w-0"><p className="truncate font-semibold text-[#173626]">{item.type === "Patronage Refund Added to Share Capital" ? "Refund added to capital" : item.type === "Dividend Added to Share Capital" ? "Interest added to capital" : item.direction === "Debit" ? "Capital deduction" : "Capital addition"}</p><p className="text-xs text-[#6C7A70]">{new Date(item.date).toLocaleDateString("en-PH")}</p></div>
+            <div className="min-w-0"><p className="truncate font-semibold text-[#173626]">{item.type === "Patronage Refund Added to Share Capital" ? "Refund added to capital" : item.type === "Dividend Added to Share Capital" ? "Annual Interest added to capital" : item.direction === "Debit" ? "Capital deduction" : "Capital addition"}</p><p className="text-xs text-[#6C7A70]">{new Date(item.date).toLocaleDateString("en-PH")}</p></div>
             <span className={`flex shrink-0 items-center gap-1 font-bold ${item.direction === "Debit" ? "text-[#A15C16]" : "text-[#1F6B43]"}`}>{item.direction === "Debit" ? <ArrowUpRight className="size-4" /> : <ArrowDownLeft className="size-4" />}{item.direction === "Debit" ? "−" : "+"}{money(Number(item.amount))}</span>
           </div>) : <p className="py-3 text-sm text-[#6C7A70]">No capital changes recorded yet.</p>}
         </div>
@@ -117,13 +117,13 @@ export function MemberShareOverview(props: Props) {
       </article>
     </div>
 
-    <Modal title="Your Share Capital interest" description="All published interest records. Only available amounts can be withdrawn or added to capital." open={interestOpen} onOpenChange={setInterestOpen} maxWidth="max-w-2xl" trigger={<span className="hidden" />}>
-      {unavailable.interest ? <p role="alert" className="text-sm text-red-700">Interest records could not be loaded. Close this window and press Update.</p> : props.loading.interest ? <p role="status">Loading interest records…</p> : interest.history.length ? <div className="space-y-3">{interest.history.map((item) => <article key={item.id} className="rounded-xl border border-[#DDE8D8] p-4 text-sm">
+    <Modal title="Your Annual Interest on Share Capital" description="All published Annual Interest on Share Capital records. Only available amounts can be withdrawn or added to capital." open={interestOpen} onOpenChange={setInterestOpen} maxWidth="max-w-2xl" trigger={<span className="hidden" />}>
+      {unavailable.interest ? <p role="alert" className="text-sm text-red-700">Annual Interest records could not be loaded. Close this window and press Update.</p> : props.loading.interest ? <p role="status">Loading Annual Interest records…</p> : interest.history.length ? <div className="space-y-3">{interest.history.map((item) => <article key={item.id} className="rounded-xl border border-[#DDE8D8] p-4 text-sm">
         <div className="flex flex-wrap justify-between gap-2"><h3 className="font-bold text-[#173626]">{item.declarationName}</h3><strong className="text-[#1F6B43]">{money(item.amount)}</strong></div>
         <p className="mt-1 text-[#6C7A70]">{item.coverageStart} to {item.coverageEnd}</p><p className="mt-2 font-semibold text-[#365F4A]">{interestStatus[item.status]}</p>
         {item.status === "Pending" && item.distributionDate ? <p className="mt-1 text-[#6C7A70]">Release date: {new Date(item.distributionDate).toLocaleDateString("en-PH")}</p> : null}
         {item.status === "Available" ? <div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={props.dividendBusy} className={actionClass} onClick={() => { setInterestOpen(false); props.onDividendAction(item, "withdraw"); }}>Request withdrawal</button><button type="button" disabled={props.dividendBusy} className={actionClass} onClick={() => { setInterestOpen(false); props.onDividendAction(item, "capital"); }}>Add to capital</button></div> : null}
-      </article>)}</div> : <p className="text-sm text-[#6C7A70]">No published interest yet. This does not mean your capital is missing; interest appears after the cooperative publishes it.</p>}
+      </article>)}</div> : <p className="text-sm text-[#6C7A70]">No published Annual Interest yet. This does not mean your capital is missing; Annual Interest appears after the cooperative publishes it.</p>}
     </Modal>
     <Modal title="Your patronage refund" description="Yearly 3% refund on eligible equipment rentals for True Members only. POS purchases are excluded." open={patronageOpen} onOpenChange={setPatronageOpen} maxWidth="max-w-4xl" trigger={<span className="hidden" />}>
       {patronageOpen ? <MemberPatronageClient /> : null}

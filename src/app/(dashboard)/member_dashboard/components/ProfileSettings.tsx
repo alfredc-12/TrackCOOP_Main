@@ -118,7 +118,7 @@ export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { 
   };
 
   return (
-    <section aria-labelledby="my-profile-heading" className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
+    <section aria-labelledby="my-profile-heading" className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-0">
       <div className="mb-4">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2F7D57]">My account</p>
         <h1 id="my-profile-heading" className="mt-1 text-2xl font-bold text-[#173626]">My Profile</h1>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Banknote } from "lucide-react";
+import { Search, ChevronDown, ShoppingCart, Plus, Minus, X, CheckCircle, Package, Image as ImageIcon, History, Printer, AlertCircle, CreditCard, ExternalLink, Loader2, Banknote } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/auth-client";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { normalizeProductImage } from "../product-image-url";
 import { MemberStorePhoto, MemberStoreProductCard } from "./MemberStoreProductCard";
 import { StorePaymentReturnPanel } from "./StorePaymentReturnPanel";
 import { PublicStorefront } from "./PublicStorefront";
+import { PaginationControls } from "@/components/portal/PortalPrimitives";
 
 type InventoryItem = {
     id: number;
@@ -155,7 +156,7 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [sortBy, setSortBy] = useState("name-asc");
     const [productPage, setProductPage] = useState(1);
-    const productsPerPage = 8;
+    const [productsPerPage, setProductsPerPage] = useState(6);
 
     const fetchInventory = useCallback(async (notifyOnError = false, showLoading = notifyOnError) => {
         if (showLoading) setIsInventoryLoading(true);
@@ -301,7 +302,8 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
         });
 
     const productPageCount = Math.max(1, Math.ceil(filteredAndSortedInventory.length / productsPerPage));
-    const paginatedInventory = filteredAndSortedInventory.slice((productPage - 1) * productsPerPage, productPage * productsPerPage);
+    const currentProductPage = Math.min(productPage, productPageCount);
+    const paginatedInventory = filteredAndSortedInventory.slice((currentProductPage - 1) * productsPerPage, currentProductPage * productsPerPage);
 
     const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalCartPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -479,7 +481,6 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
             ) : <>
             {/* Header */}
             <div className={isPublicView ? "relative mb-7 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-6 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8 sm:py-7" : "relative mb-4 overflow-hidden rounded-2xl bg-[#123D2A] p-4 text-white shadow-sm"}>
-                <div className="absolute -right-10 -top-16 size-56 rounded-full border-[22px] border-[#D8F0DE]/10" />
                 <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     {isPublicView && <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> Cooperative marketplace</div>}
@@ -535,8 +536,8 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
 
             {/* Toolbar */}
             <div className={`${isPublicView ? "mb-6" : "mb-4"} rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="relative w-full max-w-md">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative w-full sm:max-w-md">
                         <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
@@ -547,13 +548,13 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                             className="w-full rounded-full border border-gray-200 bg-[#f8fafc] py-3 pl-12 pr-4 text-sm outline-none transition focus:border-[#0F9D58] focus:ring-1 focus:ring-[#0F9D58]"
                         />
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="w-full sm:w-auto">
                         <MemberThemedSelect value={sortBy} onChange={(value) => { setSortBy(value); setProductPage(1); }} ariaLabel="Sort products" options={[{ value: "name-asc", label: "Sort by: Name (A–Z)" }, { value: "price-asc", label: "Sort by: Price (Low to High)" }, { value: "price-desc", label: "Sort by: Price (High to Low)" }]} />
                     </div>
                 </div>
 
                 {/* Category Tabs */}
-                <div aria-label="Product categories" className={`flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar ${isPublicView ? "" : "mt-3"}`}>
+                <div aria-label="Product categories" className={`flex flex-wrap items-center gap-2 pb-2 ${isPublicView ? "" : "mt-3"}`}>
                     {categoryTabs.map(cat => (
                         <button
                             key={cat}
@@ -568,15 +569,16 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
                         </button>
                     ))}
                 </div>
-                <div className={`${isPublicView ? "mt-3 border-t border-[#EEF4EF] pt-3" : "mt-1"} flex items-center justify-between gap-3 text-xs font-medium text-[#52705D]`}><span>Showing {filteredAndSortedInventory.length} available product{filteredAndSortedInventory.length === 1 ? "" : "s"}</span>{searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setProductPage(1); }} className="font-bold text-[#1F6B43] hover:underline">Clear search</button>}</div>
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#52705D]"><span>Showing {filteredAndSortedInventory.length} available product{filteredAndSortedInventory.length === 1 ? "" : "s"}</span>{searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setProductPage(1); }} className="font-bold text-[#1F6B43] hover:underline">Clear search</button>}</div>
             </div>
 
             {isPublicView && checkoutStep === "cart" && (
                 <div className="mb-5 rounded-xl border border-[#D8E5DB] bg-[#EEF8F0] px-4 py-3 text-sm text-[#52705D]"><span className="font-bold text-[#123D2A]">Guest checkout:</span> Add products to your cart, then provide your contact details and payment method.</div>
             )}
 
-            {/* Product Grid */}
-            <div className={`grid grid-cols-1 ${isPublicView ? "gap-6 pb-12" : "gap-4 pb-32 sm:pb-12"} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`}>
+            {/* Product Grid and pager share one holder, matching the Rental section. */}
+            <div className={`rounded-2xl border border-[#D8E5DB] bg-white p-4 shadow-sm sm:p-5 sm:pb-5 ${totalCartItems > 0 ? "pb-32" : "pb-5"}`}>
+            <div className={`grid grid-cols-1 ${isPublicView ? "gap-6" : "gap-4"} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`}>
                 {inventoryError && inventory.length === 0 ? (
                     <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-red-200 bg-white px-6 py-16 text-center shadow-sm" role="alert" aria-live="assertive">
                         <AlertCircle className="mb-4 size-12 text-red-500" aria-hidden="true" />
@@ -677,14 +679,20 @@ export default function MemberPosClient({ isPublicView = false, paymentReturn }:
             </div>
 
             {filteredAndSortedInventory.length > 0 && (
-                <div className="mb-12 flex flex-wrap items-center justify-center gap-2 border-t border-[#DDE9E0] pt-5">
-                    <button type="button" onClick={() => setProductPage(1)} disabled={productPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="First page" aria-label="First product page"><ChevronsLeft className="size-4" /></button>
-                    <button type="button" onClick={() => setProductPage((page) => Math.max(1, page - 1))} disabled={productPage === 1} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Previous page" aria-label="Previous product page"><ChevronLeft className="size-4" /></button>
-                    <span className="px-2 text-sm font-bold text-[#123D2A]">Page {productPage} of {productPageCount} · Showing {filteredAndSortedInventory.length} products</span>
-                    <button type="button" onClick={() => setProductPage((page) => Math.min(productPageCount, page + 1))} disabled={productPage === productPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Next page" aria-label="Next product page"><ChevronRight className="size-4" /></button>
-                    <button type="button" onClick={() => setProductPage(productPageCount)} disabled={productPage === productPageCount} className="rounded-lg border border-[#D8E5DB] bg-white p-2 text-[#52705D] transition hover:bg-[#EAF5EC] disabled:cursor-not-allowed disabled:opacity-40" title="Last page" aria-label="Last product page"><ChevronsRight className="size-4" /></button>
-                </div>
+                <PaginationControls
+                    currentPage={currentProductPage}
+                    totalPages={productPageCount}
+                    totalItems={filteredAndSortedInventory.length}
+                    itemName="products"
+                    onPageChange={setProductPage}
+                    pageSize={productsPerPage}
+                    pageSizeOptions={[6, 10, 20, 50]}
+                    onPageSizeChange={(nextPageSize) => { setProductsPerPage(nextPageSize); setProductPage(1); }}
+                    centerControls
+                    className="mb-0 mt-5 border-t border-[#DDE9E0] pt-5"
+                />
             )}
+            </div>
 
             </>}
 

@@ -398,6 +398,7 @@ export function PaginationControls({
   pageSize,
   pageSizeOptions = [5, 10, 20],
   onPageSizeChange,
+  centerControls = false,
   className,
   disabled = false,
 }: {
@@ -409,17 +410,18 @@ export function PaginationControls({
   pageSize?: number;
   pageSizeOptions?: number[];
   onPageSizeChange?: (pageSize: number) => void;
+  centerControls?: boolean;
   className?: string;
   disabled?: boolean;
 }) {
   const start = pageSize && totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
   const end = pageSize ? Math.min(currentPage * pageSize, totalItems) : 0;
   return (
-    <nav aria-label="Table pagination" className={cn("mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
-      <span className="text-sm font-semibold tabular-nums text-coop-secondary">
+    <nav aria-label="Table pagination" className={cn("mt-6 gap-3 sm:flex sm:flex-row sm:items-center sm:justify-between", pageSize && onPageSizeChange ? "grid grid-cols-[minmax(0,1fr)_auto] items-center" : "flex flex-col", className)}>
+      <span className="order-1 text-left text-sm font-semibold tabular-nums text-coop-secondary sm:order-none">
         {pageSize ? `Showing ${start}-${end} of ${totalItems} ${itemName}` : <>Page {currentPage} of {totalPages || 1} <span className="mx-2 text-[#9CA3AF]">·</span> {totalItems} {itemName}</>}
       </span>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className={cn("order-3 col-span-2 flex flex-wrap items-center justify-center gap-2 sm:order-none sm:col-span-1", centerControls ? "sm:justify-center" : "sm:justify-end")}>
         <button
           type="button"
           aria-label="First page"
@@ -459,7 +461,7 @@ export function PaginationControls({
         </button>
       </div>
       {onPageSizeChange && pageSize ? (
-        <div className="w-40">
+        <div className="order-2 col-start-2 w-36 self-center sm:order-none sm:col-start-auto sm:w-40 sm:self-auto">
           <StyledSelect
             value={`${pageSize} per page`}
             options={pageSizeOptions.map((option) => `${option} per page`)}
