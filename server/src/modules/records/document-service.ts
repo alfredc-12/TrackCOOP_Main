@@ -23,6 +23,7 @@ import {
   canAccessDocument,
   canManageDocument,
   canUploadDocument,
+  documentVisibilitySql,
   type DocumentPolicyActor,
   type DocumentPolicyRecord,
 } from "./document-policy";
@@ -39,6 +40,7 @@ const db = getPool();
 
 type DocumentRow = RowDataPacket & {
   id: string;
+  memberId: string | null;
   reference: string | null;
   title: string;
   description: string | null;
@@ -159,6 +161,7 @@ function mapDocument(row: DocumentRow): DocumentRecord {
 function documentSelect() {
   return `
     SELECT CAST(d.document_id AS CHAR) AS id,
+           CAST(d.member_id AS CHAR) AS memberId,
            d.document_reference AS reference,
            d.title,
            d.description,
@@ -179,44 +182,24 @@ function documentSelect() {
 }
 
 async function getActor(user: AuthorizedUser): Promise<DocumentPolicyActor> {
-  let memberId: number | null = null;
+  let memberId: string | null = null;
   if (user.role === "member") {
     const [rows] = await db.query<IdRow[]>(
       "SELECT CAST(member_id AS CHAR) AS id FROM member_profiles WHERE user_id = ? LIMIT 1",
       [user.numericId],
     );
-    memberId = rows[0] ? Number(rows[0].id) : null;
+    memberId = rows[0]?.id ?? null;
   }
   return { role: user.role, userId: user.numericId, memberId };
 }
 
-function policyRecord(document: DocumentRecord): DocumentPolicyRecord {
+function policyRecord(row: DocumentRow): DocumentPolicyRecord {
   return {
-    accessLevel: document.accessLevel,
-    category: document.category,
-    documentType: document.documentType,
+    accessLevel: apiAccess(row.accessLevel),
+    category: row.category ?? "OTHER",
+    documentType: row.documentType,
+    memberId: row.memberId,
   };
-}
-
-function visibilitySql(actor: DocumentPolicyActor | null) {
-  if (actor?.role === "chairman") return { sql: "1 = 1", values: [] };
-  if (actor?.role === "bookkeeper") {
-    return {
-      sql: `(d.access_level IN ('Public', 'Bookkeeper-only')
-             OR (d.access_level <> 'Admin-only' AND (
-               d.category IN ('FINANCIAL','RECEIPT','RENTAL','POS_AND_SALES','INVENTORY')
-               OR d.document_type IN ('Receipt','Financial Document')
-             )))`,
-      values: [],
-    };
-  }
-  if (actor?.role === "member" && actor.memberId) {
-    return {
-      sql: "(d.access_level = 'Public' OR (d.access_level = 'Member-only' AND (d.member_id IS NULL OR d.member_id = ?)))",
-      values: [actor.memberId],
-    };
-  }
-  return { sql: "d.access_level = 'Public'", values: [] };
 }
 
 function validDate(value: string | undefined) {
@@ -269,7 +252,7 @@ export async function listDocuments(
   user: AuthorizedUser,
 ): Promise<DocumentListResponse> {
   const actor = await getActor(user);
-  const visibility = visibilitySql(actor);
+  const visibility = documentVisibilitySql(actor);
   const where = [visibility.sql];
   const values: Array<string | number> = [...visibility.values];
 
@@ -335,7 +318,7 @@ export async function listDocuments(
       WHERE ${whereSql}`,
     values,
   );
-  const summaryVisibility = visibilitySql(actor);
+  const summaryVisibility = documentVisibilitySql(actor);
   const [summaryRows] = await db.query<SummaryRow[]>(
     `SELECT COUNT(*) AS total,
             SUM(d.uploaded_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recentlyUploaded,
@@ -351,7 +334,9 @@ export async function listDocuments(
   >(
     `SELECT DISTINCT CAST(u.user_id AS CHAR) AS id, u.display_name AS name
        FROM users u JOIN documents d ON d.uploaded_by = u.user_id
+      WHERE ${visibility.sql}
       ORDER BY u.display_name`,
+    visibility.values,
   );
   const summary = summaryRows[0];
   return {
@@ -392,7 +377,7 @@ export async function getDocumentDetail(
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   const document = mapDocument(row);
   const actor = await getActor(user);
-  if (!canAccessDocument(actor, policyRecord(document))) {
+  if (!canAccessDocument(actor, policyRecord(row))) {
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   }
   const [access, audit] = await Promise.all([
@@ -619,7 +604,7 @@ export async function updateDocumentMetadata(
   if (!existingRow)
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   const existing = mapDocument(existingRow);
-  if (!canManageDocument(actor, policyRecord(existing))) {
+  if (!canManageDocument(actor, policyRecord(existingRow))) {
     throw new RecordsError(
       "You cannot edit this document.",
       403,
@@ -717,7 +702,7 @@ export async function setDocumentArchived(
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   const document = mapDocument(row);
   const actor = await getActor(user);
-  if (!canManageDocument(actor, policyRecord(document))) {
+  if (!canManageDocument(actor, policyRecord(row))) {
     throw new RecordsError(
       "You cannot change this document.",
       403,
@@ -773,7 +758,7 @@ export async function getDocumentFile(
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   const document = mapDocument(row);
   const actor = user ? await getActor(user) : null;
-  if (!canAccessDocument(actor, policyRecord(document))) {
+  if (!canAccessDocument(actor, policyRecord(row))) {
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   }
 
