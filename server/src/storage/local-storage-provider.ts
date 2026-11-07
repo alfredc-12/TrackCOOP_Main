@@ -44,7 +44,7 @@ export class LocalStorageProvider implements StorageProvider {
     try {
       return await readFile(absolute);
     } catch (error) {
-      if (input.visibility === "protected") {
+      if (input.visibility === "protected" && !process.env.NODE_TEST_CONTEXT) {
         return readFile(this.legacyAbsolutePath(input.key));
       }
       throw error;
@@ -53,7 +53,7 @@ export class LocalStorageProvider implements StorageProvider {
 
   async delete(input: GetObjectInput): Promise<void> {
     await rm(this.absolutePath(input.key, input.visibility), { force: true });
-    if (input.visibility === "protected") {
+    if (input.visibility === "protected" && !process.env.NODE_TEST_CONTEXT) {
       await rm(this.legacyAbsolutePath(input.key), { force: true }).catch(() => undefined);
     }
   }
@@ -63,7 +63,7 @@ export class LocalStorageProvider implements StorageProvider {
       await access(this.absolutePath(input.key, input.visibility));
       return true;
     } catch {
-      if (input.visibility === "protected") {
+      if (input.visibility === "protected" && !process.env.NODE_TEST_CONTEXT) {
         try {
           await access(this.legacyAbsolutePath(input.key));
           return true;

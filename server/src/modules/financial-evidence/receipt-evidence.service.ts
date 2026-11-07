@@ -1,5 +1,6 @@
 ﻿import { createHash } from "node:crypto";
-import { lstat, readFile, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import type { Pool,RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
@@ -22,8 +23,19 @@ export async function readPrivateLocalObject(storagePath:string, root:string):Pr
   if(base===publicRoot || base.startsWith(publicRoot+path.sep))throw new Error("Public storage location");
   const resolvedBase=await realpath(base),resolvedFile=await realpath(full);
   if(resolvedBase!==base || !resolvedFile.startsWith(resolvedBase+path.sep))throw new Error("Untrusted storage location");
-  const metadata=await lstat(full);if(!metadata.isFile() || metadata.isSymbolicLink() || metadata.size<=0 || metadata.size>10*1024*1024)throw new Error("Untrusted file");
-  const data=await readFile(full);if(data.length!==metadata.size)throw new Error("Incomplete object");return data;
+  // If the OS cannot prohibit following the final symlink during open, the
+  // diagnostic cannot establish even this limited local-file identity.
+  if (typeof constants.O_NOFOLLOW !== "number") throw new Error("No-follow reads unavailable");
+  const handle=await open(full,constants.O_RDONLY|constants.O_NOFOLLOW);
+  try {
+    const before=await handle.stat({bigint:true});
+    if(!before.isFile() || before.size<=BigInt(0) || before.size>BigInt(10*1024*1024))throw new Error("Untrusted file");
+    const data=await handle.readFile();
+    const after=await handle.stat({bigint:true});
+    const current=await lstat(full,{bigint:true});
+    if(!current.isFile() || current.isSymbolicLink() || before.dev!==after.dev || before.ino!==after.ino || before.size!==after.size || before.mtimeNs!==after.mtimeNs || before.ctimeNs!==after.ctimeNs || current.dev!==before.dev || current.ino!==before.ino || current.size!==before.size || BigInt(data.length)!==before.size)throw new Error("Object changed during read");
+    return data;
+  } finally { await handle.close(); }
 }
 /** Read-only diagnostic for an already-generated POS/Rental receipt. It cannot attach evidence or settle payment. */
 export async function verifyExistingReceipt(paymentId:string,db?:Pick<Pool,"execute">,read=readPrivateLocalObject):Promise<EvidenceResult> {

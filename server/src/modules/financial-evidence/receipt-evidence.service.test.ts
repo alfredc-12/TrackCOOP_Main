@@ -1,5 +1,6 @@
 ﻿import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import { mkdtemp,mkdir,writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -26,7 +27,8 @@ test("source-backed receipt verifier fails closed for substitution, gateway and 
 });
 test("protected local reads reject paths, missing and legacy public-only files",async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),"trackcoop-1e-storage-"));await mkdir(path.join(root,"protected","receipts"),{recursive:true});await writeFile(path.join(root,"protected","receipts","sample.pdf"),bytes);
- assert.deepEqual(await readPrivateLocalObject("public/uploads/receipts/sample.pdf",root),bytes);
+ if(typeof constants.O_NOFOLLOW === "number") assert.deepEqual(await readPrivateLocalObject("public/uploads/receipts/sample.pdf",root),bytes);
+ else await assert.rejects(readPrivateLocalObject("public/uploads/receipts/sample.pdf",root),/No-follow/);
  for(const name of ["../escape","receipts/../other","https://example.test/file","receipts\\bad","/absolute"])await assert.rejects(readPrivateLocalObject(name,root));
  await assert.rejects(readPrivateLocalObject("public/uploads/receipts/missing.pdf",root));
 });
