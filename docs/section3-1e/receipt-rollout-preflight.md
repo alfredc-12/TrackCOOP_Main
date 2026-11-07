@@ -8,4 +8,6 @@ The current receipt processor requires `20261107_receipt_attempt_recovery.sql`. 
 4. The configured storage endpoint honors conditional creates; test privacy, immutable/version-specific access and lifecycle separately. Existing object keys and historical data are never backfilled or deleted by these migrations.
 5. An authorized owner has reviewed how to investigate `PREPARED`, `STORED`, `FAILED` and `SUPERSEDED` entries. The unmounted inspection repository reports unknown object availability; no cleanup or abandoned-age policy is implemented. Do not delete potentially linked objects.
 
+`20261107_financial_evidence_upload_intents.sql` is an additional, separate evidence-intent migration and requires existing `financial_records`, `documents` and `users` keys. Its current repository only prepares intents and records recovery-required state; it does not upload, finalize, or provide trusted retrieval. Run the manual-evidence and receipt-attempt migrations before the new intent migration in any future reviewed rollout, then verify all three against the actual target. The G0 parent-DDL rehearsal uses a subset of definitions and does not establish a complete installation order or target compatibility.
+
 The G0-export parent-DDL rehearsal is not target verification or release approval. No production/staging connection or migration was performed for this PR.

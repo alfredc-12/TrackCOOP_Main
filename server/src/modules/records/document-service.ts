@@ -814,28 +814,28 @@ export async function getDocumentFile(
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   }
 
-  const [files] = await db.query<(RowDataPacket & { storagePath: string })[]>(
-    `SELECT file_path AS storagePath FROM documents WHERE document_id = ? LIMIT 1`,
-    [documentId],
-  );
-  if (!files[0]) {
-    throw new RecordsError("Document file not found.", 404, "DOCUMENT_FILE_MISSING");
-  }
-
-  let contents: Buffer;
-  try {
-    contents = await readProtectedDocument(files[0].storagePath);
-  } catch {
-    throw new RecordsError(
-      "The stored file is unavailable. Its metadata has been preserved.",
-      404,
-      "DOCUMENT_FILE_MISSING",
-    );
-  }
-
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
+    // Link writers must lock this same document row before adding a link.
+    // Hold the lock until the file read and its access audit have completed.
+    const [files] = await connection.query<(RowDataPacket & { storagePath:string; memberId:string|null; accessLevel:string; category:string|null; documentType:string; fileName:string|null; mimeType:string|null })[]>(
+      `SELECT file_path AS storagePath, CAST(member_id AS CHAR) AS memberId, access_level AS accessLevel, category, document_type AS documentType, original_file_name AS fileName, mime_type AS mimeType FROM documents WHERE document_id = ? LIMIT 1 FOR UPDATE`,[documentId],
+    );
+    const file=files[0];
+    if(!file || !canAccessDocument(actor,{accessLevel:apiAccess(file.accessLevel),category:file.category ?? "OTHER",documentType:file.documentType,memberId:file.memberId})) throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+    if (file.storagePath.startsWith("financial-evidence:")) throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+    for (const table of ["finance_manual_evidence_links","finance_evidence_upload_intents"] as const) {
+      try {
+        const [links] = await connection.query<RowDataPacket[]>(`SELECT 1 FROM ${table} WHERE document_id = ? LIMIT 1`,[documentId]);
+        if (links.length) throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+      } catch (error) {
+        if ((error as {code?:string}).code !== "ER_NO_SUCH_TABLE") throw error;
+      }
+    }
+    let contents: Buffer;
+    try { contents=await readProtectedDocument(file.storagePath); }
+    catch { throw new RecordsError("The stored file is unavailable. Its metadata has been preserved.",404,"DOCUMENT_FILE_MISSING"); }
     await insertAccess(
       connection,
       documentId,
@@ -847,7 +847,7 @@ export async function getDocumentFile(
       user &&
       (action === "Download" ||
         action === "Print" ||
-        document.accessLevel !== "PUBLIC")
+        apiAccess(file.accessLevel) !== "PUBLIC")
     ) {
       await insertAudit(
         connection,
@@ -856,20 +856,16 @@ export async function getDocumentFile(
         documentId,
         `Document was ${action.toLowerCase()}ed.`,
         null,
-        { accessLevel: document.accessLevel },
+        { accessLevel: apiAccess(file.accessLevel) },
         metadata,
       );
     }
     await connection.commit();
+    return { contents, fileName:(file.fileName ?? document.fileName).replaceAll('"', ""), mimeType:file.mimeType ?? document.mimeType };
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
   }
-  return {
-    contents,
-    fileName: document.fileName.replaceAll('"', ""),
-    mimeType: document.mimeType,
-  };
 }

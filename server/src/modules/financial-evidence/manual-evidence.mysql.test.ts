@@ -5,6 +5,7 @@ import test from "node:test";
 import mysql from "mysql2/promise";
 import type { AuthContext } from "../auth/auth.types";
 import { createManualEvidenceRepository } from "./manual-evidence.repository";
+import { createEvidenceUploadIntentRepository } from "./evidence-upload-intent.repository";
 
 const enabled=process.env.EVIDENCE_ISOLATED_MYSQL==="1";
 const actor=(id:string,role:"bookkeeper"|"chairman"|"member")=>({user:{id,role,displayName:"Synthetic",email:"synthetic@example.test",username:null,mustChangePassword:false},sessionId:"1",tokenHash:"synthetic"}) as AuthContext;
@@ -20,14 +21,29 @@ test("manual evidence lifecycle uses locked source, unique active links and audi
  const pool=mysql.createPool({host:"127.0.0.1",port,user:"root",database:db,multipleStatements:true,connectionLimit:5});
  try {
   await pool.query(`CREATE TABLE users(user_id BIGINT UNSIGNED PRIMARY KEY);
-   CREATE TABLE financial_records(financial_record_id BIGINT UNSIGNED PRIMARY KEY,recorded_by BIGINT UNSIGNED,source_module VARCHAR(40),source_record_id BIGINT UNSIGNED NULL,payment_reference_id BIGINT UNSIGNED NULL,member_id BIGINT UNSIGNED NULL,approved_by BIGINT UNSIGNED NULL,record_status VARCHAR(20));
+   CREATE TABLE financial_records(financial_record_id BIGINT UNSIGNED PRIMARY KEY,recorded_by BIGINT UNSIGNED,source_module VARCHAR(40),source_record_id BIGINT UNSIGNED NULL,payment_reference_id BIGINT UNSIGNED NULL,member_id BIGINT UNSIGNED NULL,approved_by BIGINT UNSIGNED NULL,record_status VARCHAR(20),record_type VARCHAR(20));
    CREATE TABLE documents(document_id BIGINT UNSIGNED PRIMARY KEY,uploaded_by BIGINT UNSIGNED,member_id BIGINT UNSIGNED NULL,access_level VARCHAR(40),document_status VARCHAR(20),document_type VARCHAR(40),current_version INT UNSIGNED,checksum_sha256 CHAR(64),expiration_date DATE NULL,related_module VARCHAR(80) NULL,related_record_id BIGINT UNSIGNED NULL,relationship_type VARCHAR(80) NULL);
    CREATE TABLE audit_logs(id BIGINT AUTO_INCREMENT PRIMARY KEY,user_id BIGINT UNSIGNED,action VARCHAR(100),entity_table VARCHAR(100),record_id BIGINT UNSIGNED,description TEXT,new_values JSON,action_time DATETIME);
    INSERT INTO users VALUES(1),(2),(3);
-   INSERT INTO financial_records VALUES(10,1,'Manual',NULL,NULL,NULL,NULL,'Active'),(11,1,'POS',7,9,NULL,NULL,'Active');
-   INSERT INTO documents VALUES(20,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('a',64),NULL,NULL,NULL,NULL),(21,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('b',64),NULL,NULL,NULL,NULL),(22,2,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('c',64),NULL,NULL,NULL,NULL),(23,1,NULL,'Public','Active','Receipt',1,REPEAT('d',64),NULL,NULL,NULL,NULL),(24,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('e',64),NULL,NULL,NULL,NULL),(25,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('f',64),NULL,'POS',7,'Receipt');`);
+   INSERT INTO financial_records VALUES(10,1,'Manual',NULL,NULL,NULL,NULL,'Active','Expense'),(11,1,'POS',7,9,NULL,NULL,'Active','Income');
+   INSERT INTO documents VALUES(20,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('a',64),NULL,NULL,NULL,NULL),(21,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('b',64),NULL,NULL,NULL,NULL),(22,2,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('c',64),NULL,NULL,NULL,NULL),(23,1,NULL,'Public','Active','Receipt',1,REPEAT('d',64),NULL,NULL,NULL,NULL),(24,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('e',64),NULL,NULL,NULL,NULL),(25,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('f',64),NULL,'POS',7,'Receipt'),(26,1,NULL,'Bookkeeper-only','Active','Receipt',1,REPEAT('9',64),NULL,NULL,NULL,NULL);`);
   await pool.query(await readFile("server/database/migrations/20261107_manual_finance_evidence_links.sql","utf8"));
+  await pool.query(await readFile("server/database/migrations/20261107_financial_evidence_upload_intents.sql","utf8"));
   const repo=createManualEvidenceRepository(pool),maker=actor("1","bookkeeper"),other=actor("2","bookkeeper"),chair=actor("3","chairman"),member=actor("2","member");
+  const intents=createEvidenceUploadIntentRepository(pool);
+  const input={recordId:"10",requestKey:key("9"),sha256:key("a"),size:12,mime:"application/pdf"};
+  await assert.rejects(intents.prepare(input,other));await assert.rejects(intents.prepare(input,member));await assert.rejects(intents.prepare({...input,recordId:"11"},maker));
+  const prepared=await Promise.all([intents.prepare(input,maker),intents.prepare(input,maker)]);
+  assert.equal(prepared[0].id,prepared[1].id);assert.equal(prepared.filter(p=>p.replayed).length,1);
+  await assert.rejects(intents.prepare({...input,size:13},maker));
+  const [intentRows]=await pool.query<mysql.RowDataPacket[]>("SELECT intent_state,document_id,object_version FROM finance_evidence_upload_intents");
+  assert.equal(intentRows.length,1);assert.equal(intentRows[0].intent_state,"PREPARED");assert.equal(intentRows[0].document_id,null);assert.equal(intentRows[0].object_version,null);
+  await assert.rejects(intents.requireRecovery(prepared[0].id,1,other));
+  assert.equal((await intents.requireRecovery(prepared[0].id,1,maker)).state,"RECOVERY_REQUIRED");
+  await assert.rejects(intents.requireRecovery(prepared[0].id,1,maker));
+  await assert.rejects(pool.execute("UPDATE finance_evidence_upload_intents SET intent_state='FINALIZED' WHERE intent_id=?",[prepared[0].id]));
+  const [intentEvents]=await pool.query<mysql.RowDataPacket[]>("SELECT event_type FROM finance_evidence_upload_events ORDER BY event_id");
+  assert.deepEqual(intentEvents.map(e=>e.event_type),["PREPARED","RECOVERY_REQUIRED"]);
   for(const [record,document,user] of [["10","22",maker],["10","23",maker],["10","25",maker],["11","20",maker],["10","20",other],["10","20",member],["10","20",chair]] as const) await assert.rejects(repo.link(record,document,key("a"),user));
   const result=await Promise.allSettled([repo.link("10","20",key("a"),maker),repo.link("10","21",key("b"),maker)]);
   assert.equal(result.filter(r=>r.status==="fulfilled").length,1);assert.equal(result.filter(r=>r.status==="rejected").length,1);
@@ -59,8 +75,16 @@ test("manual evidence lifecycle uses locked source, unique active links and audi
   assert.equal((await repo.list("10",maker))[1].documentId,null);
   const [events]=await pool.query<mysql.RowDataPacket[]>("SELECT event_type,reason FROM finance_manual_evidence_events ORDER BY event_id");
   assert.deepEqual(events.map(e=>e.event_type),["LINKED","REPLACED","REVOKED"]);assert.equal(events[2].reason,"Wrong file");
+  const download=await pool.getConnection();await download.beginTransaction();
+  await download.execute("SELECT document_id FROM documents WHERE document_id=24 FOR UPDATE");
+  let completed=false;const linked=repo.link("10","24",key("8"),maker).then(value=>{completed=true;return value;});
+  try {await new Promise(resolve=>setTimeout(resolve,100));assert.equal(completed,false,"link waits for locked document used by download");}
+  finally {await download.commit();download.release();}
+  const afterRead=await linked;await repo.revoke("10",afterRead.id,1,"Synthetic test",key("7"),maker);
   await pool.query("RENAME TABLE audit_logs TO unavailable_audit_logs");
-  await assert.rejects(repo.link("10","24",key("e"),maker));
+  await assert.rejects(repo.link("10","26",key("e"),maker));
+  await assert.rejects(intents.prepare({...input,requestKey:key("6")},maker));
+  const [afterIntentFailure]=await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS count FROM finance_evidence_upload_intents");assert.equal(afterIntentFailure[0].count,1);
   const [count]=await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS count FROM finance_manual_evidence_links WHERE link_status='ACTIVE'");assert.equal(count[0].count,0);
  } finally {await pool.end();}
 });
@@ -85,6 +109,7 @@ test("attested parent DDL accepts evidence migration in disposable MySQL",{skip:
    await pool.query(`ALTER TABLE \`${table}\` ADD PRIMARY KEY (\`${pk}\`)`);
   }
   await pool.query(await readFile("server/database/migrations/20261107_manual_finance_evidence_links.sql","utf8"));
+  await pool.query(await readFile("server/database/migrations/20261107_financial_evidence_upload_intents.sql","utf8"));
   await pool.query(await readFile("server/database/migrations/20261107_receipt_attempt_recovery.sql","utf8"));
   const [refs]=await pool.query<mysql.RowDataPacket[]>("SELECT CONSTRAINT_NAME AS name,REFERENCED_TABLE_NAME AS parent FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='finance_manual_evidence_links' AND REFERENCED_TABLE_NAME IS NOT NULL");
   assert.deepEqual(new Set(refs.map(r=>r.parent)),new Set(["users","documents","financial_records","finance_manual_evidence_links"]));
