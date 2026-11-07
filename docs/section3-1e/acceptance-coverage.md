@@ -5,7 +5,8 @@ This matrix is for the draft implementation, not release approval. The master sp
 | Requirement | Status | Evidence / remaining dependency |
 | --- | --- | --- |
 | New receipt source metadata | Implemented and tested, limited | Central document insert; reduced-fixture producer MySQL test. Unknown historical links are not backfilled. |
-| Concurrent receipt artifact writes | Implemented and tested, limited | Eight-worker local synthetic MySQL test; unique attempt keys and conditional create. S3-compatible backend behavior remains unverified; unlinked attempt recovery is not implemented. |
+| Concurrent receipt artifact writes | Implemented and tested, limited | Eight-worker local synthetic MySQL test; locked attempt generation, unique attempt keys and conditional create. S3-compatible backend behavior remains unverified. |
+| Receipt attempt recovery | Implemented but unverified on target | The additive receipt attempt/event journal tracks prepared, stored, finalized, failed and superseded attempts without automatic deletion. Interrupted entries remain for authorized investigation; no cleanup workflow or abandoned classification exists. Migration compatibility, privileged recovery authorization and real storage behavior remain unverified. |
 | New document upload checksum | Implemented and tested, limited | Validated upload digest is persisted; an upload digest is not object immutability or authorization. Older schema variants may lack the column. |
 | Manual draft link/replacement/revocation | Implemented and tested, restricted | Internal-only maker-owned manual drafts; no production routes or trusted verification. Synthetic MySQL tests exercise concurrency and audit rollback. |
 | Evidence versions, protected contents and downloads | Not implemented | Existing document version/storage services do not provide a demonstrated immutable, race-safe protected-object contract. |

@@ -78,16 +78,19 @@ test("attested parent DDL accepts evidence migration in disposable MySQL",{skip:
  const db=`trackcoop_evidence_schema_test_${randomBytes(4).toString("hex")}`;await admin.query(`CREATE DATABASE \`${db}\``);await admin.end();
  const pool=mysql.createPool({host:"127.0.0.1",port,user:"root",database:db,multipleStatements:true});
  try {
-  for(const [table,pk] of [["users","user_id"],["documents","document_id"],["financial_records","financial_record_id"]]) {
+  for(const [table,pk] of [["users","user_id"],["documents","document_id"],["financial_records","financial_record_id"],["payment_receipts","payment_receipt_id"]]) {
    const begin=source.indexOf(`CREATE TABLE \`${table}\``),end=source.indexOf(";",begin);
    if(begin<0||end<0)throw new Error(`Missing attested DDL for ${table}`);
    await pool.query(source.slice(begin,end+1));
    await pool.query(`ALTER TABLE \`${table}\` ADD PRIMARY KEY (\`${pk}\`)`);
   }
   await pool.query(await readFile("server/database/migrations/20261107_manual_finance_evidence_links.sql","utf8"));
+  await pool.query(await readFile("server/database/migrations/20261107_receipt_attempt_recovery.sql","utf8"));
   const [refs]=await pool.query<mysql.RowDataPacket[]>("SELECT CONSTRAINT_NAME AS name,REFERENCED_TABLE_NAME AS parent FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='finance_manual_evidence_links' AND REFERENCED_TABLE_NAME IS NOT NULL");
   assert.deepEqual(new Set(refs.map(r=>r.parent)),new Set(["users","documents","financial_records","finance_manual_evidence_links"]));
   const [slot]=await pool.query<mysql.RowDataPacket[]>("SELECT EXTRA AS extra FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='finance_manual_evidence_links' AND COLUMN_NAME='active_slot'");
   assert.match(String(slot[0].extra),/GENERATED/i);
+  const [attemptRefs]=await pool.query<mysql.RowDataPacket[]>("SELECT REFERENCED_TABLE_NAME AS parent FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_receipt_attempts' AND REFERENCED_TABLE_NAME IS NOT NULL");
+  assert.deepEqual(new Set(attemptRefs.map(r=>r.parent)),new Set(["payment_receipts","documents"]));
  } finally {await pool.end();}
 });
