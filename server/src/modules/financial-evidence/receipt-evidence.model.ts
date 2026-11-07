@@ -7,15 +7,15 @@ export type ReceiptEvidenceBasis = {
   documentType:string|null; relatedModule:string|null; relatedRecordId:string|null; relationshipType:string|null;
   version:number|null; checksum:string|null; expirationDate:string|null;
 };
-export type EvidenceStatus = "verified" | "missing" | "invalid" | "stale" | "unsupported" | "unavailable";
-export type EvidenceResult = { status:EvidenceStatus; fingerprint:string|null };
-const result=(status:EvidenceStatus):EvidenceResult=>({status,fingerprint:null});
+export type ReceiptDiagnosticStatus = "observed_match" | "missing" | "invalid" | "stale" | "unsupported" | "unavailable";
+export type ReceiptDiagnosticResult = { kind:"diagnostic"; status:ReceiptDiagnosticStatus; observationHash:string|null };
+const result=(status:ReceiptDiagnosticStatus):ReceiptDiagnosticResult=>({kind:"diagnostic",status,observationHash:null});
 function amount(value:string):string|null {
   if(!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value))return null;
   const [whole,fraction=""]=value.split(".");return `${whole}.${fraction.padEnd(2,"0")}`;
 }
 /** A receipt proves an internally validated receipt record, never gateway or bank settlement. */
-export function verifyReceiptBasis(b:ReceiptEvidenceBasis,bytes:Buffer|null,today:string):EvidenceResult {
+export function verifyReceiptBasis(b:ReceiptEvidenceBasis,bytes:Buffer|null,today:string):ReceiptDiagnosticResult {
   if(!b.documentId || !bytes)return result("missing");
   if(b.paymentStatus!=="Validated" || b.receiptStatus!=="Generated" || b.receiptReversed)return result("stale");
   if(b.documentStatus!=="Active" || (b.expirationDate!==null && b.expirationDate<today))return result("stale");
@@ -28,5 +28,5 @@ export function verifyReceiptBasis(b:ReceiptEvidenceBasis,bytes:Buffer|null,toda
   const contentHash=createHash("sha256").update(bytes).digest("hex");
   if(contentHash!==b.checksum.toLowerCase())return result("invalid");
   const fingerprint=createHash("sha256").update(JSON.stringify(["receipt-evidence-v1",b.paymentId,b.receiptId,b.documentId,b.documentOwnerId,b.version,contentHash,b.paymentStatus,b.receiptStatus,b.documentStatus,b.accessLevel,b.expirationDate,pay])).digest("hex");
-  return {status:"verified",fingerprint};
+  return {kind:"diagnostic",status:"observed_match",observationHash:fingerprint};
 }

@@ -19,8 +19,8 @@ const bytes=Buffer.from("%PDF-synthetic");
 const row={paymentId:"1",receiptPaymentId:"1",paymentStatus:"Validated",paymentAmount:"10.00",paymentMemberId:"2",receiptId:"3",receiptStatus:"Generated",receiptAmount:"10.00",receiptMemberId:"2",receiptReversed:0,documentId:"4",documentOwnerId:"2",documentStatus:"Active",accessLevel:"Member-only",documentType:"Receipt",relatedModule:"Payment",relatedRecordId:"1",relationshipType:"Payment Receipt",version:1,checksum:createHash("sha256").update(bytes).digest("hex"),expirationDate:null,storagePath:"public/uploads/receipts/sample.pdf",purpose:"POS/Product",channel:"Cash",entityType:"pos_sales",entityId:"7",sourcePaymentId:"1",sourceStatus:"Paid",sourcePaymentStatus:"Paid",sourceAmount:"10.00",sourceMemberId:"2"};
 function db(data:unknown){return {execute:async()=>[[data],[]]} as unknown as Pick<Pool,"execute">;}
 test("source-backed receipt verifier fails closed for substitution, gateway and storage errors",async()=>{
- const read=async()=>bytes;assert.equal((await verifyExistingReceipt("1",db(row),read)).status,"verified");
- for(const patch of [{sourcePaymentId:"9"},{sourceStatus:"Cancelled"},{sourceStatus:"Unknown"},{sourcePaymentStatus:"Partially Paid"},{sourceMemberId:"3"},{sourceAmount:"11.00"},{relatedRecordId:"9"},{documentOwnerId:"3"},{accessLevel:"Public"}])assert.notEqual((await verifyExistingReceipt("1",db({...row,...patch}),read)).status,"verified");
+ const read=async()=>bytes;assert.equal((await verifyExistingReceipt("1",db(row),read)).status,"observed_match");
+ for(const patch of [{sourcePaymentId:"9"},{sourceStatus:"Cancelled"},{sourceStatus:"Unknown"},{sourcePaymentStatus:"Partially Paid"},{sourceMemberId:"3"},{sourceAmount:"11.00"},{relatedRecordId:"9"},{documentOwnerId:"3"},{accessLevel:"Public"}])assert.notEqual((await verifyExistingReceipt("1",db({...row,...patch}),read)).status,"observed_match");
  assert.equal((await verifyExistingReceipt("1",db({...row,purpose:"Rental"}),read)).status,"unsupported");
  assert.equal((await verifyExistingReceipt("1",db({...row,channel:"PayMongo"}),read)).status,"unsupported");
  assert.equal((await verifyExistingReceipt("1",db(row),async()=>{throw new Error("offline")})).status,"unavailable");
@@ -35,7 +35,7 @@ test("protected local reads reject paths, missing and legacy public-only files",
 });
 test("diagnostic endpoint excludes members and anonymous users",async()=>{
  let role="member",calls=0;const auth={authenticate:async(token:string)=>{if(!token)throw new AppError("Login",401,"UNAUTHENTICATED");return {sessionId:"1",tokenHash:"fixture",user:{id:"1",role,displayName:"Fixture"}} as AuthContext;}} as unknown as AuthService;
- const verify=async()=>{calls++;return {status:"missing" as const,fingerprint:null};};const app=express().use(cookieParser()).use("/api",createReceiptEvidenceRouter(auth,verify)).use(errorHandler);const url="/api/finance/evidence/payment-references/1/receipt";
+ const verify=async()=>{calls++;return {kind:"diagnostic" as const,status:"missing" as const,observationHash:null};};const app=express().use(cookieParser()).use("/api",createReceiptEvidenceRouter(auth,verify)).use(errorHandler);const url="/api/finance/evidence/payment-references/1/receipt";
  assert.equal((await request(app).get(url)).status,401);assert.equal((await request(app).get(url).set("Cookie","trackcoop_session=fixture")).status,403);assert.equal(calls,0);
  for(role of ["bookkeeper","chairman"])assert.equal((await request(app).get(url).set("Cookie","trackcoop_session=fixture")).status,200);
  assert.equal(calls,2);

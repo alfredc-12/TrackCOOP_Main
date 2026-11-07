@@ -5,6 +5,18 @@ import { normalizeObjectKey, providerObjectKey, publicUrlPath } from "./storage-
 type S3Module = typeof import("@aws-sdk/client-s3");
 type PresignerModule = typeof import("@aws-sdk/s3-request-presigner");
 
+/** The S3-compatible endpoint must support conditional PutObject. This does
+ * not prove bucket privacy, versioning, or object immutability. */
+export function s3PutRequest(bucket: string, input: PutObjectInput) {
+  return {
+    Bucket: bucket,
+    Key: providerObjectKey(normalizeObjectKey(input.key), input.visibility),
+    Body: input.body,
+    ContentType: input.contentType,
+    ...(input.ifAbsent ? { IfNoneMatch: "*" } : {}),
+  };
+}
+
 async function streamToBuffer(body: unknown): Promise<Buffer> {
   if (!body) return Buffer.alloc(0);
   if (body instanceof Uint8Array) return Buffer.from(body);
@@ -53,12 +65,7 @@ export class S3StorageProvider implements StorageProvider {
     const { s3, client } = await this.clientPromise;
     const key = normalizeObjectKey(input.key);
     const objectKey = providerObjectKey(key, input.visibility);
-    await client.send(new s3.PutObjectCommand({
-      Bucket: this.bucket(),
-      Key: objectKey,
-      Body: input.body,
-      ContentType: input.contentType,
-    }));
+    await client.send(new s3.PutObjectCommand(s3PutRequest(this.bucket(), input)));
     const publicUrl = input.visibility === "public"
       ? env.S3_PUBLIC_BASE_URL
         ? `${env.S3_PUBLIC_BASE_URL.replace(/\/$/, "")}/${objectKey}`

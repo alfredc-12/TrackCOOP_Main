@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+import { createHash, randomUUID } from "node:crypto";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import PDFDocument from "pdfkit";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -150,16 +150,19 @@ function renderReceipt(row: ReceiptRow) {
   return complete;
 }
 
-async function writeDeterministicReceipt(row: ReceiptRow) {
+async function writeReceiptAttempt(row: ReceiptRow) {
   const buffer = await renderReceipt(row);
   const year = String((row.validatedAt ?? new Date()).getUTCFullYear());
-  const key = `generated/receipts/${year}/payment-${row.paymentReferenceId}.pdf`;
+  // Concurrent attempts must never overwrite the bytes of an already linked
+  // receipt. The winning transaction records its own attempt's unique key.
+  const key = `generated/receipts/${year}/payment-${row.paymentReferenceId}-${randomUUID()}.pdf`;
   const storagePath = normalizeProtectedStoragePath(key);
   await storageProvider().put({
     key,
     visibility: "protected",
     body: buffer,
     contentType: "application/pdf",
+    ifAbsent: true,
   });
   return { buffer, storagePath };
 }
@@ -219,7 +222,7 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
       }, databasePool());
       if (!claimed || claimed.processingStatus === "Generated") return claimed;
       try {
-        const file = await writeDeterministicReceipt(claimed);
+        const file = await writeReceiptAttempt(claimed);
         await withTransaction(async (connection) => {
           const current = await selectReceipt(connection, paymentReferenceId, true);
           if (!current || current.processingStatus === "Generated") return;
@@ -281,13 +284,13 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
         }, databasePool());
       } catch (error) {
         const safe = safeError(error);
-        await databasePool().execute(
+        const [failed] = await databasePool().execute<ResultSetHeader>(
           `UPDATE payment_receipts SET processing_status = 'Failed',
                   last_error_code = ?, last_error_message = ?
-            WHERE payment_reference_id = ?`,
+            WHERE payment_reference_id = ? AND processing_status = 'Processing' AND document_id IS NULL`,
           [safe.code, safe.message, paymentReferenceId],
         );
-        if (claimed.attemptCount + 1 >= 3) {
+        if (failed.affectedRows && claimed.attemptCount + 1 >= 3) {
           await databasePool().execute(
             `INSERT INTO notifications
                (user_id, notification_type, title, message, related_entity_type, related_entity_id)

@@ -548,7 +548,8 @@ export async function uploadDocument(
       );
     },
   );
-  // The checksum duplicate check has been removed because the checksum_sha256 column was dropped during database simplification.
+  // Persist the digest of the validated upload. This is metadata, not proof of
+  // immutable storage and not, by itself, verified financial evidence.
 
   const stored = await storeProtectedDocument(validated);
   const connection = await db.getConnection();
@@ -559,8 +560,8 @@ export async function uploadDocument(
       `INSERT INTO documents (
         document_reference, uploaded_by, title, category, document_type,
         access_level, document_status, file_path, original_file_name, mime_type,
-        file_size_bytes, description, expiration_date
-      ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?, ?)`,
+        file_size_bytes, description, expiration_date, checksum_sha256
+      ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?, ?, ?)`,
       [
         temporaryReference,
         user.numericId,
@@ -574,6 +575,7 @@ export async function uploadDocument(
         validated.size,
         details.description,
         details.expirationDate ?? null,
+        validated.checksum,
       ],
     );
     const documentId = result.insertId;

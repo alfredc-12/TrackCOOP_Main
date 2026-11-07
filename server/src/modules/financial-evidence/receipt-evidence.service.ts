@@ -8,10 +8,10 @@ import { env } from "../../config/env";
 import { normalizeObjectKey } from "../../storage/storage-paths";
 import { manilaToday } from "../../utils/manila-calendar";
 import { cents } from "../budgets/controlled-budget.model";
-import { verifyReceiptBasis,type ReceiptEvidenceBasis,type EvidenceResult } from "./receipt-evidence.model";
+import { verifyReceiptBasis,type ReceiptEvidenceBasis,type ReceiptDiagnosticResult } from "./receipt-evidence.model";
 
 type ReceiptRow=RowDataPacket & ReceiptEvidenceBasis & { storagePath:string|null; purpose:string; channel:string; entityType:string|null; entityId:string|null; sourcePaymentId:string|null; sourceStatus:string|null; sourcePaymentStatus:string|null; sourceAmount:string|null; sourceMemberId:string|null };
-const unavailable:EvidenceResult={status:"unavailable",fingerprint:null};
+const unavailable:ReceiptDiagnosticResult={kind:"diagnostic",status:"unavailable",observationHash:null};
 /** Do not use LocalStorageProvider.get: its legacy fallback can read from a public directory. */
 export async function readPrivateLocalObject(storagePath:string, root:string):Promise<Buffer> {
   if(!storagePath || /^(?:[a-z]+:|\/\/)/i.test(storagePath) || storagePath.includes("\\"))throw new Error("Unsafe path");
@@ -38,8 +38,8 @@ export async function readPrivateLocalObject(storagePath:string, root:string):Pr
   } finally { await handle.close(); }
 }
 /** Read-only diagnostic for an already-generated POS/Rental receipt. It cannot attach evidence or settle payment. */
-export async function verifyExistingReceipt(paymentId:string,db?:Pick<Pool,"execute">,read=readPrivateLocalObject):Promise<EvidenceResult> {
-  if(!/^[1-9]\d{0,19}$/.test(paymentId))return {status:"invalid",fingerprint:null};
+export async function verifyExistingReceipt(paymentId:string,db?:Pick<Pool,"execute">,read=readPrivateLocalObject):Promise<ReceiptDiagnosticResult> {
+  if(!/^[1-9]\d{0,19}$/.test(paymentId))return {kind:"diagnostic",status:"invalid",observationHash:null};
   try {
     const [rows]=await (db ?? getPool()).execute<ReceiptRow[]>(`SELECT CAST(p.payment_reference_id AS CHAR) AS paymentId,CAST(r.payment_reference_id AS CHAR) AS receiptPaymentId,p.validation_status AS paymentStatus,CAST(p.amount AS CHAR) AS paymentAmount,CAST(p.member_id AS CHAR) AS paymentMemberId,
       CAST(r.payment_receipt_id AS CHAR) AS receiptId,r.processing_status AS receiptStatus,CAST(r.amount AS CHAR) AS receiptAmount,CAST(r.member_id AS CHAR) AS receiptMemberId,(r.reversed_at IS NOT NULL) AS receiptReversed,
@@ -53,17 +53,17 @@ export async function verifyExistingReceipt(paymentId:string,db?:Pick<Pool,"exec
       FROM payment_references p LEFT JOIN payment_receipts r ON r.payment_reference_id=p.payment_reference_id LEFT JOIN documents d ON d.document_id=r.document_id
       LEFT JOIN pos_sales ps ON p.payment_purpose='POS/Product' AND p.related_entity_type IN ('pos_sales','POS_SALE') AND ps.pos_sale_id=p.related_entity_id
       LEFT JOIN rental_bookings rb ON p.payment_purpose='Rental' AND p.related_entity_type='rental_bookings' AND rb.rental_booking_id=p.related_entity_id WHERE p.payment_reference_id=?`,[paymentId]);
-    const row=rows[0];if(!row)return {status:"missing",fingerprint:null};
-    if(!row.receiptId || !row.documentId || !row.storagePath)return {status:"missing",fingerprint:null};
+    const row=rows[0];if(!row)return {kind:"diagnostic",status:"missing",observationHash:null};
+    if(!row.receiptId || !row.documentId || !row.storagePath)return {kind:"diagnostic",status:"missing",observationHash:null};
     // Rental partial-payment attribution and noncash settlement contracts are
     // not yet established. Do not treat matching metadata as verification.
-    if(row.purpose!=="POS/Product" || row.channel!=="Cash")return {status:"unsupported",fingerprint:null};
-    if(row.sourcePaymentId!==paymentId || !row.entityId || !["Paid","Completed"].includes(row.sourceStatus??"") || row.sourcePaymentStatus!=="Paid" || row.sourceMemberId!==row.paymentMemberId || !row.sourceAmount || cents(row.sourceAmount)!==cents(row.paymentAmount))return {status:"invalid",fingerprint:null};
-    if(env.STORAGE_DRIVER!=="local")return {status:"unavailable",fingerprint:null};
-    let bytes:Buffer;try{bytes=await read(row.storagePath,path.resolve(process.cwd(),env.LOCAL_STORAGE_ROOT));}catch{return {status:"unavailable",fingerprint:null};}
+    if(row.purpose!=="POS/Product" || row.channel!=="Cash")return {kind:"diagnostic",status:"unsupported",observationHash:null};
+    if(row.sourcePaymentId!==paymentId || !row.entityId || !["Paid","Completed"].includes(row.sourceStatus??"") || row.sourcePaymentStatus!=="Paid" || row.sourceMemberId!==row.paymentMemberId || !row.sourceAmount || cents(row.sourceAmount)!==cents(row.paymentAmount))return {kind:"diagnostic",status:"invalid",observationHash:null};
+    if(env.STORAGE_DRIVER!=="local")return unavailable;
+    let bytes:Buffer;try{bytes=await read(row.storagePath,path.resolve(process.cwd(),env.LOCAL_STORAGE_ROOT));}catch{return unavailable;}
     const checked=verifyReceiptBasis(row,bytes,manilaToday());
-    if(checked.status!=="verified")return checked;
-    // Bind the diagnostic fingerprint to the immutable source identity as well.
-    return {status:"verified",fingerprint:createHash("sha256").update(JSON.stringify(["source-receipt-v1",row.purpose,row.channel,row.entityType,row.entityId,row.sourcePaymentId,row.sourceStatus,row.sourcePaymentStatus,checked.fingerprint])).digest("hex")};
+    if(checked.status!=="observed_match")return checked;
+    // This observation is diagnostic only; it is not an approval fingerprint.
+    return {kind:"diagnostic",status:"observed_match",observationHash:createHash("sha256").update(JSON.stringify(["source-receipt-v1",row.purpose,row.channel,row.entityType,row.entityId,row.sourcePaymentId,row.sourceStatus,row.sourcePaymentStatus,checked.observationHash])).digest("hex")};
   } catch { return unavailable; }
 }

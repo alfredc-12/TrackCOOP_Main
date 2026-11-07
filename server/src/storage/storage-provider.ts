@@ -13,6 +13,8 @@ export type PutObjectInput = {
   body: Buffer;
   visibility: StorageVisibility;
   contentType?: string;
+  /** Reject an existing key; supported providers must enforce this atomically. */
+  ifAbsent?: boolean;
 };
 
 export type GetObjectInput = {

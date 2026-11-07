@@ -28,7 +28,7 @@ export class LocalStorageProvider implements StorageProvider {
   async put(input: PutObjectInput): Promise<StoredFile> {
     const absolute = this.absolutePath(input.key, input.visibility);
     await mkdir(path.dirname(absolute), { recursive: true });
-    await writeFile(absolute, input.body);
+    await writeFile(absolute, input.body, input.ifAbsent ? { flag: "wx" } : undefined);
     const key = normalizeObjectKey(input.key);
     return {
       key,
