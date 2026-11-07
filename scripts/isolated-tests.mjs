@@ -32,6 +32,12 @@ if (args[0] === "--evidence-mysql") {
     throw new Error("Evidence SQL tests require an explicit isolated port and synthetic data directory");
   }
   Object.assign(safe, { EVIDENCE_ISOLATED_MYSQL: "1", EVIDENCE_TEST_PORT: port, EVIDENCE_TEST_DATADIR: dataDir });
+  if (args[0] === "--evidence-schema") {
+    args.shift();
+    const exportPath = args.shift();
+    if (!exportPath || !path.isAbsolute(exportPath)) throw new Error("An absolute structure export path is required");
+    safe.EVIDENCE_SCHEMA_EXPORT = exportPath;
+  }
 }
 try {
   const cli = path.resolve("node_modules/tsx/dist/cli.mjs");

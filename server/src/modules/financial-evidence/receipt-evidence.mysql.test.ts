@@ -18,11 +18,11 @@ test("isolated MySQL reads only the source-linked receipt and rejects missing so
   await pool.query(`CREATE TABLE payment_references(payment_reference_id BIGINT UNSIGNED PRIMARY KEY,validation_status VARCHAR(30),amount DECIMAL(12,2),member_id BIGINT UNSIGNED,payment_purpose VARCHAR(30),payment_channel VARCHAR(30),related_entity_type VARCHAR(30),related_entity_id BIGINT UNSIGNED);
   CREATE TABLE payment_receipts(payment_receipt_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,processing_status VARCHAR(20),amount DECIMAL(12,2),member_id BIGINT UNSIGNED,reversed_at DATETIME NULL,document_id BIGINT UNSIGNED);
   CREATE TABLE documents(document_id BIGINT UNSIGNED PRIMARY KEY,member_id BIGINT UNSIGNED,document_status VARCHAR(20),access_level VARCHAR(30),document_type VARCHAR(30),related_module VARCHAR(30) NULL,related_record_id BIGINT UNSIGNED NULL,relationship_type VARCHAR(40) NULL,current_version INT,checksum_sha256 CHAR(64),expiration_date DATE NULL,file_path VARCHAR(500));
-  CREATE TABLE pos_sales(pos_sale_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,sale_status VARCHAR(30),payment_status VARCHAR(30),total_amount DECIMAL(12,2));
+  CREATE TABLE pos_sales(pos_sale_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,sale_status VARCHAR(30),payment_status VARCHAR(30),total_amount DECIMAL(12,2),member_id BIGINT UNSIGNED);
   CREATE TABLE rental_bookings(rental_booking_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,booking_status VARCHAR(30),payment_status VARCHAR(30));
   INSERT INTO payment_references VALUES(1,'Validated',10,2,'POS/Product','Cash','pos_sales',7);
   INSERT INTO payment_receipts VALUES(3,1,'Generated',10,2,NULL,4);
-  INSERT INTO pos_sales VALUES(7,1,'Paid','Paid',10);`);
+  INSERT INTO pos_sales VALUES(7,1,'Paid','Paid',10,2);`);
   const bytes=Buffer.from('%PDF-synthetic'),sha=createHash('sha256').update(bytes).digest('hex');
   await pool.execute("INSERT INTO documents VALUES(4,2,'Active','Member-only','Receipt',NULL,NULL,NULL,1,?,NULL,'public/uploads/receipts/synthetic.pdf')",[sha]);
   assert.equal((await verifyExistingReceipt('1',pool,async()=>bytes)).status,'invalid');
@@ -48,7 +48,7 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
    CREATE TABLE payment_receipts(payment_receipt_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,payment_reference_id BIGINT UNSIGNED UNIQUE,receipt_number VARCHAR(80),processing_status VARCHAR(20),amount DECIMAL(12,2),member_id BIGINT UNSIGNED,reversed_at DATETIME NULL,reversal_note VARCHAR(1000),document_id BIGINT UNSIGNED,attempt_count INT DEFAULT 0,last_attempt_at DATETIME,last_error_code VARCHAR(120),last_error_message VARCHAR(1000),issued_by BIGINT UNSIGNED,payment_channel VARCHAR(40),provider VARCHAR(100),validation_source VARCHAR(40),subject_reference VARCHAR(120),payment_date DATE,validated_at DATETIME,issued_at DATETIME,generated_at DATETIME);
    CREATE TABLE documents(document_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,uploaded_by BIGINT UNSIGNED,member_id BIGINT UNSIGNED,title VARCHAR(255),document_type VARCHAR(50),access_level VARCHAR(50),document_status VARCHAR(30),file_path VARCHAR(500),original_file_name VARCHAR(255),mime_type VARCHAR(120),file_size_bytes BIGINT,checksum_sha256 CHAR(64),description TEXT,related_module VARCHAR(80),related_record_id BIGINT UNSIGNED,related_record_reference VARCHAR(120),relationship_type VARCHAR(80),current_version INT DEFAULT 1,expiration_date DATE);
    CREATE TABLE audit_logs(audit_log_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,user_id BIGINT UNSIGNED,action VARCHAR(100),entity_table VARCHAR(100),record_id BIGINT UNSIGNED,description TEXT,new_values JSON);
-   CREATE TABLE pos_sales(pos_sale_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,sale_status VARCHAR(30),payment_status VARCHAR(30),total_amount DECIMAL(12,2));
+   CREATE TABLE pos_sales(pos_sale_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,sale_status VARCHAR(30),payment_status VARCHAR(30),total_amount DECIMAL(12,2),member_id BIGINT UNSIGNED);
    CREATE TABLE rental_bookings(rental_booking_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,booking_status VARCHAR(30),payment_status VARCHAR(30));
    INSERT INTO payment_references VALUES(1,'Validated',10.00,2,'Rental','Cash','rental_bookings',7,'Synthetic',NULL,'SYNTHETIC-1');
    INSERT INTO rental_bookings VALUES(7,1,'Approved','Paid');`);
@@ -59,12 +59,12 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
   const [docs]=await pool.query<mysql.RowDataPacket[]>("SELECT related_module,related_record_id,related_record_reference,relationship_type,member_id,file_path FROM documents");
   assert.equal(docs.length,1);assert.equal(docs[0].related_module,"Payment");assert.equal(String(docs[0].related_record_id),"1");assert.equal(docs[0].related_record_reference,"SYNTHETIC-1");assert.equal(docs[0].relationship_type,"Payment Receipt");assert.equal(String(docs[0].member_id),"2");
   const read=async()=>storageProvider().get({key:"generated/receipts/2026/payment-1.pdf",visibility:"protected"});
-  assert.equal((await verifyExistingReceipt("1",pool,read)).status,"verified");
+  assert.equal((await verifyExistingReceipt("1",pool,read)).status,"unsupported");
   assert.equal((await service.process("1"))?.documentId,first?.documentId);
   const [counts]=await pool.query<mysql.RowDataPacket[]>("SELECT (SELECT COUNT(*) FROM documents) AS docs,(SELECT COUNT(*) FROM audit_logs WHERE action='document.module_linked') AS audits");
   assert.equal(counts[0].docs,1);assert.equal(counts[0].audits,1);
   await pool.execute("UPDATE documents SET related_record_id=NULL WHERE document_id=?",[first?.documentId]);
-  assert.equal((await verifyExistingReceipt("1",pool,read)).status,"invalid");
+  assert.equal((await verifyExistingReceipt("1",pool,read)).status,"unsupported");
   await pool.query("INSERT INTO payment_references VALUES(2,'Validated',5.00,2,'Rental','Cash','rental_bookings',8,'Synthetic',NULL,'SYNTHETIC-2'); INSERT INTO rental_bookings VALUES(8,2,'Approved','Paid')");
   const second=await pool.getConnection();
   try {await second.beginTransaction();await queuePaymentReceipt(second,{paymentReferenceId:"2",memberId:"2",actorUserId:"3",amount:5,paymentChannel:"Cash",provider:"Manual",validationSource:"Manual Bookkeeper",subjectReference:"SYNTHETIC",paymentDate:null,validatedAt:null});await second.commit();} finally {second.release();}

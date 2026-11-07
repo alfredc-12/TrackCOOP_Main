@@ -10,7 +10,7 @@ import { manilaToday } from "../../utils/manila-calendar";
 import { cents } from "../budgets/controlled-budget.model";
 import { verifyReceiptBasis,type ReceiptEvidenceBasis,type EvidenceResult } from "./receipt-evidence.model";
 
-type ReceiptRow=RowDataPacket & ReceiptEvidenceBasis & { storagePath:string|null; purpose:string; channel:string; entityType:string|null; entityId:string|null; sourcePaymentId:string|null; sourceStatus:string|null; sourcePaymentStatus:string|null; sourceAmount:string|null };
+type ReceiptRow=RowDataPacket & ReceiptEvidenceBasis & { storagePath:string|null; purpose:string; channel:string; entityType:string|null; entityId:string|null; sourcePaymentId:string|null; sourceStatus:string|null; sourcePaymentStatus:string|null; sourceAmount:string|null; sourceMemberId:string|null };
 const unavailable:EvidenceResult={status:"unavailable",fingerprint:null};
 /** Do not use LocalStorageProvider.get: its legacy fallback can read from a public directory. */
 export async function readPrivateLocalObject(storagePath:string, root:string):Promise<Buffer> {
@@ -48,15 +48,17 @@ export async function verifyExistingReceipt(paymentId:string,db?:Pick<Pool,"exec
       CAST(CASE WHEN p.payment_purpose='POS/Product' THEN ps.payment_reference_id WHEN p.payment_purpose='Rental' THEN rb.payment_reference_id ELSE NULL END AS CHAR) AS sourcePaymentId,
       CASE WHEN p.payment_purpose='POS/Product' THEN ps.sale_status WHEN p.payment_purpose='Rental' THEN rb.booking_status ELSE NULL END AS sourceStatus,
       CASE WHEN p.payment_purpose='POS/Product' THEN ps.payment_status WHEN p.payment_purpose='Rental' THEN rb.payment_status ELSE NULL END AS sourcePaymentStatus,
-      CAST(CASE WHEN p.payment_purpose='POS/Product' THEN ps.total_amount ELSE NULL END AS CHAR) AS sourceAmount
+      CAST(CASE WHEN p.payment_purpose='POS/Product' THEN ps.total_amount ELSE NULL END AS CHAR) AS sourceAmount,
+      CAST(CASE WHEN p.payment_purpose='POS/Product' THEN ps.member_id ELSE NULL END AS CHAR) AS sourceMemberId
       FROM payment_references p LEFT JOIN payment_receipts r ON r.payment_reference_id=p.payment_reference_id LEFT JOIN documents d ON d.document_id=r.document_id
       LEFT JOIN pos_sales ps ON p.payment_purpose='POS/Product' AND p.related_entity_type IN ('pos_sales','POS_SALE') AND ps.pos_sale_id=p.related_entity_id
       LEFT JOIN rental_bookings rb ON p.payment_purpose='Rental' AND p.related_entity_type='rental_bookings' AND rb.rental_booking_id=p.related_entity_id WHERE p.payment_reference_id=?`,[paymentId]);
     const row=rows[0];if(!row)return {status:"missing",fingerprint:null};
     if(!row.receiptId || !row.documentId || !row.storagePath)return {status:"missing",fingerprint:null};
-    if(!["POS/Product","Rental"].includes(row.purpose) || row.channel==="PayMongo")return {status:"unsupported",fingerprint:null};
-    if(row.sourcePaymentId!==paymentId || !row.entityId || !row.sourceStatus || !["Paid","Partially Paid"].includes(row.sourcePaymentStatus??"") || ["Cancelled","Rejected","Refunded","Inquiry","Draft","Held","Pending Payment"].includes(row.sourceStatus))return {status:"invalid",fingerprint:null};
-    if(row.purpose==="POS/Product" && (!row.sourceAmount || cents(row.sourceAmount)!==cents(row.paymentAmount)))return {status:"invalid",fingerprint:null};
+    // Rental partial-payment attribution and noncash settlement contracts are
+    // not yet established. Do not treat matching metadata as verification.
+    if(row.purpose!=="POS/Product" || row.channel!=="Cash")return {status:"unsupported",fingerprint:null};
+    if(row.sourcePaymentId!==paymentId || !row.entityId || !["Paid","Completed"].includes(row.sourceStatus??"") || row.sourcePaymentStatus!=="Paid" || row.sourceMemberId!==row.paymentMemberId || !row.sourceAmount || cents(row.sourceAmount)!==cents(row.paymentAmount))return {status:"invalid",fingerprint:null};
     if(env.STORAGE_DRIVER!=="local")return {status:"unavailable",fingerprint:null};
     let bytes:Buffer;try{bytes=await read(row.storagePath,path.resolve(process.cwd(),env.LOCAL_STORAGE_ROOT));}catch{return {status:"unavailable",fingerprint:null};}
     const checked=verifyReceiptBasis(row,bytes,manilaToday());

@@ -85,10 +85,37 @@ export function createManualEvidenceRepository(pool: Pool) {
       return rows.map(row=>({id:String(row.id),recordId:String(row.recordId),documentId:row.visibleDocumentId,version:Number(row.version),status:row.status,verification:"UNAVAILABLE" as const}));
     },pool);
   }
+  async function history(recordId: string, auth: AuthContext) {
+    return withTransaction(async c => {
+      await lockRecord(c,recordId,auth,false);
+      const [events]=await c.execute<RowDataPacket[]>(`SELECT CAST(e.link_id AS CHAR) AS linkId,e.link_version AS version,CAST(e.actor_id AS CHAR) AS actorId,e.event_type AS eventType,CAST(e.replacement_link_id AS CHAR) AS replacementId,e.reason,e.created_at AS createdAt FROM finance_manual_evidence_events e JOIN finance_manual_evidence_links l ON l.link_id=e.link_id WHERE l.financial_record_id=? ORDER BY e.event_id`,[recordId]);
+      await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,action_time) VALUES(?,'manual_evidence.history','financial_records',?,'Manual draft evidence events read',UTC_TIMESTAMP())",[auth.user.id,recordId]);
+      return events.map(e=>({linkId:String(e.linkId),version:Number(e.version),actorId:String(e.actorId),eventType:e.eventType,replacementId:e.replacementId===null?null:String(e.replacementId),reason:e.reason,createdAt:e.createdAt}));
+    },pool);
+  }
+  async function verify(recordId: string, linkId: string, auth: AuthContext) {
+    if(!idPattern.test(linkId)) badRequest();
+    return withTransaction(async c => {
+      await lockRecord(c,recordId,auth,false);
+      const [links]=await c.execute<(Link & {documentVersion:number;checksum:string;creator:string})[]>("SELECT CAST(link_id AS CHAR) AS id,CAST(financial_record_id AS CHAR) AS recordId,CAST(document_id AS CHAR) AS documentId,version,link_status AS status,document_version AS documentVersion,document_checksum AS checksum,CAST(created_by AS CHAR) AS creator FROM finance_manual_evidence_links WHERE link_id=? AND financial_record_id=? FOR UPDATE",[linkId,recordId]);
+      const link=links[0]; if(!link) deny();
+      const [documents]=await c.execute<RowDataPacket[]>(`SELECT CAST(uploaded_by AS CHAR) AS uploader,CAST(member_id AS CHAR) AS owner,access_level AS accessLevel,document_status AS status,document_type AS type,current_version AS version,checksum_sha256 AS checksum,DATE_FORMAT(expiration_date,'%Y-%m-%d') AS expires,related_module AS relatedModule,CAST(related_record_id AS CHAR) AS relatedRecordId,relationship_type AS relationshipType FROM documents WHERE document_id=? FOR UPDATE`,[link.documentId]);
+      const d=documents[0];
+      let status:"STALE"|"INVALID"|"UNAVAILABLE"="UNAVAILABLE";
+      if(link.status!=="ACTIVE" || !d || d.status!=="Active" || (d.expires && d.expires<manilaToday()) || Number(d.version)!==Number(link.documentVersion) || String(d.checksum ?? "").toLowerCase()!==link.checksum) status="STALE";
+      else if(d.uploader!==link.creator || d.owner || d.relatedModule || d.relatedRecordId || d.relationshipType || d.accessLevel!=="Bookkeeper-only" || !["Receipt","Financial Document"].includes(d.type)) status="INVALID";
+      // The object store has not provided a trusted immutable version. Matching
+      // metadata alone must never produce a verified result or fingerprint.
+      await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,new_values,action_time) VALUES(?,'manual_evidence.verify','finance_manual_evidence_links',?,'Manual draft evidence status read',?,UTC_TIMESTAMP())",[auth.user.id,linkId,JSON.stringify({status})]);
+      return {status,fingerprint:null};
+    },pool);
+  }
   return {
     link: (recordId:string,documentId:string,key:string,auth:AuthContext)=>mutate({recordId,documentId,key},auth,"LINKED"),
     replace: (recordId:string,linkId:string,version:number,documentId:string,reason:string,key:string,auth:AuthContext)=>mutate({recordId,linkId,version,documentId,reason,key},auth,"REPLACED"),
     revoke: (recordId:string,linkId:string,version:number,reason:string,key:string,auth:AuthContext)=>mutate({recordId,linkId,version,reason,key},auth,"REVOKED"),
     list,
+    history,
+    verify,
   };
 }
