@@ -4,7 +4,7 @@ import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
 
-type PrepareInput = { recordId:string; requestKey:string; sha256:string; size:number; mime:string };
+type PrepareInput = { recordId:string; requestKey:string; sha256:string; size:number; mime:string; replacement?:{linkId:string;version:number;reason:string} };
 const allowedMime=new Set(["application/pdf","image/jpeg","image/png"]);
 
 /** Prepares identity before any provider write. No evidence is verified here. */
@@ -12,7 +12,8 @@ export function createEvidenceUploadIntentRepository(pool:Pool) {
   async function prepare(input:PrepareInput,auth:AuthContext) {
     if(auth.user.role!=="bookkeeper") throw new AppError("Evidence source not found",404,"EVIDENCE_NOT_FOUND");
     if(!/^[1-9]\d{0,19}$/.test(input.recordId) || !/^[a-f0-9]{64}$/.test(input.requestKey) || !/^[a-f0-9]{64}$/.test(input.sha256) || !Number.isSafeInteger(input.size) || input.size<1 || input.size>10*1024*1024 || !allowedMime.has(input.mime)) throw new AppError("Invalid upload intent",422,"INVALID_EVIDENCE_INTENT");
-    const hash=createHash("sha256").update(JSON.stringify([auth.user.id,input.recordId,input.sha256,input.size,input.mime])).digest("hex");
+    if(input.replacement && (!/^[1-9]\d{0,19}$/.test(input.replacement.linkId) || !Number.isSafeInteger(input.replacement.version) || input.replacement.version<1 || !input.replacement.reason.trim() || input.replacement.reason.length>2000)) throw new AppError("Invalid upload intent",422,"INVALID_EVIDENCE_INTENT");
+    const hash=createHash("sha256").update(JSON.stringify([auth.user.id,input.recordId,input.sha256,input.size,input.mime,input.replacement ?? null])).digest("hex");
     try {
       return await withTransaction(async c=>{
         const [records]=await c.execute<RowDataPacket[]>("SELECT CAST(recorded_by AS CHAR) AS maker,record_type AS type,source_module AS source,source_record_id AS sourceId,payment_reference_id AS paymentId,member_id AS memberId,approved_by AS approver,record_status AS status FROM financial_records WHERE financial_record_id=? FOR UPDATE",[input.recordId]);
@@ -40,9 +41,9 @@ export function createEvidenceUploadIntentRepository(pool:Pool) {
       const [rows]=await c.execute<RowDataPacket[]>("SELECT CAST(uploaded_by AS CHAR) AS actor,intent_state AS state,generation FROM finance_evidence_upload_intents WHERE intent_id=? FOR UPDATE",[intentId]);
       const row=rows[0];
       if(!row || row.actor!==auth.user.id) throw new AppError("Upload intent not found",404,"EVIDENCE_NOT_FOUND");
-      if(Number(row.generation)!==expectedGeneration || row.state!=="PREPARED") throw new AppError("Upload intent changed",409,"EVIDENCE_CONFLICT");
+      if(Number(row.generation)!==expectedGeneration || !["PREPARED","UPLOADING"].includes(row.state)) throw new AppError("Upload intent changed",409,"EVIDENCE_CONFLICT");
       const generation=expectedGeneration+1;
-      const [changed]=await c.execute<ResultSetHeader>("UPDATE finance_evidence_upload_intents SET intent_state='RECOVERY_REQUIRED',generation=? WHERE intent_id=? AND generation=? AND intent_state='PREPARED'",[generation,intentId,expectedGeneration]);
+      const [changed]=await c.execute<ResultSetHeader>("UPDATE finance_evidence_upload_intents SET intent_state='RECOVERY_REQUIRED',generation=? WHERE intent_id=? AND generation=? AND intent_state IN ('PREPARED','UPLOADING')",[generation,intentId,expectedGeneration]);
       if(changed.affectedRows!==1) throw new AppError("Upload intent changed",409,"EVIDENCE_CONFLICT");
       await c.execute("INSERT INTO finance_evidence_upload_events(intent_id,generation,actor_id,event_type) VALUES(?,?,?,'RECOVERY_REQUIRED')",[intentId,generation,auth.user.id]);
       await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,action_time) VALUES(?,'financial_evidence.recovery_required','finance_evidence_upload_intents',?,'Evidence upload requires recovery',UTC_TIMESTAMP())",[auth.user.id,intentId]);

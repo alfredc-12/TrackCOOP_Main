@@ -33,6 +33,13 @@ test("version-locked write generates a protected unique key and verifies its exa
  assert.ok(p.seen.filter(c=>c.name==="GetObjectCommand").every(c=>c.input.VersionId===result.versionId));
 });
 
+test("version-locked write uses only a valid server-reserved key",async()=>{
+ const p=provider(),key="protected/evidence/aa-01/bb-02";
+ assert.equal((await writeVersionLockedS3Evidence(p,"fixture",payload,"application/pdf",key)).key,key);
+ const invalid=provider();await assert.rejects(writeVersionLockedS3Evidence(invalid,"fixture",payload,"application/pdf","protected/evidence/../outside"));
+ assert.equal(invalid.seen.some(c=>c.name==="PutObjectCommand"),false);
+});
+
 test("failed privacy checks prevent upload and failed post-upload checks never claim success",async()=>{
  const privateFailure=provider({GetBucketPolicyStatusCommand:{PolicyStatus:{IsPublic:true}}});
  await assert.rejects(writeVersionLockedS3Evidence(privateFailure,"fixture",payload,"application/pdf"));

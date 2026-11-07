@@ -111,6 +111,7 @@ test("attested parent DDL accepts evidence migration in disposable MySQL",{skip:
   await pool.query(await readFile("server/database/migrations/20261107_manual_finance_evidence_links.sql","utf8"));
   await pool.query(await readFile("server/database/migrations/20261107_financial_evidence_upload_intents.sql","utf8"));
   await pool.query(await readFile("server/database/migrations/20261107_receipt_attempt_recovery.sql","utf8"));
+  await pool.query(await readFile("server/database/migrations/20261107_financial_evidence_object_binding.sql","utf8"));
   const [refs]=await pool.query<mysql.RowDataPacket[]>("SELECT CONSTRAINT_NAME AS name,REFERENCED_TABLE_NAME AS parent FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='finance_manual_evidence_links' AND REFERENCED_TABLE_NAME IS NOT NULL");
   assert.deepEqual(new Set(refs.map(r=>r.parent)),new Set(["users","documents","financial_records","finance_manual_evidence_links"]));
   const [slot]=await pool.query<mysql.RowDataPacket[]>("SELECT EXTRA AS extra FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='finance_manual_evidence_links' AND COLUMN_NAME='active_slot'");

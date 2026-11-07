@@ -92,20 +92,21 @@ export class S3StorageProvider implements StorageProvider {
 
   /** Internal protected-object primitive only; callers must authorize source,
    * document and immutable identity before use. Not a posting verifier. */
-  async readLockedEvidenceVersion(identity: Omit<S3EvidenceObject,"bucket">): Promise<Buffer> {
+  async readLockedEvidenceVersion(identity: S3EvidenceObject): Promise<Buffer> {
     const {client} = await this.clientPromise;
+    if(identity.bucket!==this.bucket()) throw new Error("Protected evidence object unavailable");
     return readVersionLockedS3Evidence({
       send: async command => await client.send(command as InstanceType<S3Module["GetObjectCommand"]>) as unknown as Record<string,unknown>,
-    }, { ...identity, bucket: this.bucket() });
+    }, identity);
   }
 
   /** Unmounted storage primitive. A failed post-upload check may leave an
    * unlinked object; never delete it without an authorized recovery process. */
-  async writeLockedEvidenceVersion(bytes:Buffer,contentType:string):Promise<S3EvidenceObject> {
+  async writeLockedEvidenceVersion(bytes:Buffer,contentType:string,reservedKey?:string):Promise<S3EvidenceObject> {
     const {client}=await this.clientPromise;
     return writeVersionLockedS3Evidence({
       send: async command => await client.send(command as InstanceType<S3Module["GetObjectCommand"]>) as unknown as Record<string,unknown>,
-    },this.bucket(),bytes,contentType);
+    },this.bucket(),bytes,contentType,reservedKey);
   }
 
   async delete(input: GetObjectInput): Promise<void> {

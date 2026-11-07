@@ -44,11 +44,12 @@ async function requirePrivateBucket(client: S3Sender,bucket: string) {
 
 /** Creates a unique protected object version. If upload succeeds but any later
  * verification fails, the object is retained; callers need durable recovery. */
-export async function writeVersionLockedS3Evidence(client:S3Sender,bucket:string,bytes:Buffer,contentType:string):Promise<S3EvidenceObject> {
+export async function writeVersionLockedS3Evidence(client:S3Sender,bucket:string,bytes:Buffer,contentType:string,reservedKey?:string):Promise<S3EvidenceObject> {
   if(!bucket || !Buffer.isBuffer(bytes) || bytes.length<1 || bytes.length>MAX_BYTES || !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(contentType)) throw unavailable();
   try {
     await requirePrivateBucket(client,bucket);
-    const key=`protected/evidence/${randomUUID()}/${randomUUID()}`;
+    const key=reservedKey ?? `protected/evidence/${randomUUID()}/${randomUUID()}`;
+    if(!/^protected\/evidence\/[a-f0-9-]+\/[a-f0-9-]+$/i.test(key)) throw unavailable();
     const written=await client.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:bytes,ContentType:contentType,IfNoneMatch:"*"}));
     if(typeof written.VersionId!=="string" || !written.VersionId || written.VersionId==="null") throw unavailable();
     const identity={bucket,key,versionId:written.VersionId,sha256:createHash("sha256").update(bytes).digest("hex"),size:bytes.length,contentType};

@@ -35,6 +35,8 @@ import {
   type UploadedFileLike,
 } from "./document-security";
 import { deleteProtectedFile } from "../../storage/protected-storage";
+import { storageProvider } from "../../storage";
+import { readManualEvidence, type ManualEvidenceStore } from "../financial-evidence/manual-evidence-workflow.service";
 import { RecordsError } from "./records-error";
 
 const db = getPool();
@@ -824,18 +826,25 @@ export async function getDocumentFile(
     );
     const file=files[0];
     if(!file || !canAccessDocument(actor,{accessLevel:apiAccess(file.accessLevel),category:file.category ?? "OTHER",documentType:file.documentType,memberId:file.memberId})) throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
-    if (file.storagePath.startsWith("financial-evidence:")) throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+    let evidenceManaged=file.storagePath.startsWith("financial-evidence:");
     for (const table of ["finance_manual_evidence_links","finance_evidence_upload_intents"] as const) {
       try {
         const [links] = await connection.query<RowDataPacket[]>(`SELECT 1 FROM ${table} WHERE document_id = ? LIMIT 1`,[documentId]);
-        if (links.length) throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+        if (links.length) evidenceManaged=true;
       } catch (error) {
         if ((error as {code?:string}).code !== "ER_NO_SUCH_TABLE") throw error;
       }
     }
     let contents: Buffer;
-    try { contents=await readProtectedDocument(file.storagePath); }
-    catch { throw new RecordsError("The stored file is unavailable. Its metadata has been preserved.",404,"DOCUMENT_FILE_MISSING"); }
+    if(evidenceManaged) {
+      const provider=storageProvider() as Partial<ManualEvidenceStore>;
+      if(typeof provider.readLockedEvidenceVersion!=="function")throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+      try {contents=await readManualEvidence(connection,documentId,user?{id:user.id,role:user.role}:null,provider as ManualEvidenceStore,action);}
+      catch {throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");}
+    } else {
+      try { contents=await readProtectedDocument(file.storagePath); }
+      catch { throw new RecordsError("The stored file is unavailable. Its metadata has been preserved.",404,"DOCUMENT_FILE_MISSING"); }
+    }
     await insertAccess(
       connection,
       documentId,
