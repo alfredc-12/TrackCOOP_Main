@@ -64,14 +64,18 @@ export function createManualEvidenceWorkflow(pool:Pool,store:ManualEvidenceStore
     let object:S3EvidenceObject;
     try {object=await store.writeLockedEvidenceVersion(validated.buffer,validated.mimeType,reservation.objectKey!);} catch {await intents.requireRecovery(prepared.id,reservation.generation,auth).catch(()=>undefined);throw unavailable();}
     if(object.key!==reservation.objectKey || object.sha256!==validated.checksum || object.size!==validated.size || object.contentType!==validated.mimeType || !object.versionId || object.versionId==="null") {await intents.requireRecovery(prepared.id,reservation.generation,auth).catch(()=>undefined);throw unavailable();}
+    // External I/O must not consume a database transaction. The reserved S3
+    // version is re-read before acquiring the source/intent finalization locks.
+    try {
+      const bytes=await store.readLockedEvidenceVersion(object);
+      if(bytes.length!==object.size || createHash("sha256").update(bytes).digest("hex")!==object.sha256)throw unavailable();
+    } catch {await intents.requireRecovery(prepared.id,reservation.generation,auth).catch(()=>undefined);throw unavailable();}
     try {return await withTransaction(async c=>{
       if(await source(c,recordId,auth.user.id)!==reservation.basis)throw new AppError("Financial record changed",409,"EVIDENCE_SOURCE_CHANGED");
       const [rows]=await c.execute<RowDataPacket[]>("SELECT intent_state AS state,source_snapshot_sha256 AS basis,object_key AS objectKey,expected_sha256 AS checksum,expected_size AS size,expected_mime AS mime,CAST(document_id AS CHAR) AS documentId,generation FROM finance_evidence_upload_intents WHERE intent_id=? AND financial_record_id=? AND uploaded_by=? FOR UPDATE",[prepared.id,recordId,auth.user.id]);
       const row=rows[0];if(!row)throw missing();
       if(row.state==="FINALIZED")return {documentId:String(row.documentId),replayed:true};
       if(row.state!=="UPLOADING" || Number(row.generation)!==reservation.generation || row.basis!==reservation.basis || row.objectKey!==object.key || row.checksum!==object.sha256 || Number(row.size)!==object.size || row.mime!==object.contentType)throw new AppError("Evidence changed",409,"EVIDENCE_CONFLICT");
-      let bytes:Buffer;try {bytes=await store.readLockedEvidenceVersion(object);}catch{throw unavailable();}
-      if(bytes.length!==object.size || createHash("sha256").update(bytes).digest("hex")!==object.sha256)throw unavailable();
       if(replacement) {
         const [old]=await c.execute<RowDataPacket[]>("SELECT link_status AS status,version FROM finance_manual_evidence_links WHERE link_id=? AND financial_record_id=? FOR UPDATE",[replacement.linkId,recordId]);
         if(!old[0] || old[0].status!=="ACTIVE" || Number(old[0].version)!==replacement.version)throw new AppError("Evidence changed",409,"EVIDENCE_CONFLICT");

@@ -12,4 +12,6 @@ The current receipt processor requires `20261107_receipt_attempt_recovery.sql`. 
 
 The subsequent `20261107_financial_evidence_object_binding.sql` extends the intent and event states and adds source-snapshot and bucket columns. The fixture-only manual-expense workflow uses all four migrations; it writes UPLOADING before storage and marks FINALIZED only with a document and exact object version. The first three target tables were reported missing and no migration has been applied to the real target. Full target compatibility, interrupted upload recovery, S3 policy configuration and access authorization require separately approved review before any rollout.
 
+Do not enable manual evidence routes while document-first download locking conflicts with source-first writers or while downloads hold database locks across remote storage reads. Upload finalization now reads the object before acquiring its final source/intent locks, but external object retention must still be valid through any future authorized decision. A fenced recovery workflow and actual kill/restart tests remain outstanding.
+
 The G0-export parent-DDL rehearsal is not target verification or release approval. No production/staging connection or migration was performed for this PR.

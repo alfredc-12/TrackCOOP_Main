@@ -33,10 +33,11 @@ test("manual evidence upload, version-bound direct download, replacement and rev
    CREATE TABLE document_access_logs(id BIGINT AUTO_INCREMENT PRIMARY KEY,document_id BIGINT UNSIGNED,user_id BIGINT UNSIGNED,access_action VARCHAR(30),ip_address VARCHAR(45),user_agent VARCHAR(500));
    CREATE TABLE member_profiles(member_id BIGINT UNSIGNED PRIMARY KEY,user_id BIGINT UNSIGNED);
    INSERT INTO users VALUES(1,'Maker'),(2,'Other'),(3,'Chair'),(4,'Member'),(5,'Associate');
-   INSERT INTO financial_records VALUES(10,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',10.00,1,'2026-11-01',NULL,'Synthetic'),(11,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',5.00,1,'2026-11-01',NULL,'Synthetic'),(12,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',6.00,1,'2026-11-01',NULL,'Synthetic'),(13,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',7.00,1,'2026-11-01',NULL,'Synthetic'),(14,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',8.00,1,'2026-11-01',NULL,'Synthetic'),(15,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',9.00,1,'2026-11-01',NULL,'Synthetic'),(16,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',9.00,1,'2026-11-01',NULL,'Synthetic');`);
+   INSERT INTO financial_records VALUES(10,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',10.00,1,'2026-11-01',NULL,'Synthetic'),(11,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',5.00,1,'2026-11-01',NULL,'Synthetic'),(12,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',6.00,1,'2026-11-01',NULL,'Synthetic'),(13,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',7.00,1,'2026-11-01',NULL,'Synthetic'),(14,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',8.00,1,'2026-11-01',NULL,'Synthetic'),(15,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',9.00,1,'2026-11-01',NULL,'Synthetic'),(16,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',9.00,1,'2026-11-01',NULL,'Synthetic'),(17,1,'Expense','Manual',NULL,NULL,NULL,NULL,'Active',9.00,1,'2026-11-01',NULL,'Synthetic');`);
   for(const migration of ["20261107_manual_finance_evidence_links.sql","20261107_financial_evidence_upload_intents.sql","20261107_financial_evidence_object_binding.sql"])await pool.query(await readFile(`server/database/migrations/${migration}`,"utf8"));
-  const objects=new Map<string,{bytes:Buffer;version:string;mime:string}>();let verifiedPrepared=false,failAfterUpload=false,failBeforeUpload=false,failRead=false,mutateSource=false,pauseRead=false;
+  const objects=new Map<string,{bytes:Buffer;version:string;mime:string}>();let verifiedPrepared=false,failAfterUpload=false,failBeforeUpload=false,failRead=false,mutateSource=false,pauseRead=false,pauseFinalCheck=false;
   let notifyRead!:()=>void,resumeRead!:()=>void;const reading=new Promise<void>(resolve=>{notifyRead=resolve;}),readGate=new Promise<void>(resolve=>{resumeRead=resolve;});
+  let notifyFinal!:()=>void,resumeFinal!:()=>void;const finalReading=new Promise<void>(resolve=>{notifyFinal=resolve;}),finalGate=new Promise<void>(resolve=>{resumeFinal=resolve;});
   const store:ManualEvidenceStore={
    async writeLockedEvidenceVersion(bytes,mime,reservedKey){
     const [intents]=await pool.execute<mysql.RowDataPacket[]>("SELECT i.intent_state,(SELECT COUNT(*) FROM finance_evidence_upload_events e WHERE e.intent_id=i.intent_id AND e.event_type='PREPARED') AS prepared FROM finance_evidence_upload_intents i WHERE i.object_key=?",[reservedKey]);verifiedPrepared=intents[0]?.intent_state==="UPLOADING" && Number(intents[0]?.prepared)===1;
@@ -46,7 +47,7 @@ test("manual evidence upload, version-bound direct download, replacement and rev
     if(mutateSource)await pool.execute("UPDATE financial_records SET amount=10 WHERE financial_record_id=16");
     return {bucket:"synthetic",key:reservedKey,versionId:version,sha256:createHash("sha256").update(bytes).digest("hex"),size:bytes.length,contentType:mime};
    },
-   async readLockedEvidenceVersion(object){if(failRead)throw new Error("synthetic verify failure");if(pauseRead){pauseRead=false;notifyRead();await readGate;}const item=objects.get(object.key);if(!item || item.version!==object.versionId || item.mime!==object.contentType || item.bytes.length!==object.size || createHash("sha256").update(item.bytes).digest("hex")!==object.sha256)throw new Error("unavailable");return Buffer.from(item.bytes);},
+   async readLockedEvidenceVersion(object){if(failRead)throw new Error("synthetic verify failure");if(pauseFinalCheck){pauseFinalCheck=false;notifyFinal();await finalGate;}if(pauseRead){pauseRead=false;notifyRead();await readGate;}const item=objects.get(object.key);if(!item || item.version!==object.versionId || item.mime!==object.contentType || item.bytes.length!==object.size || createHash("sha256").update(item.bytes).digest("hex")!==object.sha256)throw new Error("unavailable");return Buffer.from(item.bytes);},
   };
   const database=getPool(),originalQuery=database.query,originalGetConnection=database.getConnection;
   Object.assign(database,{query:pool.query.bind(pool),getConnection:pool.getConnection.bind(pool)});
@@ -120,6 +121,11 @@ test("manual evidence upload, version-bound direct download, replacement and rev
    const [verificationFailure]=await pool.execute<mysql.RowDataPacket[]>("SELECT intent_state,document_id FROM finance_evidence_upload_intents WHERE request_key=?",["3".repeat(64)]);assert.equal(verificationFailure[0].intent_state,"RECOVERY_REQUIRED");assert.equal(verificationFailure[0].document_id,null);
    mutateSource=true;assert.equal((await request(app).post("/api/finance/manual-expenses/16/evidence").set("Cookie",cookie("maker")).field("requestKey","4".repeat(64)).attach("file",bytes,"receipt.pdf")).status,409);mutateSource=false;
    const [sourceFailure]=await pool.execute<mysql.RowDataPacket[]>("SELECT intent_state,document_id FROM finance_evidence_upload_intents WHERE request_key=?",["4".repeat(64)]);assert.equal(sourceFailure[0].intent_state,"RECOVERY_REQUIRED");assert.equal(sourceFailure[0].document_id,null);
+   pauseFinalCheck=true;const delayed=request(app).post("/api/finance/manual-expenses/17/evidence").set("Cookie",cookie("maker")).field("requestKey","5".repeat(64)).attach("file",bytes,"receipt.pdf").then(value=>value);await finalReading;
+   try {
+    const connection=await pool.getConnection();try {await connection.query("SET innodb_lock_wait_timeout=1");await connection.execute("UPDATE financial_records SET amount=11 WHERE financial_record_id=17");} finally {connection.release();}
+   } finally {resumeFinal();}
+   assert.equal((await delayed).status,409,"changed source is rejected after external read without holding source lock");
   } finally {Object.assign(database,{query:originalQuery,getConnection:originalGetConnection});if(oldReader===undefined)delete provider.readLockedEvidenceVersion;else provider.readLockedEvidenceVersion=oldReader;}
  } finally {await pool.end();}
 });
