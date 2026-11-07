@@ -43,8 +43,9 @@ export async function createCentralDocument(
     `INSERT INTO documents (
       uploaded_by, member_id, title, document_type,
       access_level, document_status, file_path, original_file_name, mime_type,
-      file_size_bytes, checksum_sha256, description
-    ) VALUES (?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?, ?)`,
+      file_size_bytes, checksum_sha256, description, related_module,
+      related_record_id, related_record_reference, relationship_type
+    ) VALUES (?, ?, ?, ?, ?, 'Active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.uploadedBy ?? null,
       input.memberId ?? null,
@@ -57,6 +58,10 @@ export async function createCentralDocument(
       input.fileSizeBytes ?? null,
       input.checksum ?? null,
       input.description ?? null,
+      input.relatedModule,
+      input.relatedRecordId,
+      input.relatedRecordReference ?? null,
+      input.relationshipType,
     ],
   );
 

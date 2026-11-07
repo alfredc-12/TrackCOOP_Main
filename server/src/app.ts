@@ -1,4 +1,3 @@
-import { createReceiptEvidenceRouter } from "./modules/financial-evidence/receipt-evidence.routes";
 import { createFinanceExceptionRouter } from "./modules/finance-exceptions/finance-exception.routes";
 import { createControlledPostingRouter } from "./modules/finance/controlled-posting.routes";
 import { createFinancialPolicyRouter } from "./modules/financial-policy/financial-policy.routes";
@@ -189,7 +188,6 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createPatronageRouter(options.authService));
   app.use("/api", createShareCapitalRouter(options.authService));
   app.use("/api", createFinanceRouter(options.authService));
-  app.use("/api", createReceiptEvidenceRouter(options.authService));
   app.use("/api", createFinanceExceptionRouter(options.authService));
   app.use("/api", createControlledPostingRouter(options.authService));
   app.use("/api", createFinancialPolicyRouter(options.authService));
