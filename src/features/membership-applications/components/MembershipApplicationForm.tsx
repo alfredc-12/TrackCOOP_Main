@@ -652,7 +652,7 @@ export function MembershipApplicationForm() {
     <form
       onSubmit={handleSubmit(onSubmit)}
       aria-busy={isSubmittingApplication}
-      className="grid gap-6"
+      className="grid min-w-0 gap-6"
     >
       <AnimatePresence initial={false}>
         {!isOnline ? (
@@ -672,7 +672,7 @@ export function MembershipApplicationForm() {
         ) : null}
       </AnimatePresence>
 
-      <motion.div layout className="grid gap-5 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start lg:gap-7">
+      <motion.div layout className="grid min-w-0 gap-5 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start lg:gap-7">
         <aside aria-label="Application steps and summary" className="application-sidebar grid min-w-0 gap-4 lg:sticky lg:top-24 lg:gap-0">
           <ApplicationProgress currentStep={currentStep} />
           <ApplicationSummaryRail
@@ -685,9 +685,9 @@ export function MembershipApplicationForm() {
         <motion.div
           layout
           transition={viewTransition}
-          className="public-apply-card"
+          className="public-apply-card w-full min-w-0 overflow-hidden"
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-lg border-b border-[var(--public-card-border)] bg-[var(--public-canvas)] px-5 py-4 sm:px-7">
+          <div className="flex flex-wrap items-center justify-center gap-3 rounded-t-lg border-b border-[var(--public-card-border)] bg-[var(--public-canvas)] px-5 py-4 text-center sm:justify-between sm:px-7 sm:text-left">
             <AnimatePresence mode="wait" initial={false}>
               <motion.h2
                 key={currentStep}
