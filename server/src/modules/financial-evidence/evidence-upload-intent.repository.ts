@@ -38,9 +38,15 @@ export function createEvidenceUploadIntentRepository(pool:Pool) {
   async function requireRecovery(intentId:string,expectedGeneration:number,auth:AuthContext) {
     if(auth.user.role!=="bookkeeper" || !/^[1-9]\d{0,19}$/.test(intentId) || !Number.isSafeInteger(expectedGeneration) || expectedGeneration<1) throw new AppError("Upload intent not found",404,"EVIDENCE_NOT_FOUND");
     return withTransaction(async c=>{
-      const [rows]=await c.execute<RowDataPacket[]>("SELECT CAST(uploaded_by AS CHAR) AS actor,intent_state AS state,generation FROM finance_evidence_upload_intents WHERE intent_id=? FOR UPDATE",[intentId]);
+      // The source hint is not authorization. Lock and validate the source
+      // first; recheck the relationship when locking the intent below.
+      const [hints]=await c.execute<RowDataPacket[]>("SELECT CAST(financial_record_id AS CHAR) AS recordId FROM finance_evidence_upload_intents WHERE intent_id=?",[intentId]);
+      if(!hints[0])throw new AppError("Upload intent not found",404,"EVIDENCE_NOT_FOUND");
+      const [sources]=await c.execute<RowDataPacket[]>("SELECT CAST(recorded_by AS CHAR) AS maker,record_type AS type,source_module AS source,source_record_id AS sourceId,payment_reference_id AS paymentId,member_id AS memberId,approved_by AS approver,record_status AS status FROM financial_records WHERE financial_record_id=? FOR UPDATE",[hints[0].recordId]);
+      const source=sources[0];if(!source || source.maker!==auth.user.id || source.type!=="Expense" || source.source!=="Manual" || source.sourceId!==null || source.paymentId!==null || source.memberId!==null || source.approver!==null || source.status!=="Active")throw new AppError("Upload intent not found",404,"EVIDENCE_NOT_FOUND");
+      const [rows]=await c.execute<RowDataPacket[]>("SELECT CAST(uploaded_by AS CHAR) AS actor,CAST(financial_record_id AS CHAR) AS recordId,intent_state AS state,generation FROM finance_evidence_upload_intents WHERE intent_id=? FOR UPDATE",[intentId]);
       const row=rows[0];
-      if(!row || row.actor!==auth.user.id) throw new AppError("Upload intent not found",404,"EVIDENCE_NOT_FOUND");
+      if(!row || row.actor!==auth.user.id || row.recordId!==hints[0].recordId) throw new AppError("Upload intent not found",404,"EVIDENCE_NOT_FOUND");
       if(Number(row.generation)!==expectedGeneration || !["PREPARED","UPLOADING"].includes(row.state)) throw new AppError("Upload intent changed",409,"EVIDENCE_CONFLICT");
       const generation=expectedGeneration+1;
       const [changed]=await c.execute<ResultSetHeader>("UPDATE finance_evidence_upload_intents SET intent_state='RECOVERY_REQUIRED',generation=? WHERE intent_id=? AND generation=? AND intent_state IN ('PREPARED','UPLOADING')",[generation,intentId,expectedGeneration]);

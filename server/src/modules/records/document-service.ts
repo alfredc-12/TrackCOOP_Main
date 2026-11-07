@@ -420,6 +420,7 @@ export async function getDocumentDetail(
   if (!canAccessDocument(actor, policyRecord(row))) {
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   }
+
   const [access, audit] = await Promise.all([
     db.query<
       (RowDataPacket & {
@@ -816,6 +817,17 @@ export async function getDocumentFile(
     throw new RecordsError("Document not found.", 404, "DOCUMENT_NOT_FOUND");
   }
 
+  // Marker is a routing hint; the evidence reader reauthorizes both snapshots.
+  const [routing] = await db.query<(RowDataPacket & { storagePath:string })[]>("SELECT file_path AS storagePath FROM documents WHERE document_id = ? LIMIT 1",[documentId]);
+  if(routing[0]?.storagePath.startsWith("financial-evidence:")) {
+    const provider=storageProvider() as Partial<ManualEvidenceStore>;
+    if(typeof provider.readLockedEvidenceVersion!=="function")throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
+    try {
+      const contents=await readManualEvidence(db,documentId,user?{id:user.id,role:user.role}:null,provider as ManualEvidenceStore,action,metadata);
+      return {contents,fileName:document.fileName.replaceAll('"',""),mimeType:document.mimeType};
+    } catch {throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");}
+  }
+
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
@@ -837,10 +849,8 @@ export async function getDocumentFile(
     }
     let contents: Buffer;
     if(evidenceManaged) {
-      const provider=storageProvider() as Partial<ManualEvidenceStore>;
-      if(typeof provider.readLockedEvidenceVersion!=="function")throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
-      try {contents=await readManualEvidence(connection,documentId,user?{id:user.id,role:user.role}:null,provider as ManualEvidenceStore,action);}
-      catch {throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");}
+      // Do not switch to source-first locking while holding the document row.
+      throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
     } else {
       try { contents=await readProtectedDocument(file.storagePath); }
       catch { throw new RecordsError("The stored file is unavailable. Its metadata has been preserved.",404,"DOCUMENT_FILE_MISSING"); }

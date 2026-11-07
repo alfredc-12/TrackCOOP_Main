@@ -22,17 +22,34 @@ async function source(c:PoolConnection,id:string,actor:string) {
   return createHash("sha256").update(JSON.stringify([id,r.maker,r.type,r.source,r.amount,r.category,r.date,r.seasonId,r.remarks])).digest("hex");
 }
 
-/** Called inside an existing document transaction; verifies current link,
- * source and exact locked object before any bytes are returned. */
-export async function readManualEvidence(c:PoolConnection,documentId:string,auth:{id:string;role:string}|null,store:ManualEvidenceStore,action:"Preview"|"Download"|"Print") {
+/** Snapshot under source-first locking. The document ID lookup is only a hint;
+ * every value is revalidated after the source lock is acquired. */
+async function manualEvidenceSnapshot(c:PoolConnection,documentId:string,auth:{id:string;role:string}|null) {
   if(!auth || !["bookkeeper","chairman"].includes(auth.role))throw missing();
+  const [hints]=await c.execute<RowDataPacket[]>("SELECT CAST(financial_record_id AS CHAR) AS recordId,CAST(created_by AS CHAR) AS maker FROM finance_manual_evidence_links WHERE document_id=?",[documentId]);
+  if(!hints[0])throw missing();
+  const hint=hints[0];
+  const basis=await source(c,String(hint.recordId),String(hint.maker));
   const [rows]=await c.execute<RowDataPacket[]>(`SELECT CAST(l.financial_record_id AS CHAR) AS recordId,CAST(l.created_by AS CHAR) AS maker,l.link_status AS linkStatus,l.document_version AS linkVersion,l.document_checksum AS linkChecksum,i.intent_state AS intentState,i.source_snapshot_sha256 AS sourceBasis,i.object_key AS objectKey,i.object_version AS objectVersion,i.storage_bucket AS bucket,i.expected_sha256 AS checksum,i.expected_size AS size,i.expected_mime AS mime,i.document_version AS intentVersion,CAST(i.source_owner_id AS CHAR) AS intentOwner,CAST(i.uploaded_by AS CHAR) AS intentActor,CAST(i.intent_id AS CHAR) AS intentId,d.document_status AS documentStatus,d.access_level AS accessLevel,d.category AS category,d.current_version AS documentVersion,d.checksum_sha256 AS documentChecksum,d.document_type AS documentType,d.related_module AS relatedModule,CAST(d.related_record_id AS CHAR) AS relatedRecordId,d.relationship_type AS relationshipType,d.file_path AS filePath,CAST(d.uploaded_by AS CHAR) AS uploader,CAST(d.member_id AS CHAR) AS memberId,DATE_FORMAT(d.expiration_date,'%Y-%m-%d') AS expires FROM finance_manual_evidence_links l JOIN finance_evidence_upload_intents i ON i.document_id=l.document_id AND i.financial_record_id=l.financial_record_id JOIN documents d ON d.document_id=l.document_id WHERE l.document_id=? FOR UPDATE`,[documentId]);
   const r=rows[0];if(!r || (auth.role==="bookkeeper" && r.maker!==auth.id) || r.linkStatus!=="ACTIVE" || r.intentState!=="FINALIZED" || r.documentStatus!=="Active" || r.accessLevel!=="Bookkeeper-only" || r.category!=="FINANCIAL" || r.memberId!==null || r.uploader!==r.maker || r.intentOwner!==r.maker || r.intentActor!==r.maker || r.documentType!=="Receipt" || r.relatedModule!=="Manual Finance" || r.relatedRecordId!==r.recordId || r.relationshipType!=="Evidence" || r.filePath!==`financial-evidence:${r.intentId}` || Number(r.linkVersion)!==Number(r.documentVersion) || Number(r.intentVersion)!==Number(r.documentVersion) || r.linkChecksum!==r.checksum || r.documentChecksum!==r.checksum || !r.bucket || !r.objectVersion || !r.sourceBasis)throw missing();
   const {manilaToday}=await import("../../utils/manila-calendar");if(r.expires && r.expires<manilaToday())throw missing();
-  if(await source(c,String(r.recordId),String(r.maker))!==r.sourceBasis)throw missing();
-  let bytes:Buffer;try {bytes=await store.readLockedEvidenceVersion({bucket:String(r.bucket),key:String(r.objectKey),versionId:String(r.objectVersion),sha256:String(r.checksum),size:Number(r.size),contentType:String(r.mime)});}catch{throw missing();}
-  if(bytes.length!==Number(r.size) || createHash("sha256").update(bytes).digest("hex")!==r.checksum)throw missing();
-  await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,action_time) VALUES(?,?,'documents',?,'Version-bound financial evidence read',UTC_TIMESTAMP())",[auth.id,`financial_evidence.${action.toLowerCase()}`,documentId]);
+  if(String(r.recordId)!==String(hint.recordId) || String(r.maker)!==String(hint.maker) || basis!==r.sourceBasis)throw missing();
+  const [versions]=await c.execute<RowDataPacket[]>("SELECT l.version AS linkVersion,i.generation AS intentGeneration FROM finance_manual_evidence_links l JOIN finance_evidence_upload_intents i ON i.document_id=l.document_id WHERE l.document_id=? FOR UPDATE",[documentId]);
+  if(!versions[0])throw missing();
+  return {recordId:String(r.recordId),maker:String(r.maker),basis,identity:{bucket:String(r.bucket),key:String(r.objectKey),versionId:String(r.objectVersion),sha256:String(r.checksum),size:Number(r.size),contentType:String(r.mime)},version:Number(r.documentVersion),linkVersion:Number(versions[0].linkVersion),intentGeneration:Number(versions[0].intentGeneration),intentId:String(r.intentId),linkStatus:String(r.linkStatus),expires:r.expires ?? null};
+}
+
+/** No application DB connection is held while awaiting the object store. */
+export async function readManualEvidence(pool:Pool,documentId:string,auth:{id:string;role:string}|null,store:ManualEvidenceStore,action:"Preview"|"Download"|"Print",metadata?:{ipAddress?:string|null;userAgent?:string|null}) {
+  const before=await withTransaction(c=>manualEvidenceSnapshot(c,documentId,auth),pool);
+  let bytes:Buffer;try {bytes=await store.readLockedEvidenceVersion(before.identity);}catch{throw missing();}
+  if(bytes.length!==before.identity.size || createHash("sha256").update(bytes).digest("hex")!==before.identity.sha256)throw missing();
+  await withTransaction(async c=>{
+    const after=await manualEvidenceSnapshot(c,documentId,auth);
+    if(JSON.stringify(before)!==JSON.stringify(after))throw missing();
+    await c.execute("INSERT INTO document_access_logs(document_id,user_id,access_action,ip_address,user_agent) VALUES(?,?,?,?,?)",[documentId,auth!.id,action,metadata?.ipAddress ?? null,metadata?.userAgent?.slice(0,500) ?? null]);
+    await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,action_time) VALUES(?,?,'documents',?,'Version-bound financial evidence read',UTC_TIMESTAMP())",[auth!.id,`financial_evidence.${action.toLowerCase()}`,documentId]);
+  },pool);
   return bytes;
 }
 
