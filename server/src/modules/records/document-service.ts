@@ -8,6 +8,7 @@ import type {
 import { getPool } from "../../db/pool";
 import { manilaToday } from "../../utils/manila-calendar";
 import type { AuthorizedUser } from "./records-auth";
+import type { AuthContext } from "../auth/auth.types";
 import {
   DOCUMENT_ACCESS_LEVELS,
   DOCUMENT_CATEGORIES,
@@ -807,6 +808,7 @@ export async function getDocumentFile(
   user: AuthorizedUser | null,
   action: "Preview" | "Download" | "Print",
   metadata?: RequestMetadata,
+  authContext?: AuthContext,
 ) {
   const row = await findDocumentRow(documentId);
   if (!row)
@@ -823,7 +825,7 @@ export async function getDocumentFile(
     const provider=storageProvider() as Partial<ManualEvidenceStore>;
     if(typeof provider.readLockedEvidenceVersion!=="function")throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");
     try {
-      const contents=await readManualEvidence(db,documentId,user?{id:user.id,role:user.role}:null,provider as ManualEvidenceStore,action,metadata);
+      const contents=await readManualEvidence(db,documentId,authContext ?? null,provider as ManualEvidenceStore,action,metadata);
       return {contents,fileName:document.fileName.replaceAll('"',""),mimeType:document.mimeType};
     } catch {throw new RecordsError("Document file not found.",404,"DOCUMENT_FILE_MISSING");}
   }

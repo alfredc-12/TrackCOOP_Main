@@ -40,15 +40,19 @@ async function manualEvidenceSnapshot(c:PoolConnection,documentId:string,auth:{i
 }
 
 /** No application DB connection is held while awaiting the object store. */
-export async function readManualEvidence(pool:Pool,documentId:string,auth:{id:string;role:string}|null,store:ManualEvidenceStore,action:"Preview"|"Download"|"Print",metadata?:{ipAddress?:string|null;userAgent?:string|null}) {
-  const before=await withTransaction(c=>manualEvidenceSnapshot(c,documentId,auth),pool);
+export async function readManualEvidence(pool:Pool,documentId:string,auth:AuthContext|null,store:ManualEvidenceStore,action:"Preview"|"Download"|"Print",metadata?:{ipAddress?:string|null;userAgent?:string|null}) {
+  if(!auth)throw missing();
+  const actor={id:auth.user.id,role:auth.user.role};
+  const before=await withTransaction(c=>manualEvidenceSnapshot(c,documentId,actor),pool);
   let bytes:Buffer;try {bytes=await store.readLockedEvidenceVersion(before.identity);}catch{throw missing();}
   if(bytes.length!==before.identity.size || createHash("sha256").update(bytes).digest("hex")!==before.identity.sha256)throw missing();
   await withTransaction(async c=>{
-    const after=await manualEvidenceSnapshot(c,documentId,auth);
+    const after=await manualEvidenceSnapshot(c,documentId,actor);
     if(JSON.stringify(before)!==JSON.stringify(after))throw missing();
-    await c.execute("INSERT INTO document_access_logs(document_id,user_id,access_action,ip_address,user_agent) VALUES(?,?,?,?,?)",[documentId,auth!.id,action,metadata?.ipAddress ?? null,metadata?.userAgent?.slice(0,500) ?? null]);
-    await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,action_time) VALUES(?,?,'documents',?,'Version-bound financial evidence read',UTC_TIMESTAMP())",[auth!.id,`financial_evidence.${action.toLowerCase()}`,documentId]);
+    const [sessions]=await c.execute<RowDataPacket[]>(`SELECT CAST(s.session_id AS CHAR) AS id FROM user_sessions s JOIN users u ON u.user_id=s.user_id JOIN roles r ON r.role_id=u.role_id WHERE s.session_id=? AND s.user_id=? AND s.session_token_hash=? AND s.revoked_at IS NULL AND s.expires_at>UTC_TIMESTAMP() AND u.account_status='Active' AND r.is_active=1 AND r.role_slug=? FOR UPDATE`,[auth.sessionId,auth.user.id,auth.tokenHash,auth.user.role]);
+    if(!sessions[0])throw missing();
+    await c.execute("INSERT INTO document_access_logs(document_id,user_id,access_action,ip_address,user_agent) VALUES(?,?,?,?,?)",[documentId,auth.user.id,action,metadata?.ipAddress ?? null,metadata?.userAgent?.slice(0,500) ?? null]);
+    await c.execute("INSERT INTO audit_logs(user_id,action,entity_table,record_id,description,action_time) VALUES(?,?,'documents',?,'Version-bound financial evidence read',UTC_TIMESTAMP())",[auth.user.id,`financial_evidence.${action.toLowerCase()}`,documentId]);
   },pool);
   return bytes;
 }

@@ -36,13 +36,13 @@ export function createManualEvidenceRouter(auth:AuthService,workflow:ReturnType<
  router.get("/finance/manual-expenses/:id/evidence/:documentId/file",...staff,asyncHandler(async(req,res)=>{
   const recordId=parse(()=>id.parse(req.params.id)),documentId=parse(()=>id.parse(req.params.documentId));
   const links=await repo.list(recordId,req.auth!);if(!links.some(link=>link.documentId===documentId && link.status==="ACTIVE"))throw new AppError("Evidence not found",404,"EVIDENCE_NOT_FOUND");
-  const file=await getDocumentFile(documentId,authorizedUserFromAuth(req.auth!),"Download");
+  const file=await getDocumentFile(documentId,authorizedUserFromAuth(req.auth!),"Download",undefined,req.auth!);
   res.setHeader("Content-Type",file.mimeType);res.setHeader("Content-Disposition",`attachment; filename="${file.fileName.replace(/[\r\n"]/g,"")}"`);return res.send(file.contents);
  }));
  router.get("/finance/manual-expenses/:id/evidence/:documentId/verify",...staff,asyncHandler(async(req,res)=>{
   const recordId=parse(()=>id.parse(req.params.id)),documentId=parse(()=>id.parse(req.params.documentId));
   const links=await repo.list(recordId,req.auth!);if(!links.some(link=>link.documentId===documentId && link.status==="ACTIVE"))throw new AppError("Evidence not found",404,"EVIDENCE_NOT_FOUND");
-  await getDocumentFile(documentId,authorizedUserFromAuth(req.auth!),"Preview");
+  await getDocumentFile(documentId,authorizedUserFromAuth(req.auth!),"Preview",undefined,req.auth!);
   return sendSuccess(res,{status:"VERSION_BYTES_MATCH",financialPostingVerified:false});
  }));
  return router;

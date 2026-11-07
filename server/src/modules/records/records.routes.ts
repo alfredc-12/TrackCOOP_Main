@@ -295,6 +295,7 @@ async function documentFileRoute(request: Request, response: Response) {
       optionalUser(request),
       action,
       metadata(request),
+      request.auth,
     );
     const disposition = action === "Download" ? "attachment" : "inline";
 

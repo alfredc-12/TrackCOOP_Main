@@ -14,4 +14,6 @@ The subsequent `20261107_financial_evidence_object_binding.sql` extends the inte
 
 Do not enable manual evidence routes until the new source-first managed-download snapshots, all writer lock ordering, provider timeouts and authorization rechecks are independently reviewed. Managed reads and upload readback now release database connections during object I/O, while ordinary legacy reads still hold a document lock. External object retention must remain valid through any future authorized decision. A complete fenced recovery workflow and actual kill/restart tests remain outstanding.
 
+An upload can be interrupted after the provider creates an object but before its version ID is durably recorded. The current storage contract cannot safely discover and prove that exact version from the key alone. Keep such attempts untrusted and do not retry the same key, finalize, or delete it without an independently reviewed version-discovery and recovery protocol. The post-read session/role/account recheck is implemented in the managed-download fixture, but does not replace production authorization and configuration review.
+
 The G0-export parent-DDL rehearsal is not target verification or release approval. No production/staging connection or migration was performed for this PR.
