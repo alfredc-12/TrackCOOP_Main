@@ -94,8 +94,10 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
   const overlapping=t.mock.method(provider,"put",async (input:PutObjectInput)=>{if(++worker===1){startA();await gateA;throw new Error("synthetic stale failure");}startB();await gateB;return originalPut(input);});
   const workerA=service.process("4");await aStarted;const workerB=service.process("4");await bStarted;
   const duplicate=await pool.getConnection();
-  try {await duplicate.beginTransaction();await queuePaymentReceipt(duplicate,{paymentReferenceId:"4",memberId:"2",actorUserId:"3",amount:7,paymentChannel:"Cash",provider:"Manual",validationSource:"Manual Bookkeeper",subjectReference:"SYNTHETIC",paymentDate:null,validatedAt:null});await duplicate.commit();} finally {duplicate.release();}
+  try {await duplicate.beginTransaction();await queuePaymentReceipt(duplicate,{paymentReferenceId:"4",memberId:"9",actorUserId:"3",amount:7,paymentChannel:"Cash",provider:"Manual",validationSource:"PayMongo Webhook",subjectReference:"CHANGED",paymentDate:new Date("2026-01-01T00:00:00Z"),validatedAt:new Date("2026-01-01T00:00:00Z")});await duplicate.commit();} finally {duplicate.release();}
   assert.equal((await service.getStatus("4"))?.processingStatus,"Processing","duplicate queue must not cancel the current worker");
+  const [frozen]=await pool.query<mysql.RowDataPacket[]>("SELECT member_id,validation_source,subject_reference,validated_at FROM payment_receipts WHERE payment_reference_id=4");
+  assert.equal(String(frozen[0].member_id),"2");assert.equal(frozen[0].validation_source,"Manual Bookkeeper");assert.equal(frozen[0].subject_reference,"SYNTHETIC");assert.equal(frozen[0].validated_at,null);
   finishA();await workerA;
   try {const during=await service.getStatus("4");assert.equal(during?.processingStatus,"Processing");assert.equal(during?.attemptCount,2);} finally {finishB();}
   await workerB;overlapping.mock.restore();assert.equal((await service.getStatus("4"))?.processingStatus,"Generated");
@@ -124,6 +126,15 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
   assert.deepEqual(inspected.attempts.map(a=>a.state),["SUPERSEDED","FINALIZED"]);
   assert.equal(inspected.attempts[0].objectAvailability,"UNKNOWN");assert.equal(inspected.attempts[1].isLinked,true);
   assert.equal(JSON.stringify(inspected).includes("generated/receipts"),false);
+  await pool.query("INSERT INTO payment_references VALUES(6,'Validated',9.00,2,'Rental','Cash','rental_bookings',12,'Synthetic',NULL,'SYNTHETIC-6'); INSERT INTO rental_bookings VALUES(12,6,'Approved','Paid')");
+  const sixth=await pool.getConnection();
+  try {await sixth.beginTransaction();await queuePaymentReceipt(sixth,{paymentReferenceId:"6",memberId:"2",actorUserId:"3",amount:9,paymentChannel:"Cash",provider:"Manual",validationSource:"Manual Bookkeeper",subjectReference:"SYNTHETIC",paymentDate:null,validatedAt:null});await sixth.commit();} finally {sixth.release();}
+  let observed!:()=>void,continueUpload!:()=>void;const uploadStarted=new Promise<void>(r=>{observed=r;}),uploadGate=new Promise<void>(r=>{continueUpload=r;});
+  const sourceChange=t.mock.method(provider,"put",async (input:PutObjectInput)=>{observed();await uploadGate;return originalPut(input);});
+  const sourceWorker=service.process("6");await uploadStarted;
+  try {await pool.execute("UPDATE payment_references SET payer_name='Changed' WHERE payment_reference_id=6");} finally {continueUpload();}
+  await sourceWorker;sourceChange.mock.restore();
+  const changed=await service.getStatus("6");assert.equal(changed?.processingStatus,"Failed");assert.equal(changed?.documentId,null);
   await pool.query("INSERT INTO payment_references VALUES(2,'Validated',5.00,2,'Rental','Cash','rental_bookings',8,'Synthetic',NULL,'SYNTHETIC-2'); INSERT INTO rental_bookings VALUES(8,2,'Approved','Paid')");
   const second=await pool.getConnection();
   try {await second.beginTransaction();await queuePaymentReceipt(second,{paymentReferenceId:"2",memberId:"2",actorUserId:"3",amount:5,paymentChannel:"Cash",provider:"Manual",validationSource:"Manual Bookkeeper",subjectReference:"SYNTHETIC",paymentDate:null,validatedAt:null});await second.commit();} finally {second.release();}

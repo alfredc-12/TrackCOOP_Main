@@ -54,6 +54,14 @@ function mysqlDateTime(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 19).replace("T", " ") : null;
 }
 
+// Bind the rendered content to the rows re-read while holding the receipt and
+// joined payment-reference locks. A changed source must be retried, not linked
+// to a PDF rendered from an older snapshot.
+function receiptSourceSnapshot(row: ReceiptRow) {
+  const time = (value: Date | null) => value ? new Date(value).toISOString() : null;
+  return JSON.stringify([row.paymentReferenceId,row.receiptId,row.receiptNumber,row.memberId,row.issuedBy,String(row.amount),row.paymentChannel,row.provider,row.validationSource,row.subjectReference,time(row.paymentDate),time(row.validatedAt),row.payerName,row.payerEmail,row.paymentPurpose,row.trackcoopReference,time(row.reversedAt)]);
+}
+
 export async function queuePaymentReceipt(connection: PoolConnection, input: {
   paymentReferenceId: string;
   memberId: string | null;
@@ -74,11 +82,11 @@ export async function queuePaymentReceipt(connection: PoolConnection, input: {
         payment_date, validated_at, processing_status, issued_by, issued_at)
      VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, UTC_TIMESTAMP())
      ON DUPLICATE KEY UPDATE
-       member_id = COALESCE(member_id, VALUES(member_id)),
-       validation_source = VALUES(validation_source),
-       subject_reference = VALUES(subject_reference),
-       payment_date = COALESCE(payment_date, VALUES(payment_date)),
-       validated_at = COALESCE(validated_at, VALUES(validated_at)),
+       member_id = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN member_id ELSE COALESCE(member_id, VALUES(member_id)) END,
+       validation_source = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN validation_source ELSE VALUES(validation_source) END,
+       subject_reference = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN subject_reference ELSE VALUES(subject_reference) END,
+       payment_date = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN payment_date ELSE COALESCE(payment_date, VALUES(payment_date)) END,
+       validated_at = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN validated_at ELSE COALESCE(validated_at, VALUES(validated_at)) END,
        processing_status = CASE
          WHEN document_id IS NOT NULL THEN 'Generated'
          WHEN processing_status = 'Processing' THEN 'Processing'
@@ -251,6 +259,7 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
             await finishAttempt(connection,claimed.attemptId,"SUPERSEDED");
             return;
           }
+          if (receiptSourceSnapshot(current) !== receiptSourceSnapshot(claimed)) throw new Error("Receipt source changed; retry required");
           // Do not infer historical provenance from matching document metadata.
           // The locked receipt row is the sole authority for its linked document.
           const document = await createCentralDocument(connection, {
