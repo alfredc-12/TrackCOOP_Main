@@ -720,6 +720,7 @@ export function UsersClient() {
       />
 
       <LifecycleActionDialog
+        key={pendingAction ? `${pendingAction.kind}:${pendingAction.user.id}` : "lifecycle-closed"}
         action={pendingAction}
         currentUserId={currentUserId}
         isMutating={isMutating}
