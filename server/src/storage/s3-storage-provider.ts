@@ -1,6 +1,7 @@
 import { env } from "../config/env";
 import type { GetObjectInput, PutObjectInput, StoredFile, StorageProvider } from "./storage-provider";
 import { normalizeObjectKey, providerObjectKey, publicUrlPath } from "./storage-paths";
+import { readVersionLockedS3Evidence, writeVersionLockedS3Evidence, type S3EvidenceObject } from "./evidence-s3-version";
 
 type S3Module = typeof import("@aws-sdk/client-s3");
 type PresignerModule = typeof import("@aws-sdk/s3-request-presigner");
@@ -87,6 +88,24 @@ export class S3StorageProvider implements StorageProvider {
       Key: providerObjectKey(input.key, input.visibility),
     }));
     return streamToBuffer(response.Body);
+  }
+
+  /** Internal protected-object primitive only; callers must authorize source,
+   * document and immutable identity before use. Not a posting verifier. */
+  async readLockedEvidenceVersion(identity: Omit<S3EvidenceObject,"bucket">): Promise<Buffer> {
+    const {client} = await this.clientPromise;
+    return readVersionLockedS3Evidence({
+      send: async command => await client.send(command as InstanceType<S3Module["GetObjectCommand"]>) as unknown as Record<string,unknown>,
+    }, { ...identity, bucket: this.bucket() });
+  }
+
+  /** Unmounted storage primitive. A failed post-upload check may leave an
+   * unlinked object; never delete it without an authorized recovery process. */
+  async writeLockedEvidenceVersion(bytes:Buffer,contentType:string):Promise<S3EvidenceObject> {
+    const {client}=await this.clientPromise;
+    return writeVersionLockedS3Evidence({
+      send: async command => await client.send(command as InstanceType<S3Module["GetObjectCommand"]>) as unknown as Record<string,unknown>,
+    },this.bucket(),bytes,contentType);
   }
 
   async delete(input: GetObjectInput): Promise<void> {
