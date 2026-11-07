@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import cookieParser from "cookie-parser";
 import express from "express";
@@ -72,6 +73,8 @@ function setup(t: TestContext, role: RoleSlug = "chairman", rows: Row[] = []) {
       writes.push({ sql, values });
       if (sql.includes("INSERT INTO documents (")) {
         assert.ok(sql.includes("expiration_date"));
+        assert.ok(sql.includes("checksum_sha256"));
+        assert.equal(values[12], createHash("sha256").update(pdf).digest("hex"));
         const id = String(nextId++);
         rows.push({ id, memberId: null, accessLevel: String(values[5]), databaseStatus: "Active", category: String(values[3]), documentType: String(values[4]), uploadedById: "1", expirationDate: values[11] as string | null });
         return [{ insertId: Number(id) }, []];

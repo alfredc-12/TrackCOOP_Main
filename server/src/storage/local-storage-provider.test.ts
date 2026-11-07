@@ -42,3 +42,21 @@ test("LocalStorageProvider blocks protected path traversal", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("exclusive protected writes cannot overwrite an existing object", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "trackcoop-storage-exclusive-"));
+  try {
+    const storage = new LocalStorageProvider(root);
+    const input = {key:"receipts/unique.pdf",visibility:"protected" as const,ifAbsent:true};
+    const attempts = await Promise.allSettled([
+      storage.put({...input,body:Buffer.from("first")}),
+      storage.put({...input,body:Buffer.from("second")}),
+    ]);
+    assert.equal(attempts.filter(a=>a.status==="fulfilled").length,1);
+    assert.equal(attempts.filter(a=>a.status==="rejected").length,1);
+    const saved=await storage.get({key:input.key,visibility:"protected"});
+    assert.ok(["first","second"].includes(saved.toString()));
+    await assert.rejects(storage.put({...input,body:Buffer.from("overwrite")}));
+    assert.deepEqual(await storage.get({key:input.key,visibility:"protected"}),saved);
+  } finally {await rm(root,{recursive:true,force:true});}
+});
