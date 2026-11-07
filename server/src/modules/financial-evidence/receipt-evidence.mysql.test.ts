@@ -8,6 +8,8 @@ import { createPaymentReceiptService, queuePaymentReceipt } from "../paymongo/pa
 import { storageProvider } from "../../storage";
 import type { PutObjectInput } from "../../storage/storage-provider";
 import { protectedObjectKey } from "../../storage/protected-storage";
+import { createReceiptRecoveryRepository } from "../paymongo/receipt-recovery.repository";
+import type { AuthContext } from "../auth/auth.types";
 const enabled=process.env.EVIDENCE_ISOLATED_MYSQL==="1";
 test("isolated MySQL reads only the source-linked receipt and rejects missing source metadata",{skip:!enabled},async()=>{
  const port=Number(process.env.EVIDENCE_TEST_PORT),expected=process.env.EVIDENCE_TEST_DATADIR;
@@ -50,7 +52,7 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
   await pool.query(`CREATE TABLE payment_references(payment_reference_id BIGINT UNSIGNED PRIMARY KEY,validation_status VARCHAR(30),amount DECIMAL(12,2),member_id BIGINT UNSIGNED,payment_purpose VARCHAR(50),payment_channel VARCHAR(30),related_entity_type VARCHAR(80),related_entity_id BIGINT UNSIGNED,payer_name VARCHAR(190),payer_email VARCHAR(190),reference_number VARCHAR(190));
    CREATE TABLE payment_receipts(payment_receipt_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,payment_reference_id BIGINT UNSIGNED UNIQUE,receipt_number VARCHAR(80),processing_status VARCHAR(20),amount DECIMAL(12,2),member_id BIGINT UNSIGNED,reversed_at DATETIME NULL,reversal_note VARCHAR(1000),document_id BIGINT UNSIGNED,attempt_count INT DEFAULT 0,last_attempt_at DATETIME,last_error_code VARCHAR(120),last_error_message VARCHAR(1000),issued_by BIGINT UNSIGNED,payment_channel VARCHAR(40),provider VARCHAR(100),validation_source VARCHAR(40),subject_reference VARCHAR(120),payment_date DATE,validated_at DATETIME,issued_at DATETIME,generated_at DATETIME);
    CREATE TABLE documents(document_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,uploaded_by BIGINT UNSIGNED,member_id BIGINT UNSIGNED,title VARCHAR(255),document_type VARCHAR(50),access_level VARCHAR(50),document_status VARCHAR(30),file_path VARCHAR(500),original_file_name VARCHAR(255),mime_type VARCHAR(120),file_size_bytes BIGINT,checksum_sha256 CHAR(64),description TEXT,related_module VARCHAR(80),related_record_id BIGINT UNSIGNED,related_record_reference VARCHAR(120),relationship_type VARCHAR(80),current_version INT DEFAULT 1,expiration_date DATE);
-   CREATE TABLE audit_logs(audit_log_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,user_id BIGINT UNSIGNED,action VARCHAR(100),entity_table VARCHAR(100),record_id BIGINT UNSIGNED,description TEXT,new_values JSON);
+   CREATE TABLE audit_logs(audit_log_id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,user_id BIGINT UNSIGNED,action VARCHAR(100),entity_table VARCHAR(100),record_id BIGINT UNSIGNED,description TEXT,new_values JSON,action_time DATETIME DEFAULT CURRENT_TIMESTAMP);
    CREATE TABLE pos_sales(pos_sale_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,sale_status VARCHAR(30),payment_status VARCHAR(30),total_amount DECIMAL(12,2),member_id BIGINT UNSIGNED);
    CREATE TABLE rental_bookings(rental_booking_id BIGINT UNSIGNED PRIMARY KEY,payment_reference_id BIGINT UNSIGNED,booking_status VARCHAR(30),payment_status VARCHAR(30));
    INSERT INTO payment_references VALUES(1,'Validated',10.00,2,'Rental','Cash','rental_bookings',7,'Synthetic',NULL,'SYNTHETIC-1');
@@ -91,6 +93,9 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
   const gateA=new Promise<void>(resolve=>{finishA=resolve;}),gateB=new Promise<void>(resolve=>{finishB=resolve;});let worker=0;
   const overlapping=t.mock.method(provider,"put",async (input:PutObjectInput)=>{if(++worker===1){startA();await gateA;throw new Error("synthetic stale failure");}startB();await gateB;return originalPut(input);});
   const workerA=service.process("4");await aStarted;const workerB=service.process("4");await bStarted;
+  const duplicate=await pool.getConnection();
+  try {await duplicate.beginTransaction();await queuePaymentReceipt(duplicate,{paymentReferenceId:"4",memberId:"2",actorUserId:"3",amount:7,paymentChannel:"Cash",provider:"Manual",validationSource:"Manual Bookkeeper",subjectReference:"SYNTHETIC",paymentDate:null,validatedAt:null});await duplicate.commit();} finally {duplicate.release();}
+  assert.equal((await service.getStatus("4"))?.processingStatus,"Processing","duplicate queue must not cancel the current worker");
   finishA();await workerA;
   try {const during=await service.getStatus("4");assert.equal(during?.processingStatus,"Processing");assert.equal(during?.attemptCount,2);} finally {finishB();}
   await workerB;overlapping.mock.restore();assert.equal((await service.getStatus("4"))?.processingStatus,"Generated");
@@ -112,6 +117,13 @@ test("disposable MySQL: receipt producer persists source metadata and retry reus
   await abandoned;stalledPut.mock.restore();
   const [recovered]=await pool.query<mysql.RowDataPacket[]>("SELECT a.attempt_state AS state FROM payment_receipt_attempts a JOIN payment_receipts r ON r.payment_receipt_id=a.payment_receipt_id WHERE r.payment_reference_id=5 ORDER BY a.attempt_number");
   assert.deepEqual(recovered.map(p=>p.state),["SUPERSEDED","FINALIZED"]);
+  const recovery=createReceiptRecoveryRepository(pool);
+  const chairman={user:{id:"3",role:"chairman"}} as AuthContext,member={user:{id:"3",role:"member"}} as AuthContext;
+  await assert.rejects(recovery.inspect("5",member));
+  const inspected=await recovery.inspect("5",chairman);
+  assert.deepEqual(inspected.attempts.map(a=>a.state),["SUPERSEDED","FINALIZED"]);
+  assert.equal(inspected.attempts[0].objectAvailability,"UNKNOWN");assert.equal(inspected.attempts[1].isLinked,true);
+  assert.equal(JSON.stringify(inspected).includes("generated/receipts"),false);
   await pool.query("INSERT INTO payment_references VALUES(2,'Validated',5.00,2,'Rental','Cash','rental_bookings',8,'Synthetic',NULL,'SYNTHETIC-2'); INSERT INTO rental_bookings VALUES(8,2,'Approved','Paid')");
   const second=await pool.getConnection();
   try {await second.beginTransaction();await queuePaymentReceipt(second,{paymentReferenceId:"2",memberId:"2",actorUserId:"3",amount:5,paymentChannel:"Cash",provider:"Manual",validationSource:"Manual Bookkeeper",subjectReference:"SYNTHETIC",paymentDate:null,validatedAt:null});await second.commit();} finally {second.release();}

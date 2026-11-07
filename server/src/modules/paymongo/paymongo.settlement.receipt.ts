@@ -79,7 +79,11 @@ export async function queuePaymentReceipt(connection: PoolConnection, input: {
        subject_reference = VALUES(subject_reference),
        payment_date = COALESCE(payment_date, VALUES(payment_date)),
        validated_at = COALESCE(validated_at, VALUES(validated_at)),
-       processing_status = CASE WHEN document_id IS NULL THEN 'Pending' ELSE 'Generated' END`,
+       processing_status = CASE
+         WHEN document_id IS NOT NULL THEN 'Generated'
+         WHEN processing_status = 'Processing' THEN 'Processing'
+         ELSE 'Pending'
+       END`,
     [input.paymentReferenceId, input.memberId, receiptNumber, input.amount,
       input.paymentChannel, input.provider, input.validationSource, input.subjectReference,
       mysqlDate(input.paymentDate), mysqlDateTime(input.validatedAt), input.actorUserId],
