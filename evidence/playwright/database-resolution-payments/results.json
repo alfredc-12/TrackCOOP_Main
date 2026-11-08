@@ -1,0 +1,174 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "--grep",
+      "P14 membership fee"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-resolution-payments/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-interactions.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts",
+          "evidence-activities.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-resolution-payments/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-resolution-payments/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-payments.spec.ts",
+      "file": "evidence-payments.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P14 membership fee and initial capital accept only the required amounts",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 1142,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 1\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[32m-   \"capital\": 1,\u001b[39m\n\u001b[31m+   \"capital\": 0,\u001b[39m\n\u001b[2m    \"financial\": 1,\u001b[22m\n\u001b[2m    \"receipts\": 1,\u001b[22m\n\u001b[2m  }\u001b[22m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 1\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[32m-   \"capital\": 1,\u001b[39m\n\u001b[31m+   \"capital\": 0,\u001b[39m\n\u001b[2m    \"financial\": 1,\u001b[22m\n\u001b[2m    \"receipts\": 1,\u001b[22m\n\u001b[2m  }\u001b[22m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:112:39",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                      "column": 39,
+                      "line": 112
+                    },
+                    "snippet": "  110 |       expect((await context.request.post(`${api}/api/payment-references/${mainId}/validate`,{data:{}})).status()).toBe(200);\n  111 |       expect((await context.request.post(`${api}/api/payment-references/${mainId}/validate`,{data:{}})).status()).toBe(400);\n> 112 |       expect(await counts(db,mainId)).toEqual({capital:purpose === \"Share Capital\" ? 1 : 0,financial:1,receipts:1});\n      |                                       ^\n  113 |       if (requestedMembershipType === \"True Member\") {\n  114 |         // The persisted policy includes a separate fee, and settlement requires it.\n  115 |         const fee=await make(200, \"Associate Membership Fee\"); expect(fee.status()).toBe(201);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                        "column": 39,
+                        "line": 112
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 1\u001b[39m\n\n\u001b[2m  Object {\u001b[22m\n\u001b[32m-   \"capital\": 1,\u001b[39m\n\u001b[31m+   \"capital\": 0,\u001b[39m\n\u001b[2m    \"financial\": 1,\u001b[22m\n\u001b[2m    \"receipts\": 1,\u001b[22m\n\u001b[2m  }\u001b[22m\n\n  110 |       expect((await context.request.post(`${api}/api/payment-references/${mainId}/validate`,{data:{}})).status()).toBe(200);\n  111 |       expect((await context.request.post(`${api}/api/payment-references/${mainId}/validate`,{data:{}})).status()).toBe(400);\n> 112 |       expect(await counts(db,mainId)).toEqual({capital:purpose === \"Share Capital\" ? 1 : 0,financial:1,receipts:1});\n      |                                       ^\n  113 |       if (requestedMembershipType === \"True Member\") {\n  114 |         // The persisted policy includes a separate fee, and settlement requires it.\n  115 |         const fee=await make(200, \"Associate Membership Fee\"); expect(fee.status()).toBe(201);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:112:39"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-08T02:04:53.908Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-resolution-payments\\test-results\\evidence-payments-P14-memb-9de84-t-only-the-required-amounts\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-resolution-payments\\test-results\\evidence-payments-P14-memb-9de84-t-only-the-required-amounts\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                    "column": 39,
+                    "line": 112
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "1c96098f5aacf7439ed5-68276fca6cf9c43cd890",
+          "file": "evidence-payments.spec.ts",
+          "line": 85,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-08T02:04:52.172Z",
+    "duration": 3726.5729999999994,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "--grep",
+      "expired"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-gateway-unsuccessful-complete/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-gateway-unsuccessful-complete/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-gateway-unsuccessful-complete/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-gateway.spec.ts",
+      "file": "evidence-gateway.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P20 Test Mode failed, expired and canceled checkouts create no successful postings",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 7186,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts:124:266",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts",
+                      "column": 266,
+                      "line": 124
+                    },
+                    "snippet": "  122 |       const code = (await submitted.json()).data.applicationCode;\n  123 |       await db.execute(\"UPDATE membership_applications SET application_status='Payment Required' WHERE application_code=?\", [code]);\n> 124 |       const checkout = await request.post(`http://127.0.0.1:3219/api/paymongo/checkouts/membership-applications/${code}`, { headers: { \"X-Application-Date-Of-Birth\": \"1991-01-02\" }, data: { paymentPurpose: \"Associate Membership Fee\" } }); expect(checkout.status()).toBe(201);\n      |                                                                                                                                                                                                                                                                          ^\n  125 |       const checkoutData = (await checkout.json()).data; expect(checkoutData.mode).toBe(\"test\");\n  126 |       const [refs] = await db.execute<RowDataPacket[]>(\"SELECT p.payment_reference_id,p.gateway_checkout_id FROM payment_references p JOIN membership_applications a ON a.membership_application_id=p.related_entity_id WHERE p.related_entity_type='membership_application' AND a.application_code=?\", [code]); expect(refs).toHaveLength(1);\n  127 |       const target = new URL(checkoutData.checkoutUrl); expect(target.hostname).toBe(\"checkout.paymongo.com\"); expect(target.protocol).toBe(\"https:\");"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts",
+                        "column": 266,
+                        "line": 124
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  122 |       const code = (await submitted.json()).data.applicationCode;\n  123 |       await db.execute(\"UPDATE membership_applications SET application_status='Payment Required' WHERE application_code=?\", [code]);\n> 124 |       const checkout = await request.post(`http://127.0.0.1:3219/api/paymongo/checkouts/membership-applications/${code}`, { headers: { \"X-Application-Date-Of-Birth\": \"1991-01-02\" }, data: { paymentPurpose: \"Associate Membership Fee\" } }); expect(checkout.status()).toBe(201);\n      |                                                                                                                                                                                                                                                                          ^\n  125 |       const checkoutData = (await checkout.json()).data; expect(checkoutData.mode).toBe(\"test\");\n  126 |       const [refs] = await db.execute<RowDataPacket[]>(\"SELECT p.payment_reference_id,p.gateway_checkout_id FROM payment_references p JOIN membership_applications a ON a.membership_application_id=p.related_entity_id WHERE p.related_entity_type='membership_application' AND a.application_code=?\", [code]); expect(refs).toHaveLength(1);\n  127 |       const target = new URL(checkoutData.checkoutUrl); expect(target.hostname).toBe(\"checkout.paymongo.com\"); expect(target.protocol).toBe(\"https:\");\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts:124:266"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T20:19:57.680Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-gateway-unsuccessful-complete\\test-results\\evidence-gateway-P20-Test--b606c-eate-no-successful-postings\\error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts",
+                    "column": 266,
+                    "line": 124
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "ea29cf49d19e646f46f4-791ce65a971cd686d44c",
+          "file": "evidence-gateway.spec.ts",
+          "line": 108,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-07T20:19:56.456Z",
+    "duration": 8717.796999999999,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

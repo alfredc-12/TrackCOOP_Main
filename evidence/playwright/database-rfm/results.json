@@ -1,0 +1,301 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "--grep",
+      "P4"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-rfm/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-rfm/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-rfm/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-database.spec.ts",
+      "file": "evidence-database.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P43 configured recency scoring at requested boundaries",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 17,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T18:41:20.784Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-4e9e8a9aa3ace80d6e46",
+          "file": "evidence-database.spec.ts",
+          "line": 167,
+          "column": 5
+        },
+        {
+          "title": "P44 configured frequency scoring at requested boundaries",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T18:41:20.874Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-302cd856baadadeb1ab6",
+          "file": "evidence-database.spec.ts",
+          "line": 172,
+          "column": 5
+        },
+        {
+          "title": "P45 configured contribution scoring at requested boundaries",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 9,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 3\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[2m  Array [\u001b[22m\n\u001b[2m    1,\u001b[22m\n\u001b[31m+   1,\u001b[39m\n\u001b[2m    2,\u001b[22m\n\u001b[32m-   2,\u001b[39m\n\u001b[2m    3,\u001b[22m\n\u001b[2m    3,\u001b[22m\n\u001b[32m-   4,\u001b[39m\n\u001b[32m-   4,\u001b[39m\n\u001b[31m+   3,\u001b[39m\n\u001b[31m+   5,\u001b[39m\n\u001b[2m    5,\u001b[22m\n\u001b[2m  ]\u001b[22m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 3\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[2m  Array [\u001b[22m\n\u001b[2m    1,\u001b[22m\n\u001b[31m+   1,\u001b[39m\n\u001b[2m    2,\u001b[22m\n\u001b[32m-   2,\u001b[39m\n\u001b[2m    3,\u001b[22m\n\u001b[2m    3,\u001b[22m\n\u001b[32m-   4,\u001b[39m\n\u001b[32m-   4,\u001b[39m\n\u001b[31m+   3,\u001b[39m\n\u001b[31m+   5,\u001b[39m\n\u001b[2m    5,\u001b[22m\n\u001b[2m  ]\u001b[22m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:179:125",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 125,
+                      "line": 179
+                    },
+                    "snippet": "  177 | test(\"P45 configured contribution scoring at requested boundaries\", async () => {\n  178 |   const { thresholds } = await rfmSettings();\n> 179 |   expect([0, 0.01, 1499.99, 1500, 2999.99, 3000, 14999.99, 15000].map(v => scoreMinimum(v, thresholds.contributionAmount))).toEqual([1, 2, 2, 3, 3, 4, 4, 5]);\n      |                                                                                                                             ^\n  180 | });\n  181 |\n  182 | test(\"P46 configured combined labels respect score bands\", async () => {"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 125,
+                        "line": 179
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 3\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[2m  Array [\u001b[22m\n\u001b[2m    1,\u001b[22m\n\u001b[31m+   1,\u001b[39m\n\u001b[2m    2,\u001b[22m\n\u001b[32m-   2,\u001b[39m\n\u001b[2m    3,\u001b[22m\n\u001b[2m    3,\u001b[22m\n\u001b[32m-   4,\u001b[39m\n\u001b[32m-   4,\u001b[39m\n\u001b[31m+   3,\u001b[39m\n\u001b[31m+   5,\u001b[39m\n\u001b[2m    5,\u001b[22m\n\u001b[2m  ]\u001b[22m\n\n  177 | test(\"P45 configured contribution scoring at requested boundaries\", async () => {\n  178 |   const { thresholds } = await rfmSettings();\n> 179 |   expect([0, 0.01, 1499.99, 1500, 2999.99, 3000, 14999.99, 15000].map(v => scoreMinimum(v, thresholds.contributionAmount))).toEqual([1, 2, 2, 3, 3, 4, 4, 5]);\n      |                                                                                                                             ^\n  180 | });\n  181 |\n  182 | test(\"P46 configured combined labels respect score bands\", async () => {\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:179:125"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T18:41:20.890Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-rfm\\test-results\\evidence-database-P45-conf-21e46-ing-at-requested-boundaries\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-rfm\\test-results\\evidence-database-P45-conf-21e46-ing-at-requested-boundaries\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 125,
+                    "line": 179
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-391341e2ba947b9e03c2",
+          "file": "evidence-database.spec.ts",
+          "line": 177,
+          "column": 5
+        },
+        {
+          "title": "P46 configured combined labels respect score bands",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 72,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T18:41:21.720Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-a76fa59754e8203d0e94",
+          "file": "evidence-database.spec.ts",
+          "line": 182,
+          "column": 5
+        },
+        {
+          "title": "P47 inactivity safeguard overrides a higher combined label",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T18:41:21.856Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-3199bc00d94509946f4f",
+          "file": "evidence-database.spec.ts",
+          "line": 190,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-07T18:41:19.360Z",
+    "duration": 2535.714,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

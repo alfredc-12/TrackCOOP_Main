@@ -1,0 +1,719 @@
+{
+  "description": "Sanitized derivative of the historical isolated Playwright run database-resolution-final; runtime environment, logs, attachments, browser traces, and local paths omitted.",
+  "source_run": "database-resolution-final",
+  "executed_on_baseline": "d9a7240d6f720636602df9418d722d9bff460d2b plus then-uncommitted corrections",
+  "statistics": {
+    "startTime": "2026-11-08T02:20:22.105Z",
+    "duration": 116841.57800000001,
+    "expected": 61,
+    "skipped": 3,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "tests": [
+    {
+      "file": "evidence-activities.spec.ts",
+      "title": "P40 P41 scheduled event and recorded attendance drive member analytics with audit and permissions",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 16085
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P45 validated capital boundaries persist into RFM scores and ignore pending payments",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 445
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P41 P43 P44 qualifying attendance drives the correct member's rolling scores",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 146
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P28 P29 filtered finance dashboard and Excel reflect controlled ledger data",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 362
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P49 member analytics agrees with isolated barangay and approval cohorts",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 204
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P43 P44 recency and frequency thresholds from persisted attendance at a fixed basis",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 871
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P46 P47 persisted combined bands and inactivity override",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 473
+        }
+      ]
+    },
+    {
+      "file": "evidence-analytics.spec.ts",
+      "title": "P50 financial and membership analytics react only to their own fixtures",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 594
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P01 Chairman login grants authenticated member directory access",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 3465
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P02 Bookkeeper login grants financial category access",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 2058
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P03 Member login grants access to own profile",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 3529
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P04 Invalid credentials are rejected with feedback",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 2410
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P05 Logout revokes the existing server session",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 149
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P06 Member and bookkeeper are denied restricted backend operations",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 2751
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P07 Member cannot read or alter another member through staff record routes",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 136
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P07 other member cannot read a private document or alter owner records",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 469
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P08 Public pages are reachable while a private backend route is denied",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 1574
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P09 Valid synthetic public application persists expected fields",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 66
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P10 Incomplete membership application is rejected without insertion",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 26
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P12 Unauthorized roles cannot approve an application",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 378
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P43 configured recency scoring at requested boundaries",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 16
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P44 configured frequency scoring at requested boundaries",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 8
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P45 configured contribution scoring at requested boundaries",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 7
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P46 configured combined labels respect score bands",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 91
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P47 inactivity safeguard overrides a higher combined label",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 10
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P16 configured capital completion deadline matches six-month requirement",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 6
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P48 RFM recalculation does not change official membership status",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 177
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P24 Bookkeeper saves classified income and expense records",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 177
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P25 P26 posted operating surplus excludes separately recorded share capital",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 202
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P50 analytics endpoints use separate reports and deny member access",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 478
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P54 repeated member login and logout consistently revoke sessions",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 253
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P36 authorized document upload persists metadata and retrieves bytes",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 161
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P37 invalid and missing document uploads are rejected without records",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 123
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P38 protected document downloads respect audience and member ownership",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 715
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P39 announcements appear only to their intended audiences",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 519
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P18 P42 referral associates applicant and produces a member notification",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 195
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P17 a member in two sectors contributes once to membership total",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 516
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P11 Chairman approves a prepared synthetic associate application",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 191
+        }
+      ]
+    },
+    {
+      "file": "evidence-database.spec.ts",
+      "title": "P27 Bookkeeper edits a category while Chairman cannot edit it",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 249
+        }
+      ]
+    },
+    {
+      "file": "evidence-gateway.spec.ts",
+      "title": "P20 PayMongo Test Mode pending checkout makes no financial postings",
+      "outcome": "skipped",
+      "attempts": [
+        {
+          "status": "skipped",
+          "duration_ms": 0
+        }
+      ]
+    },
+    {
+      "file": "evidence-gateway.spec.ts",
+      "title": "P19 P21 authorized Test Mode payment and replayed simulated callback",
+      "outcome": "skipped",
+      "attempts": [
+        {
+          "status": "skipped",
+          "duration_ms": 0
+        }
+      ]
+    },
+    {
+      "file": "evidence-gateway.spec.ts",
+      "title": "P20 Test Mode failed, expired and canceled checkouts create no successful postings",
+      "outcome": "skipped",
+      "attempts": [
+        {
+          "status": "skipped",
+          "duration_ms": 0
+        }
+      ]
+    },
+    {
+      "file": "evidence-interactions.spec.ts",
+      "title": "P51 required and invalid fields are rejected across public forms",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 5936
+        }
+      ]
+    },
+    {
+      "file": "evidence-interactions.spec.ts",
+      "title": "P53 inquiry processing, success and simulated error feedback are visible",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 8286
+        }
+      ]
+    },
+    {
+      "file": "evidence-investigation.spec.ts",
+      "title": "P16 investigate new True Member application snapshot and six month deadline",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 283
+        }
+      ]
+    },
+    {
+      "file": "evidence-investigation.spec.ts",
+      "title": "P45 compare editable seeded thresholds with code fallback",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 7
+        }
+      ]
+    },
+    {
+      "file": "evidence-investigation.spec.ts",
+      "title": "P13 classification decision boundaries preserve the configured rules",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 82
+        }
+      ]
+    },
+    {
+      "file": "evidence-investigation.spec.ts",
+      "title": "P52 canonical member share capital route loads and survives refresh",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 6862
+        }
+      ]
+    },
+    {
+      "file": "evidence-operations.spec.ts",
+      "title": "P33 P34 P35 synthetic cash order preserves prices, payment, pickup and one POS posting",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 560
+        }
+      ]
+    },
+    {
+      "file": "evidence-operations.spec.ts",
+      "title": "P31 P32 P35 rental inquiry, review, payment and schedule persist once",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 464
+        }
+      ]
+    },
+    {
+      "file": "evidence-operations.spec.ts",
+      "title": "P30 restricted allocation and payout operations reject unauthorized roles",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 393
+        }
+      ]
+    },
+    {
+      "file": "evidence-operations.spec.ts",
+      "title": "P30 synthetic dividend withdrawal and patronage-capital transfer enforce roles and post once",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 739
+        }
+      ]
+    },
+    {
+      "file": "evidence-payments.spec.ts",
+      "title": "P21 P22 manual proof review and duplicate validation do not duplicate postings",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 231
+        }
+      ]
+    },
+    {
+      "file": "evidence-payments.spec.ts",
+      "title": "P23 pending and rejected payments do not create financial receipts",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 142
+        }
+      ]
+    },
+    {
+      "file": "evidence-payments.spec.ts",
+      "title": "P15 share capital accepts maximum and rejects a cent above without posting",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 283
+        }
+      ]
+    },
+    {
+      "file": "evidence-payments.spec.ts",
+      "title": "P14 membership fee and initial capital accept only the required amounts",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 1050
+        }
+      ]
+    },
+    {
+      "file": "evidence-payments.spec.ts",
+      "title": "P13 approval classifies prepared True applications at capital boundaries",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 377
+        }
+      ]
+    },
+    {
+      "file": "evidence-payments.spec.ts",
+      "title": "P16 application capital history and progress reflect validated and pending installments",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 473
+        }
+      ]
+    },
+    {
+      "file": "evidence-safe.spec.ts",
+      "title": "P51 login required field is marked invalid",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 1271
+        }
+      ]
+    },
+    {
+      "file": "evidence-safe.spec.ts",
+      "title": "P52 login controls work on a narrow viewport",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 2502
+        }
+      ]
+    },
+    {
+      "file": "evidence-safe.spec.ts",
+      "title": "P53 login displays a simulated server error",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 2956
+        }
+      ]
+    },
+    {
+      "file": "evidence-screenshots.spec.ts",
+      "title": "capture chairman system views with synthetic data",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 16256
+        }
+      ]
+    },
+    {
+      "file": "evidence-screenshots.spec.ts",
+      "title": "capture bookkeeper system views with synthetic data",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 15853
+        }
+      ]
+    },
+    {
+      "file": "evidence-screenshots.spec.ts",
+      "title": "capture member system views with synthetic data",
+      "outcome": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "duration_ms": 4614
+        }
+      ]
+    }
+  ]
+}

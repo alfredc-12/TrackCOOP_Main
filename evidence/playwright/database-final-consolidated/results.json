@@ -1,0 +1,2630 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-final-consolidated/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-final-consolidated/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-final-consolidated/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-analytics.spec.ts",
+      "file": "evidence-analytics.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P41 P43 P44 qualifying attendance drives the correct member's rolling scores",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 198,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:48:58.973Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "763219730c7900da9ca3-3e27ab9d824f77cd1a1f",
+          "file": "evidence-analytics.spec.ts",
+          "line": 15,
+          "column": 5
+        },
+        {
+          "title": "P28 P29 filtered finance dashboard and Excel reflect controlled ledger data",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 205,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:48:59.675Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "763219730c7900da9ca3-bf75018e14cc26e14346",
+          "file": "evidence-analytics.spec.ts",
+          "line": 39,
+          "column": 5
+        },
+        {
+          "title": "P49 member analytics agrees with isolated barangay and approval cohorts",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 146,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:48:59.889Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "763219730c7900da9ca3-013e648578c39a87a03b",
+          "file": "evidence-analytics.spec.ts",
+          "line": 65,
+          "column": 5
+        },
+        {
+          "title": "P43 P44 recency and frequency thresholds from persisted attendance at a fixed basis",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 781,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:00.046Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "763219730c7900da9ca3-7afa95600f60061b9f71",
+          "file": "evidence-analytics.spec.ts",
+          "line": 87,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-database.spec.ts",
+      "file": "evidence-database.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P01 Chairman login grants authenticated member directory access",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3020,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:00.981Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-4f0a85920d1fd4c23274",
+          "file": "evidence-database.spec.ts",
+          "line": 38,
+          "column": 5
+        },
+        {
+          "title": "P02 Bookkeeper login grants financial category access",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1402,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:04.034Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-72ff6a99b3b91633eb32",
+          "file": "evidence-database.spec.ts",
+          "line": 48,
+          "column": 5
+        },
+        {
+          "title": "P03 Member login grants access to own profile",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2244,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:05.450Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-4d7165100f24f579146e",
+          "file": "evidence-database.spec.ts",
+          "line": 57,
+          "column": 5
+        },
+        {
+          "title": "P04 Invalid credentials are rejected with feedback",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2034,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:07.709Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-2262bf44e19df6880c0f",
+          "file": "evidence-database.spec.ts",
+          "line": 68,
+          "column": 5
+        },
+        {
+          "title": "P05 Logout revokes the existing server session",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 134,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:09.757Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-d9af827d0293e69e50f6",
+          "file": "evidence-database.spec.ts",
+          "line": 78,
+          "column": 5
+        },
+        {
+          "title": "P06 Member and bookkeeper are denied restricted backend operations",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2102,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:09.900Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-a5a71b991b69cba9bc63",
+          "file": "evidence-database.spec.ts",
+          "line": 90,
+          "column": 5
+        },
+        {
+          "title": "P07 Member cannot read or alter another member through staff record routes",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 124,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:12.016Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-0e7df56bf1ac137471ea",
+          "file": "evidence-database.spec.ts",
+          "line": 109,
+          "column": 5
+        },
+        {
+          "title": "P08 Public pages are reachable while a private backend route is denied",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1313,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:12.150Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-c7b7f14bbdeec4ee5da6",
+          "file": "evidence-database.spec.ts",
+          "line": 122,
+          "column": 5
+        },
+        {
+          "title": "P09 Valid synthetic public application persists expected fields",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 41,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:13.475Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-1955b89328ff7d8a0c47",
+          "file": "evidence-database.spec.ts",
+          "line": 140,
+          "column": 5
+        },
+        {
+          "title": "P10 Incomplete membership application is rejected without insertion",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 14,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:13.528Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-22aeafdd0d312711a906",
+          "file": "evidence-database.spec.ts",
+          "line": 154,
+          "column": 5
+        },
+        {
+          "title": "P12 Unauthorized roles cannot approve an application",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 232,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:13.550Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-4fdf5a6d63e61da9925f",
+          "file": "evidence-database.spec.ts",
+          "line": 166,
+          "column": 5
+        },
+        {
+          "title": "P43 configured recency scoring at requested boundaries",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:13.791Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-4e9e8a9aa3ace80d6e46",
+          "file": "evidence-database.spec.ts",
+          "line": 190,
+          "column": 5
+        },
+        {
+          "title": "P44 configured frequency scoring at requested boundaries",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:13.808Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-302cd856baadadeb1ab6",
+          "file": "evidence-database.spec.ts",
+          "line": 195,
+          "column": 5
+        },
+        {
+          "title": "P45 configured contribution scoring at requested boundaries",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 8,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 3\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[2m  Array [\u001b[22m\n\u001b[2m    1,\u001b[22m\n\u001b[31m+   1,\u001b[39m\n\u001b[2m    2,\u001b[22m\n\u001b[32m-   2,\u001b[39m\n\u001b[2m    3,\u001b[22m\n\u001b[2m    3,\u001b[22m\n\u001b[32m-   4,\u001b[39m\n\u001b[32m-   4,\u001b[39m\n\u001b[31m+   3,\u001b[39m\n\u001b[31m+   5,\u001b[39m\n\u001b[2m    5,\u001b[22m\n\u001b[2m  ]\u001b[22m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 3\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[2m  Array [\u001b[22m\n\u001b[2m    1,\u001b[22m\n\u001b[31m+   1,\u001b[39m\n\u001b[2m    2,\u001b[22m\n\u001b[32m-   2,\u001b[39m\n\u001b[2m    3,\u001b[22m\n\u001b[2m    3,\u001b[22m\n\u001b[32m-   4,\u001b[39m\n\u001b[32m-   4,\u001b[39m\n\u001b[31m+   3,\u001b[39m\n\u001b[31m+   5,\u001b[39m\n\u001b[2m    5,\u001b[22m\n\u001b[2m  ]\u001b[22m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:202:125",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 125,
+                      "line": 202
+                    },
+                    "snippet": "  200 | test(\"P45 configured contribution scoring at requested boundaries\", async () => {\n  201 |   const { thresholds } = await rfmSettings();\n> 202 |   expect([0, 0.01, 1499.99, 1500, 2999.99, 3000, 14999.99, 15000].map(v => scoreMinimum(v, thresholds.contributionAmount))).toEqual([1, 2, 2, 3, 3, 4, 4, 5]);\n      |                                                                                                                             ^\n  203 | });\n  204 |\n  205 | test(\"P46 configured combined labels respect score bands\", async () => {"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 125,
+                        "line": 202
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 3\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[2m  Array [\u001b[22m\n\u001b[2m    1,\u001b[22m\n\u001b[31m+   1,\u001b[39m\n\u001b[2m    2,\u001b[22m\n\u001b[32m-   2,\u001b[39m\n\u001b[2m    3,\u001b[22m\n\u001b[2m    3,\u001b[22m\n\u001b[32m-   4,\u001b[39m\n\u001b[32m-   4,\u001b[39m\n\u001b[31m+   3,\u001b[39m\n\u001b[31m+   5,\u001b[39m\n\u001b[2m    5,\u001b[22m\n\u001b[2m  ]\u001b[22m\n\n  200 | test(\"P45 configured contribution scoring at requested boundaries\", async () => {\n  201 |   const { thresholds } = await rfmSettings();\n> 202 |   expect([0, 0.01, 1499.99, 1500, 2999.99, 3000, 14999.99, 15000].map(v => scoreMinimum(v, thresholds.contributionAmount))).toEqual([1, 2, 2, 3, 3, 4, 4, 5]);\n      |                                                                                                                             ^\n  203 | });\n  204 |\n  205 | test(\"P46 configured combined labels respect score bands\", async () => {\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:202:125"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:13.822Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P45-conf-21e46-ing-at-requested-boundaries\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P45-conf-21e46-ing-at-requested-boundaries\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 125,
+                    "line": 202
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-391341e2ba947b9e03c2",
+          "file": "evidence-database.spec.ts",
+          "line": 200,
+          "column": 5
+        },
+        {
+          "title": "P46 configured combined labels respect score bands",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 68,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:14.816Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-a76fa59754e8203d0e94",
+          "file": "evidence-database.spec.ts",
+          "line": 205,
+          "column": 5
+        },
+        {
+          "title": "P47 inactivity safeguard overrides a higher combined label",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:14.950Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-3199bc00d94509946f4f",
+          "file": "evidence-database.spec.ts",
+          "line": 213,
+          "column": 5
+        },
+        {
+          "title": "P16 configured capital completion deadline matches six-month requirement",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 9,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m6\u001b[39m\nReceived: \u001b[31m1\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m6\u001b[39m\nReceived: \u001b[31m1\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:227:43",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 43,
+                      "line": 227
+                    },
+                    "snippet": "  225 |   try {\n  226 |     const [rows] = await db.execute<RowDataPacket[]>(\"SELECT setting_value FROM system_settings WHERE setting_key=?\", [\"membership.share_capital_deadline_months\"]);\n> 227 |     expect(Number(rows[0].setting_value)).toBe(6);\n      |                                           ^\n  228 |   } finally { await db.end(); }\n  229 | });\n  230 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 43,
+                        "line": 227
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m6\u001b[39m\nReceived: \u001b[31m1\u001b[39m\n\n  225 |   try {\n  226 |     const [rows] = await db.execute<RowDataPacket[]>(\"SELECT setting_value FROM system_settings WHERE setting_key=?\", [\"membership.share_capital_deadline_months\"]);\n> 227 |     expect(Number(rows[0].setting_value)).toBe(6);\n      |                                           ^\n  228 |   } finally { await db.end(); }\n  229 | });\n  230 |\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:227:43"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:14.967Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P16-conf-d95a2-tches-six-month-requirement\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P16-conf-d95a2-tches-six-month-requirement\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 43,
+                    "line": 227
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-51d08bf03adc50593a35",
+          "file": "evidence-database.spec.ts",
+          "line": 223,
+          "column": 5
+        },
+        {
+          "title": "P48 RFM recalculation does not change official membership status",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 187,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:15.937Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-02b60d7435cb1087bc97",
+          "file": "evidence-database.spec.ts",
+          "line": 231,
+          "column": 5
+        },
+        {
+          "title": "P24 Bookkeeper saves classified income and expense records",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 131,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:16.608Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-0b2c81a2af3ea1cafe8a",
+          "file": "evidence-database.spec.ts",
+          "line": 251,
+          "column": 5
+        },
+        {
+          "title": "P25 P26 posted operating surplus excludes separately recorded share capital",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 126,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:16.751Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-26ed840bdf053ced51f1",
+          "file": "evidence-database.spec.ts",
+          "line": 271,
+          "column": 5
+        },
+        {
+          "title": "P50 analytics endpoints use separate reports and deny member access",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 279,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:16.886Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-d7b5cb1cd61fb7148868",
+          "file": "evidence-database.spec.ts",
+          "line": 292,
+          "column": 5
+        },
+        {
+          "title": "P54 repeated member login and logout consistently revoke sessions",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 262,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:17.175Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-8db56ddba8d64294a55c",
+          "file": "evidence-database.spec.ts",
+          "line": 310,
+          "column": 5
+        },
+        {
+          "title": "P36 authorized document upload persists metadata and retrieves bytes",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 133,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:17.447Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-9a4c0f0d59d55792cc09",
+          "file": "evidence-database.spec.ts",
+          "line": 322,
+          "column": 5
+        },
+        {
+          "title": "P37 invalid and missing document uploads are rejected without records",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 122,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:17.591Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-f4b3989c03a818d9a30c",
+          "file": "evidence-database.spec.ts",
+          "line": 340,
+          "column": 5
+        },
+        {
+          "title": "P38 protected document downloads respect audience and member ownership",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 512,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:17.722Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-20183ba4ef3c5559cfbe",
+          "file": "evidence-database.spec.ts",
+          "line": 357,
+          "column": 5
+        },
+        {
+          "title": "P39 announcements appear only to their intended audiences",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 331,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:395:33",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 33,
+                      "line": 395
+                    },
+                    "snippet": "  393 |     for (const [suffix, audience, recipients] of [[\"Public\", \"Public\", []], [\"Members\", \"All Members\", []], [\"Target\", \"Selected Users\", [String(users[0].user_id)]]] as const) {\n  394 |       const response = await chairman.request.post(`${api}/api/announcements`, { data: { title: `${tag}-${suffix}`, message: \"Synthetic notice\", audienceType: audience, recipientUserIds: recipients, announcementStatus: \"Published\" } });\n> 395 |       expect(response.status()).toBe(201);\n      |                                 ^\n  396 |     }\n  397 |     const get = async (context: BrowserContext) => {\n  398 |       const response = await context.request.get(`${api}/api/announcements?search=${tag}`);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 33,
+                        "line": 395
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  393 |     for (const [suffix, audience, recipients] of [[\"Public\", \"Public\", []], [\"Members\", \"All Members\", []], [\"Target\", \"Selected Users\", [String(users[0].user_id)]]] as const) {\n  394 |       const response = await chairman.request.post(`${api}/api/announcements`, { data: { title: `${tag}-${suffix}`, message: \"Synthetic notice\", audienceType: audience, recipientUserIds: recipients, announcementStatus: \"Published\" } });\n> 395 |       expect(response.status()).toBe(201);\n      |                                 ^\n  396 |     }\n  397 |     const get = async (context: BrowserContext) => {\n  398 |       const response = await context.request.get(`${api}/api/announcements?search=${tag}`);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:395:33"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:18.244Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P39-anno-46916-to-their-intended-audiences\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P39-anno-46916-to-their-intended-audiences\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 33,
+                    "line": 395
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-20b7cf8d1e1675ef6386",
+          "file": "evidence-database.spec.ts",
+          "line": 383,
+          "column": 5
+        },
+        {
+          "title": "P18 P42 referral associates applicant and produces a member notification",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 93,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:422:32",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 32,
+                      "line": 422
+                    },
+                    "snippet": "  420 |     const data = { firstName, lastName: \"Referral\", email: `referral-${token}@example.invalid`, contactNumber: `9${String(parseInt(token, 16) % 1000000000).padStart(9, \"0\")}`, dateOfBirth: \"1990-01-02\", currentAddress: \"Synthetic address\", barangay: \"Lumbangan\", municipality: \"Nasugbu\", province: \"Batangas\", sector: \"Rice\", referralCode: \"REF-NFFAC-SEED-0001\", fatherName: \"Synthetic Father\", motherName: \"Synthetic Mother\", occupation: \"Farmer\", orientationCommitmentAccepted: true, membershipFeeCommitmentAccepted: true, shareSubscriptionCommitmentAccepted: true, bylawsAgreementAccepted: true, privacyConsentAccepted: true, applicantSignatureName: `${firstName} Referral`, signedAt: \"2026-01-01\", signedPlace: \"Nasugbu\" };\n  421 |     const submitted = await request.post(`${api}/api/membership-applications/public`, { data });\n> 422 |     expect(submitted.status()).toBe(201);\n      |                                ^\n  423 |     const code = (await submitted.json()).data.applicationCode;\n  424 |     const [rows] = await db.execute<RowDataPacket[]>(\"SELECT r.referral_status,mp.member_code FROM member_referrals r JOIN member_profiles mp ON mp.member_id=r.referrer_member_id JOIN membership_applications a ON a.membership_application_id=r.membership_application_id WHERE a.application_code=?\", [code]);\n  425 |     expect(rows).toHaveLength(1);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 32,
+                        "line": 422
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  420 |     const data = { firstName, lastName: \"Referral\", email: `referral-${token}@example.invalid`, contactNumber: `9${String(parseInt(token, 16) % 1000000000).padStart(9, \"0\")}`, dateOfBirth: \"1990-01-02\", currentAddress: \"Synthetic address\", barangay: \"Lumbangan\", municipality: \"Nasugbu\", province: \"Batangas\", sector: \"Rice\", referralCode: \"REF-NFFAC-SEED-0001\", fatherName: \"Synthetic Father\", motherName: \"Synthetic Mother\", occupation: \"Farmer\", orientationCommitmentAccepted: true, membershipFeeCommitmentAccepted: true, shareSubscriptionCommitmentAccepted: true, bylawsAgreementAccepted: true, privacyConsentAccepted: true, applicantSignatureName: `${firstName} Referral`, signedAt: \"2026-01-01\", signedPlace: \"Nasugbu\" };\n  421 |     const submitted = await request.post(`${api}/api/membership-applications/public`, { data });\n> 422 |     expect(submitted.status()).toBe(201);\n      |                                ^\n  423 |     const code = (await submitted.json()).data.applicationCode;\n  424 |     const [rows] = await db.execute<RowDataPacket[]>(\"SELECT r.referral_status,mp.member_code FROM member_referrals r JOIN member_profiles mp ON mp.member_id=r.referrer_member_id JOIN membership_applications a ON a.membership_application_id=r.membership_application_id WHERE a.application_code=?\", [code]);\n  425 |     expect(rows).toHaveLength(1);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:422:32"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:19.463Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P18-P42--d4849-duces-a-member-notification\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P18-P42--d4849-duces-a-member-notification\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 32,
+                    "line": 422
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-e2bdba7973d9f68c3bed",
+          "file": "evidence-database.spec.ts",
+          "line": 414,
+          "column": 5
+        },
+        {
+          "title": "P17 a member in two sectors contributes once to membership total",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 99,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:17:29)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:444:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 29,
+                      "line": 17
+                    },
+                    "snippet": "  15 | async function login(context: BrowserContext, role: keyof typeof accounts) {\n  16 |   const response = await context.request.post(`${api}/api/auth/login`, { data: accounts[role] });\n> 17 |   expect(response.status()).toBe(200);\n     |                             ^\n  18 |   expect((await response.json()).data.role).toBe(role === \"associate\" ? \"member\" : role);\n  19 | }\n  20 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 29,
+                        "line": 17
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  15 | async function login(context: BrowserContext, role: keyof typeof accounts) {\n  16 |   const response = await context.request.post(`${api}/api/auth/login`, { data: accounts[role] });\n> 17 |   expect(response.status()).toBe(200);\n     |                             ^\n  18 |   expect((await response.json()).data.role).toBe(role === \"associate\" ? \"member\" : role);\n  19 | }\n  20 |\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:17:29)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:444:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:20.950Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P17-a-me-ec676-es-once-to-membership-total\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P17-a-me-ec676-es-once-to-membership-total\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 29,
+                    "line": 17
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-ef242367844a5ecd1cfb",
+          "file": "evidence-database.spec.ts",
+          "line": 441,
+          "column": 5
+        },
+        {
+          "title": "P11 Chairman approves a prepared synthetic associate application",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 105,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:468:32",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 32,
+                      "line": 468
+                    },
+                    "snippet": "  466 |     const data = { firstName, lastName: \"Fixture\", email: `approval-${token}@example.invalid`, contactNumber: `9${String(parseInt(token, 16) % 1000000000).padStart(9, \"0\")}`, dateOfBirth: \"1991-01-02\", currentAddress: \"Synthetic address\", barangay: \"Lumbangan\", municipality: \"Nasugbu\", province: \"Batangas\", sector: \"Rice\", fatherName: \"Synthetic Father\", motherName: \"Synthetic Mother\", occupation: \"Farmer\", orientationCommitmentAccepted: true, membershipFeeCommitmentAccepted: true, shareSubscriptionCommitmentAccepted: true, bylawsAgreementAccepted: true, privacyConsentAccepted: true, applicantSignatureName: `${firstName} Fixture`, signedAt: \"2026-01-01\", signedPlace: \"Nasugbu\" };\n  467 |     const submitted = await request.post(`${api}/api/membership-applications/public`, { data });\n> 468 |     expect(submitted.status()).toBe(201);\n      |                                ^\n  469 |     const code = (await submitted.json()).data.applicationCode;\n  470 |     const [applications] = await db.execute<RowDataPacket[]>(\"SELECT membership_application_id FROM membership_applications WHERE application_code=?\", [code]);\n  471 |     const id = applications[0].membership_application_id;"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 32,
+                        "line": 468
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  466 |     const data = { firstName, lastName: \"Fixture\", email: `approval-${token}@example.invalid`, contactNumber: `9${String(parseInt(token, 16) % 1000000000).padStart(9, \"0\")}`, dateOfBirth: \"1991-01-02\", currentAddress: \"Synthetic address\", barangay: \"Lumbangan\", municipality: \"Nasugbu\", province: \"Batangas\", sector: \"Rice\", fatherName: \"Synthetic Father\", motherName: \"Synthetic Mother\", occupation: \"Farmer\", orientationCommitmentAccepted: true, membershipFeeCommitmentAccepted: true, shareSubscriptionCommitmentAccepted: true, bylawsAgreementAccepted: true, privacyConsentAccepted: true, applicantSignatureName: `${firstName} Fixture`, signedAt: \"2026-01-01\", signedPlace: \"Nasugbu\" };\n  467 |     const submitted = await request.post(`${api}/api/membership-applications/public`, { data });\n> 468 |     expect(submitted.status()).toBe(201);\n      |                                ^\n  469 |     const code = (await submitted.json()).data.applicationCode;\n  470 |     const [applications] = await db.execute<RowDataPacket[]>(\"SELECT membership_application_id FROM membership_applications WHERE application_code=?\", [code]);\n  471 |     const id = applications[0].membership_application_id;\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:468:32"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:22.295Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P11-Chai-b567f-hetic-associate-application\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P11-Chai-b567f-hetic-associate-application\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 32,
+                    "line": 468
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-c8c8de50b955a89a9640",
+          "file": "evidence-database.spec.ts",
+          "line": 462,
+          "column": 5
+        },
+        {
+          "title": "P27 Bookkeeper edits a category while Chairman cannot edit it",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 6,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 114,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:17:29)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:489:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                      "column": 29,
+                      "line": 17
+                    },
+                    "snippet": "  15 | async function login(context: BrowserContext, role: keyof typeof accounts) {\n  16 |   const response = await context.request.post(`${api}/api/auth/login`, { data: accounts[role] });\n> 17 |   expect(response.status()).toBe(200);\n     |                             ^\n  18 |   expect((await response.json()).data.role).toBe(role === \"associate\" ? \"member\" : role);\n  19 | }\n  20 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                        "column": 29,
+                        "line": 17
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  15 | async function login(context: BrowserContext, role: keyof typeof accounts) {\n  16 |   const response = await context.request.post(`${api}/api/auth/login`, { data: accounts[role] });\n> 17 |   expect(response.status()).toBe(200);\n     |                             ^\n  18 |   expect((await response.json()).data.role).toBe(role === \"associate\" ? \"member\" : role);\n  19 | }\n  20 |\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:17:29)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts:489:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:23.762Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P27-Book-dd738-ile-Chairman-cannot-edit-it\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-database-P27-Book-dd738-ile-Chairman-cannot-edit-it\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-database.spec.ts",
+                    "column": 29,
+                    "line": 17
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b2f095ad3667c5f41733-bf5abb4d7995ef05063e",
+          "file": "evidence-database.spec.ts",
+          "line": 484,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-gateway.spec.ts",
+      "file": "evidence-gateway.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P20 PayMongo Test Mode pending checkout makes no financial postings",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Requires the explicitly authorized isolated PayMongo Test Mode server on port 3219",
+                  "location": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts",
+                    "line": 8,
+                    "column": 6
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": -1,
+                  "parallelIndex": -1,
+                  "status": "skipped",
+                  "duration": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:44.398Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Requires the explicitly authorized isolated PayMongo Test Mode server on port 3219",
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-gateway.spec.ts",
+                        "line": 8,
+                        "column": 6
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "ea29cf49d19e646f46f4-3db12685d7d04100f067",
+          "file": "evidence-gateway.spec.ts",
+          "line": 9,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-investigation.spec.ts",
+      "file": "evidence-investigation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P16 investigate new True Member application snapshot and six month deadline",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 57,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts:27:31",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                      "column": 31,
+                      "line": 27
+                    },
+                    "snippet": "  25 |     const data = { requestedMembershipType: \"True Member\", firstName, lastName: \"Fixture\", email: `deadline-${token}@example.invalid`, contactNumber: `9${String(parseInt(token, 16) % 1000000000).padStart(9, \"0\")}`, dateOfBirth: \"1991-01-02\", currentAddress: \"Synthetic address\", barangay: \"Lumbangan\", municipality: \"Nasugbu\", province: \"Batangas\", sector: \"Rice\", fatherName: \"Synthetic Father\", motherName: \"Synthetic Mother\", occupation: \"Farmer\", orientationCommitmentAccepted: true, membershipFeeCommitmentAccepted: true, shareSubscriptionCommitmentAccepted: true, bylawsAgreementAccepted: true, privacyConsentAccepted: true, applicantSignatureName: `${firstName} Fixture`, signedAt: \"2026-01-01\", signedPlace: \"Nasugbu\" };\n  26 |     const response = await request.post(`${api}/api/membership-applications/public`, { data });\n> 27 |     expect(response.status()).toBe(201);\n     |                               ^\n  28 |     const code = (await response.json()).data.applicationCode;\n  29 |     const [rows] = await connection.execute<RowDataPacket[]>(\"SELECT a.share_capital_deadline_months, DATE_FORMAT(c.started_on,'%Y-%m-%d') AS start_date, DATE_FORMAT(c.deadline,'%Y-%m-%d') AS deadline, DATE_FORMAT(DATE_ADD(c.started_on, INTERVAL 6 MONTH),'%Y-%m-%d') AS expected_deadline FROM membership_applications a JOIN membership_capital_cases c ON c.membership_application_id=a.membership_application_id WHERE a.application_code=?\", [code]);\n  30 |     expect(rows).toHaveLength(1); expect(Number(rows[0].share_capital_deadline_months)).toBe(6); expect(rows[0].deadline).toBe(rows[0].expected_deadline);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                        "column": 31,
+                        "line": 27
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  25 |     const data = { requestedMembershipType: \"True Member\", firstName, lastName: \"Fixture\", email: `deadline-${token}@example.invalid`, contactNumber: `9${String(parseInt(token, 16) % 1000000000).padStart(9, \"0\")}`, dateOfBirth: \"1991-01-02\", currentAddress: \"Synthetic address\", barangay: \"Lumbangan\", municipality: \"Nasugbu\", province: \"Batangas\", sector: \"Rice\", fatherName: \"Synthetic Father\", motherName: \"Synthetic Mother\", occupation: \"Farmer\", orientationCommitmentAccepted: true, membershipFeeCommitmentAccepted: true, shareSubscriptionCommitmentAccepted: true, bylawsAgreementAccepted: true, privacyConsentAccepted: true, applicantSignatureName: `${firstName} Fixture`, signedAt: \"2026-01-01\", signedPlace: \"Nasugbu\" };\n  26 |     const response = await request.post(`${api}/api/membership-applications/public`, { data });\n> 27 |     expect(response.status()).toBe(201);\n     |                               ^\n  28 |     const code = (await response.json()).data.applicationCode;\n  29 |     const [rows] = await connection.execute<RowDataPacket[]>(\"SELECT a.share_capital_deadline_months, DATE_FORMAT(c.started_on,'%Y-%m-%d') AS start_date, DATE_FORMAT(c.deadline,'%Y-%m-%d') AS deadline, DATE_FORMAT(DATE_ADD(c.started_on, INTERVAL 6 MONTH),'%Y-%m-%d') AS expected_deadline FROM membership_applications a JOIN membership_capital_cases c ON c.membership_application_id=a.membership_application_id WHERE a.application_code=?\", [code]);\n  30 |     expect(rows).toHaveLength(1); expect(Number(rows[0].share_capital_deadline_months)).toBe(6); expect(rows[0].deadline).toBe(rows[0].expected_deadline);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts:27:31"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:25.083Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-investigation-P16-35abf-shot-and-six-month-deadline\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-investigation-P16-35abf-shot-and-six-month-deadline\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                    "column": 31,
+                    "line": 27
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2f4deb426306e0097bd7-107dec38fe50495258dd",
+          "file": "evidence-investigation.spec.ts",
+          "line": 21,
+          "column": 5
+        },
+        {
+          "title": "P45 compare editable seeded thresholds with code fallback",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 21,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:26.169Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2f4deb426306e0097bd7-0275d4c6dd0f185d11c6",
+          "file": "evidence-investigation.spec.ts",
+          "line": 37,
+          "column": 5
+        },
+        {
+          "title": "P13 classification decision boundaries preserve the configured rules",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 179,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:26.266Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2f4deb426306e0097bd7-ced66337f23f461c4bdc",
+          "file": "evidence-investigation.spec.ts",
+          "line": 48,
+          "column": 5
+        },
+        {
+          "title": "P52 investigate canonical and internal member share capital routes",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 333,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts:62:26",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                      "column": 26,
+                      "line": 62
+                    },
+                    "snippet": "  60 | test(\"P52 investigate canonical and internal member share capital routes\", async ({ context, page }, info) => {\n  61 |   const login = await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"maria.member@trackcoop.local\", password: \"MemberTest123!\" } });\n> 62 |   expect(login.status()).toBe(200);\n     |                          ^\n  63 |   const canonical = await page.goto(\"/portal/member/share-capital\");\n  64 |   expect(canonical?.status()).toBe(404);\n  65 |   await expect(page.getByRole(\"heading\", { name: \"Page not found\" })).toBeVisible();"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                        "column": 26,
+                        "line": 62
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  60 | test(\"P52 investigate canonical and internal member share capital routes\", async ({ context, page }, info) => {\n  61 |   const login = await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"maria.member@trackcoop.local\", password: \"MemberTest123!\" } });\n> 62 |   expect(login.status()).toBe(200);\n     |                          ^\n  63 |   const canonical = await page.goto(\"/portal/member/share-capital\");\n  64 |   expect(canonical?.status()).toBe(404);\n  65 |   await expect(page.getByRole(\"heading\", { name: \"Page not found\" })).toBeVisible();\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts:62:26"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:26.453Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-investigation-P52-7aab3-member-share-capital-routes\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-investigation-P52-7aab3-member-share-capital-routes\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-investigation-P52-7aab3-member-share-capital-routes\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                    "column": 26,
+                    "line": 62
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2f4deb426306e0097bd7-f3b8fba0034963c342a0",
+          "file": "evidence-investigation.spec.ts",
+          "line": 60,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-operations.spec.ts",
+      "file": "evidence-operations.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P33 P34 P35 synthetic cash order preserves prices, payment, pickup and one POS posting",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 9,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 190,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:14:142)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:21:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                      "column": 142,
+                      "line": 14
+                    },
+                    "snippet": "  12 | async function login(context: BrowserContext, role: \"member\" | \"bookkeeper\" | \"chairman\") {\n  13 |   const credentials = { member: [\"maria.member@trackcoop.local\", \"MemberTest123!\"], bookkeeper: [\"bookkeeper.test@trackcoop.local\", \"BookkeeperTest123!\"], chairman: [\"chairman.test@trackcoop.local\", \"ChairmanTest123!\"] }[role];\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: credentials[0], password: credentials[1] } })).status()).toBe(200);\n     |                                                                                                                                              ^\n  15 | }\n  16 | test.beforeAll(async () => { const db = await database(); await db.end(); });\n  17 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                        "column": 142,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | async function login(context: BrowserContext, role: \"member\" | \"bookkeeper\" | \"chairman\") {\n  13 |   const credentials = { member: [\"maria.member@trackcoop.local\", \"MemberTest123!\"], bookkeeper: [\"bookkeeper.test@trackcoop.local\", \"BookkeeperTest123!\"], chairman: [\"chairman.test@trackcoop.local\", \"ChairmanTest123!\"] }[role];\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: credentials[0], password: credentials[1] } })).status()).toBe(200);\n     |                                                                                                                                              ^\n  15 | }\n  16 | test.beforeAll(async () => { const db = await database(); await db.end(); });\n  17 |\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:14:142)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:21:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:27.884Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-operations-P33-P3-6279e--pickup-and-one-POS-posting\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-operations-P33-P3-6279e--pickup-and-one-POS-posting\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                    "column": 142,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "f813c861fb056795fe57-5601993f059bebe6d551",
+          "file": "evidence-operations.spec.ts",
+          "line": 18,
+          "column": 5
+        },
+        {
+          "title": "P31 P32 P35 rental inquiry, review, payment and schedule persist once",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 123,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:14:142)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:53:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                      "column": 142,
+                      "line": 14
+                    },
+                    "snippet": "  12 | async function login(context: BrowserContext, role: \"member\" | \"bookkeeper\" | \"chairman\") {\n  13 |   const credentials = { member: [\"maria.member@trackcoop.local\", \"MemberTest123!\"], bookkeeper: [\"bookkeeper.test@trackcoop.local\", \"BookkeeperTest123!\"], chairman: [\"chairman.test@trackcoop.local\", \"ChairmanTest123!\"] }[role];\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: credentials[0], password: credentials[1] } })).status()).toBe(200);\n     |                                                                                                                                              ^\n  15 | }\n  16 | test.beforeAll(async () => { const db = await database(); await db.end(); });\n  17 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                        "column": 142,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | async function login(context: BrowserContext, role: \"member\" | \"bookkeeper\" | \"chairman\") {\n  13 |   const credentials = { member: [\"maria.member@trackcoop.local\", \"MemberTest123!\"], bookkeeper: [\"bookkeeper.test@trackcoop.local\", \"BookkeeperTest123!\"], chairman: [\"chairman.test@trackcoop.local\", \"ChairmanTest123!\"] }[role];\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: credentials[0], password: credentials[1] } })).status()).toBe(200);\n     |                                                                                                                                              ^\n  15 | }\n  16 | test.beforeAll(async () => { const db = await database(); await db.end(); });\n  17 |\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:14:142)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:53:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:29.454Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-operations-P31-P3-cd973-t-and-schedule-persist-once\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-operations-P31-P3-cd973-t-and-schedule-persist-once\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                    "column": 142,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "f813c861fb056795fe57-adda75657b402b06a4a8",
+          "file": "evidence-operations.spec.ts",
+          "line": 50,
+          "column": 5
+        },
+        {
+          "title": "P30 restricted allocation and payout operations reject unauthorized roles",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 144,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:14:142)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:86:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                      "column": 142,
+                      "line": 14
+                    },
+                    "snippet": "  12 | async function login(context: BrowserContext, role: \"member\" | \"bookkeeper\" | \"chairman\") {\n  13 |   const credentials = { member: [\"maria.member@trackcoop.local\", \"MemberTest123!\"], bookkeeper: [\"bookkeeper.test@trackcoop.local\", \"BookkeeperTest123!\"], chairman: [\"chairman.test@trackcoop.local\", \"ChairmanTest123!\"] }[role];\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: credentials[0], password: credentials[1] } })).status()).toBe(200);\n     |                                                                                                                                              ^\n  15 | }\n  16 | test.beforeAll(async () => { const db = await database(); await db.end(); });\n  17 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                        "column": 142,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | async function login(context: BrowserContext, role: \"member\" | \"bookkeeper\" | \"chairman\") {\n  13 |   const credentials = { member: [\"maria.member@trackcoop.local\", \"MemberTest123!\"], bookkeeper: [\"bookkeeper.test@trackcoop.local\", \"BookkeeperTest123!\"], chairman: [\"chairman.test@trackcoop.local\", \"ChairmanTest123!\"] }[role];\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: credentials[0], password: credentials[1] } })).status()).toBe(200);\n     |                                                                                                                                              ^\n  15 | }\n  16 | test.beforeAll(async () => { const db = await database(); await db.end(); });\n  17 |\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:14:142)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:86:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:30.739Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-operations-P30-re-6b94e-s-reject-unauthorized-roles\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-operations-P30-re-6b94e-s-reject-unauthorized-roles\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                    "column": 142,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "f813c861fb056795fe57-c4d8c6fc101e4178a325",
+          "file": "evidence-operations.spec.ts",
+          "line": 83,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-payments.spec.ts",
+      "file": "evidence-payments.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P21 P22 manual proof review and duplicate validation do not duplicate postings",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 104,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:37:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                      "column": 167,
+                      "line": 14
+                    },
+                    "snippet": "  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                        "column": 167,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:37:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:32.048Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P21-P22--db655-n-do-not-duplicate-postings\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P21-P22--db655-n-do-not-duplicate-postings\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                    "column": 167,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "1c96098f5aacf7439ed5-db1711e514bfa34a8e72",
+          "file": "evidence-payments.spec.ts",
+          "line": 34,
+          "column": 5
+        },
+        {
+          "title": "P23 pending and rejected payments do not create financial receipts",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 125,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:59:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                      "column": 167,
+                      "line": 14
+                    },
+                    "snippet": "  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                        "column": 167,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:59:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:33.257Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P23-pend-021e0-t-create-financial-receipts\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P23-pend-021e0-t-create-financial-receipts\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                    "column": 167,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "1c96098f5aacf7439ed5-058ca82b91ce0f36dfce",
+          "file": "evidence-payments.spec.ts",
+          "line": 56,
+          "column": 5
+        },
+        {
+          "title": "P15 share capital accepts maximum and rejects a cent above without posting",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 14,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 110,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:71:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                      "column": 167,
+                      "line": 14
+                    },
+                    "snippet": "  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                        "column": 167,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:71:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:35.153Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P15-shar-4f65d--cent-above-without-posting\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P15-shar-4f65d--cent-above-without-posting\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                    "column": 167,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "1c96098f5aacf7439ed5-beb7a41d599a87287391",
+          "file": "evidence-payments.spec.ts",
+          "line": 68,
+          "column": 5
+        },
+        {
+          "title": "P14 membership fee and initial capital accept only the required amounts",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 15,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 109,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:88:5",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                      "column": 167,
+                      "line": 14
+                    },
+                    "snippet": "  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                        "column": 167,
+                        "line": 14
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  12 | }\n  13 | async function login(context: BrowserContext) {\n> 14 |   expect((await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"bookkeeper.test@trackcoop.local\", password: \"BookkeeperTest123!\" } })).status()).toBe(200);\n     |                                                                                                                                                                       ^\n  15 | }\n  16 | async function member(db: Connection) {\n  17 |   const code = `PAY-${randomUUID().slice(0, 8)}`;\n    at login (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:14:167)\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts:88:5"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:36.375Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P14-memb-9de84-t-only-the-required-amounts\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-payments-P14-memb-9de84-t-only-the-required-amounts\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-payments.spec.ts",
+                    "column": 167,
+                    "line": 14
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "1c96098f5aacf7439ed5-68276fca6cf9c43cd890",
+          "file": "evidence-payments.spec.ts",
+          "line": 85,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-safe.spec.ts",
+      "file": "evidence-safe.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P51 login required field is marked invalid",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1145,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:37.418Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "94ddfd3f303b8aaa5f25-3b400feb7ce728cac1c7",
+          "file": "evidence-safe.spec.ts",
+          "line": 18,
+          "column": 5
+        },
+        {
+          "title": "P52 login controls work on a narrow viewport",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1282,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:38.911Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "94ddfd3f303b8aaa5f25-eadf1509a47099a306ac",
+          "file": "evidence-safe.spec.ts",
+          "line": 25,
+          "column": 5
+        },
+        {
+          "title": "P53 login displays a simulated server error",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1620,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:40.207Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "94ddfd3f303b8aaa5f25-18b32dc6ac7530eafec2",
+          "file": "evidence-safe.spec.ts",
+          "line": 37,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "evidence-screenshots.spec.ts",
+      "file": "evidence-screenshots.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "capture chairman system views with synthetic data",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 144,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts:17:31",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                      "column": 31,
+                      "line": 17
+                    },
+                    "snippet": "  15 |   test(`capture ${role} system views with synthetic data`, async ({ context, page }) => {\n  16 |     const response = await context.request.post(\"http://127.0.0.1:3218/api/auth/login\", { data: accounts[role] });\n> 17 |     expect(response.status()).toBe(200);\n     |                               ^\n  18 |     await page.setViewportSize({ width: 1440, height: 900 });\n  19 |     for (const [label, route] of routes[role]) {\n  20 |       await page.goto(route);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                        "column": 31,
+                        "line": 17
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  15 |   test(`capture ${role} system views with synthetic data`, async ({ context, page }) => {\n  16 |     const response = await context.request.post(\"http://127.0.0.1:3218/api/auth/login\", { data: accounts[role] });\n> 17 |     expect(response.status()).toBe(200);\n     |                               ^\n  18 |     await page.setViewportSize({ width: 1440, height: 900 });\n  19 |     for (const [label, route] of routes[role]) {\n  20 |       await page.goto(route);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts:17:31"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:41.853Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-06e75-m-views-with-synthetic-data\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-06e75-m-views-with-synthetic-data\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-06e75-m-views-with-synthetic-data\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                    "column": 31,
+                    "line": 17
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b57f3f1ad6a2a1ae7cbd-ac181b4684d41f1c040c",
+          "file": "evidence-screenshots.spec.ts",
+          "line": 15,
+          "column": 7
+        },
+        {
+          "title": "capture bookkeeper system views with synthetic data",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 17,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 272,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts:17:31",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                      "column": 31,
+                      "line": 17
+                    },
+                    "snippet": "  15 |   test(`capture ${role} system views with synthetic data`, async ({ context, page }) => {\n  16 |     const response = await context.request.post(\"http://127.0.0.1:3218/api/auth/login\", { data: accounts[role] });\n> 17 |     expect(response.status()).toBe(200);\n     |                               ^\n  18 |     await page.setViewportSize({ width: 1440, height: 900 });\n  19 |     for (const [label, route] of routes[role]) {\n  20 |       await page.goto(route);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                        "column": 31,
+                        "line": 17
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  15 |   test(`capture ${role} system views with synthetic data`, async ({ context, page }) => {\n  16 |     const response = await context.request.post(\"http://127.0.0.1:3218/api/auth/login\", { data: accounts[role] });\n> 17 |     expect(response.status()).toBe(200);\n     |                               ^\n  18 |     await page.setViewportSize({ width: 1440, height: 900 });\n  19 |     for (const [label, route] of routes[role]) {\n  20 |       await page.goto(route);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts:17:31"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:42.605Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-47672-m-views-with-synthetic-data\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-47672-m-views-with-synthetic-data\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-47672-m-views-with-synthetic-data\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                    "column": 31,
+                    "line": 17
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b57f3f1ad6a2a1ae7cbd-89887d899e1a411ea084",
+          "file": "evidence-screenshots.spec.ts",
+          "line": 15,
+          "column": 7
+        },
+        {
+          "title": "capture member system views with synthetic data",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 18,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 262,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts:17:31",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                      "column": 31,
+                      "line": 17
+                    },
+                    "snippet": "  15 |   test(`capture ${role} system views with synthetic data`, async ({ context, page }) => {\n  16 |     const response = await context.request.post(\"http://127.0.0.1:3218/api/auth/login\", { data: accounts[role] });\n> 17 |     expect(response.status()).toBe(200);\n     |                               ^\n  18 |     await page.setViewportSize({ width: 1440, height: 900 });\n  19 |     for (const [label, route] of routes[role]) {\n  20 |       await page.goto(route);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                        "column": 31,
+                        "line": 17
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  15 |   test(`capture ${role} system views with synthetic data`, async ({ context, page }) => {\n  16 |     const response = await context.request.post(\"http://127.0.0.1:3218/api/auth/login\", { data: accounts[role] });\n> 17 |     expect(response.status()).toBe(200);\n     |                               ^\n  18 |     await page.setViewportSize({ width: 1440, height: 900 });\n  19 |     for (const [label, route] of routes[role]) {\n  20 |       await page.goto(route);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts:17:31"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:49:43.757Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-13c31-m-views-with-synthetic-data\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-13c31-m-views-with-synthetic-data\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-final-consolidated\\test-results\\evidence-screenshots-captu-13c31-m-views-with-synthetic-data\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-screenshots.spec.ts",
+                    "column": 31,
+                    "line": 17
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "b57f3f1ad6a2a1ae7cbd-95325875bb767228e6c2",
+          "file": "evidence-screenshots.spec.ts",
+          "line": 15,
+          "column": 7
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-07T19:48:57.707Z",
+    "duration": 46713.113999999994,
+    "expected": 32,
+    "skipped": 1,
+    "unexpected": 19,
+    "flaky": 0
+  }
+}
