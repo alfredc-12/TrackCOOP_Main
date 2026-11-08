@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    "scratch/**",
+    "evidence/playwright/database-*/**",
+    "evidence/playwright/initial/**",
     "next-env.d.ts",
   ]),
 ]);
