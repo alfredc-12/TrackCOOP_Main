@@ -1,0 +1,179 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "--grep",
+      "P52 canonical"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-resolution-member-final/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-interactions.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts",
+          "evidence-activities.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-resolution-member-final/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-resolution-member-final/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-investigation.spec.ts",
+      "file": "evidence-investigation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P52 canonical member share capital route loads and survives refresh",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 581,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts:62:26",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                      "column": 26,
+                      "line": 62
+                    },
+                    "snippet": "  60 | test(\"P52 canonical member share capital route loads and survives refresh\", async ({ browser, context, page }) => {\n  61 |   const login = await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"maria.member@trackcoop.local\", password: \"MemberTest123!\" } });\n> 62 |   expect(login.status()).toBe(200);\n     |                          ^\n  63 |   const canonical = await page.goto(\"/portal/member/share-capital\");\n  64 |   expect(canonical?.status()).toBe(200);\n  65 |   await expect(page.getByRole(\"heading\", { name: \"My Share Capital\" })).toBeVisible();"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                        "column": 26,
+                        "line": 62
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m429\u001b[39m\n\n  60 | test(\"P52 canonical member share capital route loads and survives refresh\", async ({ browser, context, page }) => {\n  61 |   const login = await context.request.post(`${api}/api/auth/login`, { data: { identifier: \"maria.member@trackcoop.local\", password: \"MemberTest123!\" } });\n> 62 |   expect(login.status()).toBe(200);\n     |                          ^\n  63 |   const canonical = await page.goto(\"/portal/member/share-capital\");\n  64 |   expect(canonical?.status()).toBe(200);\n  65 |   await expect(page.getByRole(\"heading\", { name: \"My Share Capital\" })).toBeVisible();\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts:62:26"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-08T02:29:10.648Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-resolution-member-final\\test-results\\evidence-investigation-P52-49f6d--loads-and-survives-refresh\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-resolution-member-final\\test-results\\evidence-investigation-P52-49f6d--loads-and-survives-refresh\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-resolution-member-final\\test-results\\evidence-investigation-P52-49f6d--loads-and-survives-refresh\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-investigation.spec.ts",
+                    "column": 26,
+                    "line": 62
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2f4deb426306e0097bd7-2cba39e6d8872a2658be",
+          "file": "evidence-investigation.spec.ts",
+          "line": 60,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-08T02:29:08.779Z",
+    "duration": 4098.99,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

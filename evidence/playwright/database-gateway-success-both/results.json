@@ -1,0 +1,137 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "--grep",
+      "P19"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-gateway-success-both/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-gateway-success-both/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-gateway-success-both/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-gateway.spec.ts",
+      "file": "evidence-gateway.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P19 P21 authorized Test Mode payment and replayed simulated callback",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13018,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T20:17:57.131Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ea29cf49d19e646f46f4-60c612123645c14707c9",
+          "file": "evidence-gateway.spec.ts",
+          "line": 49,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-07T20:17:55.935Z",
+    "duration": 14407.829000000002,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

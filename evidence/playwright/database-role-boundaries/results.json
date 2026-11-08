@@ -1,0 +1,172 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "--grep",
+      "P30"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-role-boundaries/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-role-boundaries/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-role-boundaries/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-operations.spec.ts",
+      "file": "evidence-operations.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P30 restricted allocation and payout operations reject unauthorized roles",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 417,
+                  "error": {
+                    "message": "Error: Table 'trackcoop_evidence_synthetic.dividend_action_history' doesn't exist",
+                    "stack": "Error: Table 'trackcoop_evidence_synthetic.dividend_action_history' doesn't exist\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:87:31",
+                    "location": {
+                      "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                      "column": 31,
+                      "line": 87
+                    },
+                    "snippet": "  85 |   try {\n  86 |     await login(member, \"member\"); await login(bookkeeper, \"bookkeeper\"); await login(chairman, \"chairman\");\n> 87 |     const [before] = await db.query<RowDataPacket[]>(\"SELECT (SELECT COUNT(*) FROM dividend_action_history) AS actions, (SELECT COUNT(*) FROM patronage_allocations) AS allocations\");\n     |                               ^\n  88 |     expect((await member.request.post(`${api}/api/dividends/declarations`, { data: {} })).status()).toBe(403);\n  89 |     expect((await bookkeeper.request.post(`${api}/api/dividends/declarations/1/approve`, { data: {} })).status()).toBe(403);\n  90 |     expect((await chairman.request.post(`${api}/api/dividends/withdrawals/1/complete`, { data: {} })).status()).toBe(403);"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                        "column": 31,
+                        "line": 87
+                      },
+                      "message": "Error: Table 'trackcoop_evidence_synthetic.dividend_action_history' doesn't exist\n\n  85 |   try {\n  86 |     await login(member, \"member\"); await login(bookkeeper, \"bookkeeper\"); await login(chairman, \"chairman\");\n> 87 |     const [before] = await db.query<RowDataPacket[]>(\"SELECT (SELECT COUNT(*) FROM dividend_action_history) AS actions, (SELECT COUNT(*) FROM patronage_allocations) AS allocations\");\n     |                               ^\n  88 |     expect((await member.request.post(`${api}/api/dividends/declarations`, { data: {} })).status()).toBe(403);\n  89 |     expect((await bookkeeper.request.post(`${api}/api/dividends/declarations/1/approve`, { data: {} })).status()).toBe(403);\n  90 |     expect((await chairman.request.post(`${api}/api/dividends/withdrawals/1/complete`, { data: {} })).status()).toBe(403);\n    at C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts:87:31"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T19:40:51.765Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-role-boundaries\\test-results\\evidence-operations-P30-re-6b94e-s-reject-unauthorized-roles\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\evidence\\playwright\\database-role-boundaries\\test-results\\evidence-operations-P30-re-6b94e-s-reject-unauthorized-roles\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\tests\\e2e\\evidence-operations.spec.ts",
+                    "column": 31,
+                    "line": 87
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "f813c861fb056795fe57-c4d8c6fc101e4178a325",
+          "file": "evidence-operations.spec.ts",
+          "line": 83,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-07T19:40:50.286Z",
+    "duration": 2763.8669999999997,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

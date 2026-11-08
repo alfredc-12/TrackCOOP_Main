@@ -1,0 +1,317 @@
+[TrackCOOP API] request rejected {"requestId":"73998a4d-e9f4-4d2f-92c5-c3f2ca27736c","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"902aa619-6edf-45f7-bccd-e17e47346d0f","method":"POST","path":"/api/auth/login","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"215730a3-524e-4cba-b7a0-620a138cb666","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"56de36c1-59f3-43d1-8c44-d66f2da44110","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"0f2a5144-d844-4078-aed8-ca9ab6c5af90","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f523b2b9-1727-433d-9687-2f2c59c139d8","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"14ffca5b-6d3f-46cd-99d8-13eaeca79cdb","method":"POST","path":"/api/financial-records","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"567ea3cc-a790-473e-96ae-8f11c5086adc","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"e156a234-9bf8-4e30-acd9-8b2ea81537cb","method":"POST","path":"/api/members","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"4d20c9e8-922f-4804-9b9a-f6e5d35f1f74","method":"GET","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f1cae338-49af-42b9-88a1-e9a9a3c089c8","method":"PATCH","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"9d9a0aec-c77d-4edb-9540-ca920f4dda91","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"78241cf8-5f02-4fb7-929e-dff31630cbca","method":"GET","path":"/api/members/summary","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"6512f738-c9a4-4034-b3ee-e6bb40cfafaf","method":"POST","path":"/api/membership-applications/public","statusCode":400,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"cd35b8ec-e463-461b-b17a-3dd8e076813b","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"e039772c-4967-483c-8f11-024a225f60eb","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"a8827849-8fc3-4dc2-ac81-987324eb33fb","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"38e9ce9f-572a-47dd-8019-6a22e6beab10","method":"POST","path":"/api/auth/login","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"364c19eb-6791-4de7-a1fd-fcd66f17974c","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"1bc3294d-bb60-4ce3-83e5-68ba893d9404","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"5c580ef9-d2a0-4aa0-9b4d-659ca8bb641e","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"39ec8f5e-9e38-4b25-9a2c-560851636caf","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c364a6da-ee6e-4440-a1a2-d2f67ab721b1","method":"POST","path":"/api/financial-records","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ffd1f1eb-fe97-4ed1-927d-ea1a84363b88","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"b4c0554e-dc5e-444d-a02a-6d3c8d80f1be","method":"POST","path":"/api/members","statusCode":403,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+[TrackCOOP API] request rejected {"requestId":"b528b3e6-4dc1-41b1-8e4a-595bee17693a","method":"GET","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"59e3b281-2e30-4deb-8255-4525469e0314","method":"PATCH","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"6d4ffb6f-c1c7-409a-9f06-bc714a0b26cc","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ab6b29ac-85ca-4890-9043-564502713a16","method":"GET","path":"/api/members/summary","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"b139b7b5-128a-468b-8fa1-b637de2acc37","method":"POST","path":"/api/membership-applications/public","statusCode":400,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"de47583d-5f5a-43a2-8137-f9caabb07212","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f3a972df-e758-4cc8-a847-1de1bcb4a789","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"6d64f1f2-c9c9-4254-9778-4b4ac57625b5","method":"PATCH","path":"/api/financial-categories/31","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"060a0f8c-24b8-420f-9bcd-87624c31e2c4","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"dbfa0b9e-cebc-490d-95d4-f599c0be2f45","method":"POST","path":"/api/auth/login","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f85a0e96-c58f-48cc-af70-47e57ea2ac6d","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ab8f7246-7070-420e-b73d-4a94bec97bc6","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"e074b1c6-6daf-40ec-bed8-3923f03ac691","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c18efbc8-e162-45d5-9521-d5931a5162b3","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"46efcd69-6e02-43c3-88d1-5887ab12a586","method":"POST","path":"/api/financial-records","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"4f7acfd8-1960-48d1-9fe4-663a011b2604","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c0f070ae-c16f-40dc-a858-b6ed97de08fa","method":"POST","path":"/api/members","statusCode":403,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+[TrackCOOP API] request rejected {"requestId":"e8986f45-e81c-4336-bae2-94a46c6c1fa6","method":"GET","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f8de26e0-2864-4211-991e-4ad03b98eb51","method":"PATCH","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"0b9e8ca9-684b-4e98-a04d-adf6e7fcd503","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f5ee5ab7-4ae2-4aa0-874c-85fc65ad42ca","method":"GET","path":"/api/members/summary","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"10c0b33f-3230-443f-b152-6eb7d211293d","method":"POST","path":"/api/membership-applications/public","statusCode":400,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"8ea46464-27a1-4513-b130-f7515b3422af","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"bca57817-1d1c-49fd-9ebd-0d752cc7318d","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c734c8d0-3f70-45c1-9157-76558804ad99","method":"GET","path":"/api/chairman/financial-analytics","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"7a9daf4e-4018-4d88-b405-462ef73c3cd4","method":"GET","path":"/api/chairman/member-analytics","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"4a10ad95-0272-4914-8c34-efcfef5985b0","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"18da1676-a5f5-41f5-84fc-f2a08a68bf2a","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"bd6846d9-66f1-4488-80f6-3f74a2d8bde1","method":"PATCH","path":"/api/financial-categories/32","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] [fa9cb80d-2ca1-4329-aef9-4c844e600373] Internal server error {"requestId":"fa9cb80d-2ca1-4329-aef9-4c844e600373","method":"PATCH","path":"/api/financial-categories/32","statusCode":500,"errorName":"Error","errorMessage":"Duplicate entry 'Synthetic updated category-Expense' for key 'financial_categories.uq_financial_category_name_type'","errorCode":"ER_DUP_ENTRY","databaseErrno":1062,"databaseState":"23000","databaseMessage":"Duplicate entry 'Synthetic updated category-Expense' for key 'financial_categories.uq_financial_category_name_type'","stack":"Error: Duplicate entry 'Synthetic updated category-Expense' for key 'financial_categories.uq_financial_category_name_type'\n    at <anonymous> (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\server\\src\\modules\\finance\\finance.repository.ts:375:26)\n    at withTransaction (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\server\\src\\db\\transaction.ts:12:26)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async <anonymous> (C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\server\\src\\modules\\finance\\finance.controller.ts:67:9)"}
+[TrackCOOP API] request rejected {"requestId":"839aab93-ef35-4aaf-bb21-3b3dc695d2a0","method":"GET","path":"/uploads/inventory/rice-seeds.jpg","statusCode":404,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"e6ff23a6-19ed-47a6-ba8b-d8d5a0ec4524","method":"GET","path":"/uploads/inventory/fish-feed.jpg","statusCode":404,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c2fb2476-b4b7-412f-9361-408f170eea3b","method":"GET","path":"/uploads/inventory/urea.jpg","statusCode":404,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+[TrackCOOP API] request rejected {"requestId":"e7467eeb-c5d6-4647-8d51-2eafb3ed7dac","method":"PATCH","path":"/api/financial-categories/33","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"9e8b3fa8-9c19-4922-84a2-5ea51d15d39e","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"b26728b1-a01c-436d-8ed4-d1ef401eff47","method":"POST","path":"/api/auth/login","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"457a873e-e4e5-4936-b102-73a3e8e437b1","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"6ce1b363-e6be-449a-9a5d-c20cdc76494e","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"1ad03858-9148-480a-a8dc-ea6dc1db0f0c","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c8de6612-d91e-4c12-92da-ba7822eb7a3c","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"7036de77-ff59-4147-a3b2-7e0c02aeb6fa","method":"POST","path":"/api/financial-records","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"d1835e65-7316-4b49-8fbc-bafa5d7e307d","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"840d7c48-d31f-45b1-9b35-71ed22d6f5cf","method":"POST","path":"/api/members","statusCode":403,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+[TrackCOOP API] request rejected {"requestId":"e8b07833-7a52-4692-a449-d24aecc98c58","method":"GET","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"8979b1ce-53e8-4498-951c-8dec19aef0ba","method":"PATCH","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"cd29a4ac-7d10-4fb4-92ae-02ab142f6e4f","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"06f53514-47f6-4b1b-a7a1-32bd6b2db267","method":"GET","path":"/api/members/summary","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"6f49ecc8-31b2-40f1-9224-82a87d5bdb9f","method":"POST","path":"/api/membership-applications/public","statusCode":400,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"1d3ebd9b-8a91-45fc-8134-cb7a644b77cf","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"1ce6666f-aa26-464c-bb2b-9c689dc62e3f","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ed75faa0-ca3a-4b15-bfa7-10a9789b6dad","method":"GET","path":"/api/chairman/financial-analytics","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"fdfb2a27-0525-4869-a547-d2ca99e17afc","method":"GET","path":"/api/chairman/member-analytics","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"3026f13d-b063-437d-b80e-5a06cf4e301f","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f7d6e10c-e797-463f-a74a-ba975e83aeed","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"cf52975f-4092-407b-bad4-0c66d4fffbab","method":"PATCH","path":"/api/financial-categories/34","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"027b4ac6-71f7-40cf-a768-b1b8bfe9b977","method":"GET","path":"/uploads/inventory/rice-seeds.jpg","statusCode":404,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ab48a2f2-9281-4b23-9ae3-1c8e0e274fae","method":"GET","path":"/uploads/inventory/fish-feed.jpg","statusCode":404,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"d876cc9c-d8a4-440f-a6a8-c243fdefd996","method":"GET","path":"/uploads/inventory/urea.jpg","statusCode":404,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+[TrackCOOP API] request rejected {"requestId":"f0f45654-fe8b-4b7e-b851-34522a4ed581","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"83440a7c-c811-401a-9fcf-497a769b64ad","method":"POST","path":"/api/auth/login","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ec58d16a-c69d-4210-af8f-ea176d6f66a8","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"d968d925-ed8e-4aea-bdbf-79be16f02003","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"8e106d8e-d604-4cb9-a054-c87f1dcb601d","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"186750a6-79bb-4187-b4b7-1948c8641510","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"1fdf262b-8567-4769-85b9-70129c55d15b","method":"POST","path":"/api/financial-records","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"642c66dc-49e6-403c-ac30-53b3b0e8e029","method":"GET","path":"/api/members/summary","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"60fbf147-5416-4fec-bdff-c2c2ff9f0171","method":"POST","path":"/api/members","statusCode":403,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}
+[TrackCOOP API] request rejected {"requestId":"6ae8402a-19d3-4d91-9f4d-9412a1de23e1","method":"GET","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"c68eb8f9-8114-4823-ba85-d74f7e227acd","method":"PATCH","path":"/api/members/2","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"70302196-db52-4642-9b2f-3198a60d7e47","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"0fe04e21-658a-4578-b2cd-849ab741dfb1","method":"GET","path":"/api/members/summary","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"f095afc4-eac5-4de9-8a4d-314fa69e4dd0","method":"POST","path":"/api/membership-applications/public","statusCode":400,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"8bfeace2-9036-4276-bdb9-8b3f7aadc19f","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"1038af20-ec5c-4e96-9bfc-2320ebadc78f","method":"POST","path":"/api/membership-applications/1/approve","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"eb9698db-de38-45e6-a892-4d60fa1ce1d5","method":"GET","path":"/api/chairman/financial-analytics","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ad8ac373-06de-4024-8a21-a57cd16ab0da","method":"GET","path":"/api/chairman/member-analytics","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"7e8bbd85-5862-4059-867a-2afc1821720b","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"5df2b891-10a8-4a11-9960-a0b9962bc0e9","method":"GET","path":"/api/auth/me","statusCode":401,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"25bc399d-4655-4e4a-b514-a89abfd8c8bf","method":"PATCH","path":"/api/financial-categories/35","statusCode":403,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"ddd1e9e2-73b5-470e-ac24-ee0789faf29f","method":"GET","path":"/uploads/inventory/rice-seeds.jpg","statusCode":404,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"2a9a2c74-96dc-49e8-87d7-1551418e0d0f","method":"GET","path":"/uploads/inventory/fish-feed.jpg","statusCode":404,"errorName":"AppError"}
+[TrackCOOP API] request rejected {"requestId":"74e0d958-e4fe-401b-bb61-dd83f693502c","method":"GET","path":"/uploads/inventory/urea.jpg","statusCode":404,"errorName":"AppError"}
+Failed to fetch dashboard data Error: Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist
+    at Object.dashboard (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.repository.ts:430:66)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async <anonymous> (C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\server\src\modules\member-self\member-self.controller.ts:24:30) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sqlState: '42S02',
+  sqlMessage: "Table 'trackcoop_evidence_synthetic.member_dividends' doesn't exist",
+  sql: "SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,\n" +
+    '               COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,\n' +
+    '               dividend.dividend_amount AS amount,\n' +
+    '               dividend.dividend_status AS status,\n' +
+    "               'Dividend Added to Share Capital' AS type\n" +
+    '          FROM member_dividends dividend\n' +
+    '         WHERE dividend.member_id = ?\n' +
+    "           AND dividend.dividend_status = 'Added to Share Capital'\n" +
+    '           AND dividend.share_capital_transaction_id IS NULL\n' +
+    '          ORDER BY COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) DESC,\n' +
+    '                   dividend.member_dividend_id DESC\n' +
+    '          LIMIT 5'
+}

@@ -1,0 +1,146 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "playwright.database-evidence.config.ts",
+      "evidence-gateway.spec.ts"
+    ],
+    "configFile": "C:\\Users\\Alfred\\OneDrive\\Desktop\\Projects\\TrackCOOP_Main\\playwright.database-evidence.config.ts",
+    "rootDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/evidence/playwright/database-gateway-popup-retest/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/Alfred/OneDrive/Desktop/Projects/TrackCOOP_Main/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "evidence-database.spec.ts",
+          "evidence-investigation.spec.ts",
+          "evidence-payments.spec.ts",
+          "evidence-gateway.spec.ts",
+          "evidence-operations.spec.ts",
+          "evidence-analytics.spec.ts",
+          "evidence-safe.spec.ts",
+          "evidence-screenshots.spec.ts"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "evidence/playwright/database-gateway-popup-retest/html-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "evidence/playwright/database-gateway-popup-retest/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "evidence-gateway.spec.ts",
+      "file": "evidence-gateway.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "P20 PayMongo Test Mode pending checkout makes no financial postings",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5048,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "Synthetic hosted-checkout controls {\"headings\":[\"Associate Membership Fee\",\"Payment Method\"],\"buttons\":[\"Scancode to pay\",\"Continue\"],\"radios\":0}\n"
+                    },
+                    {
+                      "text": "Synthetic QR test controls {\"headings\":[\"Associate Membership Fee\"],\"buttons\":[\"See all supported banks and e-wallets\",\"Download QR Code\",\"Use a different payment method\"],\"links\":[\"\",\" Simulate Payment\",\"Privacy Policy\"]}\n"
+                    },
+                    {
+                      "text": "Synthetic simulation page {\"headings\":[],\"buttons\":[],\"links\":[]}\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-07T20:13:12.686Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ea29cf49d19e646f46f4-3db12685d7d04100f067",
+          "file": "evidence-gateway.spec.ts",
+          "line": 9,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-07T20:13:11.730Z",
+    "duration": 6603.736000000001,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
