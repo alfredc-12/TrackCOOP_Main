@@ -282,7 +282,7 @@ test("createMembershipApplicationCheckout rejects an already-paid membership fee
   );
 });
 
-test("createMembershipApplicationCheckout rejects membership fee for True Member applicants", async () => {
+test("createMembershipApplicationCheckout rejects a fee for legacy True Member applications without a fee obligation", async () => {
   const { service } = makeMembershipService({
     applicationRecord: {
       ...application,
@@ -299,6 +299,16 @@ test("createMembershipApplicationCheckout rejects membership fee for True Member
       error instanceof AppError
       && error.code === "MEMBERSHIP_FEE_NOT_REQUIRED_FOR_TRUE_MEMBER",
   );
+});
+
+test("a True Member application with a recorded fee snapshot can request that fee in Test Mode", async () => {
+  const { service, checkoutCalls } = makeMembershipService({
+    applicationRecord: { ...application, requestedMembershipType: "True Member", membershipFeeAmount: 200 },
+  });
+  const result = await service.createMembershipApplicationCheckout(application.applicationCode, dateOfBirth, { paymentPurpose: "Associate Membership Fee" });
+  assert.equal(result.amount, 200);
+  assert.equal(result.mode, "test");
+  assert.equal(checkoutCalls.length, 1);
 });
 
 test("createMembershipApplicationCheckout supports True Member share capital", async () => {

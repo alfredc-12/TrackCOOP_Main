@@ -67,7 +67,7 @@ function SidebarContent({
         <span className={styles.brandText}>
           <span className={styles.brandName}>TrackCOOP</span>
           <span className={styles.role}>
-            {role === "chairman" ? "Chairman Portal" : "Bookkeeper Portal"}
+            {role === "chairman" ? "Chairman Portal" : role === "bookkeeper" ? "Bookkeeper Portal" : "Member Portal"}
           </span>
         </span>
       </Link>

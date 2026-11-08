@@ -1,14 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as Select from "@radix-ui/react-select";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
-  Check,
   CalendarDays,
-  ChevronDown,
   HandCoins,
   History,
   LineChart as LineChartIcon,
@@ -26,6 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import { PageHeader } from "@/components/portal/PageHeader";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import {
   CurrencyDisplay,
   DataTable,
@@ -261,7 +259,7 @@ export function MemberShareCapitalDashboard() {
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
             <StatCard label="Initial capital" value={currency(overview.summary.initialCapital)} icon={Banknote} />
             <StatCard label="Additional contributions" value={currency(overview.summary.additionalContributions)} icon={ArrowUpRight} />
             <StatCard label="Dividends added" value={currency(overview.summary.dividendsAdded)} icon={HandCoins} />
@@ -380,39 +378,35 @@ export function MemberShareCapitalDashboard() {
               </label>
               <label className="text-xs font-bold uppercase tracking-wide text-[#5D6D63]">
                 Direction
-                <select
-                  value={transactionFilters.direction ?? ""}
-                  onChange={(event) => {
+                <StyledSelect
+                  aria-label="Direction"
+                  value={transactionFilters.direction === "Credit" ? "Credits" : transactionFilters.direction === "Debit" ? "Deductions" : "All"}
+                  options={["All", "Credits", "Deductions"]}
+                  onChange={(value) => {
                     setTransactionFilters((current) => ({
                       ...current,
-                      direction: (event.target.value || undefined) as MemberCapitalTransactionFilters["direction"],
+                      direction: value === "Credits" ? "Credit" : value === "Deductions" ? "Debit" : undefined,
                     }));
                     setPage(1);
                   }}
-                  className="mt-1 h-10 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#294B39]"
-                >
-                  <option value="">All</option>
-                  <option value="Credit">Credits</option>
-                  <option value="Debit">Deductions</option>
-                </select>
+                  className="mt-1"
+                />
               </label>
               <label className="text-xs font-bold uppercase tracking-wide text-[#5D6D63]">
                 Status
-                <select
-                  value={transactionFilters.status ?? ""}
-                  onChange={(event) => {
+                <StyledSelect
+                  aria-label="Status"
+                  value={transactionFilters.status ?? "All"}
+                  options={["All", "Posted", "Reversed"]}
+                  onChange={(value) => {
                     setTransactionFilters((current) => ({
                       ...current,
-                      status: (event.target.value || undefined) as MemberCapitalTransactionFilters["status"],
+                      status: value === "All" ? undefined : value as MemberCapitalTransactionFilters["status"],
                     }));
                     setPage(1);
                   }}
-                  className="mt-1 h-10 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm font-normal text-[#294B39]"
-                >
-                  <option value="">All</option>
-                  <option value="Posted">Posted</option>
-                  <option value="Reversed">Reversed</option>
-                </select>
+                  className="mt-1"
+                />
               </label>
               <button
                 type="button"
@@ -509,24 +503,7 @@ export function MemberShareCapitalDashboard() {
                   <div className="space-y-3 rounded-lg border border-[#DDE8D8] bg-[#F7FAF5] p-3">
                     <label className="block text-sm font-bold text-[#294B39]">
                       Provider
-                      <Select.Root value={withdrawalProvider || undefined} onValueChange={setWithdrawalProvider}>
-                        <Select.Trigger aria-label="Provider" className="mt-1 flex h-10 w-full items-center justify-between rounded-md border border-[#CAD8CB] bg-white px-3 text-left font-normal text-[#123D2A] outline-none transition hover:border-[#9FB7A4] focus:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20 data-[placeholder]:text-[#6C7A70]">
-                          <Select.Value placeholder="Select provider" />
-                          <Select.Icon><ChevronDown className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.Icon>
-                        </Select.Trigger>
-                        <Select.Portal>
-                          <Select.Content position="popper" sideOffset={6} className="z-[120] max-h-64 w-[var(--radix-select-trigger-width)] overflow-y-auto rounded-lg border border-[#CAD8CB] bg-white p-1.5 shadow-[0_18px_40px_rgba(18,61,42,0.18)]">
-                            <Select.Viewport>
-                              {["GCash", "Maya", "Bank Transfer"].map((provider) => (
-                                <Select.Item key={provider} value={provider} className="relative flex cursor-pointer select-none items-center rounded-md px-3 py-2.5 pr-9 text-sm font-semibold text-[#365F4A] outline-none data-[highlighted]:bg-[#EAF3E8] data-[highlighted]:text-[#123D2A]">
-                                  <Select.ItemText>{provider}</Select.ItemText>
-                                  <Select.ItemIndicator className="absolute right-3"><Check className="size-4 text-[#1F6B43]" aria-hidden="true" /></Select.ItemIndicator>
-                                </Select.Item>
-                              ))}
-                            </Select.Viewport>
-                          </Select.Content>
-                        </Select.Portal>
-                      </Select.Root>
+                      <StyledSelect aria-label="Provider" className="mt-1" value={withdrawalProvider || "Select provider"} options={["Select provider", "GCash", "Maya", "Bank Transfer"]} onChange={value => setWithdrawalProvider(value === "Select provider" ? "" : value)} />
                     </label>
                     <label className="block text-sm font-bold text-[#294B39]">
                       Account name

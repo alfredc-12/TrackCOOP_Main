@@ -1,4 +1,5 @@
 import { createFinanceExceptionRouter } from "./modules/finance-exceptions/finance-exception.routes";
+import { createActivityRouter } from "./modules/activities/activity.routes";
 import { createControlledPostingRouter } from "./modules/finance/controlled-posting.routes";
 import { createFinancialPolicyRouter } from "./modules/financial-policy/financial-policy.routes";
 import { createMembershipProgressRouter } from "./modules/membership-policy/membership-progress.routes";
@@ -178,6 +179,7 @@ export function createApp(options: CreateAppOptions = {}) {
     ),
   );
   app.use("/api", createMemberIndicatorRouter(options.authService));
+  app.use("/api", createActivityRouter(options.authService));
   app.use("/api", createMembershipUpgradeRouter(options.authService));
   app.use("/api", createMembershipProgressRouter(options.authService));
   app.use("/api", createMemberSelfRouter(options.authService));

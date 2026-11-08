@@ -167,6 +167,12 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
       title: "Communication",
       items: [
         {
+          label: "Events and Attendance",
+          href: "/portal/chairman/activities",
+          icon: CalendarCheck2,
+          summary: "Schedule cooperative events and record attendance.",
+        },
+        {
           label: "Announcements",
           href: "/portal/chairman/announcements",
           icon: Megaphone,

@@ -84,7 +84,7 @@ function internalPath(pathname: string) {
   }
 
   if (pathname === "/portal/member/patronage" || pathname === "/portal/member/share-capital") {
-    return pathname;
+    return pathname.replace("/portal/member", "/member");
   }
   if (pathname.startsWith("/portal/member")) {
     return "/member_dashboard";

@@ -432,23 +432,28 @@ export function createPaymentReferenceRepository(
     async create(input, auth) {
       return withTransaction(async (connection) => {
         if (input.relatedEntityType === "membership_application" && input.relatedEntityId) {
-          const [applications] = await connection.execute<(RowDataPacket & { requestedMembershipType: string })[]>(
-            `SELECT requested_membership_type AS requestedMembershipType
+          const [applications] = await connection.execute<(RowDataPacket & { requestedMembershipType: string; membershipFeeAmount: string | number | null; initialShareCapitalAmount: string | number | null })[]>(
+            `SELECT requested_membership_type AS requestedMembershipType,
+                    membership_fee_amount AS membershipFeeAmount,
+                    initial_share_capital_amount AS initialShareCapitalAmount
                FROM membership_applications
-              WHERE membership_application_id = ? LIMIT 1`,
+              WHERE membership_application_id = ? LIMIT 1 FOR UPDATE`,
             [input.relatedEntityId],
           );
-          const requestedType = applications[0]?.requestedMembershipType;
+          const application = applications[0];
+          const requestedType = application?.requestedMembershipType;
           if (!requestedType) {
             throw new AppError("Membership application was not found", 404, "MEMBERSHIP_APPLICATION_NOT_FOUND");
           }
-          if (
-            (requestedType === "True Member" && input.paymentPurpose !== "Share Capital")
-            || (requestedType === "Associate" && input.paymentPurpose !== "Associate Membership Fee")
-          ) {
+          const feeAmount = application.membershipFeeAmount == null
+            ? (requestedType === "Associate" ? 200 : 0)
+            : Number(application.membershipFeeAmount);
+          const isFee = input.paymentPurpose === "Associate Membership Fee" && feeAmount > 0;
+          const isCapital = input.paymentPurpose === "Share Capital" && requestedType === "True Member";
+          if (!isFee && !isCapital) {
             throw new AppError("Payment does not match the requested membership type", 409, "MEMBERSHIP_PAYMENT_PURPOSE_MISMATCH");
           }
-          const expectedAmount = requestedType === "True Member" ? 1500 : 200;
+          const expectedAmount = isFee ? feeAmount : Number(application.initialShareCapitalAmount ?? 1500);
           if (Number(input.amount) !== expectedAmount) {
             throw new AppError(
               `Membership payment must be PHP ${expectedAmount.toLocaleString("en-US")}`,

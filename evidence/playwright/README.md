@@ -1,0 +1,13 @@
+# Playwright evidence limitations
+
+**Current results:** See [coverage-ledger.json](coverage-ledger.json) for all 54 case dispositions and [database-resolution-final/html-report/index.html](database-resolution-final/html-report/index.html) for the latest consolidated Playwright report. The corrective run has 61 test passes, no failures and three deliberately skipped external PayMongo tests; prior Test Mode evidence is retained. The sections below describe an earlier interrupted run. See [ENVIRONMENT.md](ENVIRONMENT.md) for the isolated database runs and completed HTML/JSON reports.
+
+Revision: d9a7240d6f720636602df9418d722d9bff460d2b, branch feature/section3-financial-evidence-1e. The pre-existing untracked src/lib/desktop.ini was left intact.
+
+Run the safe frontend-only checks from the repository root with `npx.cmd playwright test --config playwright.evidence.config.ts`. The configuration starts a Next development server on 127.0.0.1:3217 and points its API URL to 127.0.0.1:3218. The test intercepts browser API and external requests. No backend, database, payment, email, or real account is exercised. Do not mistake these checks for the complete P01–P54 workflows.
+
+On 2026-11-08 approximately 02:09–02:12 Asia/Manila, the initial run reported P51 and P52 passing and P53 failing because `getByRole('alert')` matched the form alert and Next route announcer. The failure snapshot shows the expected synthetic error in the form. The process stalled during shutdown and was interrupted; no HTML or JSON report was emitted. Original output, screenshots, failure context, and trace are retained under `initial/`. The locator was then scoped to the form region. A separate P53 retest reported one pass and produced P53-login-error.png, but also stalled during shutdown and was interrupted before HTML or JSON output. No complete formal report or machine-readable summary was produced. The displayed test results should be treated as provisional because the runner did not exit normally.
+
+A further full retest after switching the web server command to invoke Next directly reported three passes in `retest.log`, but also stalled at shutdown and was interrupted. The P51 title was subsequently corrected to describe the actual assertion; no behavior changed.
+
+The three checks cover only selected login validation, responsive controls, and simulated error feedback. All 54 full proposed scenarios remain blocked or unverified; especially, there is no verified isolated database, synthetic accounts, safe notification sink, or PayMongo Test Mode configuration. No application defect is established by the locator failure. The Next development server emitted a warning about a fill image with a sticky parent; visual impact has not been established.

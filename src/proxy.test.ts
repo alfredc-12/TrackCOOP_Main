@@ -6,8 +6,8 @@ import { proxy } from "./proxy";
 test("member detail links resolve their own pages while the member dashboard keeps its custom layout", async (context) => {
   context.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ success: true, data: { role: "member" } }), { headers: { "content-type": "application/json" } }));
   for (const [path, expected] of [
-    ["/portal/member/patronage", "/portal/member/patronage"],
-    ["/portal/member/share-capital", "/portal/member/share-capital"],
+    ["/portal/member/patronage", "/member/patronage"],
+    ["/portal/member/share-capital", "/member/share-capital"],
     ["/portal/member/dashboard", "/member_dashboard"],
   ]) {
     const request = new NextRequest(`https://trackcoop.test${path}`, { headers: { cookie: `${process.env.SESSION_COOKIE_NAME ?? "trackcoop_session"}=test-session` } });

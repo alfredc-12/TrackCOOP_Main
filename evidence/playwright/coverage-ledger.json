@@ -1,0 +1,380 @@
+[
+  {
+    "id": "P01",
+    "scenario": "Chairman successfully logs in and accesses authorized functions.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P02",
+    "scenario": "Bookkeeper successfully logs in and accesses authorized functions.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P03",
+    "scenario": "Member successfully logs in and accesses permitted personal information.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P04",
+    "scenario": "Invalid credentials are rejected with appropriate feedback.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P05",
+    "scenario": "Logout terminates authenticated access and prevents unauthorized session reuse.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P06",
+    "scenario": "Unauthorized roles cannot access restricted pages or execute prohibited backend operations.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json; member and bookkeeper backend denials plus restricted-page redirects.",
+    "evidence": "database-consolidated/results.json; member and bookkeeper backend denials plus restricted-page redirects."
+  },
+  {
+    "id": "P07",
+    "scenario": "Members cannot retrieve, modify, or view another member's private records.",
+    "status": "Passed",
+    "actual": "database-member-privacy/results.json; protected document ownership and member/share-capital backend denials.",
+    "evidence": "database-member-privacy/results.json; protected document ownership and member/share-capital backend denials."
+  },
+  {
+    "id": "P08",
+    "scenario": "Public visitors can access permitted public pages and inquiries without gaining private access.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P09",
+    "scenario": "Valid membership application is submitted and recorded correctly.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P10",
+    "scenario": "Invalid or incomplete membership application is rejected.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P11",
+    "scenario": "Authorized approval correctly updates the application and associated membership records.",
+    "status": "Passed",
+    "actual": "database-resolution-payment-final/results.json; chairman reviewed a synthetic signed application, verified fee and initial capital, and approved without waivers.",
+    "evidence": "database-resolution-payment-final/results.json; chairman reviewed a synthetic signed application, verified fee and initial capital, and approved without waivers."
+  },
+  {
+    "id": "P12",
+    "scenario": "Unauthorized approval attempts are rejected.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P13",
+    "scenario": "Associate and true member classification follows the implemented NFFAC rules.",
+    "status": "Passed",
+    "actual": "database-classification-approval/results.json; prepared True applications at 1499.99, 1500, 2999.99 and 3000; fee and signature waived.",
+    "evidence": "database-classification-approval/results.json; prepared True applications at 1499.99, 1500, 2999.99 and 3000; fee and signature waived."
+  },
+  {
+    "id": "P14",
+    "scenario": "The ₱200 associate fee, ₱1,500 initial share capital payment, and ₱3,000 true-member share capital requirement are handled correctly.",
+    "status": "Passed",
+    "actual": "database-resolution-payment-final/results.json; original 409 preserved in database-membership-amounts; signed application reviewed, fee and capital validated, duplicate and invalid reference rejected, and approval completed.",
+    "evidence": "database-resolution-payment-final/results.json; original 409 preserved in database-membership-amounts; signed application reviewed, fee and capital validated, duplicate and invalid reference rejected, and approval completed."
+  },
+  {
+    "id": "P15",
+    "scenario": "The ₱15,000 maximum share capital contribution is enforced without overposting.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json; validated 14999.99 + 0.01, rejected further 0.01.",
+    "evidence": "database-consolidated/results.json; validated 14999.99 + 0.01, rejected further 0.01."
+  },
+  {
+    "id": "P16",
+    "scenario": "Contribution history, payment progress, status, and applicable six-month completion rule are correctly represented and enforced where specified.",
+    "status": "Passed",
+    "actual": "database-capital-overdue/results.json and database-investigation/results.json; pending/validated installments, six-month new case, overdue status and completion; second reference and adjusted dates were synthetic fixtures.",
+    "evidence": "database-capital-overdue/results.json and database-investigation/results.json; pending/validated installments, six-month new case, overdue status and completion; second reference and adjusted dates were synthetic fixtures."
+  },
+  {
+    "id": "P17",
+    "scenario": "Members belonging to multiple agricultural sectors are not double-counted in unique membership totals.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P18",
+    "scenario": "Referrals are associated with the correct applicants and remain distinct from approved member counts.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P19",
+    "scenario": "Successful PayMongo Test Mode membership-related payments link to the correct payment and contribution records.",
+    "status": "Passed",
+    "actual": "database-gateway-success-both/results.json; prior baseline Test Mode authorization with local signed callback. External gateway checks intentionally not repeated during corrections; local checkout unit test covers the fee snapshot.",
+    "evidence": "database-gateway-success-both/results.json; prior baseline Test Mode authorization with local signed callback. External gateway checks intentionally not repeated during corrections; local checkout unit test covers the fee snapshot."
+  },
+  {
+    "id": "P20",
+    "scenario": "Pending, failed, canceled, or unsuccessful payments do not produce successful financial outcomes.",
+    "status": "Passed",
+    "actual": "database-paymongo-retest/results.json and database-gateway-unsuccessful-resume/results.json; prior baseline pending, failed, expired and canceled Test Mode paths. External checks intentionally not repeated during corrections.",
+    "evidence": "database-paymongo-retest/results.json and database-gateway-unsuccessful-resume/results.json; prior baseline pending, failed, expired and canceled Test Mode paths. External checks intentionally not repeated during corrections."
+  },
+  {
+    "id": "P21",
+    "scenario": "Duplicate payment notifications or processing attempts do not create duplicate contribution or financial postings.",
+    "status": "Passed",
+    "actual": "database-gateway-success-both/results.json; prior baseline duplicate locally signed callback; current manual validation replay passed in database-resolution-final/results.json.",
+    "evidence": "database-gateway-success-both/results.json; prior baseline duplicate locally signed callback; current manual validation replay passed in database-resolution-final/results.json."
+  },
+  {
+    "id": "P22",
+    "scenario": "Bookkeeper can validate eligible manually reviewed payment references and supporting proofs.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P23",
+    "scenario": "Unvalidated or rejected payment records do not become validated financial receipts.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P24",
+    "scenario": "Operating income and operating expense records are saved and classified accurately.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P25",
+    "scenario": "Share capital and capital/fund movements are not incorrectly classified as operating income.",
+    "status": "Passed",
+    "actual": "database-funds-retest/results.json; share capital, internal transfers and capital expenditure excluded from operating totals.",
+    "evidence": "database-funds-retest/results.json; share capital, internal transfers and capital expenditure excluded from operating totals."
+  },
+  {
+    "id": "P26",
+    "scenario": "Net Surplus equals approved operating income minus approved operating expenses, excluding share capital and separately designated funds.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P27",
+    "scenario": "Financial categories, category changes, and editing permissions operate according to configured authorization rules.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P28",
+    "scenario": "Financial Analytics Dashboard totals agree with their underlying records and applied filters.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json; 5000 income, 1700 expense, 3300 net.",
+    "evidence": "database-consolidated/results.json; 5000 income, 1700 expense, 3300 net."
+  },
+  {
+    "id": "P29",
+    "scenario": "Exported Excel financial transaction records correctly reflect applicable filters, dates, classifications, amounts, and source rows.",
+    "status": "Passed",
+    "actual": "database-financial-export-full/results.json; filtered Excel financial activity includes income and expense rows and excludes out-of-range records.",
+    "evidence": "database-financial-export-full/results.json; filtered Excel financial activity includes income and expense rows and excludes out-of-range records."
+  },
+  {
+    "id": "P30",
+    "scenario": "Approved benefit-allocation records, withdrawal requests, and CBU-related workflows respect implemented permissions and rules without initiating unauthorized payouts.",
+    "status": "Passed",
+    "actual": "database-benefits-retest/results.json; synthetic approved dividend, cash withdrawal record and patronage-capital transfer; no real payout.",
+    "evidence": "database-benefits-retest/results.json; synthetic approved dividend, cash withdrawal record and patronage-capital transfer; no real payout."
+  },
+  {
+    "id": "P31",
+    "scenario": "Rental inquiries and schedules are recorded correctly.",
+    "status": "Passed",
+    "actual": "database-rental-unique/results.json; duplicate request and confirmed schedule.",
+    "evidence": "database-rental-unique/results.json; duplicate request and confirmed schedule."
+  },
+  {
+    "id": "P32",
+    "scenario": "Rental status changes and applicable recorded rental terms behave correctly.",
+    "status": "Passed",
+    "actual": "database-rental-unique/results.json; synthetic fixed-rate terms.",
+    "evidence": "database-rental-unique/results.json; synthetic fixed-rate terms."
+  },
+  {
+    "id": "P33",
+    "scenario": "POS or product-sales records contain correct items, quantities, prices, totals, and relevant statuses.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json; 3 x 75.50 = 226.50.",
+    "evidence": "database-consolidated/results.json; 3 x 75.50 = 226.50."
+  },
+  {
+    "id": "P34",
+    "scenario": "Advance pickup orders follow the implemented order, payment-status, and pickup workflow.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json; member cash order through payment confirmation and pickup release; no pickup-date feature was found.",
+    "evidence": "database-consolidated/results.json; member cash order through payment confirmation and pickup release; no pickup-date feature was found."
+  },
+  {
+    "id": "P35",
+    "scenario": "Eligible rental and product-sales transactions are reflected correctly in financial records without unintended duplicate posting.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json and database-rental-replay/results.json; one posting per sale and rental after duplicate validation.",
+    "evidence": "database-consolidated/results.json and database-rental-replay/results.json; one posting per sale and rental after duplicate validation."
+  },
+  {
+    "id": "P36",
+    "scenario": "Authorized document upload, metadata storage, and retrieval function correctly.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P37",
+    "scenario": "Invalid, unsupported, or incomplete file uploads are rejected safely.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P38",
+    "scenario": "Public, member-only, Chairman-only, and Bookkeeper-only document access rules are enforced, including protected download routes.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P39",
+    "scenario": "Public, member-only, and targeted announcements are visible only to their intended audiences.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P40",
+    "scenario": "Event creation, scheduling, and attendance workflows operate correctly.",
+    "status": "Passed",
+    "actual": "database-resolution-activity-final/results.json and database-resolution-final/results.json; actual event creation and edit, attendance, permissions, duplicate rejection, correction, audit and cancellation; original missing workflow noted in database-final-audit-retest.",
+    "evidence": "database-resolution-activity-final/results.json and database-resolution-final/results.json; actual event creation and edit, attendance, permissions, duplicate rejection, correction, audit and cancellation; original missing workflow noted in database-final-audit-retest."
+  },
+  {
+    "id": "P41",
+    "scenario": "Qualifying attendance connects to the correct member and participation history.",
+    "status": "Passed",
+    "actual": "database-resolution-activity-final/results.json; attendance recorded through the actual workflow and persisted recency/frequency verified; prior fixture-only check retained.",
+    "evidence": "database-resolution-activity-final/results.json; attendance recorded through the actual workflow and persisted recency/frequency verified; prior fixture-only check retained."
+  },
+  {
+    "id": "P42",
+    "scenario": "Implemented in-app or email notification workflows produce the expected observable result, using safe test notification facilities.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P43",
+    "scenario": "Recency scores follow the defined thresholds:",
+    "status": "Passed",
+    "actual": "database-rfm-persisted/results.json; controlled attendance at recency thresholds, fixed basis date.",
+    "evidence": "database-rfm-persisted/results.json; controlled attendance at recency thresholds, fixed basis date."
+  },
+  {
+    "id": "P44",
+    "scenario": "Frequency scores follow qualifying attendance counts in the rolling 12-month period:",
+    "status": "Passed",
+    "actual": "database-rfm-persisted/results.json; controlled attendance counts at frequency thresholds, fixed basis date.",
+    "evidence": "database-rfm-persisted/results.json; controlled attendance counts at frequency thresholds, fixed basis date."
+  },
+  {
+    "id": "P45",
+    "scenario": "Contribution scores follow validated share capital:",
+    "status": "Passed",
+    "actual": "database-resolution-rfm-boundaries/results.json and database-resolution-final/results.json; all eight approved boundaries persisted, pending capital ignored. Original seed mismatch preserved in database-final-audit-retest.",
+    "evidence": "database-resolution-rfm-boundaries/results.json and database-resolution-final/results.json; all eight approved boundaries persisted, pending capital ignored. Original seed mismatch preserved in database-final-audit-retest."
+  },
+  {
+    "id": "P46",
+    "scenario": "Combined RFM-inspired scores produce:",
+    "status": "Passed",
+    "actual": "database-resolution-final/results.json; persisted score bands at totals 3, 6, 7, 11, 12 and 15 with corrected capital thresholds.",
+    "evidence": "database-resolution-final/results.json; persisted score bands at totals 3, 6, 7, 11, 12 and 15 with corrected capital thresholds."
+  },
+  {
+    "id": "P47",
+    "scenario": "The defined inactivity safeguard correctly overrides otherwise higher combined scores when applicable.",
+    "status": "Passed",
+    "actual": "database-resolution-final/results.json; persisted no-participation and older-than-365-day safeguard overrides.",
+    "evidence": "database-resolution-final/results.json; persisted no-participation and older-than-365-day safeguard overrides."
+  },
+  {
+    "id": "P48",
+    "scenario": "Descriptive engagement classifications do not automatically modify a member's official administrative membership status.",
+    "status": "Passed",
+    "actual": "Full scenario passed within the test implementation scope.",
+    "evidence": "database-resolution-final/results.json"
+  },
+  {
+    "id": "P49",
+    "scenario": "Member Analytics Dashboard totals, sector/barangay distribution, growth, and historical recruitment patterns correspond to the underlying records.",
+    "status": "Passed",
+    "actual": "database-consolidated/results.json; synthetic barangay and monthly cohorts.",
+    "evidence": "database-consolidated/results.json; synthetic barangay and monthly cohorts."
+  },
+  {
+    "id": "P50",
+    "scenario": "Financial Analytics and Member Analytics remain logically separate, use appropriate source records, and respect access permissions.",
+    "status": "Passed",
+    "actual": "database-analytics-separation/results.json; isolated source changes and role permissions verified.",
+    "evidence": "database-analytics-separation/results.json; isolated source changes and role permissions verified."
+  },
+  {
+    "id": "P51",
+    "scenario": "Required-field validation and invalid input handling produce appropriate behavior.",
+    "status": "Passed",
+    "actual": "database-interactions-final/results.json; required/invalid fields in contact and application forms, no persisted submission.",
+    "evidence": "database-interactions-final/results.json; required/invalid fields in contact and application forms, no persisted submission."
+  },
+  {
+    "id": "P52",
+    "scenario": "Navigation paths, interface controls, and selected responsive layouts operate correctly in the configured browser environment.",
+    "status": "Passed",
+    "actual": "database-resolution-member-verified/results.json and database-resolution-member-controls/results.json; navigation, route, refresh, anonymous denial, mobile width, filters, portal label and synthetic balance passed; provider used a synthetic response. Original 404 retained.",
+    "evidence": "database-resolution-member-verified/results.json and database-resolution-member-controls/results.json; navigation, route, refresh, anonymous denial, mobile width, filters, portal label and synthetic balance passed; provider used a synthetic response. Original 404 retained."
+  },
+  {
+    "id": "P53",
+    "scenario": "Important operations produce the expected visible success, error, or processing feedback.",
+    "status": "Passed",
+    "actual": "database-interactions-final/results.json; inquiry processing and success against isolated API, plus simulated error feedback.",
+    "evidence": "database-interactions-final/results.json; inquiry processing and success against isolated API, plus simulated error feedback."
+  },
+  {
+    "id": "P54",
+    "scenario": "Critical workflows remain consistent across repeated executions using isolated, controlled records.",
+    "status": "Passed",
+    "actual": "database-repeat-approval/results.json, database-repeat-capital/results.json and database-repeat-pos/results.json; each repeated twice on isolated records.",
+    "evidence": "database-repeat-approval/results.json, database-repeat-capital/results.json and database-repeat-pos/results.json; each repeated twice on isolated records."
+  }
+]
