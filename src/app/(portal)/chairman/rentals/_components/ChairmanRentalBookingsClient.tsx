@@ -1,5 +1,7 @@
 "use client";
 
+import { isTractorService } from "@/app/rental/_lib/rentalHectares";
+
 import {
   CalendarCheck2,
   Download,
@@ -693,7 +695,7 @@ function BookingRow({
       </td>
       <td className="px-4 py-4">
         {schedule
-          ? `${formatDateRange(schedule.date, schedule.endDate)} · ${schedule.startTime}–${schedule.endTime}`
+          ? `${formatDateRange(schedule.date, schedule.endDate)}${isTractorService({ name: schedule.equipmentName, serviceId: schedule.serviceId }) ? "" : ` · ${schedule.startTime}–${schedule.endTime}`}`
           : "Not confirmed"}
       </td>
       <td className="px-4 py-4">
@@ -760,7 +762,7 @@ function BookingMobileCard({
         Schedule:{" "}
         <strong>
           {schedule
-            ? `${formatDateRange(schedule.date, schedule.endDate)} ${schedule.startTime}–${schedule.endTime}`
+            ? `${formatDateRange(schedule.date, schedule.endDate)}${isTractorService({ name: schedule.equipmentName, serviceId: schedule.serviceId }) ? "" : ` ${schedule.startTime}–${schedule.endTime}`}`
             : "Not confirmed"}
         </strong>
       </p>

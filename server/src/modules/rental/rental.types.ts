@@ -113,8 +113,16 @@ export interface RentalRequester {
   municipality: string;
 }
 
+export interface RentalDailyWork {
+  date: string;
+  hectares: number;
+}
+
 export interface RentalFeeEstimate {
+  pricingUnit?: "day" | "hectare";
+  totalHectares?: number;
   days: number;
+  /** Existing API field names; rates are per hectare when pricingUnit is hectare. */
   originalDailyRate?: number;
   dailyRate: number;
   discountPercent?: number;
@@ -152,10 +160,12 @@ export interface BookingDraft {
   dataPrivacyConsent: boolean;
   accuracyConfirmation: boolean;
   contactConsent: boolean;
+  dailyWork?: RentalDailyWork[];
   preferredPaymentMethod?: "Cash" | "Online";
 }
 
 export interface PublicRentalInquiryStatus {
+  dailyWork?: RentalDailyWork[];
   inquiryId: string;
   equipmentName: string;
   submittedAt: string;
@@ -176,10 +186,11 @@ export interface PublicRentalInquiryStatus {
 }
 
 export interface PublicRentalBlockedDate {
+  remainingHectares?: number;
   date: string;
   startDate: string;
   endDate: string;
-  status: "Approved" | "Scheduled" | "In Use" | "Rescheduled" | "Maintenance";
+  status: "Approved" | "Scheduled" | "In Use" | "Rescheduled" | "Completed" | "Maintenance";
   reason: string;
 }
 
@@ -226,6 +237,7 @@ export interface RentalInquiry {
   scheduleStatus: string;
   assignedReviewer?: string;
   rescheduleRequest?: RentalRescheduleRequest;
+  dailyWork?: RentalDailyWork[];
   preferredPaymentMethod?: "Cash" | "Online";
   publicNote: string;
   internalNote?: string;
@@ -243,6 +255,7 @@ export type ScheduleStatus =
   | "Maintenance";
 
 export interface RentalSchedule {
+  dailyWork?: RentalDailyWork[];
   scheduleId: string;
   inquiryId: string;
   rentalId: string;

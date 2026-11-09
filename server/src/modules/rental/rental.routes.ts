@@ -16,6 +16,7 @@ import { createAuthService, type AuthService } from "../auth/auth.service";
 import type { RoleSlug } from "../auth/auth.types";
 import {
   RentalConflictError,
+  RentalValidationError,
   rentalDatabase,
   type RentalActor,
 } from "./rental.repository";
@@ -225,7 +226,7 @@ function parseFilters(request: Request) {
 }
 
 function handleRentalError(response: Response, error: unknown) {
-  if (error instanceof RentalUploadValidationError) {
+  if (error instanceof RentalUploadValidationError || error instanceof RentalValidationError) {
     return json(response, { message: error.message }, 422);
   }
   if (error instanceof ZodError) {

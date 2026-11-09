@@ -1,3 +1,4 @@
+import { dailyWorkError } from "./rental-hectares";
 import { z } from "zod";
 import { VALID_ID_TYPES } from "./rental.types";
 import { MAX_RENTAL_ASSET_PHOTOS } from "./rental-photos";
@@ -22,6 +23,11 @@ const validIdDocumentSchema = z.object({
   fileSizeBytes: z.number().int().positive().max(5 * 1024 * 1024),
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
+
+export const rentalDailyWorkSchema = z.array(z.object({
+  date: z.iso.date(),
+  hectares: z.number().positive().max(5).refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Use up to two decimal places."),
+})).max(1100);
 
 const requiredConsent = z
   .boolean()
@@ -53,6 +59,7 @@ export const BookingSchema = z
     barangay: z.string().trim().min(1, "Select a barangay.").max(100),
     municipality: z.string().trim().min(2, "Enter the municipality.").max(100),
     serviceId: z.string().trim().min(1, "Select equipment or a service.").max(80),
+    dailyWork: rentalDailyWorkSchema.optional(),
     intendedUse: z.string().trim().min(5, "Tell us what farm work the equipment will be used for.").max(160, "Farm use must be 160 characters or fewer."),
     preferredDate: z.iso.date("Choose a preferred start date."),
     preferredEndDate: z.iso.date("Choose a preferred end date."),
@@ -73,6 +80,10 @@ export const BookingSchema = z
     preferredPaymentMethod: z.enum(["Cash", "Online"]).optional(),
   })
   .superRefine((data, context) => {
+    if (data.dailyWork) {
+      const issue = dailyWorkError(data.dailyWork, data.preferredDate, data.preferredEndDate);
+      if (issue) context.addIssue({ code: "custom", message: issue, path: ["dailyWork"] });
+    }
     const today = new Date();
     const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
@@ -240,6 +251,7 @@ export const rentalServiceSchema = z
 export const rentalScheduleSchema = z
   .object({
     rentalId: z.string().trim().min(1),
+    dailyWork: rentalDailyWorkSchema.optional(),
     serviceId: z.string().trim().min(1),
     date: z.iso.date(),
     endDate: z.iso.date(),
@@ -261,6 +273,11 @@ export const rentalScheduleSchema = z
   .refine((value) => value.endDate > value.date || value.endTime > value.startTime, {
     message: "Schedule end time must be after the start time.",
     path: ["endTime"],
+  })
+  .superRefine((value, context) => {
+    if (!value.dailyWork) return;
+    const issue = dailyWorkError(value.dailyWork, value.date, value.endDate);
+    if (issue) context.addIssue({ code: "custom", message: issue, path: ["dailyWork"] });
   });
 
 export const rentalRescheduleSchema = z

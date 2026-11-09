@@ -167,7 +167,7 @@ test("8. a status update says what the status now is", () => {
 });
 
 const schedule: RentalSchedule = {
-  scheduleId: "SCH-0042", inquiryId: "RNT-0042", rentalId: "RNT-0042", serviceId: "TRACTOR-1", equipmentName: "Hand Tractor", requesterName: "Juan Dela Cruz",
+  scheduleId: "SCH-0042", inquiryId: "RNT-0042", rentalId: "RNT-0042", serviceId: "PUMP-1", equipmentName: "Water Pump", requesterName: "Juan Dela Cruz",
   requesterType: "Public or Non-member", date: "2026-11-05", endDate: "2026-11-06", startTime: "08:30", endTime: "16:45", assignedOperator: "Pedro Santos",
   serviceLocation: "Sitio Uno farm", barangay: "Wawa", preparationMinutes: 0, travelMinutes: 0, bufferMinutes: 0,
   specialInstructions: "INTERNAL: customer owes a past balance, do not release without cash", customerInstructions: "Please have the field cleared and bring a valid ID.",
@@ -175,12 +175,12 @@ const schedule: RentalSchedule = {
 };
 
 test("9. the schedule email shows the confirmed dates and times, not the preferred ones", () => {
-  const message = rentalMessage(rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true }));
+  const message = rentalMessage(rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Water Pump", confirmed: true }));
   assert.equal(message.subject, "Rental schedule confirmed: RNT-0042");
   assert.match(message.text, /Start: November 5, 2026, 8:30 AM/);
   assert.match(message.text, /End: November 6, 2026, 4:45 PM/);
   assert.equal(message.text.includes("November 1, 2026"), false, "the preferred date must not appear");
-  for (const expected of ["Location: Sitio Uno farm, Wawa", "Assigned operator: Pedro Santos", "Please have the field cleared", "Reference: RNT-0042", "Hand Tractor", "Philippine time", "/rental?booking=RNT-0042"]) {
+  for (const expected of ["Location: Sitio Uno farm, Wawa", "Assigned operator: Pedro Santos", "Please have the field cleared", "Reference: RNT-0042", "Water Pump", "Philippine time", "/rental?booking=RNT-0042"]) {
     assert.ok(message.text.includes(expected), expected);
   }
 });
@@ -244,7 +244,7 @@ test("7-10. a queued rental email renders as both text and HTML, with a status l
   const cases: Array<[string, RentalEmailContent]> = [
     ["rental.booking.submitted", rentalSubmittedContent(inquiry)],
     ["rental.status.updated", rentalStatusContent(inquiry)],
-    ["rental.schedule.updated", rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true })],
+    ["rental.schedule.updated", rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Water Pump", confirmed: true })],
     ["rental.payment.confirmed", rentalPaymentContent({ reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", amount: 1500 })],
   ];
   for (const [eventKey, content] of cases) {
@@ -285,7 +285,7 @@ test("7-10. rows queued before the HTML version existed still send their finishe
 });
 
 test("9. the schedule HTML shows the confirmed times, the customer instructions, and nothing internal", async () => {
-  const content = rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Hand Tractor", confirmed: true });
+  const content = rentalScheduleContent({ ...schedule, reference: "RNT-0042", requesterName: "Juan Dela Cruz", equipmentName: "Water Pump", confirmed: true });
   const message = rentalMessage(content);
   for (const expected of ["Rental schedule confirmed", "November 5, 2026, 8:30 AM", "November 6, 2026, 4:45 PM", "Pedro Santos", "Sitio Uno farm, Wawa", "Please have the field cleared"]) {
     assert.ok(message.html.includes(expected), expected);

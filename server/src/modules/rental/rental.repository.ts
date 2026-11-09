@@ -1,3 +1,4 @@
+import { isTractorService, TRACTOR_SCHEDULE_DEFAULTS, dailyWorkError, reservedWork, totalWorkHectares } from "./rental-hectares";
 import { randomUUID } from "node:crypto";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -17,6 +18,7 @@ import {
   RentalSubmissionSchema,
   rentalRescheduleSchema,
   rentalScheduleSchema,
+  rentalDailyWorkSchema,
   rentalServiceSchema,
 } from "./rental-validation";
 import { assertRentalStatusTransition } from "./rental-workflow";
@@ -31,6 +33,7 @@ import type {
   RentalExpense,
   RentalFeeEstimate,
   RentalInquiry,
+  RentalDailyWork,
   RentalMaintenanceRecord,
   RentalNotification,
   RentalOverview,
@@ -84,6 +87,8 @@ export type RentalActor = {
   displayName: string;
   memberId?: number | null;
 };
+
+export class RentalValidationError extends Error {}
 
 export class RentalConflictError extends Error {
   constructor(public conflict: ScheduleConflict) {
@@ -329,6 +334,11 @@ function rentalValidIdDocument(meta: JsonRecord): RentalValidIdDocument | undefi
   };
 }
 
+function dailyWorkValue(meta: JsonRecord): RentalDailyWork[] | undefined {
+  const parsed = rentalDailyWorkSchema.safeParse(meta.dailyWork);
+  return parsed.success && parsed.data.length ? parsed.data : undefined;
+}
+
 function rentalFeeEstimateValue(
   meta: JsonRecord,
 ): RentalFeeEstimate | undefined {
@@ -374,6 +384,7 @@ function rentalFeeEstimateValue(
     return undefined;
   }
   return {
+    ...(estimate.pricingUnit === "hectare" ? { pricingUnit: "hectare" as const, totalHectares: Number(estimate.totalHectares) } : {}),
     days,
     originalDailyRate,
     dailyRate,
@@ -688,7 +699,7 @@ function mapAsset(row: AssetRow): RentalService {
     availability: serviceAvailability(row, meta),
     operationalStatus: operationalStatus(row, meta),
     visibility: visibility(row, meta),
-    unitOfUsage: stringValue(meta, "unitOfUsage", row.rate_unit),
+    unitOfUsage: isTractorService({ name: row.asset_name, category: row.category ?? "", serviceId: row.asset_code }) ? "Per Hectare" : stringValue(meta, "unitOfUsage", row.rate_unit),
     suitableActivity: stringValue(meta, "suitableActivity", row.category ?? "Agricultural support"),
     capacity: stringValue(meta, "capacity", "Confirmed during inquiry review"),
     serviceArea: stringValue(meta, "serviceArea", "Nasugbu service barangays"),
@@ -747,11 +758,12 @@ function mapAsset(row: AssetRow): RentalService {
 }
 
 function rentalOperatorIsRequired(service: RentalService) {
-  return !/not required|self[- ]?operated/i.test(service.operatorRequirement);
+  return isTractorService(service) || !/not required|self[- ]?operated/i.test(service.operatorRequirement);
 }
 
 function mapBooking(row: BookingRow): RentalInquiry {
   const meta = parseJson(row.purpose);
+  const dailyWork = dailyWorkValue(meta);
   const validIdDocument = rentalValidIdDocument(meta);
   const requestType = requesterType(stringValue(meta, "requesterType", row.member_id ? "Member" : "Public or Non-member"));
   const requesterName = row.requester_name ?? row.member_full_name ?? "Rental requester";
@@ -787,9 +799,10 @@ function mapBooking(row: BookingRow): RentalInquiry {
     preferredStartTime: stringValue(meta, "preferredStartTime", rentalTimePart(row.start_datetime)) || undefined,
     preferredEndTime: stringValue(meta, "preferredEndTime", rentalTimePart(row.end_datetime)) || undefined,
     estimatedDuration: stringValue(meta, "estimatedDuration", "2 hours"),
-    estimatedUsage: stringValue(meta, "estimatedUsage", "To be confirmed"),
+    dailyWork,
+    estimatedUsage: dailyWork ? String(totalWorkHectares(dailyWork)) : stringValue(meta, "estimatedUsage", "To be confirmed"),
     estimatedFee: rentalFeeEstimateValue(meta),
-    unitOfMeasurement: stringValue(meta, "unitOfMeasurement", "Operating session"),
+    unitOfMeasurement: dailyWork ? "hectares" : stringValue(meta, "unitOfMeasurement", "Operating session"),
     serviceLocation: stringValue(meta, "serviceLocation", "Nasugbu service area"),
     serviceBarangay: stringValue(meta, "serviceBarangay", barangay),
     requestDescription: stringValue(meta, "requestDescription", row.purpose && Object.keys(meta).length === 0 ? row.purpose : "Rental request recorded in TrackCOOP."),
@@ -820,6 +833,7 @@ function mapSchedule(row: BookingRow): RentalSchedule {
   const scheduleId = stringValue(meta, "scheduleId", row.booking_number.startsWith("RNT-") ? `SCH-${row.booking_number.slice(-4)}` : `SCH-${row.rental_booking_id}`);
   return {
     scheduleId,
+    dailyWork: dailyWorkValue(meta),
     inquiryId: row.booking_number,
     rentalId: row.booking_number,
     serviceId: row.asset_code,
@@ -1205,19 +1219,20 @@ async function persistedScheduleConflict(
   const [bookingRecords, serviceRecords] = await Promise.all([
     bookingRows(
       `WHERE rb.booking_number LIKE 'RNT-%'
-         AND rb.booking_status IN ('Approved', 'Scheduled', 'In Use', 'Rescheduled')`,
+         AND rb.booking_status IN ('Approved', 'Scheduled', 'In Use', 'Rescheduled', 'Completed')`,
       [],
       executor,
     ),
     assetRows("", [], executor),
   ]);
-  const schedules = bookingRecords
-    .filter((row) => row.booking_number !== ignoreRentalId)
-    .map(mapSchedule);
   const services = serviceRecords.map(mapAsset);
+  const schedules = bookingRecords
+    .filter((row) => row.booking_number !== ignoreRentalId && (row.booking_status !== "Completed" || isTractorService(services.find((item) => item.serviceId === row.asset_code))))
+    .map(mapSchedule);
   const base = checkRentalScheduleConflict(schedule, schedules, services);
-  const candidateStart = toMysqlDateTime(schedule.date, schedule.startTime);
-  const candidateEnd = toMysqlDateTime(schedule.endDate, schedule.endTime);
+  const tractor = isTractorService(services.find((item) => item.serviceId === schedule.serviceId));
+  const candidateStart = toMysqlDateTime(schedule.date, tractor ? "00:00" : schedule.startTime);
+  const candidateEnd = tractor ? `${schedule.endDate} 23:59:59` : toMysqlDateTime(schedule.endDate, schedule.endTime);
   const maintenanceRows = await queryRows<
     Array<RowDataPacket & {
       maintenance_type: string;
@@ -1243,12 +1258,13 @@ async function persistedScheduleConflict(
   );
   const reasons = [...base.reasons];
   for (const maintenance of maintenanceRows) {
+    if (tractor && schedule.dailyWork?.length && !schedule.dailyWork.some((day) => day.date >= rentalDatePart(maintenance.start_datetime) && day.date <= rentalDatePart(maintenance.end_datetime))) continue;
     reasons.push(
       `${schedule.equipmentName} has ${maintenance.maintenance_type} maintenance from ${rentalIsoDateTime(maintenance.start_datetime)} to ${rentalIsoDateTime(maintenance.end_datetime)}.`,
     );
   }
   const service = services.find((item) => item.serviceId === schedule.serviceId);
-  if (service?.maximumBookingsPerDay) {
+  if (service?.maximumBookingsPerDay && !isTractorService(service)) {
     const candidateDates = dateKeysBetween(schedule.date, schedule.endDate);
     const fullDate = candidateDates.find((date) => {
       const bookingCount = schedules.filter(
@@ -1270,7 +1286,7 @@ async function persistedScheduleConflict(
     reasons,
     conflictingSchedules: base.conflictingSchedules,
     suggestedSlots:
-      reasons.length > 0 && schedule.date === schedule.endDate
+      reasons.length > 0 && !isTractorService(service) && schedule.date === schedule.endDate
         ? base.suggestedSlots.length
           ? base.suggestedSlots
           : ["07:00–09:00", "13:00–15:00", "15:30–17:30"]
@@ -1451,23 +1467,24 @@ export const rentalDatabase = {
           RowDataPacket & {
             start_date: RentalDatabaseDate;
             end_date: RentalDatabaseDate;
-            booking_status: "Approved" | "Scheduled" | "In Use" | "Rescheduled";
+            booking_status: "Approved" | "Scheduled" | "In Use" | "Rescheduled" | "Completed";
+            purpose: string | null;
           }
         >
       >(
         `SELECT
             DATE(rb.start_datetime) AS start_date,
             DATE(rb.end_datetime) AS end_date,
-            rb.booking_status
+            rb.booking_status, rb.purpose
            FROM rental_bookings rb
            JOIN rental_assets a
              ON a.rental_asset_id = rb.rental_asset_id
           WHERE a.asset_code = ?
             AND a.public_visibility = 1
-            AND rb.booking_status IN ('Approved', 'Scheduled', 'In Use', 'Rescheduled')
+            AND (rb.booking_status IN ('Approved', 'Scheduled', 'In Use', 'Rescheduled') OR (? = 1 AND rb.booking_status = 'Completed'))
             AND rb.end_datetime >= CURDATE()
           ORDER BY rb.start_datetime ASC`,
-        [serviceId],
+        [serviceId, isTractorService(service) ? 1 : 0],
       ),
       queryRows<
         Array<
@@ -1497,16 +1514,17 @@ export const rentalDatabase = {
     ]);
 
     const blocked = new Map<string, PublicRentalBlockedDate>();
+    const tractor = isTractorService(service);
     for (const row of bookingRows) {
       const startDate = rentalDatePart(row.start_date);
       const endDate = rentalDatePart(row.end_date);
-      for (const date of dateKeysBetween(startDate, endDate)) {
-        blocked.set(date, {
-          date,
-          startDate,
-          endDate,
-          status: row.booking_status,
-          reason: "Already has an approved rental schedule.",
+      const work = tractor ? reservedWork(dailyWorkValue(parseJson(row.purpose)), startDate, endDate) : dateKeysBetween(startDate, endDate).map((date) => ({ date, hectares: 5 }));
+      for (const day of work) {
+        const remaining = Math.max(0, Math.round(((blocked.get(day.date)?.remainingHectares ?? 5) - day.hectares) * 100) / 100);
+        blocked.set(day.date, {
+          date: day.date, startDate, endDate, status: row.booking_status,
+          ...(tractor ? { remainingHectares: remaining } : {}),
+          reason: tractor ? `${remaining} hectares remaining of 5 hectares daily capacity.` : "Already has an approved rental schedule.",
         });
       }
     }
@@ -1514,15 +1532,11 @@ export const rentalDatabase = {
       const startDate = rentalDatePart(row.start_date);
       const endDate = rentalDatePart(row.end_date);
       for (const date of dateKeysBetween(startDate, endDate)) {
-        if (!blocked.has(date)) {
-          blocked.set(date, {
-            date,
-            startDate,
-            endDate,
-            status: "Maintenance",
-            reason: `${row.maintenance_type} maintenance.`,
-          });
-        }
+        blocked.set(date, {
+          date, startDate, endDate, status: "Maintenance",
+          ...(tractor ? { remainingHectares: 0 } : {}),
+          reason: `${row.maintenance_type} maintenance.`,
+        });
       }
     }
 
@@ -1729,6 +1743,22 @@ export const rentalDatabase = {
       const asset = assets[0];
       if (!asset) throw new Error("Selected rental service was not found.");
       const service = mapAsset(asset);
+      const tractor = isTractorService(service);
+      if (tractor) {
+        const issue = dailyWorkError(parsed.dailyWork, parsed.preferredDate, parsed.preferredEndDate);
+        if (issue) throw new RentalValidationError(issue);
+        const conflict = await persistedScheduleConflict({
+          inquiryId: "", rentalId: "", serviceId: service.serviceId, equipmentName: service.name,
+          requesterName: parsed.fullName, requesterType: parsed.requesterType,
+          date: parsed.preferredDate, endDate: parsed.preferredEndDate,
+          startTime: parsed.preferredStartTime, endTime: parsed.preferredEndTime,
+          dailyWork: parsed.dailyWork, serviceLocation: parsed.completeAddress, barangay: parsed.barangay,
+          preparationMinutes: 0, travelMinutes: 0, bufferMinutes: 0,
+        }, undefined, connection);
+        if (conflict.hasConflict) throw new RentalValidationError(conflict.reasons[0] ?? "The tractor has no remaining capacity on the selected work dates.");
+      } else if (parsed.dailyWork?.length) {
+        throw new Error("Hectare work entries apply to tractors only.");
+      }
       const start = toMysqlDateTime(
         parsed.preferredDate,
         parsed.preferredStartTime || "08:00",
@@ -1763,7 +1793,7 @@ export const rentalDatabase = {
         [asset.rental_asset_id, end, start],
         connection,
       );
-      if (bookingConflicts.length > 0) {
+      if (!tractor && bookingConflicts.length > 0) {
         throw new Error(
           "The selected rental period overlaps an approved booking. Choose another date range.",
         );
@@ -1775,7 +1805,7 @@ export const rentalDatabase = {
         service.operationalStatus !== "Out of Service" &&
         service.operationalStatus !== "Under Maintenance" &&
         service.availability !== "Unavailable" &&
-        maintenanceConflicts.length === 0 &&
+        (tractor || maintenanceConflicts.length === 0) &&
         (member
           ? ["Public", "Member-only"].includes(service.visibility)
           : asset.public_visibility === 1 && service.visibility === "Public");
@@ -1804,6 +1834,7 @@ export const rentalDatabase = {
         requesterType: member ? "Member" : parsed.requesterType,
         startDate: parsed.preferredDate,
         endDate: parsed.preferredEndDate,
+        dailyWork: parsed.dailyWork,
       });
       const purpose = JSON.stringify({
         ...submission,
@@ -1963,6 +1994,10 @@ export const rentalDatabase = {
     if (!actor.memberId) return undefined;
     const memberId = actor.memberId;
     return withRentalTransaction(async (connection) => {
+      await queryRows(
+        "SELECT rental_asset_id FROM rental_assets WHERE rental_asset_id = (SELECT rental_asset_id FROM rental_bookings WHERE booking_number = ?) FOR UPDATE",
+        [inquiryId], connection,
+      );
       const locked = await queryRows<
         Array<RowDataPacket & { rental_booking_id: number }>
       >(
@@ -1997,6 +2032,13 @@ export const rentalDatabase = {
           requestedAt: new Date().toISOString(),
           status: "Pending",
         } satisfies RentalRescheduleRequest;
+      }
+      if (status === "Scheduled") {
+        const assets = await assetRows("WHERE a.asset_code = ?", [row.asset_code], connection);
+        if (assets[0] && isTractorService(mapAsset(assets[0]))) {
+          const conflict = await persistedScheduleConflict(mapSchedule(row), inquiryId, connection);
+          if (conflict.hasConflict) throw new RentalValidationError(conflict.reasons[0]);
+        }
       }
       const nextStatus = bookingStatusFromRental(status);
       await execute(
@@ -2093,6 +2135,7 @@ export const rentalDatabase = {
     const meta = parseJson(booking?.purpose ?? null);
     return {
       ...mapPublicInquiryStatus(inquiry),
+      dailyWork: schedule?.dailyWork ?? inquiry.dailyWork,
       payableAmount: booking ? payableRentalAmount(booking) : inquiry.estimatedFee?.total,
       paymentDeadline: stringValue(meta, "paymentDeadline") || (booking ? rentalPaymentDeadline(booking.created_at) : undefined),
       canStartPayment: inquiry.status === "Payment Pending" && inquiry.paymentStatus !== "Paid",
@@ -2128,6 +2171,10 @@ export const rentalDatabase = {
     }
     return withRentalTransaction(async (connection) => {
       await queryRows(
+        "SELECT rental_asset_id FROM rental_assets WHERE rental_asset_id = (SELECT rental_asset_id FROM rental_bookings WHERE booking_number = ?) FOR UPDATE",
+        [inquiryId], connection,
+      );
+      await queryRows(
         "SELECT rental_booking_id FROM rental_bookings WHERE booking_number = ? FOR UPDATE",
         [inquiryId],
         connection,
@@ -2161,6 +2208,13 @@ export const rentalDatabase = {
         meta.paymentStatusOverride = "Pending";
       }
       const nextStatus = bookingStatusFromRental(decision);
+      if (["Approved", "Scheduled", "In Use", "Rescheduled"].includes(nextStatus)) {
+        const assets = await assetRows("WHERE a.asset_code = ?", [row.asset_code], connection);
+        if (assets[0] && isTractorService(mapAsset(assets[0]))) {
+          const conflict = await persistedScheduleConflict(mapSchedule(row), inquiryId, connection);
+          if (conflict.hasConflict) throw new RentalConflictError(conflict);
+        }
+      }
       const userId = await actorUserId(actor, connection);
       await execute(
         `UPDATE rental_bookings
@@ -2278,6 +2332,10 @@ export const rentalDatabase = {
     schedule: Omit<RentalSchedule, "scheduleId">,
     actor?: RentalActor,
   ) {
+    const service = typeof schedule.serviceId === "string"
+      ? await this.getRentalServiceById(schedule.serviceId)
+      : undefined;
+    if (isTractorService(service)) schedule = { ...schedule, ...TRACTOR_SCHEDULE_DEFAULTS };
     const validation = rentalScheduleSchema.safeParse(schedule);
     if (!validation.success) {
       throw new Error(validation.error.issues[0]?.message ?? "Rental schedule is invalid.");
@@ -2299,11 +2357,12 @@ export const rentalDatabase = {
       const selectedAsset = selectedAssetRows[0]
         ? mapAsset(selectedAssetRows[0])
         : undefined;
+      if (isTractorService(selectedAsset)) schedule = { ...schedule, ...TRACTOR_SCHEDULE_DEFAULTS };
       if (
         schedule.status === "Confirmed" &&
         selectedAsset &&
         rentalOperatorIsRequired(selectedAsset) &&
-        !schedule.assignedOperator?.trim()
+        (!schedule.assignedOperator?.trim() || (isTractorService(selectedAsset) && schedule.assignedOperator === "Chairman to assign"))
       ) {
         throw new Error(
           "Assign the cooperative operator before confirming this schedule.",
@@ -2338,6 +2397,22 @@ export const rentalDatabase = {
                 ? "Cancelled"
                 : "Awaiting Confirmation";
       assertRentalStatusTransition(currentStatus, nextRentalStatus);
+      if (!isTractorService(selectedAsset) && schedule.dailyWork?.length) {
+        throw new RentalValidationError("Hectare work entries apply to tractors only.");
+      }
+      const originalWork = dailyWorkValue(parseJson(row.purpose));
+      const dailyWork = schedule.dailyWork ?? originalWork;
+      if (selectedAsset && isTractorService(selectedAsset) && originalWork) {
+        const issue = dailyWorkError(dailyWork, schedule.date, schedule.endDate);
+        if (issue) throw new RentalValidationError(issue);
+        if (totalWorkHectares(dailyWork) !== totalWorkHectares(originalWork)) throw new Error("Keep the paid total hectares unchanged when scheduling or rescheduling.");
+      } else if (selectedAsset && isTractorService(selectedAsset) && dailyWork?.length) {
+        throw new RentalValidationError("Existing bookings without hectare entries must keep their original full-date reservation.");
+      } else if (selectedAsset && isTractorService(selectedAsset) && schedule.serviceId !== row.asset_code) {
+        throw new Error("A tractor booking requires a hectare-based request before payment.");
+      } else if (originalWork && selectedAsset && !isTractorService(selectedAsset)) {
+        throw new Error("Choose a tractor for this hectare-based booking.");
+      }
       const candidate = {
         inquiryId: schedule.inquiryId,
         rentalId: schedule.rentalId,
@@ -2345,6 +2420,7 @@ export const rentalDatabase = {
         equipmentName: schedule.equipmentName,
         requesterName: schedule.requesterName,
         requesterType: schedule.requesterType,
+        dailyWork,
         date: schedule.date,
         endDate: schedule.endDate,
         startTime: schedule.startTime,
@@ -2365,6 +2441,7 @@ export const rentalDatabase = {
       if (conflict.hasConflict) throw new RentalConflictError(conflict);
 
       const meta = parseJson(row.purpose);
+      if (dailyWork) meta.dailyWork = dailyWork;
       const hadSchedule = Boolean(stringValue(meta, "scheduleId"));
       meta.scheduleId = stringValue(
         meta,
@@ -2384,8 +2461,9 @@ export const rentalDatabase = {
       meta.internalScheduleInstructions = schedule.specialInstructions ?? "";
       meta.customerInstructions = schedule.customerInstructions ?? "";
       meta.assignedReviewer = actor?.displayName ?? "NFFAC Chairman";
-      meta.publicNote =
-        schedule.status === "Confirmed"
+      meta.publicNote = isTractorService(selectedAsset)
+        ? `${schedule.status === "Confirmed" ? "Your tractor work is confirmed" : "NFFAC proposed tractor work"} from ${schedule.date} to ${schedule.endDate}.${schedule.assignedOperator ? ` Assigned operator: ${schedule.assignedOperator}.` : ""}`
+        : schedule.status === "Confirmed"
           ? `Your rental schedule is confirmed from ${schedule.date} ${schedule.startTime} to ${schedule.endDate} ${schedule.endTime}.`
           : `NFFAC proposed a rental schedule from ${schedule.date} ${schedule.startTime} to ${schedule.endDate} ${schedule.endTime}. Please review the schedule.`;
       const pendingReschedule = rescheduleRequestValue(meta);
@@ -2457,7 +2535,9 @@ export const rentalDatabase = {
           schedule.status === "Confirmed"
             ? "Rental schedule confirmed"
             : "Rental schedule proposed",
-          `${schedule.rentalId}: ${schedule.date} ${schedule.startTime} to ${schedule.endDate} ${schedule.endTime}.`,
+          isTractorService(selectedAsset)
+            ? `${schedule.rentalId}: tractor work from ${schedule.date} to ${schedule.endDate}.`
+            : `${schedule.rentalId}: ${schedule.date} ${schedule.startTime} to ${schedule.endDate} ${schedule.endTime}.`,
           "rental_bookings",
           row.rental_booking_id,
           false,
@@ -2494,6 +2574,7 @@ export const rentalDatabase = {
         equipmentName: next.equipmentName,
         requesterName: next.requesterName,
         requesterType: next.requesterType,
+        dailyWork: next.dailyWork,
         date: next.date,
         endDate: next.endDate,
         startTime: next.startTime,
@@ -2514,11 +2595,21 @@ export const rentalDatabase = {
   },
 
   async checkScheduleConflict(schedule: Omit<RentalSchedule, "scheduleId" | "status" | "paymentStatus">): Promise<ScheduleConflict> {
+    const service = typeof schedule.serviceId === "string"
+      ? await this.getRentalServiceById(schedule.serviceId)
+      : undefined;
+    if (isTractorService(service)) schedule = { ...schedule, ...TRACTOR_SCHEDULE_DEFAULTS };
     const validation = rentalScheduleSchema.safeParse(schedule);
     if (!validation.success) {
       throw new Error(validation.error.issues[0]?.message ?? "Rental schedule is invalid.");
     }
-    return persistedScheduleConflict(schedule, schedule.rentalId);
+    const row = await bookingByRentalId(schedule.rentalId);
+    const work = schedule.dailyWork ?? (row ? dailyWorkValue(parseJson(row.purpose)) : undefined);
+    if (work) {
+      const issue = dailyWorkError(work, schedule.date, schedule.endDate);
+      if (issue) throw new RentalValidationError(issue);
+    }
+    return persistedScheduleConflict({ ...schedule, dailyWork: work }, schedule.rentalId);
   },
 
   async getEquipmentAvailability(): Promise<EquipmentAvailability[]> {
@@ -2681,10 +2772,11 @@ export const rentalDatabase = {
       );
       const asset = assets[0];
       if (!asset) throw new Error("Rental asset was not found.");
-      const conflicts = await queryRows<
-        Array<RowDataPacket & { booking_number: string }>
+      const tractor = isTractorService({ name: asset.asset_name, serviceId: maintenance.serviceId });
+      const overlappingBookings = await queryRows<
+        Array<RowDataPacket & { booking_number: string; purpose: string | null; start_datetime: RentalDatabaseDate; end_datetime: RentalDatabaseDate }>
       >(
-        `SELECT booking_number
+        `SELECT booking_number, purpose, start_datetime, end_datetime
            FROM rental_bookings
           WHERE rental_asset_id = ?
             AND booking_status IN ('Approved', 'Scheduled', 'In Use', 'Rescheduled')
@@ -2693,11 +2785,12 @@ export const rentalDatabase = {
           FOR UPDATE`,
         [
           asset.rental_asset_id,
-          maintenance.endAt.replace("T", " ").slice(0, 19),
-          maintenance.startAt.replace("T", " ").slice(0, 19),
+          tractor ? `${maintenance.endAt.slice(0, 10)} 23:59:59` : maintenance.endAt.replace("T", " ").slice(0, 19),
+          tractor ? `${maintenance.startAt.slice(0, 10)} 00:00:00` : maintenance.startAt.replace("T", " ").slice(0, 19),
         ],
         connection,
       );
+      const conflicts = overlappingBookings.filter((booking) => !tractor || reservedWork(dailyWorkValue(parseJson(booking.purpose)), rentalDatePart(booking.start_datetime), rentalDatePart(booking.end_datetime)).some((day) => day.date >= maintenance.startAt.slice(0, 10) && day.date <= maintenance.endAt.slice(0, 10)));
       if (conflicts.length) {
         throw new RentalConflictError({
           hasConflict: true,

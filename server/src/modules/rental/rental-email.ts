@@ -1,8 +1,9 @@
+import { isTractorService, totalWorkHectares } from "./rental-hectares";
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
 import { escapeHtml, linesToHtml, renderEmailLayout } from "../email/email-layout";
 import { sendSystemEmail } from "../email/email.service";
-import type { RentalInquiry } from "./rental.types";
+import type { RentalDailyWork, RentalInquiry } from "./rental.types";
 import {
   formatPeso,
   formatRentalDate,
@@ -26,8 +27,10 @@ export type RentalEmailPayload = {
     publicNote: string;
     startDate: string;
     endDate: string;
-    preferredTime: string;
+    preferredTime?: string;
     possibleFee?: {
+      pricingUnit?: "day" | "hectare";
+      totalHectares?: number;
       days: number;
       originalDailyRate?: number;
       dailyRate: number;
@@ -54,7 +57,7 @@ function possibleFeeText(inquiry: RentalInquiry) {
     estimate.discountPercent && estimate.discountAmount
       ? `, ${estimate.discountPercent}% member discount`
       : "";
-  return `${formatPeso(estimate.total)} estimated (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)}${discount})`;
+  return `${formatPeso(estimate.total)} estimated (${estimate.pricingUnit === "hectare" ? `${estimate.totalHectares} hectares` : `${estimate.days} day${estimate.days === 1 ? "" : "s"}`} x ${formatPeso(estimate.dailyRate)}${discount})`;
 }
 
 function possibleFeeLines(inquiry: RentalInquiry) {
@@ -69,7 +72,7 @@ function possibleFeeLines(inquiry: RentalInquiry) {
     `Original rental rate: ${formatPeso(originalDailyRate)}`,
     `Discount if member: ${
       estimate.discountPercent && estimate.discountAmount
-        ? `${estimate.discountPercent}% off (${formatPeso(estimate.discountAmount)} per day)`
+        ? `${estimate.discountPercent}% off (${formatPeso(estimate.discountAmount)} per ${estimate.pricingUnit === "hectare" ? "hectare" : "day"})`
         : "None"
     }`,
     `Final estimated amount: ${possibleFeeText(inquiry)}`,
@@ -82,7 +85,8 @@ function rentalSummaryLines(inquiry: RentalInquiry) {
     `Equipment: ${inquiry.equipmentName}`,
     `Start date: ${formatRentalDate(inquiry.preferredDate, true)}`,
     `End date: ${formatRentalDate(inquiry.preferredEndDate, true)}`,
-    `Preferred time: ${inquiry.preferredStartTime ?? "08:00"} - ${inquiry.preferredEndTime ?? "17:00"}`,
+    ...(isTractorService({ name: inquiry.equipmentName, serviceId: inquiry.serviceId }) ? [] : [`Preferred time: ${inquiry.preferredStartTime ?? "08:00"} - ${inquiry.preferredEndTime ?? "17:00"}`]),
+    ...(inquiry.dailyWork ?? []).map((day) => `Work on ${day.date}: ${day.hectares} hectares`),
     ...possibleFeeLines(inquiry),
   ];
 }
@@ -95,9 +99,11 @@ function baseRentalPayload(inquiry: RentalInquiry) {
     publicNote: inquiry.publicNote,
     startDate: inquiry.preferredDate,
     endDate: inquiry.preferredEndDate,
-    preferredTime: `${inquiry.preferredStartTime ?? "08:00"} - ${inquiry.preferredEndTime ?? "17:00"}`,
+    preferredTime: isTractorService({ name: inquiry.equipmentName, serviceId: inquiry.serviceId }) ? undefined : `${inquiry.preferredStartTime ?? "08:00"} - ${inquiry.preferredEndTime ?? "17:00"}`,
     possibleFee: inquiry.estimatedFee
       ? {
+          pricingUnit: inquiry.estimatedFee.pricingUnit,
+          totalHectares: inquiry.estimatedFee.totalHectares,
           days: inquiry.estimatedFee.days,
           originalDailyRate: inquiry.estimatedFee.originalDailyRate,
           dailyRate: inquiry.estimatedFee.dailyRate,
@@ -319,6 +325,7 @@ export function rentalStatusContent(inquiry: RentalInquiry): RentalEmailContent 
 
 /** Customer-facing schedule details only. Internal schedule instructions and staff notes are never included. */
 export type RentalScheduleEmailInput = {
+  dailyWork?: RentalDailyWork[];
   reference: string;
   requesterName: string;
   equipmentName: string;
@@ -334,6 +341,7 @@ export type RentalScheduleEmailInput = {
 };
 
 export function rentalScheduleContent(input: RentalScheduleEmailInput): RentalEmailContent {
+  const tractor = isTractorService({ name: input.equipmentName });
   const place = [input.serviceLocation, input.barangay].map((part) => part?.trim()).filter(Boolean).join(", ");
   const instructions = input.customerInstructions?.trim();
   return {
@@ -341,7 +349,7 @@ export function rentalScheduleContent(input: RentalScheduleEmailInput): RentalEm
       ? `Rental schedule confirmed: ${input.reference}`
       : `Rental schedule proposed: ${input.reference}`,
     title: input.confirmed ? "Rental schedule confirmed" : "Rental schedule proposed",
-    preheader: `${input.equipmentName}: ${scheduleMoment(input.date, input.startTime)}`,
+    preheader: `${input.equipmentName}: ${tractor ? formatRentalDateRange(input.date, input.endDate, true) : scheduleMoment(input.date, input.startTime)}`,
     greeting: `Hello ${input.requesterName},`,
     intro: [
       input.confirmed
@@ -352,13 +360,16 @@ export function rentalScheduleContent(input: RentalScheduleEmailInput): RentalEm
     details: [
       { label: "Reference", value: input.reference },
       { label: "Equipment", value: input.equipmentName },
-      { label: "Start", value: scheduleMoment(input.date, input.startTime) },
-      { label: "End", value: scheduleMoment(input.endDate, input.endTime) },
+      ...(tractor
+        ? [{ label: "Work dates", value: formatRentalDateRange(input.date, input.endDate, true) }]
+        : [{ label: "Start", value: scheduleMoment(input.date, input.startTime) }, { label: "End", value: scheduleMoment(input.endDate, input.endTime) }]),
+      ...(tractor && input.dailyWork?.length ? [{ label: "Total hectares", value: `${totalWorkHectares(input.dailyWork)} hectares` }] : []),
+      ...(input.dailyWork ?? []).map((day) => ({ label: `Work on ${day.date}`, value: `${day.hectares} hectares` })),
       ...(place ? [{ label: "Location", value: place }] : []),
       ...(input.assignedOperator?.trim() ? [{ label: "Assigned operator", value: input.assignedOperator.trim() }] : []),
     ],
     quote: instructions ? { title: "Instructions for you", text: instructions } : undefined,
-    note: "All times are Philippine time.",
+    note: tractor ? undefined : "All times are Philippine time.",
   };
 }
 

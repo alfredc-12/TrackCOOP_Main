@@ -14,6 +14,9 @@ import type {
 import { useRentalData } from "../_hooks/useRentalData";
 import { RentalAccessGate } from "./RentalAccessGate";
 import { RentalConflictModal } from "./RentalConflictModal";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+import { TractorWorkPlan } from "./TractorWorkPlan";
+import { isTractorService, TRACTOR_SCHEDULE_DEFAULTS, shiftDailyWork } from "../_lib/rentalHectares";
 import { RentalPageHeader } from "./RentalPageHeader";
 
 const blank: RentalSchedule = {
@@ -46,6 +49,7 @@ function scheduleWithInquiry(
 ): RentalSchedule {
   return {
     ...current,
+    dailyWork: inquiry.dailyWork,
     inquiryId: inquiry.inquiryId,
     rentalId: inquiry.rentalId,
     serviceId: inquiry.serviceId,
@@ -66,6 +70,7 @@ function scheduleCandidate(
   form: RentalSchedule,
 ): Omit<RentalSchedule, "scheduleId" | "status" | "paymentStatus"> {
   return {
+    dailyWork: form.dailyWork,
     inquiryId: form.inquiryId,
     rentalId: form.rentalId,
     serviceId: form.serviceId,
@@ -84,6 +89,7 @@ function scheduleCandidate(
     bufferMinutes: form.bufferMinutes,
     specialInstructions: form.specialInstructions,
     customerInstructions: form.customerInstructions,
+    ...(isTractorService({ name: form.equipmentName, serviceId: form.serviceId }) ? TRACTOR_SCHEDULE_DEFAULTS : {}),
   };
 }
 
@@ -112,6 +118,7 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
   const [conflict, setConflict] = useState<ScheduleConflict>();
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
+  const tractor = isTractorService({ name: form.equipmentName, serviceId: form.serviceId });
 
   useEffect(() => {
     if (!data) return;
@@ -137,7 +144,7 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
     key: K,
     value: RentalSchedule[K],
   ) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({ ...current, ...(key === "date" ? { dailyWork: shiftDailyWork(current.dailyWork, current.date, String(value)) } : {}), [key]: value }));
     setChecked(false);
   };
   const selectInquiry = (inquiry: RentalInquiry) =>
@@ -201,44 +208,13 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <ScheduleField label="Inquiry ID" wide>
-              <select
-                value={form.inquiryId}
-                onChange={(event) => {
-                  const inquiry = data?.inquiries.find(
-                    (item) => item.inquiryId === event.target.value,
-                  );
-                  if (inquiry) selectInquiry(inquiry);
-                }}
-              >
-                <option value="">Select inquiry</option>
-                {data?.inquiries.map((item) => (
-                  <option key={item.inquiryId} value={item.inquiryId}>
-                    {item.inquiryId} · {item.requester.fullName}
-                  </option>
-                ))}
-              </select>
+              <StyledSelect value={form.inquiryId || "Select inquiry"} options={["Select inquiry", ...(data?.inquiries.map((item) => item.inquiryId) ?? [])]} onChange={(id) => { const inquiry = data?.inquiries.find((item) => item.inquiryId === id); if (inquiry) selectInquiry(inquiry); }} />
             </ScheduleField>
             <ScheduleField label="Requester">
               <input value={form.requesterName} readOnly />
             </ScheduleField>
             <ScheduleField label="Equipment">
-              <select
-                value={form.serviceId}
-                onChange={(event) => {
-                  const service = services.find(
-                    (item) => item.serviceId === event.target.value,
-                  );
-                  update("serviceId", event.target.value);
-                  update("equipmentName", service?.name ?? "");
-                }}
-              >
-                <option value="">Select equipment</option>
-                {services.map((item) => (
-                  <option value={item.serviceId} key={item.serviceId}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
+              <StyledSelect value={services.find((item) => item.serviceId === form.serviceId)?.name || "Select equipment"} options={["Select equipment", ...services.map((item) => item.name)]} onChange={(name) => { const service = services.find((item) => item.name === name); update("serviceId", service?.serviceId ?? ""); update("equipmentName", service?.name ?? ""); }} />
             </ScheduleField>
             <ScheduleField label="Start date">
               <input
@@ -255,6 +231,8 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
                 onChange={(event) => update("endDate", event.target.value)}
               />
             </ScheduleField>
+            {form.dailyWork ? <div className="sm:col-span-2"><TractorWorkPlan startDate={form.date} endDate={form.endDate} value={form.dailyWork} onChange={(work) => update("dailyWork", work)} /></div> : null}
+            {!tractor ? <>
             <ScheduleField label="Start time">
               <input
                 type="time"
@@ -269,6 +247,7 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
                 onChange={(event) => update("endTime", event.target.value)}
               />
             </ScheduleField>
+            </> : null}
             <ScheduleField label="Assigned operator">
               <input
                 value={form.assignedOperator ?? ""}
@@ -291,7 +270,7 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
                 onChange={(event) => update("barangay", event.target.value)}
               />
             </ScheduleField>
-            {(
+            {!tractor && (
               [
                 ["Preparation time (minutes)", "preparationMinutes"],
                 ["Travel time (minutes)", "travelMinutes"],

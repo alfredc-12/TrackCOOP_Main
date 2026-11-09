@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { RentalInquiry } from "../_types/rental";
 import { useRental } from "../_context/RentalProvider";
 import { formatPeso, formatRentalDate } from "../_lib/rentalFormatting";
+import { TractorWorkSummary } from "./TractorWorkPlan";
 import { RentalStatusBadge } from "./RentalStatusBadge";
 
 export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean; onDismiss?: () => void }) {
@@ -56,7 +57,7 @@ export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean
                 value={
                   inquiry.estimatedFee.discountPercent &&
                   inquiry.estimatedFee.discountAmount
-                    ? `${inquiry.estimatedFee.discountPercent}% off (${formatPeso(inquiry.estimatedFee.discountAmount)} per day)`
+                    ? `${inquiry.estimatedFee.discountPercent}% off (${formatPeso(inquiry.estimatedFee.discountAmount)} per ${inquiry.estimatedFee.pricingUnit === "hectare" ? "hectare" : "day"})`
                     : "None"
                 }
               />
@@ -72,6 +73,7 @@ export function RentalInquirySuccess({ inModal, onDismiss }: { inModal?: boolean
             <dd className="mt-1"><RentalStatusBadge status={inquiry.status} /></dd>
           </div>
         </dl>
+        <TractorWorkSummary value={inquiry.dailyWork} />
         <div data-no-print className="mt-8 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1f6b43] px-5 text-sm font-bold text-white">
             <Printer className="size-4" />Print Booking Summary
@@ -97,5 +99,5 @@ function formatEstimatedFee(inquiry: RentalInquiry) {
     estimate.discountPercent && estimate.discountAmount
       ? `, ${estimate.discountPercent}% member discount`
       : "";
-  return `${formatPeso(estimate.total)} estimated (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)}${discount})`;
+  return `${formatPeso(estimate.total)} estimated (${estimate.pricingUnit === "hectare" ? `${estimate.totalHectares} hectares` : `${estimate.days} day${estimate.days === 1 ? "" : "s"}`} x ${formatPeso(estimate.dailyRate)}${discount})`;
 }

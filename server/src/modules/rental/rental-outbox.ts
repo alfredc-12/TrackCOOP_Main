@@ -1,3 +1,4 @@
+import { isTractorService } from "./rental-hectares";
 import { createHash } from "node:crypto";
 import type { RowDataPacket } from "mysql2/promise";
 import { getEmailConfig, isResendMode, type EmailConfig } from "../email/email-config";
@@ -51,9 +52,11 @@ export async function enqueueRentalStatus(executor: SqlExecutor, inquiry: Rental
 
 /** Hash of exactly what the customer would read, so saving an unchanged schedule never re-sends. */
 export function scheduleVersion(schedule: RentalSchedule) {
+  const tractor = isTractorService({ name: schedule.equipmentName, serviceId: schedule.serviceId });
   const visible = [
-    schedule.status, schedule.date, schedule.startTime, schedule.endDate, schedule.endTime,
+    schedule.status, schedule.date, tractor ? "" : schedule.startTime, schedule.endDate, tractor ? "" : schedule.endTime,
     schedule.assignedOperator ?? "", schedule.serviceLocation, schedule.barangay, schedule.customerInstructions ?? "",
+    ...(schedule.dailyWork ?? []).map((day) => `${day.date}:${day.hectares}`),
   ];
   return createHash("sha256").update(JSON.stringify(visible)).digest("hex").slice(0, 16);
 }
@@ -67,6 +70,7 @@ export async function enqueueRentalSchedule(
 ) {
   if (!isResendMode(config)) return;
   const content = rentalScheduleContent({
+    dailyWork: schedule.dailyWork,
     reference: schedule.rentalId,
     requesterName: inquiry.requester.fullName,
     equipmentName: schedule.equipmentName,
