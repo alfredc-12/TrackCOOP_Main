@@ -1,4 +1,4 @@
-import { isTractorService } from "./rental-hectares";
+import { isTractorService, workShiftLabel } from "./rental-hectares";
 import { createHash } from "node:crypto";
 import type { RowDataPacket } from "mysql2/promise";
 import { getEmailConfig, isResendMode, type EmailConfig } from "../email/email-config";
@@ -56,7 +56,7 @@ export function scheduleVersion(schedule: RentalSchedule) {
   const visible = [
     schedule.status, schedule.date, tractor ? "" : schedule.startTime, schedule.endDate, tractor ? "" : schedule.endTime,
     schedule.assignedOperator ?? "", schedule.serviceLocation, schedule.barangay, schedule.customerInstructions ?? "",
-    ...(schedule.dailyWork ?? []).map((day) => `${day.date}:${day.hectares}`),
+    ...(schedule.dailyWork ?? []).map((day) => `${day.date}:${day.hectares}${workShiftLabel(day) ? `:${workShiftLabel(day)}` : ""}`),
   ];
   return createHash("sha256").update(JSON.stringify(visible)).digest("hex").slice(0, 16);
 }

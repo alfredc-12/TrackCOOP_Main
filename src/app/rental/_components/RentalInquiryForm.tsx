@@ -147,6 +147,7 @@ export function RentalInquiryForm({
   const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
   const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
   const [blockedDatesError, setBlockedDatesError] = useState<string>();
+  const [calendarRangeStart, setCalendarRangeStart] = useState<{ date: string; serviceId: string } | null>(null);
   const [selectedFarmWork, setSelectedFarmWork] = useState("");
   const [otherFarmWork, setOtherFarmWork] = useState("");
   const [contactDisplay, setContactDisplay] = useState("");
@@ -223,6 +224,7 @@ export function RentalInquiryForm({
     (service) => service.serviceId === selectedServiceId,
   );
   const tractor = isTractorService(selectedService);
+  const AvailabilityContainer = tractor ? "details" : "div";
   const watchedDailyWork = useWatch({ control, name: "dailyWork" });
   const dailyWork = useMemo(() => {
     const dates = new Set(workDateKeys(preferredDate, preferredEndDate));
@@ -258,6 +260,10 @@ export function RentalInquiryForm({
     () => new Map(effectiveBlockedDates.map((item) => [item.date, item])),
     [effectiveBlockedDates],
   );
+  const unavailableDateKeys = useMemo(() => effectiveBlockedDates
+    .filter((day) => day.remainingHectares === undefined || day.remainingHectares <= 0)
+    .map((day) => day.date), [effectiveBlockedDates]);
+  const bookingMaxDate = `${new Date().getFullYear() + 2}-12-31`;
   const preferredBlockedDate = firstBlockedDateInRange(
     preferredDate,
     preferredEndDate,
@@ -734,9 +740,12 @@ export function RentalInquiryForm({
                     hideLabel
                     value={preferredDate}
                     min={todayKey()}
-                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    max={bookingMaxDate}
+                    disabledDates={unavailableDateKeys}
+                    disabled={blockedDatesLoading || Boolean(effectiveBlockedDatesError) || !selectedService}
                     placeholder="Select start date"
                     onChange={(date) => {
+                      setCalendarRangeStart(null);
                       setValue("preferredDate", date, { shouldValidate: true });
                       const currentEndDate = getValues("preferredEndDate");
                       if (!currentEndDate || currentEndDate < date) {
@@ -755,12 +764,19 @@ export function RentalInquiryForm({
                     hideLabel
                     value={preferredEndDate}
                     min={preferredDate || todayKey()}
-                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    max={bookingMaxDate}
+                    disabledDates={unavailableDateKeys}
+                    disabled={blockedDatesLoading || Boolean(effectiveBlockedDatesError) || !selectedService}
                     placeholder="Select end date"
-                    onChange={(date) => setValue("preferredEndDate", date, { shouldValidate: true })}
+                    onChange={(date) => {
+                      setCalendarRangeStart(null);
+                      setValue("preferredEndDate", date, { shouldValidate: true });
+                    }}
                   />
                 </Field>
               </div>
+              <AvailabilityContainer className={tractor ? "rounded-xl border border-[#d7e2dc] bg-[#fbfdfb] px-3 py-2" : undefined}>
+                {tractor ? <summary className="cursor-pointer py-1 text-sm font-bold text-[#365f4a]">View availability calendar</summary> : null}
               <AvailabilityCalendar
                 serviceName={selectedService?.name}
                 selectedDate={preferredDate}
@@ -768,14 +784,22 @@ export function RentalInquiryForm({
                 blockedDates={effectiveBlockedDates}
                 loading={blockedDatesLoading}
                 error={effectiveBlockedDatesError}
+                maxDate={bookingMaxDate}
+                selectingEndDate={calendarRangeStart?.serviceId === selectedServiceId && calendarRangeStart.date === preferredDate}
                 onSelect={(date) => {
-                  setValue("preferredDate", date, { shouldValidate: true });
-                  if (!preferredEndDate || preferredEndDate < date) {
+                  const start = calendarRangeStart?.serviceId === selectedServiceId ? calendarRangeStart.date : undefined;
+                  if (start === preferredDate && start && date >= start) {
+                    setCalendarRangeStart(null);
+                    setValue("preferredEndDate", date, { shouldValidate: true });
+                  } else {
+                    setCalendarRangeStart({ date, serviceId: selectedServiceId });
+                    setValue("preferredDate", date, { shouldValidate: true });
                     setValue("preferredEndDate", date, { shouldValidate: true });
                   }
                 }}
               />
-              {tractor && preferredDate && preferredEndDate ? <TractorWorkPlan startDate={preferredDate} endDate={preferredEndDate} value={dailyWork} availability={effectiveBlockedDates} error={errors.dailyWork?.message} onChange={(work) => { setValue("dailyWork", work, { shouldDirty: true }); clearErrors("dailyWork"); }} /> : null}
+              </AvailabilityContainer>
+              {tractor && preferredDate && preferredEndDate ? <TractorWorkPlan allowShiftPreference startDate={preferredDate} endDate={preferredEndDate} value={dailyWork} availability={effectiveBlockedDates} error={errors.dailyWork?.message} onChange={(work) => { setValue("dailyWork", work, { shouldDirty: true }); clearErrors("dailyWork"); }} /> : null}
               {selectedService && preferredDate && preferredEndDate && (
                 <div className="mt-4 rounded-xl border border-[#9bc9aa] bg-[#eaf4ec] p-4 text-[#123d2a]">
                   <h4 className="font-bold">Possible rental fee</h4>
@@ -1210,6 +1234,8 @@ function AvailabilityCalendar({
   loading,
   error,
   onSelect,
+  maxDate,
+  selectingEndDate,
 }: {
   serviceName?: string;
   selectedDate: string;
@@ -1218,6 +1244,8 @@ function AvailabilityCalendar({
   loading: boolean;
   error?: string;
   onSelect: (date: string) => void;
+  maxDate: string;
+  selectingEndDate: boolean;
 }) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const blockedByDate = useMemo(
@@ -1287,6 +1315,9 @@ function AvailabilityCalendar({
         </div>
       </div>
 
+      <p className="mt-3 text-xs font-semibold text-[#365f4a]" aria-live="polite">
+        {selectingEndDate ? "Choose an end date. Choose the same date for one day." : "Choose a start date, then an end date."}
+      </p>
       {error ? (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
           {error}
@@ -1310,13 +1341,15 @@ function AvailabilityCalendar({
             Boolean(selectedDate && selectedEndDate) &&
             key >= selectedDate &&
             key <= selectedEndDate;
-          const disabled = Boolean(blocked) || past || !serviceName;
+          const disabled = Boolean(blocked) || past || key > maxDate || !serviceName || loading || Boolean(error);
           const maintenance = blocked?.status === "Maintenance";
 
           return (
             <button
               key={key}
+              data-date={key}
               type="button"
+              aria-pressed={inSelectedRange}
               disabled={disabled}
               title={
                 blocked

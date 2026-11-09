@@ -1,6 +1,6 @@
 "use client";
 
-import { isTractorService } from "@/app/rental/_lib/rentalHectares";
+import { isTractorService, formatWorkShiftAssignments } from "@/app/rental/_lib/rentalHectares";
 
 import {
   CalendarCheck2,
@@ -697,6 +697,7 @@ function BookingRow({
         {schedule
           ? `${formatDateRange(schedule.date, schedule.endDate)}${isTractorService({ name: schedule.equipmentName, serviceId: schedule.serviceId }) ? "" : ` · ${schedule.startTime}–${schedule.endTime}`}`
           : "Not confirmed"}
+        {schedule && formatWorkShiftAssignments(schedule.dailyWork) ? <p className="mt-1 text-xs text-[#6C7A70]">{formatWorkShiftAssignments(schedule.dailyWork)}</p> : null}
       </td>
       <td className="px-4 py-4">
         <StatusBadge tone={statusTone(inquiry.status)}>{inquiry.status}</StatusBadge>
@@ -766,6 +767,7 @@ function BookingMobileCard({
             : "Not confirmed"}
         </strong>
       </p>
+      {schedule && formatWorkShiftAssignments(schedule.dailyWork) ? <p className="mt-1 text-xs text-[#6C7A70]">{formatWorkShiftAssignments(schedule.dailyWork)}</p> : null}
       <div className="mt-4">
         <BookingActions
           onSelectBooking={onSelectBooking}

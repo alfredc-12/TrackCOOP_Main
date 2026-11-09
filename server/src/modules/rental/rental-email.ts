@@ -1,4 +1,4 @@
-import { isTractorService, totalWorkHectares } from "./rental-hectares";
+import { isTractorService, totalWorkHectares, workShiftLabel } from "./rental-hectares";
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
 import { escapeHtml, linesToHtml, renderEmailLayout } from "../email/email-layout";
@@ -86,7 +86,7 @@ function rentalSummaryLines(inquiry: RentalInquiry) {
     `Start date: ${formatRentalDate(inquiry.preferredDate, true)}`,
     `End date: ${formatRentalDate(inquiry.preferredEndDate, true)}`,
     ...(isTractorService({ name: inquiry.equipmentName, serviceId: inquiry.serviceId }) ? [] : [`Preferred time: ${inquiry.preferredStartTime ?? "08:00"} - ${inquiry.preferredEndTime ?? "17:00"}`]),
-    ...(inquiry.dailyWork ?? []).map((day) => `Work on ${day.date}: ${day.hectares} hectares`),
+    ...(inquiry.dailyWork ?? []).map((day) => `Work on ${day.date}: ${day.hectares} hectares${workShiftLabel(day) ? ` · ${workShiftLabel(day)}` : ""}`),
     ...possibleFeeLines(inquiry),
   ];
 }
@@ -364,7 +364,7 @@ export function rentalScheduleContent(input: RentalScheduleEmailInput): RentalEm
         ? [{ label: "Work dates", value: formatRentalDateRange(input.date, input.endDate, true) }]
         : [{ label: "Start", value: scheduleMoment(input.date, input.startTime) }, { label: "End", value: scheduleMoment(input.endDate, input.endTime) }]),
       ...(tractor && input.dailyWork?.length ? [{ label: "Total hectares", value: `${totalWorkHectares(input.dailyWork)} hectares` }] : []),
-      ...(input.dailyWork ?? []).map((day) => ({ label: `Work on ${day.date}`, value: `${day.hectares} hectares` })),
+      ...(input.dailyWork ?? []).map((day) => ({ label: `Work on ${day.date}`, value: `${day.hectares} hectares${workShiftLabel(day) ? ` · ${workShiftLabel(day)}` : ""}` })),
       ...(place ? [{ label: "Location", value: place }] : []),
       ...(input.assignedOperator?.trim() ? [{ label: "Assigned operator", value: input.assignedOperator.trim() }] : []),
     ],

@@ -56,3 +56,7 @@ export function shiftDailyWork(work: RentalDailyWork[] | undefined, from: string
   if (!Number.isFinite(offset)) return work;
   return work.map((day) => ({ ...day, date: new Date(new Date(`${day.date}T00:00:00Z`).getTime() + offset).toISOString().slice(0, 10) }));
 }
+
+export function workShiftLabel(day: RentalDailyWork) {
+  return day.shift ?? (day.preferredShift ? `Prefers ${day.preferredShift}` : "");
+}

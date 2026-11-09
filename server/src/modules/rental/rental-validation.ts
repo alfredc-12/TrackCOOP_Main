@@ -24,9 +24,16 @@ const validIdDocumentSchema = z.object({
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
-export const rentalDailyWorkSchema = z.array(z.object({
+const rentalRequestedWorkDaySchema = z.object({
   date: z.iso.date(),
+  preferredShift: z.enum(["AM", "PM"]).optional(),
   hectares: z.number().positive().max(5).refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Use up to two decimal places."),
+});
+
+// Requesters may state a preference; only staff scheduling accepts confirmed shift assignments.
+const rentalRequestedWorkSchema = z.array(rentalRequestedWorkDaySchema).max(1100);
+export const rentalDailyWorkSchema = z.array(rentalRequestedWorkDaySchema.extend({
+  shift: z.enum(["AM", "PM"]).optional(),
 })).max(1100);
 
 const requiredConsent = z
@@ -59,7 +66,7 @@ export const BookingSchema = z
     barangay: z.string().trim().min(1, "Select a barangay.").max(100),
     municipality: z.string().trim().min(2, "Enter the municipality.").max(100),
     serviceId: z.string().trim().min(1, "Select equipment or a service.").max(80),
-    dailyWork: rentalDailyWorkSchema.optional(),
+    dailyWork: rentalRequestedWorkSchema.optional(),
     intendedUse: z.string().trim().min(5, "Tell us what farm work the equipment will be used for.").max(160, "Farm use must be 160 characters or fewer."),
     preferredDate: z.iso.date("Choose a preferred start date."),
     preferredEndDate: z.iso.date("Choose a preferred end date."),

@@ -116,6 +116,10 @@ export interface RentalRequester {
 export interface RentalDailyWork {
   date: string;
   hectares: number;
+  /** Customer preference, subject to cooperative confirmation. */
+  preferredShift?: "AM" | "PM";
+  /** Optional staff assignment; capacity and pricing remain based on daily hectares. */
+  shift?: "AM" | "PM";
 }
 
 export interface RentalFeeEstimate {

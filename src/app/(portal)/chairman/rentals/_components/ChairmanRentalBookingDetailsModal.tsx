@@ -655,7 +655,7 @@ export function ChairmanRentalBookingDetailsModal({
                       : "text-[#5D6D63]"
                   }`}
                 >
-                  {tractorBooking && action.kind === "schedule" ? "Review the work dates and hectares, then assign the operator." : action.description}
+                  {tractorBooking && action.kind === "schedule" ? "Review hectares, optionally assign AM/PM for each date, and choose the operator." : action.description}
                 </span>
               </button>
             ))}
@@ -1012,7 +1012,7 @@ export function ChairmanRentalBookingDetailsModal({
         }
         description={
           tractorBooking
-            ? "Review the work dates and hectares, then assign the operator. Maximum 5 hectares per tractor per day."
+            ? "Review hectares, optionally assign AM/PM for each date, and choose the operator. Maximum 5 hectares per tractor per day."
             : activeAction?.kind === "schedule"
               ? activeAction.description
               : "The server checks persisted bookings, maintenance periods, asset state, buffers, travel, and preparation time."
@@ -1045,7 +1045,7 @@ export function ChairmanRentalBookingDetailsModal({
               error={scheduleErrors.endDate}
               onChange={(endDate) => updateScheduleDraft("endDate", endDate)}
             />
-            {inquiry?.dailyWork && isTractorService(services.find((item) => item.serviceId === scheduleDraft.serviceId)) ? <div className="sm:col-span-2"><TractorWorkPlan startDate={scheduleDraft.date} endDate={scheduleDraft.endDate} value={scheduleDraft.dailyWork} onChange={(work) => updateScheduleDraft("dailyWork", work)} error={scheduleErrors.dailyWork} /></div> : null}
+            {inquiry?.dailyWork && isTractorService(services.find((item) => item.serviceId === scheduleDraft.serviceId)) ? <div className="sm:col-span-2"><TractorWorkPlan allowShiftAssignment startDate={scheduleDraft.date} endDate={scheduleDraft.endDate} value={scheduleDraft.dailyWork} onChange={(work) => updateScheduleDraft("dailyWork", work)} error={scheduleErrors.dailyWork} /></div> : null}
             {tractorBooking && !inquiry?.dailyWork ? <p className="text-sm text-[#5D6D63] sm:col-span-2">This existing booking has no hectare breakdown recorded. Its original reservation and amount are preserved.</p> : null}
             {!tractorBooking ? <div className="grid grid-cols-2 gap-3">
               <ScheduleInput

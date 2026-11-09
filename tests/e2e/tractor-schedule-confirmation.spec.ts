@@ -11,7 +11,7 @@ async function mockBooking(page: Page, tractor = true, legacy = false) {
     inquiryId: "RNT-2099-0001", rentalId: "RNT-2099-0001", serviceId: service.serviceId, equipmentName: service.name,
     requester: { requesterId: "REQ-TEST", fullName: "Juan Santos", requesterType: "Public or Non-member", contactNumber: "09171234567", completeAddress: "Sitio Uno", barangay: "Wawa", municipality: "Nasugbu" },
     preferredDate: "2099-11-09", preferredEndDate: "2099-11-10", preferredStartTime: "09:15", preferredEndTime: "16:30",
-    dailyWork: tractor && !legacy ? [{ date: "2099-11-09", hectares: 3 }, { date: "2099-11-10", hectares: 2 }] : undefined,
+    dailyWork: tractor && !legacy ? [{ date: "2099-11-09", hectares: 3, preferredShift: "AM" }, { date: "2099-11-10", hectares: 2 }] : undefined,
     estimatedDuration: "2 days", estimatedUsage: tractor && !legacy ? "5" : "To be confirmed", unitOfMeasurement: tractor ? "hectares" : "days",
     intendedUse: "Farm work", requestDescription: "Farm work", attachmentNames: [], serviceLocation: "Sitio Uno farm", serviceBarangay: "Wawa",
     status: "Awaiting Confirmation", scheduleStatus: "Awaiting Confirmation", paymentStatus: "Paid", publicNote: "Ready for confirmation.",
@@ -59,9 +59,11 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const { saved, checks, dialog } = await mockBooking(page);
     await expect(dialog.locator('input[type="time"]')).toHaveCount(0);
-    await expect(dialog.getByRole("combobox")).toHaveCount(1);
+    await expect(dialog.getByRole("combobox")).toHaveCount(3);
     await expect(dialog.getByText("Confirmed", { exact: true })).toBeVisible();
     await expect(dialog.getByText("Total: 5 hectares", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Customer prefers AM", { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("combobox", { name: "Shift on 2099-11-09", exact: true })).toContainText("Not assigned");
     await expect(dialog.getByLabel("Service location", { exact: false })).toHaveValue("Sitio Uno farm");
     const notes = dialog.locator("details");
     await expect(notes).not.toHaveAttribute("open", "");
@@ -71,6 +73,13 @@ for (const width of [1440, 390]) {
     await dialog.getByRole("combobox", { name: "Choose operator", exact: true }).click();
     await expect(page.getByRole("option", { name: "Chairman to assign", exact: true })).toHaveCount(0);
     await page.getByRole("option", { name: "Cooperative operator", exact: true }).click();
+    await dialog.getByRole("combobox", { name: "Shift on 2099-11-09", exact: true }).click();
+    await page.getByRole("option", { name: "AM", exact: true }).click();
+    // Editing area must not silently clear the staff assignment.
+    await dialog.getByRole("spinbutton", { name: "Hectares on 2099-11-09", exact: true }).fill("3");
+    await expect(dialog.getByRole("combobox", { name: "Shift on 2099-11-09", exact: true })).toContainText("AM");
+    await dialog.getByRole("combobox", { name: "Shift on 2099-11-10", exact: true }).click();
+    await page.getByRole("option", { name: "PM", exact: true }).click();
     await dialog.getByRole("button", { name: "Check Availability", exact: true }).click();
     await expect(dialog.getByText("Schedule is available", { exact: true })).toBeVisible();
     await dialog.screenshot({ path: info.outputPath("tractor-confirmation.png") });
@@ -78,7 +87,7 @@ for (const width of [1440, 390]) {
     await dialog.getByRole("button", { name: "Confirm Schedule", exact: true }).click();
     await page.getByRole("dialog", { name: "Confirm Schedule?", exact: true }).getByRole("button", { name: "Confirm", exact: true }).click();
     await expect.poll(() => saved.length).toBe(1);
-    expect(saved[0]).toMatchObject({ status: "Confirmed", assignedOperator: "Cooperative operator", startTime: "00:00", endTime: "23:59", dailyWork: [{ date: "2099-11-09", hectares: 3 }, { date: "2099-11-10", hectares: 2 }] });
+    expect(saved[0]).toMatchObject({ status: "Confirmed", assignedOperator: "Cooperative operator", startTime: "00:00", endTime: "23:59", dailyWork: [{ date: "2099-11-09", hectares: 3, shift: "AM" }, { date: "2099-11-10", hectares: 2, shift: "PM" }] });
     expect(saved[0].serviceLocation).toBe("Sitio Uno farm");
   });
 }
@@ -97,4 +106,21 @@ test("legacy tractor booking has no invented hectares or clock inputs", async ({
   await expect(dialog.locator('input[type="time"]')).toHaveCount(0);
   await expect(dialog.getByText(/existing booking has no hectare breakdown recorded/)).toBeVisible();
   await expect(dialog.getByRole("spinbutton")).toHaveCount(0);
+});
+
+test("staff may leave shifts unassigned or clear an assignment before confirming", async ({ page }) => {
+  const { dialog, saved } = await mockBooking(page);
+  const shift = dialog.getByRole("combobox", { name: "Shift on 2099-11-09", exact: true });
+  await shift.click();
+  await page.getByRole("option", { name: "AM", exact: true }).click();
+  await shift.click();
+  await page.getByRole("option", { name: "Not assigned", exact: true }).click();
+  await dialog.getByRole("combobox", { name: "Choose operator", exact: true }).click();
+  await page.getByRole("option", { name: "Cooperative operator", exact: true }).click();
+  await dialog.getByRole("button", { name: "Check Availability", exact: true }).click();
+  await expect(dialog.getByText("Schedule is available", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Confirm Schedule", exact: true }).click();
+  await page.getByRole("dialog", { name: "Confirm Schedule?", exact: true }).getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect.poll(() => saved.length).toBe(1);
+  expect(saved[0].dailyWork?.every((day) => day.shift === undefined)).toBe(true);
 });

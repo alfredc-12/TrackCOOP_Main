@@ -231,7 +231,7 @@ export function RentalScheduleForm({ scheduleId }: { scheduleId?: string }) {
                 onChange={(event) => update("endDate", event.target.value)}
               />
             </ScheduleField>
-            {form.dailyWork ? <div className="sm:col-span-2"><TractorWorkPlan startDate={form.date} endDate={form.endDate} value={form.dailyWork} onChange={(work) => update("dailyWork", work)} /></div> : null}
+            {form.dailyWork ? <div className="sm:col-span-2"><TractorWorkPlan allowShiftAssignment startDate={form.date} endDate={form.endDate} value={form.dailyWork} onChange={(work) => update("dailyWork", work)} /></div> : null}
             {!tractor ? <>
             <ScheduleField label="Start time">
               <input
