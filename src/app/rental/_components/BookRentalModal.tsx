@@ -1,5 +1,6 @@
 "use client";
 
+import { useRental } from "../_context/RentalProvider";
 import { Modal } from "@/components/ui/Modal";
 import { RentalInquiryForm } from "./RentalInquiryForm";
 import { RentalInquirySuccess } from "./RentalInquirySuccess";
@@ -7,6 +8,8 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 export function BookRentalModal({ trigger, serviceId, member }: { trigger: ReactNode, serviceId?: string, member?: boolean }) {
+  const { role } = useRental();
+  const isMember = member ?? role === "Member";
   const [open, setOpen] = useState(false);
   const [success, setSuccess] = useState(false);
   
@@ -29,7 +32,7 @@ export function BookRentalModal({ trigger, serviceId, member }: { trigger: React
           <RentalInquirySuccess inModal onDismiss={() => setOpen(false)} />
         ) : (
           <RentalInquiryForm 
-            member={member}
+            member={isMember}
             hideBackButton 
             initialServiceId={serviceId} 
             onCancel={() => setOpen(false)} 

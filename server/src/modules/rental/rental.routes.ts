@@ -473,11 +473,18 @@ async function postRental(request: Request, response: Response) {
       return service ? json(response, service) : notFound(response, "Rental service was not found.");
     }
     if (resource === "inquiries" && id === "public") {
+      // A signed-in member using the public catalog still owns their booking.
+      // Resolve ownership from the session, never from the submitted name or ID.
+      const actor = request.auth?.user.role === "member"
+        ? await authorizeActor(request, response, ["member"])
+        : undefined;
+      if (request.auth?.user.role === "member" && !actor) return;
       const submission = await rentalSubmission(request);
       const inquiry = await rentalDatabase.submitRentalInquiry(
         submission.draft,
         submission.validIdFile,
-        false,
+        Boolean(actor),
+        actor ?? undefined,
       );
       await triggerRentalSubmittedEmail(inquiry);
       return json(response, inquiry, 201);

@@ -235,7 +235,7 @@ export function RentalInquiryForm({
       estimateRentalFee({
         service: selectedService,
         requesterType:
-          requesterType ?? (member ? "Member" : "Public or Non-member"),
+          member ? "Member" : requesterType ?? "Public or Non-member",
         startDate: preferredDate,
         endDate: preferredEndDate,
         dailyWork,
@@ -489,6 +489,7 @@ export function RentalInquiryForm({
       requestIdRef.current ??= crypto.randomUUID();
       await submitInquiry({
         ...values,
+        requesterType: member ? "Member" : values.requesterType,
         dailyWork: tractor ? dailyWork : undefined,
         validIdType: values.validIdType as ValidIdType,
         clientRequestId: requestIdRef.current,

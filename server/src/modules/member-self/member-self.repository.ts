@@ -103,6 +103,24 @@ async function selectMemberDividendActivities(
   return rows;
 }
 
+async function selectMemberRentalPayments(connection: Pool | PoolConnection, memberId: string | number, recentOnly = true) {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT CONCAT('RENTAL-PAY-', p.payment_reference_id) AS id,
+            p.submitted_at AS date, p.amount, p.validation_status AS status,
+            'Rental Payment' AS type
+       FROM payment_references p
+      WHERE p.payment_purpose = 'Rental'
+        AND (p.member_id = ? OR (p.member_id IS NULL
+          AND p.related_entity_type = 'rental_bookings'
+          AND EXISTS (SELECT 1 FROM rental_bookings rb
+            WHERE rb.rental_booking_id = p.related_entity_id AND rb.member_id = ?)))
+      ORDER BY p.submitted_at DESC, p.payment_reference_id DESC
+      ${recentOnly ? "LIMIT 5" : ""}`,
+    [memberId, memberId],
+  );
+  return rows;
+}
+
 function memberDateFilter(column: string, query: MemberDashboardQuery) {
   if (query.period === "year") {
     return { clause: `AND YEAR(${column}) = YEAR(CURRENT_DATE())`, params: [] as string[] };
@@ -459,13 +477,13 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       );
       const [rentals] = await databasePool().execute<RowDataPacket[]>(
         `SELECT rental_booking_id as id,
-                start_datetime as date,
+                created_at as date,
                 total_amount as amount,
                 booking_status as status,
                 'Rental Booking' as type
            FROM rental_bookings
           WHERE member_id = ?
-          ORDER BY start_datetime DESC
+          ORDER BY created_at DESC, rental_booking_id DESC
           LIMIT 5`,
         [member.member_id],
       );
@@ -489,7 +507,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       const hasFinancialAccess = canAccessMemberFinancials(member);
       const dividendActivities = canAccessMemberFinancials(member) ? await selectMemberDividendActivities(databasePool(), member.member_id) : [];
 
-      const recentActivity = [...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
+      const rentalPayments = await selectMemberRentalPayments(databasePool(), member.member_id);
+      const recentActivity = [...rentalPayments, ...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
         .slice(0, 5);
       const recentCapitalContributions = [...deposits, ...unledgeredDividendAdditions]
@@ -621,7 +640,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       );
       const [rentals] = await databasePool().execute<RowDataPacket[]>(
-        `SELECT rental_booking_id as id, start_datetime as date, total_amount as amount,
+        `SELECT rental_booking_id as id, created_at as date, total_amount as amount,
                 booking_status as status, 'Rental Booking' as type
            FROM rental_bookings
           WHERE member_id = ?`,
@@ -635,7 +654,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       );
       const dividendActivities = canAccessMemberFinancials(member) ? await selectMemberDividendActivities(databasePool(), member.member_id) : [];
       const searchPattern = search.trim().toLowerCase();
-      const allRecords = [...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
+      const rentalPayments = await selectMemberRentalPayments(databasePool(), member.member_id, false);
+      const allRecords = [...rentalPayments, ...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
         .filter((record) => !searchPattern || `${record.type} ${record.status}`.toLowerCase().includes(searchPattern))
         .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime());
       const total = allRecords.length;
