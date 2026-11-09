@@ -56,6 +56,8 @@ export function FinancialAnalyticsClient({ today }: { today: string }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const pendingFilterApply = useRef(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const [overlay, setOverlay] = useState<FinancialOverlay>(null);
   const [exporting, setExporting] = useState(false);
@@ -66,13 +68,18 @@ export function FinancialAnalyticsClient({ today }: { today: string }) {
   useEffect(() => {
     const controller = new AbortController();
     getFinancialAnalytics(applied, controller.signal)
-      .then(report => { if (!controller.signal.aborted) { setData(report); setError(""); setLoadedAt(new Date()); } })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Financial analytics could not be loaded."); })
+      .then(report => { if (!controller.signal.aborted) { setData(report); setError(""); setLoadedAt(new Date()); if (pendingFilterApply.current) { setFiltersOpen(false); pendingFilterApply.current = false; } } })
+      .catch(reason => { if (!controller.signal.aborted) { pendingFilterApply.current = false; setError(reason instanceof Error ? reason.message : "Financial analytics could not be loaded."); } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [applied, refresh]);
 
-  const push = (next: FinancialFilters) => { setLoading(true); router.push(`${pathname}?${filtersToParams(next)}`, { scroll: false }); };
+  const push = (next: FinancialFilters) => {
+    pendingFilterApply.current = true; setLoading(true);
+    const query = filtersToParams(next).toString();
+    if (query === filtersToParams(applied).toString()) setRefresh(value => value + 1);
+    else router.push(`${pathname}?${query}`, { scroll: false });
+  };
   const reload = () => { setLoading(true); setRefresh(value => value + 1); };
   const open = (kind: Exclude<FinancialOverlay, null>["kind"], element: HTMLElement | null, value?: string, window?: { from: string; to: string; label: string }) => { returnFocus.current = element; setOverlay({ kind, value, window }); };
   const openFromChart = (kind: Exclude<FinancialOverlay, null>["kind"], value?: string, window?: { from: string; to: string; label: string }) => { returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setOverlay({ kind, value, window }); };
@@ -109,7 +116,8 @@ export function FinancialAnalyticsClient({ today }: { today: string }) {
       <div className={`${styles.field} min-w-[220px] flex-1`}><label htmlFor="ledger-search">Look up a ledger record</label><input id="ledger-search" type="search" value={ledgerTerm} maxLength={190} onChange={event => setLedgerTerm(event.target.value)} placeholder="Record number, category or note" /></div>
       <Button type="submit" variant="secondary" size="md" disabled={!ledgerTerm.trim()}><Search className="size-4" aria-hidden="true" />Open Ledger Search</Button>
     </form>
-    <FinancialFilterForm key={key} applied={applied} today={today} categories={data?.options.categories ?? []} loading={loading} onApply={push} />
+    <FinancialFilterForm key={key} applied={applied} expanded={filtersOpen} onExpandedChange={setFiltersOpen} periodLabel={data?.periodLabel}
+      summaryFilters={data ? { ...data.filters, compareStart: data.filters.compareStart ?? "", compareEnd: data.filters.compareEnd ?? "", minAmount: data.filters.minAmount === null ? "" : String(data.filters.minAmount), maxAmount: data.filters.maxAmount === null ? "" : String(data.filters.maxAmount) } : applied} today={today} categories={data?.options.categories ?? []} loading={loading} onApply={push} />
 
     {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{stale ? `Refresh failed: ${error} Showing the results loaded at ${loadedAt?.toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" })}. They may be out of date.` : error}</p><Button variant="secondary" size="sm" onClick={reload}>Retry analytics</Button></div>}
     {loading && <p role="status" className={styles.notice}>{data ? "Updating analytics…" : "Loading financial analytics…"}</p>}

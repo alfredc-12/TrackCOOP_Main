@@ -22,7 +22,7 @@ import { BookRentalModal } from "./BookRentalModal";
 import { RentalPolicyNotice } from "./RentalPolicyNotice";
 import { RentalLoadingState } from "./RentalStates";
 
-export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
+export function RentalServiceDetails({ serviceId, embedded = false }: { serviceId: string; embedded?: boolean }) {
   const { services, loading } = useRental();
   const service = services.find((item) => item.serviceId === serviceId);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -62,16 +62,18 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
     ? resolveUploadUrl(mainImage)
     : undefined;
 
+  const Title = embedded ? "h2" : "h1";
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <Link
+    <div className={embedded ? "pb-1" : "mx-auto max-w-7xl px-4 py-8 sm:px-6"}>
+      {!embedded ? <Link
         href="/rental"
         className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[#365f4a]"
       >
         <ArrowLeft className="size-4" />
         All Rental Services
-      </Link>
-      <div className="mt-4 grid gap-8 lg:grid-cols-[1.05fr_.95fr]">
+      </Link> : null}
+      <div className={embedded ? "grid gap-6 lg:grid-cols-[1fr_1.1fr]" : "mt-4 grid gap-8 lg:grid-cols-[1.05fr_.95fr]"}>
         <section>
           {mainImageUrl ? (
             <Modal
@@ -82,7 +84,7 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
               trigger={
                 <button
                   type="button"
-                  className="group relative grid min-h-80 w-full cursor-zoom-in place-items-center overflow-hidden rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)] bg-cover bg-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1f6b43]"
+                  className={`group relative grid ${embedded ? "aspect-[4/3] min-h-52 rounded-2xl" : "min-h-80 rounded-3xl"} w-full cursor-zoom-in place-items-center overflow-hidden bg-[linear-gradient(135deg,#dcead6,#f6eed8)] bg-cover bg-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1f6b43]`}
                   style={{
                     backgroundImage: cssUploadUrl(mainImageUrl),
                   }}
@@ -105,14 +107,14 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
               />
             </Modal>
           ) : (
-            <div className="grid min-h-80 place-items-center rounded-3xl bg-[linear-gradient(135deg,#dcead6,#f6eed8)]">
+            <div className={`grid ${embedded ? "aspect-[4/3] min-h-52 rounded-2xl" : "min-h-80 rounded-3xl"} place-items-center bg-[linear-gradient(135deg,#dcead6,#f6eed8)]`}>
               <Tractor
                 className="size-36 text-[#1f6b43]"
                 strokeWidth={1.1}
               />
             </div>
           )}
-          <div
+          {!embedded || images.length > 1 ? <div
             className="mt-3 grid grid-cols-3 gap-3"
             aria-label="Equipment image gallery"
           >
@@ -139,7 +141,7 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
                 <div className="h-24 rounded-2xl bg-[#f0ead8]" />
               </>
             )}
-          </div>
+          </div> : null}
         </section>
         <section>
           <div className="flex flex-wrap items-center gap-2">
@@ -150,13 +152,13 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
               {service.availability}
             </span>
           </div>
-          <h1 className="mt-4 text-4xl font-extrabold text-[#123d2a] sm:text-5xl">
+          <Title className={embedded ? "mt-3 text-2xl font-bold leading-tight text-coop-forest sm:text-3xl" : "mt-4 text-4xl font-extrabold text-[#123d2a] sm:text-5xl"}>
             {service.publicTitle || service.name}
-          </h1>
-          <p className="mt-5 text-base leading-7 text-[#5d6d62]">
+          </Title>
+          <p className={`${embedded ? "mt-3 text-sm leading-6" : "mt-5 text-base leading-7"} text-[#5d6d62]`}>
             {service.publicDescription || service.description}
           </p>
-          <dl className="mt-7 grid gap-4 rounded-2xl border border-[#d8e4d3] bg-white p-5 sm:grid-cols-2">
+          <dl className={`${embedded ? "mt-4 p-4" : "mt-7 p-5"} grid gap-4 rounded-2xl border border-[#d8e4d3] bg-white sm:grid-cols-2`}>
             <Detail term="Intended use" value={service.suitableActivity} />
             <Detail term="Unit of usage" value={service.unitOfUsage} />
             <Detail term="Capacity" value={service.capacity} />
@@ -191,7 +193,7 @@ export function RentalServiceDetails({ serviceId }: { serviceId: string }) {
           )}
         </section>
       </div>
-      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+      <div className={`${embedded ? "mt-6 gap-4" : "mt-10 gap-6"} grid lg:grid-cols-2`}>
         <section className="rounded-3xl border border-[#d8e4d3] bg-white p-6">
           <h2 className="text-2xl font-bold text-[#123d2a]">
             Operational and safety notes

@@ -7,7 +7,7 @@ import { createAnalyticsEngine } from "../../server/src/modules/member-analytics
 import { parseAnalyticsFilters } from "../../server/src/modules/member-analytics/member-analytics.filters";
 
 const envelope = (data: unknown, meta = {}) => ({ success: true, data, message: "Analytics test fixture", meta });
-async function setup(page: Page, options: { fail?: boolean; empty?: boolean } = {}) {
+async function setup(page: Page, options: { fail?: boolean; failSecond?: boolean; empty?: boolean } = {}) {
   const requests: URL[] = [];
   await page.setExtraHTTPHeaders({ "x-trackcoop-internal-rewrite": "1" });
   // This suite supplies auth at the browser boundary; retain canonical links while
@@ -20,7 +20,7 @@ async function setup(page: Page, options: { fail?: boolean; empty?: boolean } = 
     if (url.pathname === "/api/auth/me") return route.fulfill({ json: envelope({ id: "analytics-review", displayName: "Analytics Review", email: "review@example.invalid", username: "review", role: "chairman" }) });
     if (url.pathname === "/api/chairman/member-analytics") {
       requests.push(url);
-      if (options.fail && requests.length === 1) return route.fulfill({ status: 503, json: { success: false, message: "Analytics fixture temporarily unavailable", errors: [] } });
+      if ((options.fail && requests.length === 1) || (options.failSecond && requests.length === 2)) return route.fulfill({ status: 503, json: { success: false, message: "Analytics fixture temporarily unavailable", errors: [] } });
       const filters = parseAnalyticsFilters(Object.fromEntries(url.searchParams));
       const source = analyticsFixture(); if (options.empty) source.members = [];
       return route.fulfill({ json: envelope(createAnalyticsEngine(source, filters, "2026-11-02T06:00:00Z").result) });
@@ -37,6 +37,8 @@ const path = `/chairman/dashboard?start=${fixtureFilters.start}&end=${fixtureFil
 for (const width of [1440, 1024, 768, 390]) test(`analytics layout, detail drawer, left matrix and map work at ${width}px`, async ({ page }, info) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   await setup(page); await page.setViewportSize({ width, height: 1000 }); await page.goto(path);
+  await expect(page.getByRole("button", { name: "Reporting filters", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("combobox", { name: "Reporting period", exact: true })).toHaveCount(0);
   const kpis = page.getByRole("region", { name: "Membership performance KPIs" });
   await expect(kpis.getByRole("button")).toHaveCount(6);
   await expect(kpis.getByRole("button", { name: /^Approved members/ }).locator("strong")).toHaveText("5");
@@ -58,7 +60,7 @@ for (const width of [1440, 1024, 768, 390]) test(`analytics layout, detail drawe
     }
     const sectors = page.locator("section").filter({ has: page.getByRole("heading", { name: "Agricultural sectors", exact: true }) });
     const sectorBottom = await sectors.boundingBox();
-    const sectorLastLine = await sectors.getByText("0 without a listed primary sector", { exact: true }).boundingBox();
+    const sectorLastLine = await sectors.getByText("0 without a selected sector", { exact: true }).boundingBox();
     expect(sectorBottom!.y + sectorBottom!.height - sectorLastLine!.y - sectorLastLine!.height).toBeLessThan(35);
     const engagement = page.locator("section").filter({ has: page.getByRole("heading", { name: "Member engagement", exact: true }) });
     const engagementBottom = await engagement.boundingBox();
@@ -103,14 +105,27 @@ for (const width of [1440, 1024, 768, 390]) test(`analytics layout, detail drawe
 test("filters wait for Apply, persist in URL, remove chips and restore on browser Back", async ({ page }) => {
   const { requests } = await setup(page); await page.goto(path);
   await expect(page.getByText("5 matching approved members", { exact: true })).toBeVisible();
+  const toggle = page.getByRole("button", { name: "Reporting filters", exact: true });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  const summary = await toggle.textContent();
+  await toggle.click();
   const before = requests.length;
   await page.getByRole("checkbox", { name: "Corn", exact: true }).check();
+  await toggle.click();
+  await expect(toggle).toHaveText(summary!);
+  await toggle.click();
+  await expect(page.getByRole("checkbox", { name: "Corn", exact: true })).toBeChecked();
   await page.getByRole("combobox", { name: "Barangays", exact: true }).fill("A");
   expect(requests.length).toBe(before);
   await page.getByRole("button", { name: "Apply filters", exact: true }).click();
   await expect(page).toHaveURL(/sectors=Corn/);
   await expect(page.getByText("1 matching approved members", { exact: true })).toBeVisible();
-  await page.reload(); await expect(page.getByRole("checkbox", { name: "Corn", exact: true })).toBeChecked();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toContainText("1 additional filter");
+  await page.reload();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(page.getByRole("checkbox", { name: "Corn", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "Remove Corn filter", exact: true }).click();
   await expect(page.getByText("5 matching approved members", { exact: true })).toBeVisible();
   await page.goBack(); await expect(page.getByText("1 matching approved members", { exact: true })).toBeVisible();
@@ -192,6 +207,7 @@ test("custom analytics comboboxes preserve empty filter values and searchable ba
   await expect(page.getByText("5 matching approved members", { exact: true })).toBeVisible();
   // Radix may retain an invisible native select for form autofill; no native menu is visible.
   await expect(page.locator("main select:not([aria-hidden='true']), main datalist")).toHaveCount(0);
+  await page.getByRole("button", { name: "Reporting filters", exact: true }).click();
   const engagement = page.getByRole("combobox", { name: "RFM engagement", exact: true });
   const initialRequests = requests.length;
   await engagement.click();
@@ -202,10 +218,13 @@ test("custom analytics comboboxes preserve empty filter values and searchable ba
   await page.getByRole("button", { name: "Apply filters", exact: true }).click();
   await expect(page).toHaveURL(/engagement=Inactive/);
   await expect(page.getByText("1 matching approved members", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reporting filters", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Reporting filters", exact: true }).click();
   await engagement.click(); await page.getByRole("option", { name: "All engagement labels", exact: true }).click();
   await page.getByRole("button", { name: "Apply filters", exact: true }).click();
   await expect(page.getByText("5 matching approved members", { exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.has("engagement")).toBe(false);
+  await page.getByRole("button", { name: "Reporting filters", exact: true }).click();
   const barangay = page.getByRole("combobox", { name: "Barangays", exact: true });
   await barangay.fill("not-a-real-option");
   await expect(page.getByText("No matching options.", { exact: true })).toBeVisible();
@@ -224,6 +243,7 @@ test.describe("touch combobox", () => {
   test("search results can be scrolled and selected with touch", async ({ page }) => {
     await setup(page); await page.goto(path);
     await expect(page.getByText("5 matching approved members", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Reporting filters", exact: true }).click();
     const barangay = page.getByRole("combobox", { name: "Barangays", exact: true });
     await barangay.tap();
     const list = page.getByRole("listbox", { name: "Barangays", exact: true });
@@ -233,4 +253,23 @@ test.describe("touch combobox", () => {
     await expect(barangay).toHaveValue("Wawa");
     await expect(list).toHaveCount(0);
   });
+});
+
+
+test("member filter panel stays open after a failed apply and collapses after a successful retry", async ({ page }) => {
+  await setup(page, { failSecond: true }); await page.goto(path);
+  await expect(page.getByText("5 matching approved members", { exact: true })).toBeVisible();
+  const toggle = page.getByRole("button", { name: "Reporting filters", exact: true });
+  const summary = await toggle.textContent();
+  await toggle.click();
+  await page.getByRole("checkbox", { name: "Corn", exact: true }).check();
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "temporarily unavailable" })).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toHaveText(summary!);
+  await expect(page.getByRole("checkbox", { name: "Corn", exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(page.getByText("1 matching approved members", { exact: true })).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toContainText("1 additional filter");
 });

@@ -1,11 +1,12 @@
 "use client";
 import { useId, useMemo, useState } from "react";
-import { ChevronDown, Filter, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
+import { ReportingFilterToggle, reportingDate } from "@/components/portal/ReportingFilterToggle";
 import { Button } from "@/components/ui/Button";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import {
-  activeChips, COMPARE_OPTIONS, defaultFinancialFilters, PERIOD_OPTIONS, RECORD_TYPE_OPTIONS, validateFilters,
+  activeChips, labelFor, COMPARE_OPTIONS, defaultFinancialFilters, PERIOD_OPTIONS, RECORD_TYPE_OPTIONS, validateFilters,
   type FinancialAnalyticsResult, type FinancialFilters,
 } from "./financial-analytics-client";
 import { SelectField } from "./FinancialUi";
@@ -22,12 +23,13 @@ export function categoryLabels(categories: Category[]) {
   return new Map(categories.map(category => [category.id, (counts.get(category.name) ?? 0) > 1 ? `${category.name} · ${category.type}` : category.name]));
 }
 
-export function FinancialFilterForm({ applied, today, categories, loading, onApply }: {
-  applied: FinancialFilters; today: string; categories: Category[]; loading: boolean; onApply: (filters: FinancialFilters) => void;
+export function FinancialFilterForm({ applied, summaryFilters = applied, periodLabel, expanded, onExpandedChange, today, categories, loading, onApply }: {
+  applied: FinancialFilters; summaryFilters?: FinancialFilters; periodLabel?: string; expanded: boolean; onExpandedChange: (expanded: boolean) => void; today: string; categories: Category[]; loading: boolean; onApply: (filters: FinancialFilters) => void;
 }) {
   const [draft, setDraft] = useState(applied);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedId = useId();
+  const panelId = useId();
   const [categoryText, setCategoryText] = useState("");
   const [error, setError] = useState("");
   const labels = useMemo(() => categoryLabels(categories), [categories]);
@@ -44,11 +46,13 @@ export function FinancialFilterForm({ applied, today, categories, loading, onApp
     if (!id) { setError("Choose a category from the list."); return; }
     setError(""); update("categoryIds", [...new Set([...draft.categoryIds, id])]); setCategoryText("");
   };
-  const chips = activeChips(applied, id => labels.get(id) ?? `#${id}`);
+  const chips = activeChips(summaryFilters, id => labels.get(id) ?? `#${id}`);
   const activeCount = chips.length;
 
   return <form className={`${styles.panel} ${styles.filters}`} onSubmit={event => { event.preventDefault(); apply(); }} aria-label="Financial analytics filters">
-    <div className="mb-4 flex items-center gap-2"><h2 className="flex items-center gap-2 text-base font-semibold"><Filter className="size-4" aria-hidden="true" />Reporting filters</h2><button type="button" aria-expanded={advancedOpen} aria-controls={advancedId} aria-label="More filters" onClick={() => setAdvancedOpen(open => !open)} className="grid size-10 place-items-center rounded-md text-coop-forest hover:bg-coop-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-coop-green"><ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} aria-hidden="true" /></button></div>
+    <ReportingFilterToggle expanded={expanded} onToggle={() => onExpandedChange(!expanded)} controls={panelId}
+      summary={periodLabel ?? (summaryFilters.period === "custom" ? `${reportingDate(summaryFilters.start)} – ${reportingDate(summaryFilters.end)}` : labelFor(PERIOD_OPTIONS, summaryFilters.period))} activeCount={activeCount} />
+    <div id={panelId} hidden={!expanded} className="mt-4 border-t border-coop-card-border pt-4">
     <div className={styles.fields}>
       <SelectField label="Reporting period" value={draft.period} options={PERIOD_OPTIONS} onChange={value => update("period", value)} />
       <SelectField label="Compare with" value={draft.compare} options={COMPARE_OPTIONS} onChange={value => update("compare", value)} disabled={draft.period === "all-time"} />
@@ -70,6 +74,7 @@ export function FinancialFilterForm({ applied, today, categories, loading, onApp
     <div className="flex flex-wrap items-end justify-between gap-3"><fieldset className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-0 p-0 text-[13px]"><legend className="pb-2 text-xs font-semibold">Source module · all when none selected (Share Capital is reported separately)</legend>
       {SOURCE_MODULES.map(source => <label key={source} className="inline-flex min-h-8 cursor-pointer items-center gap-2"><input type="checkbox" className="size-4 accent-[var(--coop-green,#1f6b43)]" checked={draft.sourceModules.includes(source)} onChange={event => update("sourceModules", event.target.checked ? [...draft.sourceModules, source] : draft.sourceModules.filter(value => value !== source))} />{source}</label>)}
     </fieldset><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" size="sm" onClick={() => { const next = defaultFinancialFilters(); setDraft(next); setError(""); setCategoryText(""); onApply(next); }}>Clear all</Button><Button type="submit" size="sm" loading={loading}>Apply filters</Button></div></div>
+    <button type="button" aria-expanded={advancedOpen} aria-controls={advancedId} aria-label="More filters" onClick={() => setAdvancedOpen(open => !open)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-semibold text-coop-secondary hover:text-coop-forest">More filters<ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} aria-hidden="true" /></button>
     <div id={advancedId} hidden={!advancedOpen}>
       <div className={`${styles.fields} mt-4`}>
         <div className={styles.field}><label htmlFor={`${listId}-min`}>Minimum record amount (₱)</label><input id={`${listId}-min`} type="number" inputMode="decimal" min="0" step="0.01" value={draft.minAmount} onChange={event => update("minAmount", event.target.value)} /></div>
@@ -79,7 +84,8 @@ export function FinancialFilterForm({ applied, today, categories, loading, onApp
       <p className={`${styles.hint} mt-3`}>Amount, reference, category and source narrow every figure below. Posting status, record status and who recorded or approved a record are audit views: headline figures always use posted, active records, and those checks are in Financial Data Integrity.</p>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+    </div>
     <span className="sr-only">{activeCount ? `${activeCount} filters applied` : "No additional filters applied"}</span>
-    {chips.length > 0 && <div className={styles.chips} aria-label="Applied filters">{chips.map(chip => <button key={chip.id} type="button" className={styles.chip} aria-label={`Remove filter ${chip.label}`} onClick={() => { const next = { ...applied, ...chip.clear }; setDraft(next); apply(next); }}>{chip.label}<X className="size-3" aria-hidden="true" /></button>)}</div>}
+    {chips.length > 0 && <div className={styles.chips} aria-label="Applied filters">{chips.map(chip => <button key={chip.id} type="button" className={styles.chip} aria-label={`Remove filter ${chip.label}`} onClick={() => { const next = { ...summaryFilters, ...chip.clear }; setDraft(next); apply(next); }}>{chip.label}<X className="size-3" aria-hidden="true" /></button>)}</div>}
   </form>;
 }

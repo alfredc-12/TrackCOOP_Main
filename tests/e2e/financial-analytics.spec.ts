@@ -58,11 +58,16 @@ const kpis = (page: Page) => page.getByRole("region", { name: "Financial perform
 for (const width of [1440, 1024, 768, 390]) test(`financial analytics renders every section without overflow at ${width}px`, async ({ page }, info) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   await setup(page); await page.setViewportSize({ width, height: 1000 }); await page.goto(path);
+  const filterToggle = page.getByRole("button", { name: "Reporting filters", exact: true });
+  await expect(filterToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("combobox", { name: "Reporting period", exact: true })).toHaveCount(0);
   if (width === 1440) {
+    await filterToggle.click();
     const source = await page.getByLabel("Other", { exact: true }).boundingBox();
     const apply = await page.getByRole("button", { name: "Apply filters" }).boundingBox();
     expect(Math.abs((source!.y + source!.height / 2) - (apply!.y + apply!.height / 2))).toBeLessThan(12);
     expect(apply!.x).toBeGreaterThan(source!.x);
+    await filterToggle.click();
   }
   await expect(kpis(page).getByRole("button")).toHaveCount(4);
   await expect(kpis(page).getByRole("button", { name: /^Recorded operating income/ }).locator("strong")).toHaveText("₱15,000.00");
@@ -159,6 +164,7 @@ test("a period opens from the chart's table alternative with its own breakdown a
 
 test("filters persist in the URL, produce removable chips and explain out-of-scope metrics", async ({ page }) => {
   const { requests } = await setup(page); await page.goto(path);
+  await page.getByRole("button", { name: "Reporting filters", exact: true }).click();
   await page.getByLabel("Financial record type").click();
   await page.getByRole("option", { name: "Income" }).click();
   await page.getByRole("button", { name: "More filters" }).click();
@@ -178,6 +184,8 @@ test("filters persist in the URL, produce removable chips and explain out-of-sco
   await page.getByRole("button", { name: "Remove filter Type: Income" }).click();
   await expect(page).not.toHaveURL(/recordType=Income/);
   await expect(page).toHaveURL(/minAmount=100/);
+  await expect(page.getByRole("button", { name: "Reporting filters", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Reporting filters", exact: true }).click();
   await page.getByRole("button", { name: "Clear all" }).click();
   await expect(page).not.toHaveURL(/minAmount|maxAmount|recordType/);
   await expect(kpis(page).getByRole("button", { name: /^Recorded net surplus/ }).locator("strong")).not.toHaveText("N/A");
@@ -254,4 +262,27 @@ test("reduced motion removes drawer animation and focus stays inside the open dr
   await expect(drawer).toHaveCSS("animation-name", "none");
   for (let i = 0; i < 12; i++) await page.keyboard.press("Tab");
   expect(await page.evaluate(() => !!document.activeElement?.closest("[role='dialog']"))).toBe(true);
+});
+
+
+test("financial filter summary excludes draft edits and stays open on a failed apply", async ({ page }) => {
+  await setup(page, { failSecond: true }); await page.goto(path);
+  await expect(kpis(page)).toBeVisible();
+  const toggle = page.getByRole("button", { name: "Reporting filters", exact: true });
+  const summary = await toggle.textContent();
+  await toggle.click();
+  await page.getByRole("combobox", { name: "Financial record type", exact: true }).click();
+  await page.getByRole("option", { name: "Income", exact: true }).click();
+  await toggle.click();
+  await expect(toggle).toHaveText(summary!);
+  await toggle.click();
+  await expect(page.getByRole("combobox", { name: "Financial record type", exact: true })).toContainText("Income");
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "temporarily unavailable" })).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toHaveText(summary!);
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toContainText("2 additional filters");
+  await expect(page.getByText("Record type is limited to Income", { exact: false })).toBeVisible();
 });
