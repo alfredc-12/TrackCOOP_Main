@@ -4,8 +4,8 @@
 .public-rental .rental-results { container: rental-results / inline-size; }
 
 @container rental-results (min-width: 40rem) {
-  .public-rental .rental-public-equipment { grid-template-columns: 7rem minmax(0, 1fr) 9rem; align-items: center; }
-  .public-rental .rental-equipment-actions { grid-column: auto; align-self: stretch; flex-direction: column; justify-content: center; align-items: stretch; gap: 6px; }
+  .public-rental .rental-public-equipment { grid-template-columns: 8rem minmax(0, 1fr) 9rem; align-items: center; }
+  .public-rental .rental-equipment-actions { grid-column: auto; align-self: stretch; flex-direction: column; justify-content: center; align-items: stretch; gap: 4px; border-top: 0; padding-top: 0; }
   .public-rental .rental-equipment-actions > a { justify-content: center; }
 }
 .public-rental .rental-showcase-image { transition: scale 900ms var(--public-motion-ease); }

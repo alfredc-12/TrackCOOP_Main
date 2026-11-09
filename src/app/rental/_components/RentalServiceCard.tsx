@@ -25,22 +25,22 @@ export function RentalServiceCard({ service, publicStyle = false }: { service: R
     );
   const publicAvailability = requestable ? service.availability : "Unavailable";
   if (publicStyle) return (
-    <article className="rental-public-equipment group grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] gap-3 rounded-xl border border-[#D3DFCE] bg-white p-3 shadow-[0_3px_12px_rgba(18,61,42,.05)] sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4 sm:p-4">
-      <Link href={`/rental/services/${service.serviceId}`} aria-label={`View ${service.publicTitle || service.name}`} className="self-start rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1F6B43]"><RentalEquipmentImage path={mainImage} name={service.publicTitle || service.name} /></Link>
+    <article className="rental-public-equipment group grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] gap-3 rounded-2xl border border-coop-card-border bg-white p-4 shadow-[0_3px_12px_rgba(18,61,42,.035)] sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4 sm:p-4">
+      <Link href={`/rental/services/${service.serviceId}`} aria-label={`View ${service.publicTitle || service.name}`} className="self-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1F6B43]"><RentalEquipmentImage path={mainImage} name={service.publicTitle || service.name} /></Link>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-5 text-[#365F4A]"><span>{service.category}</span><span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${requestable ? "bg-[#E6F2E2] text-[#1F6B43]" : "bg-[#F6EDD6] text-[#795B21]"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${requestable ? "bg-[#1F6B43]" : "bg-[#8B7443]"}`} />{publicAvailability}</span></div>
         <h3 className="mt-1 break-words text-lg font-bold leading-snug text-[#123D2A] sm:text-xl">{service.publicTitle || service.name}</h3>
         <p className="mt-1 line-clamp-1 text-sm leading-6 text-[#365F4A]">{service.publicDescription || service.shortDescription}</p>
         {service.publicAvailabilityMessage ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#795B21]">{service.publicAvailabilityMessage}</p> : null}
-        <dl className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-sm leading-5 text-[#365F4A]">
-          <div><dt className="sr-only">Unit of use</dt><dd>{service.unitOfUsage}</dd></div>
+        <dl className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs leading-5 text-coop-muted">
+          <div className="rounded-md bg-coop-sage px-2 py-0.5 font-semibold text-coop-secondary"><dt className="sr-only">Unit of use</dt><dd>{service.unitOfUsage}</dd></div>
           {service.suitableActivity !== service.category ? <div><dt className="sr-only">Suitable activity</dt><dd>{service.suitableActivity}</dd></div> : null}
-          <div className="min-w-0"><dt className="sr-only">Service area</dt><dd className="line-clamp-1" title={service.serviceArea}>{service.serviceArea}</dd></div>
+          <div className="min-w-0"><dt className="sr-only">Service area</dt><dd className="flex min-w-0 items-center gap-1" title={service.serviceArea}><MapPin aria-hidden="true" className="size-3.5 shrink-0" /><span className="line-clamp-1">{service.serviceArea}</span></dd></div>
         </dl>
       </div>
-        <div className="rental-equipment-actions col-span-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-          {requestable ? <BookRentalModal serviceId={service.serviceId} trigger={<button type="button" className="rental-public-action inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md bg-[#123D2A] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1F6B43]">Book a Rental<ArrowRight aria-hidden="true" className="size-3.5 shrink-0" /></button>} /> : null}
-          <Link href={`/rental/services/${service.serviceId}`} className="rental-public-action inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-[#123D2A] underline decoration-[#8AA58D] underline-offset-4 hover:decoration-[#123D2A]">View Details</Link>
+        <div className="rental-equipment-actions col-span-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 border-t border-coop-card-border pt-3">
+          {requestable ? <BookRentalModal serviceId={service.serviceId} trigger={<button type="button" className="rental-public-action inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1F6B43]">Book a Rental<ArrowRight aria-hidden="true" className="size-3.5 shrink-0" /></button>} /> : null}
+          <Link href={`/rental/services/${service.serviceId}`} className="rental-public-action inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-coop-secondary hover:bg-coop-sage">View Details</Link>
         </div>
     </article>
   );
