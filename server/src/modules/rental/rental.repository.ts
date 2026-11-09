@@ -1,3 +1,5 @@
+import { confirmRentalPaymentState } from "./rental-payment-state";
+import { assertRentalOperationPayment, rentalCanStartPayment } from "./rental-workflow";
 import { isTractorService, TRACTOR_SCHEDULE_DEFAULTS, dailyWorkError, reservedWork, totalWorkHectares } from "./rental-hectares";
 import { randomUUID } from "node:crypto";
 import { getPool } from "../../db/pool";
@@ -817,6 +819,7 @@ function mapBooking(row: BookingRow): RentalInquiry {
       : undefined,
     status: rentalStatusFromBooking(row.booking_status, meta),
     paymentStatus: paymentStatusFromBooking(row.payment_status, meta),
+    paymentDeadline: stringValue(meta, "paymentDeadline") || undefined,
     scheduleStatus: stringValue(meta, "scheduleStatus", scheduleStatusFromBooking(row, meta)),
     assignedReviewer: stringValue(meta, "assignedReviewer") || undefined,
     rescheduleRequest: rescheduleRequestValue(meta),
@@ -997,8 +1000,8 @@ function mapPublicInquiryStatus(
     confirmedSchedule: confirmed,
     publicNote: inquiry.publicNote,
     payableAmount: inquiry.estimatedFee?.total,
-    paymentDeadline: undefined,
-    canStartPayment: inquiry.status === "Payment Pending" || inquiry.status === "Approved for Scheduling",
+    paymentDeadline: inquiry.paymentDeadline,
+    canStartPayment: rentalCanStartPayment(inquiry.status, inquiry.paymentStatus),
     updatedAt: inquiry.updatedAt,
   };
 }
@@ -2018,7 +2021,14 @@ export const rentalDatabase = {
       meta.statusOverride = status;
       meta.publicNote = publicNote.trim();
       meta.internalNote = internalNote?.trim() ?? "";
-      if (status === "Scheduled") meta.scheduleStatus = "Confirmed";
+      if (status === "Scheduled") {
+        meta.scheduleStatus = "Confirmed";
+        if (row.payment_status !== "Paid") {
+          const deadline = rentalPaymentDeadline(new Date());
+          const start = rentalDatePart(row.start_datetime);
+          meta.paymentDeadline = stringValue(meta, "paymentDeadline") || (deadline && deadline < start ? deadline : start);
+        }
+      }
       if (status === "Rescheduled") {
         const parsedRequest = rentalRescheduleSchema.parse(rescheduleRequest);
         meta.scheduleStatus = "Proposed";
@@ -2138,7 +2148,7 @@ export const rentalDatabase = {
       dailyWork: schedule?.dailyWork ?? inquiry.dailyWork,
       payableAmount: booking ? payableRentalAmount(booking) : inquiry.estimatedFee?.total,
       paymentDeadline: stringValue(meta, "paymentDeadline") || (booking ? rentalPaymentDeadline(booking.created_at) : undefined),
-      canStartPayment: inquiry.status === "Payment Pending" && inquiry.paymentStatus !== "Paid",
+      canStartPayment: rentalCanStartPayment(inquiry.status, inquiry.paymentStatus),
       confirmedSchedule:
         schedule &&
         ["Confirmed", "In Progress", "Completed"].includes(schedule.status)
@@ -2186,12 +2196,21 @@ export const rentalDatabase = {
         parseJson(row.purpose),
       );
       assertRentalStatusTransition(currentStatus, decision);
+      assertRentalOperationPayment(decision, row.payment_status);
+      if (decision === "Payment Confirmed" && row.payment_status !== "Paid") throw new Error("Only verified payment can be marked confirmed.");
       const meta = parseJson(row.purpose);
       meta.publicNote = publicNote.trim();
       meta.internalNote = internalNote?.trim() ?? "";
       meta.assignedReviewer = actor?.displayName ?? "NFFAC Chairman";
       meta.statusOverride = decision;
-      if (decision === "Scheduled") meta.scheduleStatus = "Confirmed";
+      if (decision === "Scheduled") {
+        meta.scheduleStatus = "Confirmed";
+        if (row.payment_status !== "Paid") {
+          const deadline = rentalPaymentDeadline(new Date());
+          const start = rentalDatePart(row.start_datetime);
+          meta.paymentDeadline = stringValue(meta, "paymentDeadline") || (deadline && deadline < start ? deadline : start);
+        }
+      }
       if (decision === "In Progress") meta.scheduleStatus = "In Progress";
       if (decision === "Completed") meta.scheduleStatus = "Completed";
       if (decision === "Cancelled") meta.scheduleStatus = "Cancelled";
@@ -2377,10 +2396,12 @@ export const rentalDatabase = {
         [assetLocks[0].rental_asset_id],
         connection,
       );
+      await queryRows("SELECT rental_booking_id FROM rental_bookings WHERE booking_number = ? FOR UPDATE", [schedule.rentalId], connection);
       const row = await bookingByRentalId(schedule.rentalId, connection);
       if (!row) throw new Error("Rental inquiry was not found.");
-      if (row.payment_status !== "Paid") {
-        throw new Error("Rental payment must be confirmed before scheduling.");
+      assertRentalOperationPayment(schedule.status, row.payment_status);
+      if (schedule.status === "Confirmed" && row.payment_status !== "Paid" && payableRentalAmount(row) <= 0) {
+        throw new Error("Set a valid rental amount before confirming the schedule.");
       }
       const currentStatus = rentalStatusFromBooking(
         row.booking_status,
@@ -2450,6 +2471,10 @@ export const rentalDatabase = {
       );
       meta.scheduleStatus = schedule.status;
       meta.statusOverride = nextRentalStatus;
+      if (schedule.status === "Confirmed" && row.payment_status !== "Paid") {
+        const deadline = rentalPaymentDeadline(new Date());
+        meta.paymentDeadline = stringValue(meta, "paymentDeadline") || (deadline && deadline < schedule.date ? deadline : schedule.date);
+      }
       meta.assignedOperator = schedule.assignedOperator ?? "";
       meta.serviceLocation = schedule.serviceLocation;
       meta.serviceBarangay = schedule.barangay;
@@ -2478,7 +2503,7 @@ export const rentalDatabase = {
       await execute(
         `UPDATE rental_bookings
             SET rental_asset_id = ?, start_datetime = ?, end_datetime = ?,
-                booking_status = ?, payment_status = ?, purpose = ?,
+                booking_status = ?, payment_status = ?, total_amount = ?, purpose = ?,
                 approved_by = ?, approved_at = COALESCE(approved_at, NOW()),
                 completed_at = CASE WHEN ? = 'Completed' THEN NOW() ELSE completed_at END
           WHERE rental_booking_id = ?`,
@@ -2487,7 +2512,8 @@ export const rentalDatabase = {
           toMysqlDateTime(schedule.date, schedule.startTime),
           toMysqlDateTime(schedule.endDate, schedule.endTime),
           nextStatus,
-          bookingPaymentStatusFromPayment(schedule.paymentStatus),
+          row.payment_status,
+          payableRentalAmount(row),
           JSON.stringify(meta),
           userId,
           nextStatus,
@@ -2953,7 +2979,7 @@ export const rentalDatabase = {
 
       const meta = parseJson(booking.purpose);
       const publicStatus = rentalStatusFromBooking(booking.booking_status, meta);
-      if (publicStatus !== "Payment Pending") {
+      if (!rentalCanStartPayment(publicStatus, paymentStatusFromBooking(booking.payment_status, meta))) {
         throw new Error("This rental request is not open for payment.");
       }
       if (booking.payment_status === "Paid") {
@@ -3306,17 +3332,14 @@ export const rentalDatabase = {
       const booking = await bookingByRentalId(row.booking_number, connection);
       if (!booking) throw new Error("Linked rental booking was not found.");
       const bookingMeta = parseJson(booking.purpose);
-      if (status === "Paid") {
-        bookingMeta.statusOverride = "Approved for Scheduling";
-        bookingMeta.scheduleStatus = "Proposed";
-        bookingMeta.paymentStatusOverride = "Paid";
-      } else if (status === "Rejected" || status === "Needs Clarification") {
+      const settledBookingStatus = status === "Paid" ? confirmRentalPaymentState(booking.booking_status, bookingMeta) : booking.booking_status;
+      if (status === "Rejected" || status === "Needs Clarification") {
         bookingMeta.paymentStatusOverride = status;
       }
       await execute(
-        "UPDATE rental_bookings SET booking_status = CASE WHEN ? = 'Paid' THEN 'Approved' ELSE booking_status END, payment_status = ?, purpose = ? WHERE rental_booking_id = ?",
+        "UPDATE rental_bookings SET booking_status = ?, payment_status = ?, purpose = ? WHERE rental_booking_id = ?",
         cleanParams([
-          status,
+          settledBookingStatus,
           bookingPaymentStatusFromPayment(status),
           JSON.stringify(bookingMeta),
           booking.rental_booking_id,

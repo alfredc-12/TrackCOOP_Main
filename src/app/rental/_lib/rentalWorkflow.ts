@@ -1,5 +1,6 @@
 import type {
   RentalStatus,
+  PaymentStatus,
   ScheduleStatus,
 } from "../_types/rental";
 
@@ -43,6 +44,8 @@ export const RENTAL_STATUS_TRANSITIONS: Record<RentalStatus, readonly RentalStat
     "Cancelled",
   ],
   "Payment Pending": [
+    "Awaiting Confirmation",
+    "Scheduled",
     "Payment Under Review",
     "Payment Confirmed",
     "In Progress",
@@ -50,12 +53,14 @@ export const RENTAL_STATUS_TRANSITIONS: Record<RentalStatus, readonly RentalStat
     "Cancelled",
   ],
   "Payment Under Review": [
+    "Awaiting Confirmation",
+    "Scheduled",
     "Payment Pending",
     "Payment Confirmed",
     "Rescheduled",
     "Cancelled",
   ],
-  "Payment Confirmed": ["In Progress", "Rescheduled", "Cancelled"],
+  "Payment Confirmed": ["Awaiting Confirmation", "Scheduled", "In Progress", "Rescheduled", "Cancelled"],
   "In Progress": ["Completed", "Cancelled"],
   Completed: [],
   Cancelled: [],
@@ -231,8 +236,10 @@ export function assertRentalStatusTransition(
 export function getChairmanRentalActions(
   current: RentalStatus,
   scheduleStatus?: ScheduleStatus,
+  paymentStatus?: PaymentStatus,
 ) {
   return CHAIRMAN_RENTAL_ACTIONS.filter((action) => {
+    if (action.id === "mark-in-progress" && paymentStatus !== undefined && paymentStatus !== "Paid") return false;
     if (action.kind === "status" && action.targetStatus) {
       return (
         (!action.allowedFrom || action.allowedFrom.includes(current)) &&
@@ -259,4 +266,15 @@ export function getChairmanRentalActions(
     }
     return false;
   });
+}
+
+/** Payment remains available after a schedule is reserved, until verified or closed. */
+export function rentalCanStartPayment(status: RentalStatus, paymentStatus: PaymentStatus) {
+  return paymentStatus !== "Paid" && ["Approved for Scheduling", "Awaiting Confirmation", "Scheduled", "Payment Pending", "Payment Under Review", "Rescheduled"].includes(status);
+}
+
+export function assertRentalOperationPayment(status: string, paymentStatus: string) {
+  if (["In Progress", "Completed"].includes(status) && paymentStatus !== "Paid") {
+    throw new Error("Payment must be verified before starting or completing the rental.");
+  }
 }

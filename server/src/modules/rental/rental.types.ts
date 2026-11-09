@@ -238,6 +238,7 @@ export interface RentalInquiry {
   };
   status: RentalStatus;
   paymentStatus: PaymentStatus;
+  paymentDeadline?: string;
   scheduleStatus: string;
   assignedReviewer?: string;
   rescheduleRequest?: RentalRescheduleRequest;

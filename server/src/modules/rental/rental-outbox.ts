@@ -75,6 +75,8 @@ export async function enqueueRentalSchedule(
     requesterName: inquiry.requester.fullName,
     equipmentName: schedule.equipmentName,
     confirmed: schedule.status === "Confirmed",
+    paymentStatus: inquiry.paymentStatus,
+    paymentDeadline: inquiry.paymentDeadline,
     date: schedule.date,
     endDate: schedule.endDate,
     startTime: schedule.startTime,

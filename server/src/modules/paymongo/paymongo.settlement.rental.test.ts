@@ -28,7 +28,7 @@ function payment(amount = 1500): PaymentReferenceForSettlement {
   } as PaymentReferenceForSettlement;
 }
 
-function connection(estimatedTotal = 1500) {
+function connection(estimatedTotal = 1500, reserved = false) {
   const calls: Array<{ sql: string; values?: unknown[] }> = [];
   const fake = {
     async execute(sql: string, values?: unknown[]) {
@@ -42,9 +42,11 @@ function connection(estimatedTotal = 1500) {
           requesterName: "Juan Dela Cruz",
           assetName: "Four-wheel Tractor",
           paymentStatus: "Unpaid",
+          bookingStatus: reserved ? "Scheduled" : "Pending",
           totalAmount: estimatedTotal,
           purpose: JSON.stringify({
             estimatedFee: { total: estimatedTotal },
+            ...(reserved ? { scheduleStatus: "Confirmed", statusOverride: "Scheduled", assignedOperator: "Operator" } : {}),
             estimatedUsage: "2",
             unitOfMeasurement: "days",
           }),
@@ -83,4 +85,16 @@ test("rental settlement rejects an amount that differs from approved fee", async
     (error) => error instanceof AppError && error.code === "RENTAL_PAYMENT_AMOUNT_MISMATCH",
   );
   assert.equal(calls.some(({ sql }) => sql.includes("payment_status = 'Paid'")), false);
+});
+
+test("cashless settlement preserves a schedule reserved before payment", async () => {
+  const { fake, calls } = connection(1500, true);
+  await postRentalSettlement({ connection: fake, payment: payment(), actorUserId: "900" });
+  const update = calls.find(({ sql }) => sql.includes("UPDATE rental_bookings"))!;
+  assert.equal(update.values?.[0], "Scheduled");
+  const purpose = JSON.parse(String(update.values?.[1]));
+  assert.equal(purpose.scheduleStatus, "Confirmed");
+  assert.equal(purpose.statusOverride, "Scheduled");
+  assert.equal(purpose.paymentStatusOverride, "Paid");
+  assert.equal(purpose.assignedOperator, "Operator");
 });

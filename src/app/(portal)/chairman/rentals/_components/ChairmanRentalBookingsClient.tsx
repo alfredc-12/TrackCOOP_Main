@@ -1,4 +1,5 @@
 "use client";
+import { RentalPaymentNotice } from "@/app/rental/_components/RentalPaymentNotice";
 
 import { isTractorService, formatWorkShiftAssignments } from "@/app/rental/_lib/rentalHectares";
 
@@ -709,6 +710,7 @@ function BookingRow({
         <StatusBadge tone={statusTone(inquiry.paymentStatus)}>
           {inquiry.paymentStatus}
         </StatusBadge>
+        <RentalPaymentNotice inquiry={inquiry} />
       </td>
       <td className="px-4 py-4">
         <BookingActions
@@ -758,6 +760,7 @@ function BookingMobileCard({
         <StatusBadge tone={statusTone(inquiry.paymentStatus)}>
           {inquiry.paymentStatus}
         </StatusBadge>
+        <RentalPaymentNotice inquiry={inquiry} />
       </div>
       <p className="mt-4 text-sm text-[#5D6D63]">
         Schedule:{" "}

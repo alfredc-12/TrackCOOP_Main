@@ -1,4 +1,5 @@
 "use client";
+import { RentalPaymentNotice } from "@/app/rental/_components/RentalPaymentNotice";
 
 
 import {
@@ -281,7 +282,7 @@ export function ChairmanRentalBookingDetailsModal({
   const chairmanActions = useMemo(
     () =>
       inquiry
-        ? getChairmanRentalActions(inquiry.status, schedule?.status)
+        ? getChairmanRentalActions(inquiry.status, schedule?.status, inquiry.paymentStatus)
         : [],
     [inquiry, schedule?.status],
   );
@@ -606,6 +607,7 @@ export function ChairmanRentalBookingDetailsModal({
         <StatusBadge tone={tone(availability?.status ?? "")}>
           Asset: {availability?.status ?? "Unknown"}
         </StatusBadge>
+        <RentalPaymentNotice inquiry={inquiry} />
       </section>
 
       {activeTab === "Actions" && (
@@ -1191,8 +1193,9 @@ export function ChairmanRentalBookingDetailsModal({
                       : schedule
                         ? "Update this rental schedule?"
                         : "Create this rental schedule?",
-                    description:
-                      "The server will re-check conflicts inside a database transaction before saving.",
+                    description: inquiry.paymentStatus === "Paid"
+                      ? "Save the selected dates, work plan and operator."
+                      : "Reserve the selected dates and operator. Payment will remain pending and must be verified before work starts.",
                   })
                 }
                 className="min-h-11 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white disabled:opacity-50"

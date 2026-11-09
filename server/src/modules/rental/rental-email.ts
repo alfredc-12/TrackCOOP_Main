@@ -330,6 +330,8 @@ export type RentalScheduleEmailInput = {
   requesterName: string;
   equipmentName: string;
   confirmed: boolean;
+  paymentStatus?: string;
+  paymentDeadline?: string;
   date: string;
   endDate: string;
   startTime: string;
@@ -358,6 +360,9 @@ export function rentalScheduleContent(input: RentalScheduleEmailInput): RentalEm
     ],
     detailsTitle: "Schedule",
     details: [
+      ...(input.paymentStatus ? [{ label: "Payment status", value: input.paymentStatus }] : []),
+      ...(input.paymentStatus && input.paymentStatus !== "Paid" ? [{ label: "Before work starts", value: "Payment must be verified. Cash receipt is confirmed by the Bookkeeper; cashless payment follows payment verification." }] : []),
+      ...(input.paymentDeadline && input.paymentStatus !== "Paid" ? [{ label: "Pay by", value: formatRentalDate(input.paymentDeadline, true) }] : []),
       { label: "Reference", value: input.reference },
       { label: "Equipment", value: input.equipmentName },
       ...(tractor
