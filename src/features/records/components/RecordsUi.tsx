@@ -2,6 +2,18 @@
 
 import type { ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
+import { StyledSelect } from "@/components/ui/StyledSelect";
+
+export function RecordsSelect({ value, onChange, options, ariaLabel }: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  ariaLabel: string;
+}) {
+  return <StyledSelect value={options.find((option) => option.value === value)?.label ?? ""}
+    options={options.map((option) => option.label)} aria-label={ariaLabel}
+    onChange={(label) => onChange(options.find((option) => option.label === label)?.value ?? value)} />;
+}
 
 export const fieldClass =
   "min-h-11 w-full rounded-md border border-[#CAD8CB] bg-white px-3 text-sm text-[#17211C] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20";

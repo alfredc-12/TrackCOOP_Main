@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/portal/PageHeader";
+import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import {
   DataTable,
@@ -36,7 +36,6 @@ import {
   ConfirmDialog,
   LoadingSkeleton,
   PaginationControls,
-  StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import {
@@ -56,6 +55,7 @@ import { DocumentMetadataFields } from "./DocumentMetadataFields";
 import { ArchivedDocumentsModal } from "./ArchivedDocumentsModal";
 import {
   BusyLabel,
+  RecordsSelect,
   Field,
   apiError,
   fieldClass,
@@ -348,19 +348,21 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   }
 
   return (
-    <div className="grid min-w-0 gap-6">
-      <PageHeader
-        eyebrow="Records"
-        title="Documents"
+    <div className="grid min-w-0 gap-4">
+      <PaymentWorkspaceHeader
+        icon={FileText}
+        eyebrow={role === "bookkeeper" ? "Bookkeeper · Records" : "Records · Documents"}
+        title={role === "bookkeeper" ? "Receipts & Documents" : "Documents"}
         description="Manage cooperative files, access permissions, and document activity."
         actions={
-          <div className="flex flex-col items-end gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
             <div className="flex bg-[#F8FAF8] rounded-md border border-[#CAD8CB] p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
                 className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "table" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
                 aria-label="Table View"
+                aria-pressed={viewMode === "table"}
               >
                 <List className="size-4" />
               </button>
@@ -369,11 +371,12 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                 onClick={() => setViewMode("grid")}
                 className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "grid" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
                 aria-label="Grid View"
+                aria-pressed={viewMode === "grid"}
               >
                 <LayoutGrid className="size-4" />
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-3 justify-end">
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href={expressApiUrl(`/api/documents/export?${queryFor(filters)}`)}
                 className={secondaryButtonClass}
@@ -404,27 +407,29 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
           className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))]"
           aria-label="Document summary"
         >
-          <StatCard
+          <PaymentSummaryCard
             label="Total Documents"
             value={String(data.summary.total)}
             icon={FileText}
           />
-          <StatCard
+          <PaymentSummaryCard
             label="Recently Uploaded"
             value={String(data.summary.recentlyUploaded)}
             icon={Clock3}
           />
-          <StatCard
+          <PaymentSummaryCard
+            tone="gold"
             label="Expiring Soon"
             value={String(data.summary.expiringSoon)}
             icon={Clock3}
           />
-          <StatCard
+          <PaymentSummaryCard
+            tone="sage"
             label="Archived"
             value={String(data.summary.archived)}
             icon={FolderArchive}
           />
-          <StatCard
+          <PaymentSummaryCard
             label="Restricted"
             value={String(data.summary.restricted)}
             icon={FileLock2}
@@ -432,7 +437,8 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
         </section>
       ) : null}
 
-      <section className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <section className="min-w-0 rounded-2xl border border-coop-border bg-coop-surface p-4 shadow-coop-soft">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-coop-forest"><Search className="size-4 text-coop-green" aria-hidden="true" />Find a document</h2>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -441,8 +447,8 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
           }}
           className="grid gap-3"
         >
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(14rem,2fr)_repeat(4,minmax(9rem,1fr))]">
-            <label className="relative">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <label className="relative sm:col-span-2 xl:col-span-4">
               <span className="sr-only">Search documents</span>
               <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-[#6C7A70]" />
               <input
@@ -458,80 +464,23 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
                 className={`${fieldClass} pl-9`}
               />
             </label>
-            <select
-              aria-label="Category"
-              value={draftFilters.category}
-              onChange={(event) => {
-                const val = event.target.value;
-                setDraftFilters((current) => ({ ...current, category: val }));
-                setFilters((current) => ({ ...current, category: val }));
-                setPage(1);
-              }}
-              className={fieldClass}
-            >
-              <option value="">All categories</option>
-              {DOCUMENT_CATEGORIES.map((item) => (
-                <option key={item} value={item}>
-                  {humanizeConstant(item)}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Document type"
-              value={draftFilters.documentType}
-              onChange={(event) => {
-                const val = event.target.value;
-                setDraftFilters((current) => ({ ...current, documentType: val }));
-                setFilters((current) => ({ ...current, documentType: val }));
-                setPage(1);
-              }}
-              className={fieldClass}
-            >
-              <option value="">All document types</option>
-              {DOCUMENT_TYPES.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Access level"
-              value={draftFilters.accessLevel}
-              onChange={(event) => {
-                const val = event.target.value;
-                setDraftFilters((current) => ({ ...current, accessLevel: val }));
-                setFilters((current) => ({ ...current, accessLevel: val }));
-                setPage(1);
-              }}
-              className={fieldClass}
-            >
-              <option value="">All access levels</option>
-              {visibleAccess.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="File type"
-              value={draftFilters.fileType || ""}
-              onChange={(event) => {
-                const val = event.target.value;
-                setDraftFilters((current) => ({ ...current, fileType: val }));
-                setFilters((current) => ({ ...current, fileType: val }));
-                setPage(1);
-              }}
-              className={fieldClass}
-            >
-              <option value="">All file types</option>
-              <option value="pdf">PDF (.pdf)</option>
-              <option value="docx">Word (.docx)</option>
-              <option value="xlsx">Excel (.xlsx)</option>
-              <option value="png">PNG (.png)</option>
-              <option value="jpg">JPEG (.jpg)</option>
-            </select>
+            <RecordsSelect ariaLabel="Category" value={draftFilters.category}
+              options={[{ value: "", label: "All categories" }, ...DOCUMENT_CATEGORIES.map((item) => ({ value: item, label: humanizeConstant(item) }))]}
+              onChange={(val) => { setDraftFilters((current) => ({ ...current, category: val })); setFilters((current) => ({ ...current, category: val })); setPage(1); }} />
+            <RecordsSelect ariaLabel="Document type" value={draftFilters.documentType}
+              options={[{ value: "", label: "All document types" }, ...DOCUMENT_TYPES.map((item) => ({ value: item, label: item }))]}
+              onChange={(val) => { setDraftFilters((current) => ({ ...current, documentType: val })); setFilters((current) => ({ ...current, documentType: val })); setPage(1); }} />
+            <RecordsSelect ariaLabel="Access level" value={draftFilters.accessLevel}
+              options={[{ value: "", label: "All access levels" }, ...visibleAccess]}
+              onChange={(val) => { setDraftFilters((current) => ({ ...current, accessLevel: val })); setFilters((current) => ({ ...current, accessLevel: val })); setPage(1); }} />
+            <RecordsSelect ariaLabel="File type" value={draftFilters.fileType || ""}
+              options={[{ value: "", label: "All file types" }, { value: "pdf", label: "PDF (.pdf)" }, { value: "docx", label: "Word (.docx)" }, { value: "xlsx", label: "Excel (.xlsx)" }, { value: "png", label: "PNG (.png)" }, { value: "jpg", label: "JPEG (.jpg)" }]}
+              onChange={(val) => { setDraftFilters((current) => ({ ...current, fileType: val })); setFilters((current) => ({ ...current, fileType: val })); setPage(1); }} />
           </div>
         </form>
       </section>
 
+      <h2 className="flex items-center gap-2 px-1 text-base font-bold text-coop-forest"><FileText className="size-4 text-coop-green" aria-hidden="true" />Document library</h2>
       {error ? <ErrorState message={error} /> : null}
       {loading && !data ? <LoadingSkeleton /> : null}
       {!loading && data?.documents.length === 0 ? (
@@ -579,7 +528,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
             {viewMode === "table" ? (
               <DataTable>
                 <table className="w-full table-fixed text-left text-sm">
-                <thead className="bg-[#EEF2EC] text-xs uppercase tracking-wide text-[#53675A]">
+                <thead className="bg-coop-sage/60 text-xs uppercase tracking-wide text-[#53675A]">
                   <tr>
                     <th className="w-10 px-2 py-3">
                       <input
@@ -1027,18 +976,7 @@ function FilterSelect({
 }) {
   return (
     <Field label={label}>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={fieldClass}
-      >
-        <option value="">All</option>
-        {options.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+      <RecordsSelect ariaLabel={label} value={value} onChange={onChange} options={[{ value: "", label: "All" }, ...options]} />
     </Field>
   );
 }
