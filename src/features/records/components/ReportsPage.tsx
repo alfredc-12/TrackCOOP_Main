@@ -61,6 +61,7 @@ import {
   secondaryButtonClass,
 } from "./RecordsUi";
 import { ReportHistoryPage } from "./ReportHistoryPage";
+import { ReportHub, ReportTrendChart } from "./ReportHub";
 
 type ReportsLandingData = {
   catalog: ReportDefinition[];
@@ -181,9 +182,10 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
     selectableReports[0] ??
     null;
 
-  function chooseReport(definition: ReportDefinition) {
+  function chooseReport(definition: ReportDefinition, initialFilters: ReportFilters = {}) {
     setSelected(definition);
-    setFilters({});
+    setSelectedReportKey(definition.key);
+    setFilters(initialFilters);
     setPeriodPreset("custom");
     setResult(null);
     setIsGeneratorOpen(true);
@@ -202,7 +204,9 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       if (!response.ok) throw new Error(await apiError(response));
       const report = (await response.json()) as ReportResult;
       setResult(report);
+      setFilters(report.appliedFilters);
       setIsGeneratorOpen(false);
+      void load();
       toast.success(
         `${report.reportName} generated from current database records.`,
       );
@@ -315,11 +319,13 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       {data ? (
         <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
           <PaymentSummaryCard label="Available Reports" value={String(data.summary.available)} icon={Database} />
-          <PaymentSummaryCard tone="gold" label="Generated This Month" value={String(data.summary.generatedThisMonth)} icon={Clock3} />
+          <PaymentSummaryCard tone="gold" label="Generated This Month" value={error ? "—" : String(data.summary.generatedThisMonth)} icon={Clock3} />
           <PaymentSummaryCard label="Financial Reports" value={String(data.summary.financial)} icon={Landmark} />
           <PaymentSummaryCard label="Operational Reports" value={String(data.summary.operational)} icon={BarChart3} />
         </section>
       ) : null}
+
+      {data ? <ReportHub catalog={data.catalog} recent={data.recent} role={role} onChoose={chooseReport} /> : null}
 
       {data ? (
         <section className="grid min-w-0 gap-4">
@@ -979,6 +985,7 @@ function ReportPreview({
             {result.generatedBy} · {result.reportReference}
           </p>
         </header>
+        {result.notes?.length ? <div className="mt-4 space-y-2 rounded-xl border border-coop-border bg-coop-workspace p-4 text-xs leading-5 text-coop-muted">{result.notes.map((note) => <p key={note}>{note}</p>)}</div> : null}
         <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {result.summary.map((item) => (
             <div
@@ -999,7 +1006,7 @@ function ReportPreview({
             </div>
           ))}
         </section>
-        <ReportVisuals result={result} />
+        {result.reportKey === "performance-trends" ? <ReportTrendChart rows={result.rows} /> : ["cooperative-overview", "attention-needed"].includes(result.reportKey) ? null : <ReportVisuals result={result} />}
         <div className="mt-5">
           {result.rows.length ? (
             <>

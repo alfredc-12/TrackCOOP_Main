@@ -94,6 +94,9 @@ function report(
 }
 
 export const REPORT_CATALOG: ReportDefinition[] = [
+  report("cooperative-overview", "Cooperative Overview", "FINANCIAL", "Confirmed results across finance, store sales, rentals, and capital, compared with the previous equal-length period.", "Ledger, paid POS orders, validated rental and capital payments", [...standardDates]),
+  report("performance-trends", "Performance Trends", "FINANCIAL", "Month-by-month recorded income, expenses, sales, rental receipts, and capital contributions. Partial months follow the selected dates.", "Dated financial and payment records", [...standardDates]),
+  report("attention-needed", "Attention Needed", "FINANCIAL", "Current pending payments, reconciliation exceptions, low available stock, and accessible expiring documents. This is a current snapshot, not a historical backlog.", "Payment references, stock movements and reservations, accessible documents", []),
   report(
     "financial-summary",
     "Financial Summary",
