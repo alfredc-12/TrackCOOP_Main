@@ -14,7 +14,7 @@ test("annual rental sources enforce membership dates, payments, refunds and equi
     await connection.query("CREATE TEMPORARY TABLE rental_assets(rental_asset_id INT PRIMARY KEY, asset_type VARCHAR(30))");
     await connection.query("CREATE TEMPORARY TABLE payment_references(payment_reference_id INT PRIMARY KEY, payment_purpose VARCHAR(30), validation_status VARCHAR(30), amount DECIMAL(14,2), gateway_status VARCHAR(40), payment_channel VARCHAR(30), gateway_environment VARCHAR(20), validated_at DATETIME NULL, paid_at DATETIME NULL)");
     await connection.query("CREATE TEMPORARY TABLE rental_bookings(rental_booking_id INT PRIMARY KEY, member_id INT, rental_asset_id INT, payment_reference_id INT, start_datetime DATETIME, end_datetime DATETIME, completed_at DATETIME, booking_status VARCHAR(30), payment_status VARCHAR(30), total_amount DECIMAL(14,2))");
-    await connection.query("CREATE TEMPORARY TABLE patronage_periods(patronage_period_id INT PRIMARY KEY, period_start DATE, period_end DATE)");
+    await connection.query("CREATE TEMPORARY TABLE patronage_periods(patronage_period_id INT PRIMARY KEY, period_start DATE, period_end DATE, calculation_policy VARCHAR(40) DEFAULT 'Rental3PercentAnnual', refund_pool DECIMAL(14,2) DEFAULT 300, refund_rate DECIMAL(5,2) DEFAULT 3)");
     await connection.query("CREATE TEMPORARY TABLE patronage_allocations(patronage_allocation_id INT PRIMARY KEY, patronage_period_id INT, member_id INT, rental_patronage DECIMAL(14,2), refund_amount DECIMAL(14,2))");
     await connection.query("INSERT INTO member_profiles VALUES (1,'T1','True','True Member','2025-07-01','Approved','Active'),(2,'A1','Associate','Associate',NULL,'Approved','Active'),(3,'T2','Missing date','True Member',NULL,'Approved','Active'),(4,'T3','Inactive','True Member','2025-01-01','Approved','Inactive')");
     await connection.query("INSERT INTO rental_assets VALUES (1,'Equipment'),(2,'Facility')");
@@ -37,8 +37,11 @@ test("annual rental sources enforce membership dates, payments, refunds and equi
     assert.equal(sources[0].rentalPatronage, 10000);
     assert.equal(calculatePatronageAllocations(sources)[0].refundAmount, 300);
     assert.deepEqual(await loadPatronageSources(connection, "2025-01-01", "2025-12-31", "2"), []);
-    await connection.query("INSERT INTO patronage_periods VALUES (1,'2025-01-01','2025-12-31')");
+    await connection.query("INSERT INTO patronage_periods(patronage_period_id,period_start,period_end) VALUES (1,'2025-01-01','2025-12-31')");
     await connection.query("INSERT INTO patronage_allocations VALUES (1,1,1,10000,300)");
+    await assert.doesNotReject(assertRefundSourcesUnchanged(connection, "1"));
+    await connection.query("UPDATE patronage_periods SET calculation_policy='RentalSurplusAnnual', refund_pool=600");
+    await connection.query("UPDATE patronage_allocations SET refund_amount=600");
     await assert.doesNotReject(assertRefundSourcesUnchanged(connection, "1"));
     await connection.query("UPDATE payment_references SET validation_status='Reversed' WHERE payment_reference_id=1");
     await assert.rejects(assertRefundSourcesUnchanged(connection, "1"), /review this refund/);

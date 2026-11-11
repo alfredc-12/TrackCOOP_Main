@@ -55,6 +55,10 @@ export function describeValue(v: unknown): string {
   return String(v);
 }
 export function draftError(s: SettingEntry, v: unknown) {
+  if (s.key === "patronage.member_refund_rate" && (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 100 || Math.abs(v * 100 - Math.round(v * 100)) > 0.0001))
+    return "Enter a member rental refund rate greater than 0 and no more than 100, with up to two decimal places.";
+  if (s.key === "patronage.allocation_rate" && (typeof v !== "number" || v < 30 || v > 100 || !Number.isFinite(v)))
+    return "Enter a patronage allocation percentage from 30 to 100.";
   if (
     s.kind === "number" &&
     (typeof v !== "number" ||

@@ -25,6 +25,9 @@ export type PatronageAllocation = PatronageSourceAmount & {
 };
 
 export type PatronagePeriod = {
+  netSurplus?: number | null;
+  statutoryReserves?: number | null;
+  allocationRate?: number | null;
   policyVersion?: string;
   refundRate?: number;
   id: string;
@@ -46,6 +49,8 @@ export type PatronagePeriod = {
 };
 
 export type CreatePatronagePeriodInput = {
+  netSurplus?: number;
+  statutoryReserves?: number;
   name: string;
   startDate: string;
   endDate: string;
@@ -54,6 +59,8 @@ export type CreatePatronagePeriodInput = {
 };
 
 export type PatronageFinancialBasis = {
+  memberRefundRate?: number;
+  allocationRate?: number;
   startDate: string;
   endDate: string;
   posIncome: number;
@@ -83,6 +90,7 @@ export type PatronageMemberSummary = {
     eligibilityMessage?: string;
   };
   currentYear: {
+    estimateAvailable?: boolean;
     startDate: string;
     endDate: string;
     purchasePatronage: number;

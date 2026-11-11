@@ -3,6 +3,7 @@ import type { PatronageSourceAmount } from "./patronage.types";
 import { calculatePatronageAllocations } from "./patronage-calculator";
 import { AppError } from "../../utils/app-error";
 import { moneyCents } from "./patronage-capital.rules";
+import { PATRONAGE_POLICY, CONFIGURED_RENTAL_POLICY } from "./patronage-policy";
 
 type SourceRow = RowDataPacket & PatronageSourceAmount;
 
@@ -51,13 +52,20 @@ export async function assertRefundSourcesUnchanged(connection: Pick<PoolConnecti
     `SELECT CAST(a.member_id AS CHAR) AS memberId,
             DATE_FORMAT(p.period_start, '%Y-%m-%d') AS startDate,
             DATE_FORMAT(p.period_end, '%Y-%m-%d') AS endDate,
-            a.rental_patronage AS rentalPatronage, a.refund_amount AS refundAmount
+            a.rental_patronage AS rentalPatronage, a.refund_amount AS refundAmount,
+            p.calculation_policy AS policyVersion, p.refund_pool AS refundPool, p.refund_rate AS refundRate,
+            CAST(p.patronage_period_id AS CHAR) AS periodId
        FROM patronage_allocations a JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
       WHERE a.patronage_allocation_id = ? FOR UPDATE`, [allocationId],
   );
   const saved = rows[0];
-  const current = saved ? calculatePatronageAllocations(await loadPatronageSources(connection, saved.startDate, saved.endDate, saved.memberId))[0] : undefined;
-  if (!saved || !current || moneyCents(current.rentalPatronage) !== moneyCents(saved.rentalPatronage) || moneyCents(current.refundAmount) !== moneyCents(saved.refundAmount)) {
+  const surplusPolicy = saved?.policyVersion === PATRONAGE_POLICY;
+  const sources = saved ? await loadPatronageSources(connection, saved.startDate, saved.endDate, surplusPolicy ? undefined : saved.memberId) : [];
+  const current = calculatePatronageAllocations(sources, surplusPolicy ? Number(saved.refundPool) : undefined, saved?.policyVersion === CONFIGURED_RENTAL_POLICY ? Number(saved.refundRate) : undefined).find((item) => item.memberId === saved?.memberId);
+  const totalRental = sources.reduce((sum, source) => sum + moneyCents(source.rentalPatronage), 0);
+  const [snapshot] = surplusPolicy ? await connection.execute<RowDataPacket[]>("SELECT rental_patronage AS rentalPatronage FROM patronage_allocations WHERE patronage_period_id = ? FOR UPDATE", [saved.periodId]) : [[]];
+  const savedTotal = snapshot.reduce((sum, row) => sum + moneyCents(row.rentalPatronage), 0);
+  if (!saved || !current || (surplusPolicy && totalRental !== savedTotal) || moneyCents(current.rentalPatronage) !== moneyCents(saved.rentalPatronage) || moneyCents(current.refundAmount) !== moneyCents(saved.refundAmount)) {
     throw new AppError("Rental payments or membership eligibility changed after calculation. Ask the cooperative to review this refund before payout or transfer.", 409, "PATRONAGE_SOURCE_REVIEW_REQUIRED");
   }
 }

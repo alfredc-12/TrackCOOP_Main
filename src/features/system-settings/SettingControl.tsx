@@ -84,7 +84,7 @@ export function SettingControl({
       `${s.label}${s.unit ? ` (${s.unit})` : ""}`,
       value,
       onChange,
-      s.unit === "PHP" ? "0.01" : "1",
+      s.unit === "PHP" || s.key === "patronage.member_refund_rate" ? "0.01" : "1",
     );
   if (s.kind === "text")
     return (

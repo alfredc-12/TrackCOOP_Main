@@ -13,6 +13,7 @@ import {
   LockKeyhole,
   WalletCards,
   Sprout,
+  HandCoins,
 } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -34,6 +35,7 @@ import styles from "./SystemPages.module.css";
 const icons = {
   membership: UsersRound,
   share_capital: WalletCards,
+  patronage: HandCoins,
   referrals: Gift,
   indicators: Activity,
   inventory: Boxes,

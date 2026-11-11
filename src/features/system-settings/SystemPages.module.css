@@ -1,5 +1,6 @@
 .workspace {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   min-width: 0;
   color: var(--coop-body, #294b39);
@@ -83,6 +84,7 @@
   color: white;
 }
 .categoryContent {
+  min-width: 0;
   outline: none;
 }
 .pendingDot {
@@ -599,11 +601,14 @@
   }
   .categoryTabs {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     overflow: visible;
   }
   .categoryTab {
     justify-content: start;
+    min-width: 0;
+    white-space: normal;
+    text-align: left;
   }
   .changeColumns {
     grid-template-columns: 1fr;
