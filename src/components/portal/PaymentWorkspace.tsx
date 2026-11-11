@@ -27,11 +27,11 @@ export function PaymentWorkspaceHeader({ title, description, icon: Icon, actions
   </div>;
 }
 
-export function PaymentSummaryCard({ tone = "green", className, ...props }: ComponentProps<typeof StatCard> & { tone?: "green" | "gold" | "sage" }) {
+export function PaymentSummaryCard({ tone = "green", className, showTopBorder = true, ...props }: ComponentProps<typeof StatCard> & { tone?: "green" | "gold" | "sage"; showTopBorder?: boolean }) {
   const tones = {
-    green: "border-t-coop-green [&>div>span]:bg-coop-success-bg [&>div>span]:text-coop-green",
-    gold: "border-t-coop-harvest [&>div>span]:bg-coop-warning-bg [&>div>span]:text-coop-warning",
-    sage: "border-t-coop-border [&>div>span]:bg-coop-sage [&>div>span]:text-coop-secondary",
+    green: { border: "border-t-coop-green", icon: "[&>div>span]:bg-coop-success-bg [&>div>span]:text-coop-green" },
+    gold: { border: "border-t-coop-harvest", icon: "[&>div>span]:bg-coop-warning-bg [&>div>span]:text-coop-warning" },
+    sage: { border: "border-t-coop-border", icon: "[&>div>span]:bg-coop-sage [&>div>span]:text-coop-secondary" },
   };
-  return <StatCard {...props} className={cn("rounded-2xl border-t-[3px] p-4 shadow-coop-soft [&>div>span]:grid [&>div>span]:size-11 [&>div>span]:place-items-center [&>div>span]:rounded-xl", tones[tone], className)} />;
+  return <StatCard {...props} className={cn("rounded-2xl p-4 shadow-coop-soft [&>div>span]:grid [&>div>span]:size-11 [&>div>span]:place-items-center [&>div>span]:rounded-xl", showTopBorder && "border-t-[3px]", showTopBorder && tones[tone].border, tones[tone].icon, className)} />;
 }

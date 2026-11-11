@@ -38,6 +38,10 @@ export function createSettingsRouter(
 ) {
   const router = Router(),
     access = [createAuthenticate(auth), requireRoles("chairman")];
+  const cropReferenceAccess = [
+    createAuthenticate(auth),
+    requireRoles("chairman", "bookkeeper"),
+  ];
   router.use("/system-settings", (_r, res, next) => {
     res.setHeader("Cache-Control", "private, no-store");
     next();
@@ -46,6 +50,22 @@ export function createSettingsRouter(
     "/system-settings/catalog",
     ...access,
     asyncHandler(async (_r, res) => sendSuccess(res, await repo.catalog())),
+  );
+  router.get(
+    "/system-settings/high-value-crops",
+    ...cropReferenceAccess,
+    asyncHandler(async (_req, res) => {
+      const catalog = await repo.catalog();
+      const setting = catalog.settings.find(
+        (entry) => entry.key === "inventory.high_value_crops",
+      );
+      const names = Array.isArray(setting?.value)
+        ? setting.value.filter(
+            (value): value is string => typeof value === "string",
+          )
+        : [];
+      return sendSuccess(res, names);
+    }),
   );
   router.get(
     "/system-settings",

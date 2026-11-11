@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, RotateCcw, Loader2, RefreshCw, CalendarDays } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
-import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { PaginationControls } from "@/components/portal/PortalPrimitives";
 
@@ -310,8 +310,6 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
   return (
     <div className="min-w-0">
       <div className="grid w-full min-w-0 max-w-full gap-4 [&>*]:min-w-0">
-        <PaymentWorkspaceHeader title="Sales" eyebrow={role === "bookkeeper" ? "Bookkeeper · Sales" : "Operations · Sales"} icon={ShoppingBag}
-          description="Track store orders, review payments, and follow each sale from checkout to completion." />
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {[
             ["Pending Orders", String(pendingCount), "Orders awaiting review"],
@@ -320,7 +318,7 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
             ["Cash Sales", formatMoney(cashSales), "Paid POS orders"],
             ["QRPH Sales", formatMoney(qrphSales), "Paid QRPH orders"],
           ].map(([label, value, hint], index) => (
-            <PaymentSummaryCard key={label} label={label} value={value} description={hint} tone={index === 0 ? "gold" : "green"}
+            <PaymentSummaryCard key={label} label={label} value={value} description={hint} tone={index === 0 ? "gold" : "green"} showTopBorder={false}
               valueClassName="break-words text-xl" icon={index === 0 ? AlertCircle : index === 1 ? CheckCircle : index === 4 ? Smartphone : Banknote} />
           ))}
         </div>

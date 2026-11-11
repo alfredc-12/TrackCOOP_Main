@@ -1,3 +1,5 @@
+import { apiRequest } from "@/lib/api-client";
+
 export const HIGH_VALUE_CROP_DEFINITION =
   "High-Value Crops are cooperative-approved priority crops recognized for their market value, demand, production importance, or income contribution.";
 
@@ -35,9 +37,12 @@ function normalized(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-export function isHighValueCropName(value: string | null | undefined) {
+export function isHighValueCropName(
+  value: string | null | undefined,
+  cropNames: readonly string[] = HIGH_VALUE_CROP_NAMES,
+) {
   const name = normalized(value);
-  return HIGH_VALUE_CROP_NAMES.some((crop) => {
+  return cropNames.some((crop) => {
     const candidate = crop.toLowerCase();
     return name === candidate || name.includes(candidate);
   });
@@ -46,12 +51,17 @@ export function isHighValueCropName(value: string | null | undefined) {
 export function isHighValueCropRecord(
   name: string | null | undefined,
   category: string | null | undefined,
+  cropNames: readonly string[] = HIGH_VALUE_CROP_NAMES,
 ) {
   const categoryText = normalized(category);
   return (
     categoryText.includes("high-value") ||
     categoryText.includes("high value") ||
     categoryText.includes("gulayan") ||
-    isHighValueCropName(name)
+    isHighValueCropName(name, cropNames)
   );
+}
+
+export function getHighValueCropNames(signal?: AbortSignal) {
+  return apiRequest<string[]>("/api/system-settings/high-value-crops", { signal });
 }

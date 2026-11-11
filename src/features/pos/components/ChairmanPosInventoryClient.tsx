@@ -5,13 +5,14 @@ import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
-import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import {
     HIGH_VALUE_CROP_CRITERIA,
     HIGH_VALUE_CROP_DEFINITION,
     HIGH_VALUE_CROP_NAMES,
+    getHighValueCropNames,
     isHighValueCropRecord,
 } from "@/features/crops/high-value-crops";
 
@@ -127,8 +128,8 @@ function getStockStatus(item: Pick<InventoryItem, "stock" | "pending_qty" | "reo
     return "Healthy";
 }
 
-function isHighValueInventoryItem(item: Pick<InventoryItem, "name" | "category">) {
-    return isHighValueCropRecord(item.name, item.category);
+function isHighValueInventoryItem(item: Pick<InventoryItem, "name" | "category">, cropNames: readonly string[]) {
+    return isHighValueCropRecord(item.name, item.category, cropNames);
 }
 
 function stockStatusClass(status: StockStatus) {
@@ -332,6 +333,7 @@ function ThemedSelect({
 export default function ChairmanPosInventoryClient({ showOrdersPayments = true }: { showOrdersPayments?: boolean }) {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [highValueCropNames, setHighValueCropNames] = useState<readonly string[]>(HIGH_VALUE_CROP_NAMES);
     const [demandPeriod, setDemandPeriod] = useState<DemandPeriod>("all");
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -360,6 +362,14 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     const [ordersPageSize, setOrdersPageSize] = useState(5);
     const [inventoryPage, setInventoryPage] = useState(1);
     const [inventoryPageSize, setInventoryPageSize] = useState(8);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        void getHighValueCropNames(controller.signal)
+            .then((names) => { if (names.length) setHighValueCropNames(names); })
+            .catch(() => { /* Keep the approved fallback list when the reference endpoint is unavailable. */ });
+        return () => controller.abort();
+    }, []);
 
     const fetchInventory = useCallback(async () => {
         try {
@@ -957,7 +967,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
             const demand = demandByProductId.get(item.id) ?? "Low";
             const matchesDemand = demandFilter === "All" || demand === demandFilter;
-            const isHighValue = isHighValueInventoryItem(item);
+            const isHighValue = isHighValueInventoryItem(item, highValueCropNames);
             const matchesHighValue = highValueFilter === "All" || (highValueFilter === "High-Value" ? isHighValue : !isHighValue);
             return matchesSearch && matchesCategory && matchesDemand && matchesHighValue;
         })
@@ -1053,15 +1063,12 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
 
     return (
       <div className="min-w-0">
-            <div className="mb-4"><PaymentWorkspaceHeader title="Products & Stock" eyebrow="Operations · Inventory" icon={Wheat}
-                description="Manage the product catalog, monitor available stock, and follow demand and sales." /></div>
-
             <div className="mb-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-                <PaymentSummaryCard label="Total Products" description="Active catalog products" value={String(inventory.length)} icon={Wheat} />
-                <PaymentSummaryCard label="High Demand" description={`${totalSoldUnits.toLocaleString()} units sold · ${demandPeriodDescription(demandPeriod)}`} value={String(highDemandCount)} icon={Activity} />
-                <PaymentSummaryCard tone="sage" label="Total Stock Value" description="Based on selling price" value={`₱ ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Sprout} valueClassName="break-words text-xl" />
-                <PaymentSummaryCard label="Cash Sales" description="Paid POS orders" value={`₱ ${totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Banknote} valueClassName="break-words text-xl" />
-                <PaymentSummaryCard label="QRPH Sales" description="Paid QRPH orders" value={`₱ ${totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Smartphone} valueClassName="break-words text-xl" />
+                <PaymentSummaryCard label="Total Products" description="Active catalog products" value={String(inventory.length)} icon={Wheat} showTopBorder={false} />
+                <PaymentSummaryCard label="High Demand" description={`${totalSoldUnits.toLocaleString()} units sold · ${demandPeriodDescription(demandPeriod)}`} value={String(highDemandCount)} icon={Activity} showTopBorder={false} />
+                <PaymentSummaryCard tone="sage" label="Total Stock Value" description="Based on selling price" value={`₱ ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Sprout} valueClassName="break-words text-xl" showTopBorder={false} />
+                <PaymentSummaryCard label="Cash Sales" description="Paid POS orders" value={`₱ ${totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Banknote} valueClassName="break-words text-xl" showTopBorder={false} />
+                <PaymentSummaryCard label="QRPH Sales" description="Paid QRPH orders" value={`₱ ${totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Smartphone} valueClassName="break-words text-xl" showTopBorder={false} />
             </div>
 
             {/* Header */}
@@ -1349,7 +1356,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                             <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${demandBadgeClass(demand)}`} title={`Demand level based on ${Number(item.sold || 0).toLocaleString()} completed units sold for ${demandPeriodDescription(demandPeriod)}`}>
                                                 {demand} demand
                                             </span>
-                                            {isHighValueInventoryItem(item) && (
+                                            {isHighValueInventoryItem(item, highValueCropNames) && (
                                                 <span className="inline-flex w-fit items-center rounded-full bg-[#FFF6DD] px-2.5 py-1 text-[11px] font-bold text-[#A76500] ring-1 ring-inset ring-[#F2D28B]" title={HIGH_VALUE_CROP_DEFINITION}>
                                                     High-value crop
                                                 </span>
@@ -1502,7 +1509,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             <div>
                                 <h3 className="text-sm font-black text-[#123D2A]">Reference crop list</h3>
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {HIGH_VALUE_CROP_NAMES.map((crop) => <span key={crop} className="rounded-full bg-[#EAF5EC] px-2.5 py-1 text-xs font-semibold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{crop}</span>)}
+                                    {highValueCropNames.map((crop) => <span key={crop} className="rounded-full bg-[#EAF5EC] px-2.5 py-1 text-xs font-semibold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{crop}</span>)}
                                 </div>
                             </div>
                             <p className="rounded-2xl border border-[#F2D28B] bg-[#FFF8E8] px-4 py-3 text-xs leading-5 text-[#7A5100]">This is the current system reference list. The cooperative can finalize or revise the official crop list before production use.</p>
@@ -2168,7 +2175,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             {/* Archived Products Modal */}
             {isArchivedModalOpen && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B2E20]/55 p-4 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="archived-products-title">
-                    <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
+                    <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
                         <div className="flex items-start justify-between border-b border-[#E7EFE8] bg-[#F8FBF8] px-5 py-5 sm:px-7">
                             <div className="flex items-start gap-3">
                                 <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF5EC] text-[#1F6B43]">
@@ -2230,7 +2237,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             pageSize={archivedPageSize}
                             pageSizeOptions={[5, 10, 20]}
                             onPageSizeChange={(nextPageSize) => { setArchivedPageSize(nextPageSize); setArchivedPage(1); }}
-                            className="mt-0 border-t border-[#E7EFE8] bg-[#F8FBF8] px-5 py-4 text-sm sm:px-7"
+                            className="archived-products-pagination mt-0 border-t border-[#E7EFE8] bg-[#F8FBF8] px-5 py-4 text-sm sm:px-7"
                         />
                     </div>
                 </div>

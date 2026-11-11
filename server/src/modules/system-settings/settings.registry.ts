@@ -30,7 +30,8 @@ export type SettingDefinition = {
     | "referral"
     | "thresholds"
     | "labels"
-    | "statuses";
+    | "statuses"
+    | "crop_list";
   group: string;
   fallback: SettingValue;
   editable: boolean;
@@ -81,6 +82,37 @@ const thresholds = z
   })
   .partial()
   .strict();
+const cropList = z
+  .array(z.string().trim().min(1).max(80))
+  .min(1)
+  .max(64)
+  .refine(
+    (names) => new Set(names.map((name) => name.toLowerCase())).size === names.length,
+    "Crop names must be unique.",
+  );
+const HIGH_VALUE_CROP_NAMES_FALLBACK = [
+  "Tomato",
+  "Onion",
+  "Garlic",
+  "Bell Pepper",
+  "Chili Pepper",
+  "Eggplant",
+  "Cabbage",
+  "Carrot",
+  "Lettuce",
+  "Cucumber",
+  "Squash",
+  "String Beans",
+  "Bitter Gourd",
+  "Ampalaya",
+  "Okra",
+  "Pechay",
+  "Mustard Greens",
+  "Broccoli",
+  "Cauliflower",
+  "Radish",
+  "Ginger",
+] as const;
 export const categories = [
   {
     id: "membership",
@@ -303,6 +335,17 @@ export const definitions: SettingDefinition[] = [
     enforced: false,
     editable: false,
     schema: z.boolean(),
+  },
+  {
+    key: "inventory.high_value_crops",
+    category: "inventory",
+    group: "inventory",
+    label: "High-Value Crops reference list",
+    help: "Crop names in this list are marked as High-Value Crops in Inventory and Seasonal Analytics. Edit the cooperative reference list only after approval.",
+    kind: "crop_list",
+    fallback: [...HIGH_VALUE_CROP_NAMES_FALLBACK],
+    editable: true,
+    schema: cropList,
   },
 ];
 export const byKey = new Map(definitions.map((d) => [d.key, d]));

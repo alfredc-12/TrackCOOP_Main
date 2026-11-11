@@ -1,5 +1,5 @@
 "use client";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Check, X, Plus } from "lucide-react";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { describeValue, object, type SettingEntry } from "./settings-client";
@@ -17,6 +17,7 @@ export function SettingControl({
   statuses: string[];
 }) {
   const id = useId();
+  const [newCrop, setNewCrop] = useState("");
   const r = object(value);
   const numeric = (
     label: string,
@@ -170,6 +171,70 @@ export function SettingControl({
             />
           </div>
         )}
+      </div>
+    );
+  }
+  if (s.kind === "crop_list") {
+    const selected = Array.isArray(value)
+      ? value.filter((x): x is string => typeof x === "string")
+      : [];
+    const normalizedNewCrop = newCrop.trim().toLowerCase();
+    const canAdd = Boolean(
+      newCrop.trim() &&
+        newCrop.trim().length <= 80 &&
+        !selected.some((crop) => crop.trim().toLowerCase() === normalizedNewCrop) &&
+        selected.length < 64,
+    );
+    return (
+      <div>
+        <div className={styles.chips} aria-label="Configured High-Value Crops">
+          {selected.map((crop) => (
+            <button
+              key={crop}
+              type="button"
+              className={styles.chip}
+              aria-label={`Remove High-Value Crop ${crop}`}
+              onClick={() => onChange(selected.filter((item) => item !== crop))}
+            >
+              {crop}
+              <X className="size-3" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className={`${styles.field} min-w-[min(100%,18rem)] flex-1`}>
+            <span>Add crop name</span>
+            <input
+              aria-label="Add High-Value Crop name"
+              value={newCrop}
+              maxLength={80}
+              placeholder="e.g. Tomato"
+              onChange={(event) => setNewCrop(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && canAdd) {
+                  event.preventDefault();
+                  onChange([...selected, newCrop.trim()]);
+                  setNewCrop("");
+                }
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="inline-flex h-11 items-center gap-2 rounded-coop-control border border-coop-border bg-coop-surface px-4 text-sm font-semibold text-coop-forest transition hover:bg-coop-subtle disabled:pointer-events-none disabled:opacity-50"
+            disabled={!canAdd}
+            onClick={() => {
+              onChange([...selected, newCrop.trim()]);
+              setNewCrop("");
+            }}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            Add crop
+          </button>
+        </div>
+        <p className={`${styles.hint} mt-2`}>
+          Remove a chip to exclude it. Changes apply to new Inventory and Seasonal Analytics loads after saving.
+        </p>
       </div>
     );
   }

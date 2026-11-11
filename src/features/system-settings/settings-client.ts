@@ -98,6 +98,23 @@ export function draftError(s: SettingEntry, v: unknown) {
   }
   if (s.kind === "statuses" && (!Array.isArray(v) || !v.length))
     return "Choose at least one participation status.";
+  if (s.kind === "crop_list") {
+    if (
+      !Array.isArray(v) ||
+      !v.length ||
+      v.length > 64 ||
+      v.some((name) => typeof name !== "string" || !name.trim() || name.length > 80)
+    )
+      return "Add at least one crop name, with a maximum of 64 names and 80 characters per name.";
+    if (
+      new Set(
+        v
+          .filter((name): name is string => typeof name === "string")
+          .map((name) => name.trim().toLowerCase()),
+      ).size !== v.length
+    )
+      return "Crop names must be unique.";
+  }
   if (
     s.kind === "thresholds" &&
     Object.values(object(v)).some(
