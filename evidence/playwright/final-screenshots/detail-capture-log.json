@@ -1,0 +1,98 @@
+[
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "analytics-overview",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\analytics-overview.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "chairman-membership",
+    "name": "member-directory-view",
+    "route": "/portal/chairman/members",
+    "file": "evidence\\playwright\\final-screenshots\\chairman-membership\\member-directory-view.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "chairman-membership",
+    "name": "application-review",
+    "route": "/portal/chairman/members",
+    "file": "evidence\\playwright\\final-screenshots\\chairman-membership\\application-review.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "rental-management",
+    "name": "booking-details",
+    "route": "/portal/chairman/rentals/bookings",
+    "file": "evidence\\playwright\\final-screenshots\\rental-management\\booking-details.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "events-attendance",
+    "name": "event-schedule-and-attendance",
+    "route": "/portal/chairman/activities",
+    "file": "evidence\\playwright\\final-screenshots\\events-attendance\\event-schedule-and-attendance.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "events-attendance",
+    "name": "event-edit",
+    "route": "/portal/chairman/activities",
+    "file": "evidence\\playwright\\final-screenshots\\events-attendance\\event-edit.png",
+    "status": "captured"
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "document-management",
+    "name": "document-upload",
+    "route": "/portal/bookkeeper/documents",
+    "file": "evidence\\playwright\\final-screenshots\\document-management\\document-upload.png",
+    "status": "captured"
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "document-management",
+    "name": "document-details",
+    "route": "/portal/bookkeeper/documents",
+    "file": "evidence\\playwright\\final-screenshots\\document-management\\document-details.png",
+    "status": "captured"
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "financial-management",
+    "name": "payment-review",
+    "route": "/portal/bookkeeper/payment-validation",
+    "file": "evidence\\playwright\\final-screenshots\\financial-management\\payment-review.png",
+    "status": "captured"
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "pos-sales",
+    "name": "sale-details",
+    "route": "/portal/bookkeeper/pos-sales",
+    "status": "unavailable",
+    "reason": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog') to be visible\u001b[22m\n"
+  },
+  {
+    "role": "member",
+    "folder": "member-bookkeeper-portals",
+    "name": "member-notifications",
+    "route": "/portal/member/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-bookkeeper-portals\\member-notifications.png",
+    "status": "captured"
+  },
+  {
+    "role": "member",
+    "folder": "member-bookkeeper-portals",
+    "name": "member-profile",
+    "route": "/portal/member/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-bookkeeper-portals\\member-profile.png",
+    "status": "captured"
+  }
+]

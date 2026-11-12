@@ -18,8 +18,14 @@ const eslintConfig = defineConfig([
     "scratch/**",
     "evidence/playwright/database-*/**",
     "evidence/playwright/initial/**",
+    // Generated JMeter dashboards bundle third-party browser libraries.
+    "evidence/jmeter/**/html-report/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["evidence/jmeter/scripts/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
 
 export default eslintConfig;

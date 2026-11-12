@@ -1,0 +1,33 @@
+import {chromium} from 'playwright';
+import mysql from 'mysql2/promise';
+import {mkdir,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const db=await mysql.createConnection({host:'127.0.0.1',port:33327,user:'root',database:'trackcoop_evidence_synthetic'});
+const [identity]=await db.query('SELECT @@port port,@@datadir dir,DATABASE() db');
+const dataDir=String(identity[0].dir).replaceAll('\\','/').replace(/\/$/,'').toLowerCase();
+if(Number(identity[0].port)!==33327||identity[0].db!=='trackcoop_evidence_synthetic'||!dataDir.endsWith('/trackcoop_main/scratch/playwright-isolated-mysql/data'))throw Error('Refusing unverified database');
+const [members]=await db.query("SELECT CAST(member_id AS CHAR) id FROM member_profiles WHERE member_code='NFFAC-SEED-0001'");await db.end();
+const root='evidence/playwright/final-screenshots';const out=[];const browser=await chromium.launch({headless:true});
+const users={chairman:['chairman.test@trackcoop.local','ChairmanTest123!'],bookkeeper:['bookkeeper.test@trackcoop.local','BookkeeperTest123!'],member:['maria.member@trackcoop.local','MemberTest123!']};
+const contexts={};
+try{
+ for(const [role,[identifier,password]] of Object.entries(users)){const c=await browser.newContext({viewport:{width:1440,height:900}});await c.route('**/*',r=>{const u=new URL(r.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol)?r.continue():r.abort()});const login=await c.request.post('http://127.0.0.1:3218/api/auth/login',{data:{identifier,password}});if(login.status()!==200)throw Error(`Login ${role}: ${login.status()}`);contexts[role]=c;}
+ async function capture(role,folder,name,url,steps,fullPage=false){const page=await contexts[role].newPage();try{await page.goto('http://127.0.0.1:3217'+url,{waitUntil:'domcontentloaded',timeout:45000});await page.locator('main').first().waitFor({state:'visible'});await steps(page);const file=path.join(root,folder,name+'.png');await mkdir(path.dirname(file),{recursive:true});await page.screenshot({path:file,fullPage,animations:'disabled'});out.push({role,folder,name,route:url,file,status:'captured'});console.log('CAPTURED',name)}catch(e){out.push({role,folder,name,route:url,status:'unavailable',reason:e.message.slice(0,250)});console.log('UNAVAILABLE',name,e.message.slice(0,120))}finally{await page.close()}}
+ await capture('chairman','member-analytics','analytics-overview','/portal/chairman/dashboard',async p=>{await p.getByText('Loading Member analytics...', {exact:true}).waitFor({state:'hidden',timeout:30000}).catch(()=>{});await p.getByText('Approved members',{exact:false}).first().waitFor({state:'visible',timeout:30000})});
+ await capture('chairman','chairman-membership','member-directory-view','/portal/chairman/members',async p=>{await p.getByRole('button',{name:'Member Directory',exact:true}).click();await p.getByText('Member Directory',{exact:true}).first().waitFor({state:'visible'})});
+ await capture('chairman','chairman-membership','application-review','/portal/chairman/members',async p=>{await p.getByRole('button',{name:'Review',exact:true}).first().click();await p.getByRole('heading',{name:/application/i}).first().waitFor({state:'visible',timeout:10000})});
+ await capture('chairman','rental-management','booking-details','/portal/chairman/rentals/bookings',async p=>{await p.getByRole('button',{name:'View Details'}).first().click();await p.getByRole('heading',{name:/detail|rental|booking/i}).last().waitFor({state:'visible'})});
+ const chairman=contexts.chairman;
+ const eventInput={title:'Synthetic cooperative assembly',date:'2026-11-05',time:'09:00',location:'Synthetic training hall',details:'Demonstration event and attendance.',qualifies:true};
+ const created=await chairman.request.post('http://127.0.0.1:3218/api/activities',{data:eventInput});
+ if(created.status()===201){const id=String((await created.json()).data.id);const attendance=await chairman.request.post(`http://127.0.0.1:3218/api/activities/${id}/attendance`,{data:{memberId:String(members[0].id)}});console.log('SYNTHETIC EVENT',created.status(),'ATTENDANCE',attendance.status());}
+ else console.log('SYNTHETIC EVENT unavailable',created.status());
+ await capture('chairman','events-attendance','event-schedule-and-attendance','/portal/chairman/activities',async p=>{await p.getByText('Synthetic cooperative assembly',{exact:true}).first().waitFor({state:'visible'});await p.getByRole('button',{name:'View attendance'}).first().click();await p.getByText('Maria Santos',{exact:false}).first().waitFor({state:'visible'});await p.getByRole('heading',{name:/Attendance:/}).scrollIntoViewIfNeeded()},true);
+ await capture('chairman','events-attendance','event-edit','/portal/chairman/activities',async p=>{await p.getByText('Synthetic cooperative assembly',{exact:true}).first().waitFor({state:'visible'});await p.getByRole('button',{name:'Edit',exact:true}).first().click();await p.getByRole('heading',{name:'Edit event'}).waitFor({state:'visible'})});
+ await capture('bookkeeper','document-management','document-upload','/portal/bookkeeper/documents',async p=>{await p.getByRole('button',{name:'Upload Document'}).click();await p.getByRole('dialog').waitFor({state:'visible'})});
+ await capture('bookkeeper','document-management','document-details','/portal/bookkeeper/documents',async p=>{await p.getByRole('button',{name:'View Details'}).first().click();await p.getByRole('dialog').waitFor({state:'visible'})});
+ await capture('bookkeeper','financial-management','payment-review','/portal/bookkeeper/payment-validation',async p=>{await p.getByRole('button',{name:'Review',exact:true}).first().click();await p.getByRole('dialog').waitFor({state:'visible'})});
+ await capture('bookkeeper','pos-sales','sale-details','/portal/bookkeeper/pos-sales',async p=>{await p.getByRole('button',{name:'Details',exact:true}).first().click();await p.getByRole('dialog').waitFor({state:'visible'})});
+ await capture('member','member-bookkeeper-portals','member-notifications','/portal/member/dashboard',async p=>{await p.getByRole('button',{name:'Announcements',exact:true}).first().click();await p.getByText(/announcements/i).last().waitFor({state:'visible'})});
+ await capture('member','member-bookkeeper-portals','member-profile','/portal/member/dashboard',async p=>{await p.getByRole('button',{name:'Profile & Settings',exact:true}).first().click();await p.getByText(/profile/i).last().waitFor({state:'visible'})});
+}finally{for(const c of Object.values(contexts))await c.close();await browser.close();await writeFile(path.join(root,'detail-capture-log.json'),JSON.stringify(out,null,2));}

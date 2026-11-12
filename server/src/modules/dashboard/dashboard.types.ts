@@ -53,6 +53,8 @@ export type IncomeSource = {
 
 export type DemographicData = {
   barangay: string;
+  municipality?: string | null;
+  province?: string | null;
   totalMembers: number;
   activeMembers: number;
   needsMonitoring: number;

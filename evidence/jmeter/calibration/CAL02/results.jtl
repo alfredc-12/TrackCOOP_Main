@@ -1,0 +1,29 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1794123239083,657,SETUP login,200,OK,Total virtual users 1-1,text,true,,1640,316,1,1,http://127.0.0.1:3218/api/auth/login,649,0,29
+1794123240871,265,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,true,,11148,282,1,1,http://127.0.0.1:3218/api/public/landing,265,0,0
+1794123239855,265,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,11148,282,1,1,null,265,1052,0
+1794123242176,92,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,1,1,http://127.0.0.1:3218/api/auth/me,92,0,0
+1794123241172,92,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,1,1,null,92,1006,0
+1794123243346,1520,J07 01 /api/chairman/member-analytics,200,OK,Total virtual users 1-1,text,true,,60913,293,1,1,http://127.0.0.1:3218/api/chairman/member-analytics,1520,0,0
+1794123245891,2856,J07 02 /api/chairman/financial-analytics,200,OK,Total virtual users 1-1,text,true,,49721,296,1,1,http://127.0.0.1:3218/api/chairman/financial-analytics,2856,0,0
+1794123242337,4376,TX_J07,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,110634,589,1,1,null,4376,2040,0
+1794123249771,182,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,true,,11148,282,1,1,http://127.0.0.1:3218/api/public/landing,182,0,0
+1794123248770,182,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,11148,282,1,1,null,182,1002,0
+1794123250967,89,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,1,1,http://127.0.0.1:3218/api/auth/me,89,0,0
+1794123249954,89,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,1,1,null,89,1015,0
+1794123252072,1658,J07 01 /api/chairman/member-analytics,200,OK,Total virtual users 1-1,text,true,,60913,293,1,1,http://127.0.0.1:3218/api/chairman/member-analytics,1657,0,0
+1794123254740,3069,J07 02 /api/chairman/financial-analytics,200,OK,Total virtual users 1-1,text,true,,49721,296,1,1,http://127.0.0.1:3218/api/chairman/financial-analytics,3069,0,0
+1794123251066,4727,TX_J07,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,110634,589,1,1,null,4726,2019,0
+1794123258824,267,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,true,,11148,282,1,1,http://127.0.0.1:3218/api/public/landing,267,0,0
+1794123257823,267,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,11148,282,1,1,null,267,1002,0
+1794123260097,87,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,1,1,http://127.0.0.1:3218/api/auth/me,87,0,0
+1794123259092,87,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,1,1,null,87,1006,0
+1794123261200,1623,J07 01 /api/chairman/member-analytics,200,OK,Total virtual users 1-1,text,true,,60913,293,1,1,http://127.0.0.1:3218/api/chairman/member-analytics,1623,0,0
+1794123263839,3066,J07 02 /api/chairman/financial-analytics,200,OK,Total virtual users 1-1,text,true,,49721,296,1,1,http://127.0.0.1:3218/api/chairman/financial-analytics,3066,0,0
+1794123260193,4689,TX_J07,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,110634,589,1,1,null,4689,2025,0
+1794123267919,254,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,true,,11148,282,1,1,http://127.0.0.1:3218/api/public/landing,254,0,0
+1794123266917,254,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,11148,282,1,1,null,254,1005,0
+1794123269179,44,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,1,1,http://127.0.0.1:3218/api/auth/me,44,0,0
+1794123268175,44,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,1,1,null,44,1005,0
+1794123270235,946,J07 01 /api/chairman/member-analytics,200,OK,Total virtual users 1-1,text,true,,60913,293,1,1,http://127.0.0.1:3218/api/chairman/member-analytics,946,0,0
+1794123269231,946,TX_J07,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,60913,293,1,1,null,946,1007,0

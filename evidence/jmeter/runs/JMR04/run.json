@@ -1,0 +1,60 @@
+{
+  "run": "JMR04",
+  "users": 10,
+  "ramp_seconds": 60,
+  "steady_seconds": 300,
+  "extra_tail_seconds": 5,
+  "command_start_utc": "2026-11-08T08:45:41.817761+00:00",
+  "command_end_utc": "2026-11-08T08:52:04.073988+00:00",
+  "jmeter_start_epoch_ms": 1794127548870,
+  "steady_start_epoch_ms": 1794127608870,
+  "jmeter_exit_code": 0,
+  "missing_groups": [],
+  "changed_protected_tables": [],
+  "invariant_changes": {},
+  "html_report_exists": true,
+  "threads_covering_entire_steady_window": 10,
+  "thread_lifecycles": {
+    "Total virtual users 1-1": {
+      "started": 1794127549750,
+      "finished": 1794127916999
+    },
+    "Total virtual users 1-2": {
+      "started": 1794127555732,
+      "finished": 1794127912910
+    },
+    "Total virtual users 1-3": {
+      "started": 1794127561748,
+      "finished": 1794127914605
+    },
+    "Total virtual users 1-4": {
+      "started": 1794127567740,
+      "finished": 1794127913230
+    },
+    "Total virtual users 1-5": {
+      "started": 1794127573737,
+      "finished": 1794127919065
+    },
+    "Total virtual users 1-6": {
+      "started": 1794127579729,
+      "finished": 1794127919901
+    },
+    "Total virtual users 1-7": {
+      "started": 1794127585707,
+      "finished": 1794127913757
+    },
+    "Total virtual users 1-8": {
+      "started": 1794127591723,
+      "finished": 1794127916531
+    },
+    "Total virtual users 1-9": {
+      "started": 1794127597723,
+      "finished": 1794127915039
+    },
+    "Total virtual users 1-10": {
+      "started": 1794127603734,
+      "finished": 1794127913626
+    }
+  },
+  "target_threads_maintained": true
+}

@@ -1,0 +1,100 @@
+{
+  "run": "JMR07",
+  "users": 20,
+  "ramp_seconds": 60,
+  "steady_seconds": 300,
+  "extra_tail_seconds": 5,
+  "command_start_utc": "2026-11-08T09:06:03.925007+00:00",
+  "command_end_utc": "2026-11-08T09:12:18.512346+00:00",
+  "jmeter_start_epoch_ms": 1794128769174,
+  "steady_start_epoch_ms": 1794128829174,
+  "jmeter_exit_code": 0,
+  "missing_groups": [],
+  "changed_protected_tables": [],
+  "invariant_changes": {},
+  "html_report_exists": true,
+  "threads_covering_entire_steady_window": 20,
+  "thread_lifecycles": {
+    "Total virtual users 1-1": {
+      "started": 1794128769685,
+      "finished": 1794129134758
+    },
+    "Total virtual users 1-2": {
+      "started": 1794128772678,
+      "finished": 1794129134631
+    },
+    "Total virtual users 1-3": {
+      "started": 1794128775678,
+      "finished": 1794129133523
+    },
+    "Total virtual users 1-4": {
+      "started": 1794128778674,
+      "finished": 1794129132764
+    },
+    "Total virtual users 1-5": {
+      "started": 1794128781676,
+      "finished": 1794129133762
+    },
+    "Total virtual users 1-6": {
+      "started": 1794128784675,
+      "finished": 1794129134019
+    },
+    "Total virtual users 1-7": {
+      "started": 1794128787674,
+      "finished": 1794129134021
+    },
+    "Total virtual users 1-8": {
+      "started": 1794128790673,
+      "finished": 1794129135229
+    },
+    "Total virtual users 1-9": {
+      "started": 1794128793674,
+      "finished": 1794129134246
+    },
+    "Total virtual users 1-10": {
+      "started": 1794128796673,
+      "finished": 1794129132813
+    },
+    "Total virtual users 1-11": {
+      "started": 1794128799672,
+      "finished": 1794129133028
+    },
+    "Total virtual users 1-12": {
+      "started": 1794128802673,
+      "finished": 1794129133059
+    },
+    "Total virtual users 1-13": {
+      "started": 1794128805671,
+      "finished": 1794129133058
+    },
+    "Total virtual users 1-14": {
+      "started": 1794128808676,
+      "finished": 1794129133390
+    },
+    "Total virtual users 1-15": {
+      "started": 1794128811673,
+      "finished": 1794129133834
+    },
+    "Total virtual users 1-16": {
+      "started": 1794128814671,
+      "finished": 1794129133204
+    },
+    "Total virtual users 1-17": {
+      "started": 1794128817672,
+      "finished": 1794129134019
+    },
+    "Total virtual users 1-18": {
+      "started": 1794128820673,
+      "finished": 1794129132940
+    },
+    "Total virtual users 1-19": {
+      "started": 1794128823686,
+      "finished": 1794129134926
+    },
+    "Total virtual users 1-20": {
+      "started": 1794128826671,
+      "finished": 1794129134019
+    }
+  },
+  "target_threads_maintained": true
+}

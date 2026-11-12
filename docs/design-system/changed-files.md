@@ -1,5 +1,17 @@
 # Implementation map
 
+## Batangas map coverage ? 2026-11-12
+
+`src/lib/Nasugbu.geojson` now holds the supplied complete Batangas asset (1,077 barangays).
+The existing `/api/maps/nasugbu` URL serves that full asset. `DemographicsMap.tsx` fits the
+province bounds and uses searchable `StyledSelect` options with barangay and municipality
+labels. `src/lib/batangas-municipalities.ts` supplies PSGC labels because the supplied
+asset's municipality names are blank. Counts join on municipality plus barangay;
+ambiguous name-only locations remain disclosed as unmapped. Name-only member links
+are offered only for geographically unique names. Dashboard demographic rows and
+member analytics `mapGeography` carry municipality and province; existing comparison
+tables retain their established grouping.
+
 This lists the design-system work from 2026-11-02. The working tree already contained public-page, rental, gallery, calendar and other changes; those unrelated changes were preserved and are not claimed as part of this implementation.
 
 ## Runtime foundation

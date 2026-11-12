@@ -1,0 +1,942 @@
+<?xml version='1.0' encoding='utf-8'?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="TrackCOOP development performance" enabled="true">
+      <stringProp name="TestPlan.comments">Loopback-only test API. Synthetic per-user identities. No financial writes.</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="Variables" enabled="true">
+        <collectionProp name="Arguments.arguments" />
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Total virtual users" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">-1</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(users,1)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(ramp,1)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(duration,30)}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="Per-user cookies" enabled="true">
+          <boolProp name="CookieManager.clearEachIteration">false</boolProp>
+          <boolProp name="CookieManager.controlledByThreadGroup">false</boolProp>
+          <collectionProp name="CookieManager.cookies" />
+        </CookieManager>
+        <hashTree />
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="JSON and synthetic client" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Content-Type</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Accept</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Slot</stringProp>
+              <stringProp name="Header.value">${slot}</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree />
+        <OnceOnlyController guiclass="OnceOnlyControllerGui" testclass="OnceOnlyController" testname="Authenticate once" enabled="true" />
+        <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="SETUP login" enabled="true">
+            <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+            <stringProp name="HTTPSampler.port">3218</stringProp>
+            <stringProp name="HTTPSampler.protocol">http</stringProp>
+            <stringProp name="HTTPSampler.path">/api/auth/login</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+            <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"identifier":"${identifier}","password":"${password}"}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'identity'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+            </JSR223Assertion>
+            <hashTree />
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Load one CSV row per thread" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">def f = new File(props.get('credentials', 'scratch/jmeter-private/users.csv'))
+def rows = f.readLines('UTF-8'); def i = ctx.getThreadNum()+1
+if (i &gt;= rows.size()) throw new IllegalStateException('Not enough synthetic identities')
+def parts = rows[i].split(',', -1)
+if (parts.length != 4) throw new IllegalStateException('Invalid credential CSV')
+vars.put('identifier',parts[0]); vars.put('password',parts[1]); vars.put('role',parts[2]); vars.put('slot',parts[3])
+</stringProp>
+            </JSR223PreProcessor>
+            <hashTree />
+          </hashTree>
+        </hashTree>
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Think time per request" enabled="true">
+          <stringProp name="ConstantTimer.delay">2000</stringProp>
+        </ConstantTimer>
+        <hashTree />
+        <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J01" enabled="true">
+          <boolProp name="TransactionController.includeTimers">false</boolProp>
+          <boolProp name="TransactionController.parent">false</boolProp>
+        </TransactionController>
+        <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J01 01 /api/public/landing" enabled="true">
+            <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+            <stringProp name="HTTPSampler.port">3218</stringProp>
+            <stringProp name="HTTPSampler.protocol">http</stringProp>
+            <stringProp name="HTTPSampler.path">/api/public/landing</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+            <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments" />
+            </elementProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+            </JSR223Assertion>
+            <hashTree />
+          </hashTree>
+        </hashTree>
+        <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J02" enabled="true">
+          <boolProp name="TransactionController.includeTimers">false</boolProp>
+          <boolProp name="TransactionController.parent">false</boolProp>
+        </TransactionController>
+        <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J02 01 /api/auth/me" enabled="true">
+            <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+            <stringProp name="HTTPSampler.port">3218</stringProp>
+            <stringProp name="HTTPSampler.protocol">http</stringProp>
+            <stringProp name="HTTPSampler.path">/api/auth/me</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+            <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments" />
+            </elementProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'identity'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+            </JSR223Assertion>
+            <hashTree />
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J03 role: member" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'member')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J03" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J03 01 /api/members/me/dashboard" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/members/me/dashboard</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'dashboard'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J04 role: staff" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'chairman' || vars.get('role') == 'bookkeeper')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J04" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J04 01 /api/membership-applications" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/membership-applications</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J05 role: member" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'member')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J05" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J05 01 /api/members/me/share-capital/overview" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/members/me/share-capital/overview</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'capital'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J05 02 /api/members/me/share-capital/transactions" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/members/me/share-capital/transactions</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'capitalTransactions'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J06 role: staff" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'chairman' || vars.get('role') == 'bookkeeper')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J06" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J06 01 /api/financial-records" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/financial-records</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J06 02 /api/financial-records/summary" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/financial-records/summary</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J07 role: chairman" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'chairman')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J07" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J07 01 /api/chairman/member-analytics" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/chairman/member-analytics</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J07 02 /api/chairman/financial-analytics" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/chairman/financial-analytics</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J08 role: staff" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'chairman' || vars.get('role') == 'bookkeeper')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J08" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J08 01 /api/rental/schedules" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/rental/schedules</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'array'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J09 role: staff" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'chairman' || vars.get('role') == 'bookkeeper')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J09" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J09 01 /api/inventory" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/inventory</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'array'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J09 02 /api/pos/orders" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/pos/orders</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'array'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="J10 role: staff" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get('role') == 'chairman' || vars.get('role') == 'bookkeeper')}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+          <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="TX_J10" enabled="true">
+            <boolProp name="TransactionController.includeTimers">false</boolProp>
+            <boolProp name="TransactionController.parent">false</boolProp>
+          </TransactionController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J10 01 /api/documents" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/documents</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'documents'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J10 02 /api/announcements" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/announcements</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="J10 03 /api/activities" enabled="true">
+              <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+              <stringProp name="HTTPSampler.port">3218</stringProp>
+              <stringProp name="HTTPSampler.protocol">http</stringProp>
+              <stringProp name="HTTPSampler.path">/api/activities</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="HTTPSampler.connect_timeout">30000</stringProp>
+              <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validate status and response" enabled="true">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">import groovy.json.JsonSlurper
+try {
+ if (prev.getResponseCode() != '200') throw new Exception('Expected HTTP 200; received '+prev.getResponseCode())
+ def value = new JsonSlurper().parseText(prev.getResponseDataAsString())
+ def shape = 'success'
+ if (shape == 'success' &amp;&amp; (!(value instanceof Map) || value.success != true || !value.containsKey('data'))) throw new Exception('Expected success/data envelope')
+ if (shape == 'array' &amp;&amp; !(value instanceof List)) throw new Exception('Expected array')
+ if (shape == 'documents' &amp;&amp; (!(value instanceof Map) || !(value.documents instanceof List))) throw new Exception('Expected documents list')
+ if (shape == 'dashboard' &amp;&amp; (!(value instanceof Map) || value.isLinked != true || value.membershipType != 'True Member')) throw new Exception('Expected linked true-member dashboard')
+ if (shape == 'identity' &amp;&amp; (!(value instanceof Map) || value.success != true || value.data.email != vars.get('identifier'))) throw new Exception('Authenticated identity mismatch')
+ if (shape == 'capital') {
+   def expected = vars.get('identifier').replaceFirst('-[0-9]{2}@example[.]test$', '') + '-' + vars.get('slot')
+   if (!(value instanceof Map) || value.success != true || value.data.member.memberCode != expected || value.data.reconciliation.reconciled != true) throw new Exception('Share-capital owner or reconciliation mismatch')
+   vars.put('ownerMemberId',value.data.member.memberId.toString())
+ }
+ if (shape == 'capitalTransactions') {
+   if (!(value instanceof Map) || value.success != true || !(value.data instanceof List) || !vars.get('ownerMemberId')) throw new Exception('Missing owner or transaction list')
+   if (value.data.any { it.memberId.toString() != vars.get('ownerMemberId') }) throw new Exception('Cross-member transaction returned')
+ }
+} catch (Exception ex) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage(ex.message) }
+</stringProp>
+              </JSR223Assertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

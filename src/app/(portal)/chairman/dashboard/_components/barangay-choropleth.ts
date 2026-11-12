@@ -1,9 +1,10 @@
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import { BATANGAS_MUNICIPALITIES, normalizeMunicipality } from "../../../../../lib/batangas-municipalities";
 
-export type BarangayProperties = { adm4_en: string; adm4_psgc: number | string; adm3_psgc: number };
+export type BarangayProperties = { adm4_en: string; adm4_psgc: number | string; adm3_psgc: number; adm2_psgc: number; municipality?: string };
 export type BarangayBoundary = Feature<Polygon | MultiPolygon, BarangayProperties>;
 export type BarangayBoundaries = FeatureCollection<Polygon | MultiPolygon, BarangayProperties>;
-export type BarangayMembers = { barangay: string; totalMembers: number; sectorCounts?: { sector: string; count: number }[] };
+export type BarangayMembers = { barangay: string; municipality?: string | null; province?: string | null; totalMembers: number; sectorCounts?: { sector: string; count: number }[] };
 export type HeatBin = { min: number; max: number; color: string };
 
 export const zeroMemberColor = "#eef2ec";
@@ -25,7 +26,25 @@ export function isBarangayBoundaries(value: unknown): value is BarangayBoundarie
   return value.features.every((feature) => feature?.type === "Feature" &&
     ["Polygon", "MultiPolygon"].includes(feature.geometry?.type) && Array.isArray(feature.geometry?.coordinates) &&
     typeof feature.properties?.adm4_en === "string" && feature.properties.adm4_en.trim() &&
-    feature.properties.adm4_psgc != null && Number(feature.properties.adm3_psgc) === 401019000);
+    feature.properties.adm4_psgc != null && Number(feature.properties.adm2_psgc) === 401000000 &&
+    BATANGAS_MUNICIPALITIES[Number(feature.properties.adm3_psgc)] != null);
+}
+
+export function boundaryMunicipality(feature: BarangayBoundary) {
+  return BATANGAS_MUNICIPALITIES[Number(feature.properties.adm3_psgc)];
+}
+
+export function boundaryLabel(feature: BarangayBoundary) {
+  return `${feature.properties.adm4_en}, ${boundaryMunicipality(feature)}`;
+}
+
+export function resolveBarangayId(boundaries: BarangayBoundaries, row: Pick<BarangayMembers, "barangay" | "municipality" | "province">) {
+  if (row.province?.trim() && normalizeMunicipality(row.province) !== "batangas") return undefined;
+  const matches = boundaries.features.filter(feature =>
+    normalizeBarangayName(feature.properties.adm4_en) === normalizeBarangayName(row.barangay) &&
+    (!row.municipality?.trim() || normalizeMunicipality(boundaryMunicipality(feature)) === normalizeMunicipality(row.municipality)));
+  // Never copy a name-only count to multiple municipalities.
+  return matches.length === 1 ? String(matches[0].properties.adm4_psgc) : undefined;
 }
 
 export function createHeatBins(maximum: number): HeatBin[] {
@@ -51,7 +70,8 @@ export function joinBarangayMembers(boundaries: BarangayBoundaries, demographics
   const members = new Map<string, { totalMembers: number; sectors: Map<string, number> }>();
   const sectorNames = new Set<string>();
   for (const row of demographics) {
-    const key = normalizeBarangayName(row.barangay);
+    const key = resolveBarangayId(boundaries, row);
+    if (!key) continue;
     const aggregate = members.get(key) ?? { totalMembers: 0, sectors: new Map<string, number>() };
     aggregate.totalMembers += count(row.totalMembers);
     for (const sector of row.sectorCounts ?? []) {
@@ -61,18 +81,25 @@ export function joinBarangayMembers(boundaries: BarangayBoundaries, demographics
     members.set(key, aggregate);
   }
   const sectors = [...sectorNames];
-  const keys = new Set(boundaries.features.map((feature) => normalizeBarangayName(feature.properties.adm4_en)));
+  const nameCounts = new Map<string, number>();
+  for (const feature of boundaries.features) {
+    const name = normalizeBarangayName(feature.properties.adm4_en);
+    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+  }
   const areas = boundaries.features.map((feature) => {
-    const aggregate = members.get(normalizeBarangayName(feature.properties.adm4_en));
+    const aggregate = members.get(String(feature.properties.adm4_psgc));
     return {
       feature,
       id: String(feature.properties.adm4_psgc),
       barangay: feature.properties.adm4_en,
+      municipality: boundaryMunicipality(feature),
+      label: boundaryLabel(feature),
+      canDrilldown: nameCounts.get(normalizeBarangayName(feature.properties.adm4_en)) === 1,
       totalMembers: aggregate?.totalMembers ?? 0,
       sectorCounts: sectors.map((sector) => ({ sector, count: aggregate?.sectors.get(sector) ?? 0 })),
     };
   });
-  const unmapped = demographics.filter((row) => !keys.has(normalizeBarangayName(row.barangay)));
+  const unmapped = demographics.filter((row) => !resolveBarangayId(boundaries, row));
   const maximum = Math.max(0, ...areas.map((area) => area.totalMembers));
   return { areas, bins: createHeatBins(maximum), unmapped, mappedMembers: areas.reduce((total, area) => total + area.totalMembers, 0) };
 }

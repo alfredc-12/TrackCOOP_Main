@@ -1,0 +1,82 @@
+[
+  {
+    "role": "public",
+    "folder": "public-authentication",
+    "name": "homepage-viewport",
+    "route": "/",
+    "file": "evidence\\playwright\\final-screenshots\\public-authentication\\homepage-viewport.png",
+    "status": "captured"
+  },
+  {
+    "role": "public",
+    "folder": "public-authentication",
+    "name": "application-viewport",
+    "route": "/membership/apply",
+    "file": "evidence\\playwright\\final-screenshots\\public-authentication\\application-viewport.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "financial-management",
+    "name": "financial-overview-viewport",
+    "route": "/portal/chairman/financial-dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\financial-management\\financial-overview-viewport.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "analytics-classifications",
+    "route": "/portal/chairman/dashboard",
+    "status": "unavailable",
+    "reason": "locator.scrollIntoViewIfNeeded: Timeout 29954.284999999996ms exceeded.\nCall log:\n\u001b[2m  - attempting scroll into view action\u001b[22m\n\u001b[2m    2 × waiting for element to be stable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying scroll into "
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "analytics-geography",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\analytics-geography.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "rfm-summary",
+    "route": "/portal/chairman/member-indicators",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\rfm-summary.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "events-attendance",
+    "name": "attendance-list-viewport",
+    "route": "/portal/chairman/activities",
+    "file": "evidence\\playwright\\final-screenshots\\events-attendance\\attendance-list-viewport.png",
+    "status": "captured"
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "pos-sales",
+    "name": "sale-details-viewport",
+    "route": "/portal/bookkeeper/pos-sales",
+    "file": "evidence\\playwright\\final-screenshots\\pos-sales\\sale-details-viewport.png",
+    "status": "captured"
+  },
+  {
+    "role": "member",
+    "folder": "share-capital",
+    "name": "member-capital-viewport",
+    "route": "/portal/member/share-capital",
+    "file": "evidence\\playwright\\final-screenshots\\share-capital\\member-capital-viewport.png",
+    "status": "captured"
+  },
+  {
+    "role": "member",
+    "folder": "pos-sales",
+    "name": "member-store-checkout",
+    "route": "/portal/member/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\pos-sales\\member-store-checkout.png",
+    "status": "captured"
+  }
+]

@@ -1,0 +1,1370 @@
+{
+  "capture_date": "2026-11-08 Asia/Manila",
+  "inventory": [
+    {
+      "id": "S01",
+      "subject": "Public homepage or landing page",
+      "file": "public-authentication/homepage-viewport.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/",
+      "capture_date": "2026-11-08T14:04:59+08:00",
+      "description": "Public landing page and navigation.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S02",
+      "subject": "Public cooperative information",
+      "file": "public-authentication/cooperative-information.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/about/our-cooperative",
+      "capture_date": "2026-11-08T13:46:39+08:00",
+      "description": "Cooperative information and membership overview.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S03",
+      "subject": "Public inquiry or prospective-member application interface",
+      "file": "public-authentication/application-viewport.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/membership/apply",
+      "capture_date": "2026-11-08T13:54:38+08:00",
+      "description": "Prospective member application fields.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S04",
+      "subject": "Login page",
+      "file": "public-authentication/login.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/login",
+      "capture_date": "2026-11-08T13:46:42+08:00",
+      "description": "Clean sign-in screen.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S05",
+      "subject": "Role-specific navigation, where necessary",
+      "file": "chairman-membership/member-directory-view.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T13:52:28+08:00",
+      "description": "Chairman navigation and member directory.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S06",
+      "subject": "Financial Analytics Dashboard overview",
+      "file": "financial-management/financial-overview-viewport.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:54:40+08:00",
+      "description": "Financial analytics, filters, and export button.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S07",
+      "subject": "Financial income, expense, and Net Surplus summary",
+      "file": "financial-management/financial-overview-viewport.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:54:40+08:00",
+      "description": "Income, expense, and indicative net surplus.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S08",
+      "subject": "Financial category breakdown or historical trends",
+      "file": "financial-management/financial-analytics.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:48:06+08:00",
+      "description": "Full financial analytics including trends.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S09",
+      "subject": "Financial transaction ledger",
+      "file": "financial-management/financial-ledger.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-ledger",
+      "capture_date": "2026-11-08T13:49:25+08:00",
+      "description": "Bookkeeper financial ledger.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S10",
+      "subject": "Add or edit financial transaction interface",
+      "file": null,
+      "module": null,
+      "role": null,
+      "route": null,
+      "capture_date": null,
+      "description": "A usable add or edit transaction form was not captured.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "unavailable"
+    },
+    {
+      "id": "S11",
+      "subject": "Managed financial categories interface",
+      "file": "financial-management/financial-categories.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-categories",
+      "capture_date": "2026-11-08T13:49:34+08:00",
+      "description": "Managed financial categories.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S12",
+      "subject": "Payment record or validation interface",
+      "file": "financial-management/payment-review.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/payment-validation",
+      "capture_date": "2026-11-08T13:52:43+08:00",
+      "description": "Synthetic payment reference review dialog.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S13",
+      "subject": "Financial transaction filtering",
+      "file": "financial-management/financial-overview-viewport.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:54:40+08:00",
+      "description": "Reporting filters on the financial dashboard.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S14",
+      "subject": "Excel export interface or generated output preview",
+      "file": "financial-management/financial-overview-viewport.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:54:40+08:00",
+      "description": "Export Excel action is visible; workbook contents are not shown.",
+      "intended_use": "Chapter IV",
+      "verification": "partial"
+    },
+    {
+      "id": "S15",
+      "subject": "Membership management interface",
+      "file": "chairman-membership/applications-viewport.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T14:00:55+08:00",
+      "description": "Membership application list and statuses.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S16",
+      "subject": "Membership application details and approval",
+      "file": "chairman-membership/application-review.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T13:52:31+08:00",
+      "description": "Synthetic application detail and review progress.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S17",
+      "subject": "Member profile interface",
+      "file": "member-bookkeeper-portals/member-profile.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:53:19+08:00",
+      "description": "Synthetic member profile settings.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S18",
+      "subject": "Associate and true member classification",
+      "file": "chairman-membership/member-directory-view.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T13:52:28+08:00",
+      "description": "Associate and True Member counts.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S19",
+      "subject": "Share capital contribution history",
+      "file": "share-capital/member-share-capital.png",
+      "module": "share-capital",
+      "role": "member",
+      "route": "/portal/member/share-capital",
+      "capture_date": "2026-11-08T13:50:40+08:00",
+      "description": "Member capital balance and transaction history.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S20",
+      "subject": "Share capital progress or status",
+      "file": "chairman-membership/application-review.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T13:52:31+08:00",
+      "description": "Synthetic application capital progress.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S21",
+      "subject": "Membership-related payment interface in Test Mode",
+      "file": null,
+      "module": null,
+      "role": null,
+      "route": null,
+      "capture_date": null,
+      "description": "PayMongo is disabled; no external checkout or webhook was triggered.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "unavailable"
+    },
+    {
+      "id": "S22",
+      "subject": "Member Analytics Dashboard overview",
+      "file": "member-analytics/analytics-overview.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:52:26+08:00",
+      "description": "Loaded dashboard filters and top of capital-completion chart; detailed metrics shown in related images.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial"
+    },
+    {
+      "id": "S23",
+      "subject": "RFM-inspired engagement classification",
+      "file": "member-analytics/rfm-summary.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/member-indicators",
+      "capture_date": "2026-11-08T13:55:17+08:00",
+      "description": "RFM-inspired member indicator workspace.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S24",
+      "subject": "Member distribution by barangay",
+      "file": "member-analytics/analytics-geography.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:55:15+08:00",
+      "description": "Barangay map is shown with boundaries; external map tiles were blocked and part of the map extends below the viewport.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial"
+    },
+    {
+      "id": "S25",
+      "subject": "Member distribution by agricultural sector",
+      "file": "member-analytics/membership-growth.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:57:34+08:00",
+      "description": "Agricultural sector chart and member engagement.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S26",
+      "subject": "Historical membership growth",
+      "file": "member-analytics/membership-growth.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:57:34+08:00",
+      "description": "Membership growth chart.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S27",
+      "subject": "Historical recruitment-period analysis",
+      "file": "member-analytics/referral-summary.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:57:48+08:00",
+      "description": "Recruitment performance chart.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S28",
+      "subject": "Member referral summaries",
+      "file": "member-analytics/referral-summary.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:57:48+08:00",
+      "description": "Referral counts and qualification summary.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S29",
+      "subject": "Rental service listings or management",
+      "file": "rental-management/rental-services-viewport.png",
+      "module": "rental-management",
+      "role": "public",
+      "route": "/rental",
+      "capture_date": "2026-11-08T14:05:01+08:00",
+      "description": "Rental equipment listings are loaded, but synthetic equipment photos are unavailable.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial"
+    },
+    {
+      "id": "S30",
+      "subject": "Rental inquiry or scheduling interface",
+      "file": "rental-management/rental-bookings-viewport.png",
+      "module": "rental-management",
+      "role": "chairman",
+      "route": "/portal/chairman/rentals/bookings",
+      "capture_date": "2026-11-08T14:05:43+08:00",
+      "description": "Rental request and scheduling list.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S31",
+      "subject": "Rental booking details and status",
+      "file": "rental-management/booking-details.png",
+      "module": "rental-management",
+      "role": "chairman",
+      "route": "/portal/chairman/rentals/bookings",
+      "capture_date": "2026-11-08T13:52:33+08:00",
+      "description": "Synthetic booking details and status.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S32",
+      "subject": "POS or product management interface",
+      "file": "pos-sales/inventory-viewport.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/products-inventory",
+      "capture_date": "2026-11-08T14:00:59+08:00",
+      "description": "Product and inventory management.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S33",
+      "subject": "POS transaction or checkout interface",
+      "file": "pos-sales/sale-details-viewport.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/pos-sales",
+      "capture_date": "2026-11-08T13:55:22+08:00",
+      "description": "Completed synthetic order details shown; checkout itself was not captured.",
+      "intended_use": "Chapter IV",
+      "verification": "partial"
+    },
+    {
+      "id": "S34",
+      "subject": "Advance pickup order interface",
+      "file": "pos-sales/member-orders.png",
+      "module": "pos-sales",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:58:23+08:00",
+      "description": "Completed member orders and synthetic pickup release notes; no dated pickup scheduling view identified.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial"
+    },
+    {
+      "id": "S35",
+      "subject": "Product-sales summaries, where implemented",
+      "file": "pos-sales/pos-sales.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/pos-sales",
+      "capture_date": "2026-11-08T13:50:06+08:00",
+      "description": "Sales list and status summary.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S36",
+      "subject": "Document repository",
+      "file": "document-management/document-repository.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:50:16+08:00",
+      "description": "Document repository and access levels.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S37",
+      "subject": "Document upload and access-level interface",
+      "file": "document-management/document-upload.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:52:39+08:00",
+      "description": "Upload form and audience/access-level control.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S38",
+      "subject": "Authorized document viewing or retrieval",
+      "file": "document-management/document-details.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:52:41+08:00",
+      "description": "Authorized document metadata shown; content preview was not captured.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial"
+    },
+    {
+      "id": "S39",
+      "subject": "Event management and schedules",
+      "file": "events-attendance/event-edit.png",
+      "module": "events-attendance",
+      "role": "chairman",
+      "route": "/portal/chairman/activities",
+      "capture_date": "2026-11-08T13:52:37+08:00",
+      "description": "Event editing form and scheduled-event list.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S40",
+      "subject": "Member attendance recording",
+      "file": "events-attendance/attendance-list-viewport.png",
+      "module": "events-attendance",
+      "role": "chairman",
+      "route": "/portal/chairman/activities",
+      "capture_date": "2026-11-08T13:55:19+08:00",
+      "description": "Recorded synthetic attendance and correction control.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S41",
+      "subject": "Announcement management",
+      "file": "announcements-notifications/announcements.png",
+      "module": "announcements-notifications",
+      "role": "chairman",
+      "route": "/portal/chairman/announcements",
+      "capture_date": "2026-11-08T13:49:05+08:00",
+      "description": "Chairman announcement management.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S42",
+      "subject": "Published announcement or member-facing notice",
+      "file": "member-bookkeeper-portals/member-notifications.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:53:17+08:00",
+      "description": "Member-facing announcements.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S43",
+      "subject": "Supported notification interface",
+      "file": "member-bookkeeper-portals/member-notifications.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:53:17+08:00",
+      "description": "Member-facing live alerts.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S44",
+      "subject": "Chairman dashboard or main workspace",
+      "file": "member-analytics/analytics-overview.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:52:26+08:00",
+      "description": "Chairman dashboard and navigation.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S45",
+      "subject": "Bookkeeper dashboard or main workspace",
+      "file": "member-bookkeeper-portals/bookkeeper-dashboard-viewport.png",
+      "module": "member-bookkeeper-portals",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-dashboard",
+      "capture_date": "2026-11-08T14:01:02+08:00",
+      "description": "Bookkeeper dashboard and navigation.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready"
+    },
+    {
+      "id": "S46",
+      "subject": "Member dashboard or main workspace",
+      "file": "member-bookkeeper-portals/member-dashboard-viewport.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T14:01:06+08:00",
+      "description": "Member dashboard.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S47",
+      "subject": "Member personal contribution information",
+      "file": "share-capital/member-capital-viewport.png",
+      "module": "share-capital",
+      "role": "member",
+      "route": "/portal/member/share-capital",
+      "capture_date": "2026-11-08T13:55:24+08:00",
+      "description": "Corrected member capital page and synthetic balance.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S48",
+      "subject": "A representative form-validation example",
+      "file": "public-authentication/login-validation.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/login",
+      "capture_date": "2026-11-08T13:36:03+08:00",
+      "description": "Previously captured required-field validation.",
+      "intended_use": "Chapter IV",
+      "verification": "ready"
+    },
+    {
+      "id": "S49",
+      "subject": "A representative permitted document-access example",
+      "file": "document-management/document-details.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:52:41+08:00",
+      "description": "Bookkeeper-only access label and metadata; actual content not shown.",
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial"
+    },
+    {
+      "id": "S50",
+      "subject": "A representative authorized export or printable transaction receipt",
+      "file": "financial-management/financial-overview-viewport.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:54:40+08:00",
+      "description": "Authorized Excel export control visible; no exported workbook preview.",
+      "intended_use": "Chapter IV",
+      "verification": "partial"
+    }
+  ],
+  "images": [
+    {
+      "file": "announcements-notifications/announcements.png",
+      "module": "announcements-notifications",
+      "role": "chairman",
+      "route": "/portal/chairman/announcements",
+      "capture_date": "2026-11-08T13:49:05+08:00",
+      "description": "Chairman announcement management.",
+      "inventory_ids": [
+        "S41"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "chairman-membership/application-review.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T13:52:31+08:00",
+      "description": "Synthetic application detail and review progress.",
+      "inventory_ids": [
+        "S16",
+        "S20"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "chairman-membership/applications-viewport.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T14:00:55+08:00",
+      "description": "Membership application list and statuses.",
+      "inventory_ids": [
+        "S15"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "chairman-membership/member-directory-view.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members",
+      "capture_date": "2026-11-08T13:52:28+08:00",
+      "description": "Chairman navigation and member directory.",
+      "inventory_ids": [
+        "S05",
+        "S18"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "chairman-membership/membership-applications.png",
+      "module": "chairman-membership",
+      "role": "chairman",
+      "route": "/portal/chairman/members/applications",
+      "capture_date": "2026-11-08T13:47:12+08:00",
+      "description": "Membership applications",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "document-management/document-details.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:52:41+08:00",
+      "description": "Authorized document metadata shown; content preview was not captured.",
+      "inventory_ids": [
+        "S38",
+        "S49"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial",
+      "origin": "new"
+    },
+    {
+      "file": "document-management/document-repository.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:50:16+08:00",
+      "description": "Document repository and access levels.",
+      "inventory_ids": [
+        "S36"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "document-management/document-upload.png",
+      "module": "document-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/documents",
+      "capture_date": "2026-11-08T13:52:39+08:00",
+      "description": "Upload form and audience/access-level control.",
+      "inventory_ids": [
+        "S37"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "events-attendance/attendance-list-viewport.png",
+      "module": "events-attendance",
+      "role": "chairman",
+      "route": "/portal/chairman/activities",
+      "capture_date": "2026-11-08T13:55:19+08:00",
+      "description": "Recorded synthetic attendance and correction control.",
+      "inventory_ids": [
+        "S40"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "events-attendance/event-edit.png",
+      "module": "events-attendance",
+      "role": "chairman",
+      "route": "/portal/chairman/activities",
+      "capture_date": "2026-11-08T13:52:37+08:00",
+      "description": "Event editing form and scheduled-event list.",
+      "inventory_ids": [
+        "S39"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "events-attendance/event-management.png",
+      "module": "events-attendance",
+      "role": "chairman",
+      "route": "/portal/chairman/activities",
+      "capture_date": "2026-11-08T13:48:55+08:00",
+      "description": "Event management",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "financial-management/financial-analytics.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:48:06+08:00",
+      "description": "Full financial analytics including trends.",
+      "inventory_ids": [
+        "S08"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "financial-management/financial-categories.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-categories",
+      "capture_date": "2026-11-08T13:49:34+08:00",
+      "description": "Managed financial categories.",
+      "inventory_ids": [
+        "S11"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "financial-management/financial-ledger.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-ledger",
+      "capture_date": "2026-11-08T13:49:25+08:00",
+      "description": "Bookkeeper financial ledger.",
+      "inventory_ids": [
+        "S09"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "financial-management/financial-overview-viewport.png",
+      "module": "financial-management",
+      "role": "chairman",
+      "route": "/portal/chairman/financial-dashboard",
+      "capture_date": "2026-11-08T13:54:40+08:00",
+      "description": "Financial analytics, filters, and export button.",
+      "inventory_ids": [
+        "S06",
+        "S07",
+        "S13",
+        "S14",
+        "S50"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "financial-management/payment-review.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/payment-validation",
+      "capture_date": "2026-11-08T13:52:43+08:00",
+      "description": "Synthetic payment reference review dialog.",
+      "inventory_ids": [
+        "S12"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "financial-management/payment-validation.png",
+      "module": "financial-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/payment-validation",
+      "capture_date": "2026-11-08T13:49:44+08:00",
+      "description": "Payment validation",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "member-analytics/analytics-geography.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:55:15+08:00",
+      "description": "Barangay map is shown with boundaries; external map tiles were blocked and part of the map extends below the viewport.",
+      "inventory_ids": [
+        "S24"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial",
+      "origin": "new"
+    },
+    {
+      "file": "member-analytics/analytics-overview.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:52:26+08:00",
+      "description": "Loaded dashboard filters and top of capital-completion chart; detailed metrics shown in related images.",
+      "inventory_ids": [
+        "S22",
+        "S44"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-analytics/engagement-workspace.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/member-indicators",
+      "capture_date": "2026-11-08T13:48:33+08:00",
+      "description": "Engagement workspace",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "member-analytics/membership-growth.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:57:34+08:00",
+      "description": "Agricultural sector chart and member engagement.",
+      "inventory_ids": [
+        "S25",
+        "S26"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-analytics/referral-summary.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/dashboard",
+      "capture_date": "2026-11-08T13:57:48+08:00",
+      "description": "Recruitment performance chart.",
+      "inventory_ids": [
+        "S27",
+        "S28"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-analytics/rfm-summary.png",
+      "module": "member-analytics",
+      "role": "chairman",
+      "route": "/portal/chairman/member-indicators",
+      "capture_date": "2026-11-08T13:55:17+08:00",
+      "description": "RFM-inspired member indicator workspace.",
+      "inventory_ids": [
+        "S23"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-bookkeeper-portals/bookkeeper-dashboard-viewport.png",
+      "module": "member-bookkeeper-portals",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-dashboard",
+      "capture_date": "2026-11-08T14:01:02+08:00",
+      "description": "Bookkeeper dashboard and navigation.",
+      "inventory_ids": [
+        "S45"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-bookkeeper-portals/bookkeeper-dashboard.png",
+      "module": "member-bookkeeper-portals",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/financial-dashboard",
+      "capture_date": "2026-11-08T13:49:15+08:00",
+      "description": "Bookkeeper dashboard",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "member-bookkeeper-portals/member-dashboard-viewport.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T14:01:06+08:00",
+      "description": "Member dashboard.",
+      "inventory_ids": [
+        "S46"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-bookkeeper-portals/member-dashboard.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:50:29+08:00",
+      "description": "Member dashboard",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "member-bookkeeper-portals/member-notifications.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:53:17+08:00",
+      "description": "Member-facing announcements.",
+      "inventory_ids": [
+        "S42",
+        "S43"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "member-bookkeeper-portals/member-profile.png",
+      "module": "member-bookkeeper-portals",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:53:19+08:00",
+      "description": "Synthetic member profile settings.",
+      "inventory_ids": [
+        "S17"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "pos-sales/inventory-viewport.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/products-inventory",
+      "capture_date": "2026-11-08T14:00:59+08:00",
+      "description": "Product and inventory management.",
+      "inventory_ids": [
+        "S32"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "pos-sales/member-orders.png",
+      "module": "pos-sales",
+      "role": "member",
+      "route": "/portal/member/dashboard",
+      "capture_date": "2026-11-08T13:58:23+08:00",
+      "description": "Completed member orders and synthetic pickup release notes; no dated pickup scheduling view identified.",
+      "inventory_ids": [
+        "S34"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial",
+      "origin": "new"
+    },
+    {
+      "file": "pos-sales/pos-sales.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/pos-sales",
+      "capture_date": "2026-11-08T13:50:06+08:00",
+      "description": "Sales list and status summary.",
+      "inventory_ids": [
+        "S35"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "pos-sales/product-inventory.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/products-inventory",
+      "capture_date": "2026-11-08T13:49:54+08:00",
+      "description": "Product inventory",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "pos-sales/sale-details-viewport.png",
+      "module": "pos-sales",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/pos-sales",
+      "capture_date": "2026-11-08T13:55:22+08:00",
+      "description": "Completed synthetic order details shown; checkout itself was not captured.",
+      "inventory_ids": [
+        "S33"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "partial",
+      "origin": "new"
+    },
+    {
+      "file": "public-authentication/application-viewport.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/membership/apply",
+      "capture_date": "2026-11-08T13:54:38+08:00",
+      "description": "Prospective member application fields.",
+      "inventory_ids": [
+        "S03"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "public-authentication/cooperative-information.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/about/our-cooperative",
+      "capture_date": "2026-11-08T13:46:39+08:00",
+      "description": "Cooperative information and membership overview.",
+      "inventory_ids": [
+        "S02"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "public-authentication/homepage-viewport.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/",
+      "capture_date": "2026-11-08T14:04:59+08:00",
+      "description": "Public landing page and navigation.",
+      "inventory_ids": [
+        "S01"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "public-authentication/login-validation.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/login",
+      "capture_date": "2026-11-08T13:36:03+08:00",
+      "description": "Previously captured required-field validation.",
+      "inventory_ids": [
+        "S48"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "reused"
+    },
+    {
+      "file": "public-authentication/login.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/login",
+      "capture_date": "2026-11-08T13:46:42+08:00",
+      "description": "Clean sign-in screen.",
+      "inventory_ids": [
+        "S04"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "public-authentication/membership-application.png",
+      "module": "public-authentication",
+      "role": "public",
+      "route": "/membership/apply",
+      "capture_date": "2026-11-08T13:46:44+08:00",
+      "description": "Membership application",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "rental-management/booking-details.png",
+      "module": "rental-management",
+      "role": "chairman",
+      "route": "/portal/chairman/rentals/bookings",
+      "capture_date": "2026-11-08T13:52:33+08:00",
+      "description": "Synthetic booking details and status.",
+      "inventory_ids": [
+        "S31"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "rental-management/rental-bookings-viewport.png",
+      "module": "rental-management",
+      "role": "chairman",
+      "route": "/portal/chairman/rentals/bookings",
+      "capture_date": "2026-11-08T14:05:43+08:00",
+      "description": "Rental request and scheduling list.",
+      "inventory_ids": [
+        "S30"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "rental-management/rental-bookings.png",
+      "module": "rental-management",
+      "role": "chairman",
+      "route": "/portal/chairman/rentals/bookings",
+      "capture_date": "2026-11-08T13:48:43+08:00",
+      "description": "Rental bookings",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "rental-management/rental-services-viewport.png",
+      "module": "rental-management",
+      "role": "public",
+      "route": "/rental",
+      "capture_date": "2026-11-08T14:05:01+08:00",
+      "description": "Rental equipment listings are loaded, but synthetic equipment photos are unavailable.",
+      "inventory_ids": [
+        "S29"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "partial",
+      "origin": "new"
+    },
+    {
+      "file": "rental-management/rental-services.png",
+      "module": "rental-management",
+      "role": "public",
+      "route": "/rental",
+      "capture_date": "2026-11-08T13:46:48+08:00",
+      "description": "Rental services",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "rental-management/rental-transactions.png",
+      "module": "rental-management",
+      "role": "bookkeeper",
+      "route": "/portal/bookkeeper/rental-transactions",
+      "capture_date": "2026-11-08T13:50:25+08:00",
+      "description": "Rental transactions",
+      "inventory_ids": [],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "supplementary - visually reviewed",
+      "origin": "new"
+    },
+    {
+      "file": "share-capital/member-capital-viewport.png",
+      "module": "share-capital",
+      "role": "member",
+      "route": "/portal/member/share-capital",
+      "capture_date": "2026-11-08T13:55:24+08:00",
+      "description": "Corrected member capital page and synthetic balance.",
+      "inventory_ids": [
+        "S47"
+      ],
+      "intended_use": "Chapter IV",
+      "verification": "ready",
+      "origin": "new"
+    },
+    {
+      "file": "share-capital/member-share-capital.png",
+      "module": "share-capital",
+      "role": "member",
+      "route": "/portal/member/share-capital",
+      "capture_date": "2026-11-08T13:50:40+08:00",
+      "description": "Member capital balance and transaction history.",
+      "inventory_ids": [
+        "S19"
+      ],
+      "intended_use": "Appendix or supporting evidence",
+      "verification": "ready",
+      "origin": "new"
+    }
+  ],
+  "figures": [
+    {
+      "file": "public-authentication/homepage-viewport.png",
+      "caption": "Public homepage"
+    },
+    {
+      "file": "public-authentication/login.png",
+      "caption": "Sign-in interface"
+    },
+    {
+      "file": "public-authentication/application-viewport.png",
+      "caption": "Membership application"
+    },
+    {
+      "file": "public-authentication/login-validation.png",
+      "caption": "Sign-in validation"
+    },
+    {
+      "file": "chairman-membership/applications-viewport.png",
+      "caption": "Membership applications"
+    },
+    {
+      "file": "chairman-membership/application-review.png",
+      "caption": "Application review and capital progress"
+    },
+    {
+      "file": "chairman-membership/member-directory-view.png",
+      "caption": "Member directory and classification"
+    },
+    {
+      "file": "share-capital/member-capital-viewport.png",
+      "caption": "Member share-capital overview"
+    },
+    {
+      "file": "financial-management/financial-overview-viewport.png",
+      "caption": "Financial analytics and filters"
+    },
+    {
+      "file": "financial-management/financial-ledger.png",
+      "caption": "Financial ledger"
+    },
+    {
+      "file": "financial-management/financial-categories.png",
+      "caption": "Financial categories"
+    },
+    {
+      "file": "financial-management/payment-review.png",
+      "caption": "Payment reference review"
+    },
+    {
+      "file": "member-analytics/membership-growth.png",
+      "caption": "Membership growth, engagement and capital health"
+    },
+    {
+      "file": "member-analytics/rfm-summary.png",
+      "caption": "Member indicators"
+    },
+    {
+      "file": "member-analytics/referral-summary.png",
+      "caption": "Recruitment and referrals"
+    },
+    {
+      "file": "rental-management/rental-bookings-viewport.png",
+      "caption": "Rental requests and schedules"
+    },
+    {
+      "file": "rental-management/booking-details.png",
+      "caption": "Rental booking details"
+    },
+    {
+      "file": "pos-sales/pos-sales.png",
+      "caption": "Product sales"
+    },
+    {
+      "file": "pos-sales/sale-details-viewport.png",
+      "caption": "Sale details"
+    },
+    {
+      "file": "document-management/document-repository.png",
+      "caption": "Document repository"
+    },
+    {
+      "file": "document-management/document-upload.png",
+      "caption": "Document upload and access"
+    },
+    {
+      "file": "events-attendance/event-edit.png",
+      "caption": "Event scheduling and editing"
+    },
+    {
+      "file": "events-attendance/attendance-list-viewport.png",
+      "caption": "Event attendance and corrections"
+    },
+    {
+      "file": "member-bookkeeper-portals/member-notifications.png",
+      "caption": "Member announcements and alerts"
+    },
+    {
+      "file": "member-bookkeeper-portals/member-dashboard-viewport.png",
+      "caption": "Member dashboard"
+    }
+  ]
+}

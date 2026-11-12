@@ -321,7 +321,7 @@ export class DashboardRepository {
       }));
 
     const [demographicRows] = await pool.query<RowDataPacket[]>(
-      `SELECT m.barangay AS barangay,
+      `SELECT m.barangay AS barangay, m.municipality AS municipality, m.province AS province,
               COALESCE(NULLIF(TRIM(m.sector), ''), 'Not recorded') AS sector,
               COUNT(*) AS totalMembers,
               SUM(CASE WHEN indicator.status_label = 'Active' THEN 1 ELSE 0 END) AS activeMembers,
@@ -343,12 +343,14 @@ export class DashboardRepository {
         WHERE m.approval_status = 'Approved'
           AND m.barangay IS NOT NULL
           AND m.barangay <> ''
-        GROUP BY m.barangay, m.sector
+        GROUP BY m.barangay, m.municipality, m.province, m.sector
         ORDER BY totalMembers DESC`,
     );
 
     const demographicMap = new Map<string, {
       barangay: string;
+      municipality: string | null;
+      province: string | null;
       totalMembers: number;
       activeMembers: number;
       needsMonitoring: number;
@@ -358,8 +360,13 @@ export class DashboardRepository {
 
     for (const row of demographicRows) {
       const barangay = String(row.barangay);
-      const current = demographicMap.get(barangay) ?? {
+      const municipality = row.municipality == null ? null : String(row.municipality);
+      const province = row.province == null ? null : String(row.province);
+      const locationKey = JSON.stringify([province, municipality, barangay]);
+      const current = demographicMap.get(locationKey) ?? {
         barangay,
+        municipality,
+        province,
         totalMembers: 0,
         activeMembers: 0,
         needsMonitoring: 0,
@@ -371,7 +378,7 @@ export class DashboardRepository {
       current.needsMonitoring += numberValue(row.needsMonitoring);
       current.inactiveMembers += numberValue(row.inactiveMembers);
       current.sectorCounts.push({ sector: String(row.sector), count: numberValue(row.totalMembers) });
-      demographicMap.set(barangay, current);
+      demographicMap.set(locationKey, current);
     }
 
     const referralDateFilter = getDateFilter(period, "r.created_at");

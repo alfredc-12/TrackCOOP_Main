@@ -1,0 +1,7 @@
+# Invalidated initial 5-user sequence
+
+The initial JMR01–JMR03 executions used one-second think time with a test-only per-user IP mapping. The launcher correctly disabled PayMongo and email, blocked payment routes, restricted its listener to loopback and blocked external egress. However, its application environment loader could reload unused live-payment credentials from the development `.env` into the process after the launcher had cleared them. Because the requested safeguard required those credentials to be absent, these executions are **invalidated for formal acceptance**, not silently discarded.
+
+The initial JMR03 encountered HTTP 429 responses after prior calibrations and repeated tests consumed the unchanged 500-request-per-15-minute per-IP allowance. Its preserved five-minute window contained 1,190 HTTP samples and 344 unexpected failures; across the full JTL there were 356 HTTP 429 samples. This is an observed rate-limit result for the original pacing and is not represented as an ordinary passing workload. The fresh matrix uses a documented two-second think time without altering the limiter. It does not answer how sustained one-second pacing would behave.
+
+Original run directories, JTL samples, JMeter logs, dashboards and available pre/post snapshots are retained under `initial-one-second/`. These data are separate from any replacement formal runs. The corrected launcher starts in an empty working directory, checks the parsed integration configuration and refuses to listen if payment secrets are present.

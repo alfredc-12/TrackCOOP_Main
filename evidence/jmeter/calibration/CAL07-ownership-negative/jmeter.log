@@ -1,0 +1,33 @@
+2026-11-08 16:07:32,247 INFO o.a.j.u.JMeterUtils: Setting Locale to en_EN
+2026-11-08 16:07:33,870 INFO o.a.j.JMeter: Loading user properties from: C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\scratch\jmeter-distribution\verified\apache-jmeter-5.6.3\bin\user.properties
+2026-11-08 16:07:33,871 INFO o.a.j.JMeter: Loading system properties from: C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\scratch\jmeter-distribution\verified\apache-jmeter-5.6.3\bin\system.properties
+2026-11-08 16:07:33,872 INFO o.a.j.JMeter: Setting JMeter property: users=3
+2026-11-08 16:07:33,872 INFO o.a.j.JMeter: Setting JMeter property: ramp=3
+2026-11-08 16:07:33,872 INFO o.a.j.JMeter: Setting JMeter property: duration=45
+2026-11-08 16:07:33,880 INFO o.a.j.JMeter: Copyright (c) 1998-2024 The Apache Software Foundation
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: Version 5.6.3
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: java.version=17.0.21
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: java.vm.name=OpenJDK 64-Bit Server VM
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: os.name=Windows 11
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: os.arch=amd64
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: os.version=10.0
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: file.encoding=Cp1252
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: java.awt.headless=true
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: Max memory     =1073741824
+2026-11-08 16:07:33,881 INFO o.a.j.JMeter: Available Processors =12
+2026-11-08 16:07:33,892 INFO o.a.j.JMeter: Default Locale=English (EN)
+2026-11-08 16:07:33,893 INFO o.a.j.JMeter: JMeter  Locale=English (EN)
+2026-11-08 16:07:33,893 INFO o.a.j.JMeter: JMeterHome=C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\scratch\jmeter-distribution\verified\apache-jmeter-5.6.3
+2026-11-08 16:07:33,893 INFO o.a.j.JMeter: user.dir  =C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main
+2026-11-08 16:07:33,893 INFO o.a.j.JMeter: PWD       =C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main
+2026-11-08 16:07:33,894 INFO o.a.j.JMeter: IP: 192.168.18.252 Name: LAPTOP-M81777BF FullName: host.docker.internal
+2026-11-08 16:07:33,905 ERROR o.a.j.JMeter: An error occurred: 
+org.apache.jmeter.report.config.ConfigurationException: The file C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\scratch\jmeter-private\ownership-negative.jmx doesn't exist or can't be opened
+	at org.apache.jmeter.JMeter.runNonGui(JMeter.java:950) ~[ApacheJMeter_core.jar:5.6.3]
+	at org.apache.jmeter.JMeter.startNonGui(JMeter.java:940) ~[ApacheJMeter_core.jar:5.6.3]
+	at org.apache.jmeter.JMeter.start(JMeter.java:508) [ApacheJMeter_core.jar:5.6.3]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[?:?]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[?:?]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[?:?]
+	at org.apache.jmeter.NewDriver.main(NewDriver.java:259) [ApacheJMeter.jar:5.6.3]

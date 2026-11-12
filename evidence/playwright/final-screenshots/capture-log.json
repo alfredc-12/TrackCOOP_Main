@@ -1,0 +1,250 @@
+[
+  {
+    "role": "public",
+    "folder": "public-authentication",
+    "name": "home",
+    "route": "/",
+    "heading": "Nasugbu Farmers and Fisherfolks Agriculture Cooperative",
+    "file": "evidence\\playwright\\final-screenshots\\public-authentication\\home.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "public",
+    "folder": "public-authentication",
+    "name": "cooperative-information",
+    "route": "/about/our-cooperative",
+    "heading": "Our Cooperative",
+    "file": "evidence\\playwright\\final-screenshots\\public-authentication\\cooperative-information.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "public",
+    "folder": "public-authentication",
+    "name": "login",
+    "route": "/login",
+    "heading": "Sign in to your account",
+    "file": "evidence\\playwright\\final-screenshots\\public-authentication\\login.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "public",
+    "folder": "public-authentication",
+    "name": "membership-application",
+    "route": "/membership/apply",
+    "heading": "Become a Member",
+    "file": "evidence\\playwright\\final-screenshots\\public-authentication\\membership-application.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "public",
+    "folder": "rental-management",
+    "name": "rental-services",
+    "route": "/rental",
+    "heading": "Equipment\nrental.",
+    "file": "evidence\\playwright\\final-screenshots\\rental-management\\rental-services.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "chairman-membership",
+    "name": "member-analytics",
+    "route": "/portal/chairman/dashboard",
+    "heading": "Member analytics",
+    "file": "evidence\\playwright\\final-screenshots\\chairman-membership\\member-analytics.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "chairman-membership",
+    "name": "member-directory",
+    "route": "/portal/chairman/members",
+    "heading": "True Membership Applications (0)",
+    "file": "evidence\\playwright\\final-screenshots\\chairman-membership\\member-directory.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "chairman-membership",
+    "name": "membership-applications",
+    "route": "/portal/chairman/members/applications",
+    "heading": "True Membership Applications (0)",
+    "file": "evidence\\playwright\\final-screenshots\\chairman-membership\\membership-applications.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "share-capital",
+    "name": "share-capital-overview",
+    "route": "/portal/chairman/share-capital",
+    "status": "unavailable",
+    "reason": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3217/portal/chairman/share-capital\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "role": "chairman",
+    "folder": "financial-management",
+    "name": "financial-analytics",
+    "route": "/portal/chairman/financial-dashboard",
+    "heading": "Financial analytics",
+    "file": "evidence\\playwright\\final-screenshots\\financial-management\\financial-analytics.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "engagement-workspace",
+    "route": "/portal/chairman/member-indicators",
+    "heading": "Member Indicators",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\engagement-workspace.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "rental-management",
+    "name": "rental-bookings",
+    "route": "/portal/chairman/rentals/bookings",
+    "heading": "Rental Requests",
+    "file": "evidence\\playwright\\final-screenshots\\rental-management\\rental-bookings.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "events-attendance",
+    "name": "event-management",
+    "route": "/portal/chairman/activities",
+    "heading": "Events and Attendance",
+    "file": "evidence\\playwright\\final-screenshots\\events-attendance\\event-management.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "chairman",
+    "folder": "announcements-notifications",
+    "name": "announcements",
+    "route": "/portal/chairman/announcements",
+    "heading": "Announcements",
+    "file": "evidence\\playwright\\final-screenshots\\announcements-notifications\\announcements.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "member-bookkeeper-portals",
+    "name": "bookkeeper-dashboard",
+    "route": "/portal/bookkeeper/financial-dashboard",
+    "heading": "Financial Dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-bookkeeper-portals\\bookkeeper-dashboard.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "financial-management",
+    "name": "financial-ledger",
+    "route": "/portal/bookkeeper/financial-ledger",
+    "heading": "Financial Ledger",
+    "file": "evidence\\playwright\\final-screenshots\\financial-management\\financial-ledger.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "financial-management",
+    "name": "financial-categories",
+    "route": "/portal/bookkeeper/financial-categories",
+    "heading": "Financial Categories",
+    "file": "evidence\\playwright\\final-screenshots\\financial-management\\financial-categories.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "financial-management",
+    "name": "payment-validation",
+    "route": "/portal/bookkeeper/payment-validation",
+    "heading": "Payments to Check",
+    "file": "evidence\\playwright\\final-screenshots\\financial-management\\payment-validation.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "pos-sales",
+    "name": "product-inventory",
+    "route": "/portal/bookkeeper/products-inventory",
+    "heading": "All Products",
+    "file": "evidence\\playwright\\final-screenshots\\pos-sales\\product-inventory.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "pos-sales",
+    "name": "pos-sales",
+    "route": "/portal/bookkeeper/pos-sales",
+    "heading": "",
+    "file": "evidence\\playwright\\final-screenshots\\pos-sales\\pos-sales.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "document-management",
+    "name": "document-repository",
+    "route": "/portal/bookkeeper/documents",
+    "heading": "Documents",
+    "file": "evidence\\playwright\\final-screenshots\\document-management\\document-repository.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "rental-management",
+    "name": "rental-transactions",
+    "route": "/portal/bookkeeper/rental-transactions",
+    "heading": "Rental Transactions",
+    "file": "evidence\\playwright\\final-screenshots\\rental-management\\rental-transactions.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "member",
+    "folder": "member-bookkeeper-portals",
+    "name": "member-dashboard",
+    "route": "/portal/member/dashboard",
+    "heading": "Welcome back, Maria",
+    "file": "evidence\\playwright\\final-screenshots\\member-bookkeeper-portals\\member-dashboard.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "member",
+    "folder": "share-capital",
+    "name": "member-share-capital",
+    "route": "/portal/member/share-capital",
+    "heading": "My Share Capital",
+    "file": "evidence\\playwright\\final-screenshots\\share-capital\\member-share-capital.png",
+    "status": "captured",
+    "http": 200
+  },
+  {
+    "role": "member",
+    "folder": "member-bookkeeper-portals",
+    "name": "member-requests",
+    "route": "/portal/member/requests",
+    "heading": "Welcome back, Maria",
+    "file": "evidence\\playwright\\final-screenshots\\member-bookkeeper-portals\\member-requests.png",
+    "status": "captured",
+    "http": 200
+  }
+]

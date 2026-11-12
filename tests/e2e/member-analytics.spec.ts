@@ -79,8 +79,8 @@ for (const width of [1440, 1024, 768, 390]) test(`analytics layout, detail drawe
   await page.getByRole("button", { name: "View 30 / 60 / 90-day cohorts", exact: true }).click();
   await expect(page.getByRole("region", { name: "Mature participation cohorts", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Close analytics details", exact: true }).click();
-  const map = page.getByRole("region", { name: "Nasugbu member distribution map", exact: true });
-  await expect(map.locator('path[role="button"]')).toHaveCount(42);
+  const map = page.getByRole("region", { name: "Batangas member distribution map", exact: true });
+  await expect(map.locator('path[role="button"]')).toHaveCount(1077);
   const compare = page.getByRole("button", { name: "Compare Barangays & Sectors", exact: true });
   await compare.click();
   const matrix = page.getByRole("dialog", { name: "Compare Barangays & Sectors", exact: true });
@@ -94,10 +94,10 @@ for (const width of [1440, 1024, 768, 390]) test(`analytics layout, detail drawe
   await expect(matrix.getByRole("button", { name: /^Aga, Rice:/ })).toContainText("50%");
   await matrix.screenshot({ path: info.outputPath(`matrix-${width}.png`) });
   await page.keyboard.press("Escape"); await expect(compare).toBeFocused();
-  await expect(map.getByRole("button", { name: "Aga, 2 members", exact: true })).toHaveAttribute("stroke", "#123d2a");
+  await expect(map.getByRole("button", { name: "Aga, Nasugbu, 2 members", exact: true })).toHaveAttribute("stroke", "#123d2a");
   await page.getByRole("combobox", { name: "Find a barangay", exact: true }).click();
-    await page.getByRole("option", { name: "Aga", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Aga member details", exact: true })).toContainText("True Members");
+    await page.getByRole("option", { name: "Aga, Nasugbu", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Aga, Nasugbu member details", exact: true })).toContainText("True Members");
   expect(errors).toEqual([]);
 });
 test("filters wait for Apply, persist in URL, remove chips and restore on browser Back", async ({ page }) => {
@@ -152,12 +152,12 @@ test("financial analytics uses its own endpoint and does not use member analytic
 test("expanded map works without native fullscreen and returns keyboard focus on Escape", async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(Element.prototype, "requestFullscreen", { value: undefined, configurable: true }));
   await setup(page); await page.goto(path);
-  const map = page.getByRole("region", { name: "Nasugbu member distribution map", exact: true });
-  await expect(map.locator('path[role="button"]')).toHaveCount(42);
+  const map = page.getByRole("region", { name: "Batangas member distribution map", exact: true });
+  await expect(map.locator('path[role="button"]')).toHaveCount(1077);
   await page.getByRole("button", { name: "Expand map to fullscreen", exact: true }).click();
   const expanded = page.getByRole("dialog", { name: "Expanded barangay map", exact: true });
   await expect(expanded).toBeVisible();
-  await expect(expanded.locator('path[role="button"]')).toHaveCount(42);
+  await expect(expanded.locator('path[role="button"]')).toHaveCount(1077);
   await page.keyboard.press("Escape");
   await expect(expanded).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Expand map to fullscreen", exact: true })).toBeFocused();
