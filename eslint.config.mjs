@@ -23,7 +23,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
-    files: ["evidence/jmeter/scripts/*.cjs"],
+    files: ["evidence/jmeter/**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 ]);
