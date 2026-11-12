@@ -921,7 +921,7 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
           {/* Barangay map: the supplied polygons carry all local member details. */}
           <section className="min-w-0 rounded-xl border border-[#D5E0D5] bg-white p-4 shadow-[0_4px_12px_rgba(18,61,42,0.06)] sm:p-5">
             <SectionHeader title="Barangay Recruitment Analytics" />
-            <p className="mt-1 text-sm leading-6 text-[var(--portal-muted)]">Recorded member counts by barangay.</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--portal-muted)]">Recorded member counts across all Batangas barangays.</p>
             <div className="mt-4"><DemographicsMap demographics={demographics} /></div>
             <details className="mt-4 rounded-lg bg-[var(--portal-field)] p-3 sm:p-4">
               <summary className="cursor-pointer text-sm font-semibold text-[var(--portal-forest)]">Recruitment insights</summary>

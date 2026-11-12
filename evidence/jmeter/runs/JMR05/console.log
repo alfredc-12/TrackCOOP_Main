@@ -1,0 +1,36 @@
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release
+Creating summariser <summary>
+Created the tree successfully using C:\Users\Alfred\OneDrive\Desktop\Projects\TrackCOOP_Main\evidence\jmeter\trackcoop-performance.jmx
+Starting standalone test @ 2026 Nov 8 16:52:37 PST (1794127957215)
+Waiting for possible Shutdown/StopTestNow/HeapDump/ThreadDump message on port 4445
+summary +     18 in 00:00:23 =    0.8/s Avg:   588 Min:    46 Max:  1941 Err:     0 (0.00%) Active: 4 Started: 4 Finished: 0
+summary +     75 in 00:00:29 =    2.6/s Avg:   592 Min:    43 Max:  3680 Err:     0 (0.00%) Active: 9 Started: 9 Finished: 0
+summary =     93 in 00:00:53 =    1.8/s Avg:   591 Min:    43 Max:  3680 Err:     0 (0.00%)
+summary +    114 in 00:00:30 =    3.8/s Avg:   567 Min:    42 Max:  2766 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    207 in 00:01:22 =    2.5/s Avg:   578 Min:    42 Max:  3680 Err:     0 (0.00%)
+summary +    112 in 00:00:30 =    3.8/s Avg:   717 Min:    39 Max:  6814 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    319 in 00:01:52 =    2.8/s Avg:   627 Min:    39 Max:  6814 Err:     0 (0.00%)
+summary +    120 in 00:00:30 =    4.0/s Avg:   452 Min:    37 Max:  2624 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    439 in 00:02:22 =    3.1/s Avg:   579 Min:    37 Max:  6814 Err:     0 (0.00%)
+summary +     85 in 00:00:31 =    2.8/s Avg:  1110 Min:    38 Max:  7360 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    524 in 00:02:53 =    3.0/s Avg:   665 Min:    37 Max:  7360 Err:     0 (0.00%)
+summary +     23 in 00:00:30 =    0.8/s Avg:  8648 Min:   436 Max: 30523 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    547 in 00:03:23 =    2.7/s Avg:  1001 Min:    37 Max: 30523 Err:     0 (0.00%)
+summary +     23 in 00:00:30 =    0.8/s Avg: 12123 Min:   829 Max: 51438 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    570 in 00:03:54 =    2.4/s Avg:  1449 Min:    37 Max: 51438 Err:     0 (0.00%)
+summary +     36 in 00:00:29 =    1.2/s Avg:  6475 Min:   483 Max: 34868 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    606 in 00:04:23 =    2.3/s Avg:  1748 Min:    37 Max: 51438 Err:     0 (0.00%)
+summary +     67 in 00:00:30 =    2.2/s Avg:  3346 Min:    68 Max: 33316 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    673 in 00:04:53 =    2.3/s Avg:  1907 Min:    37 Max: 51438 Err:     0 (0.00%)
+summary +    119 in 00:00:30 =    4.0/s Avg:   487 Min:    43 Max:  4187 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    792 in 00:05:22 =    2.5/s Avg:  1694 Min:    37 Max: 51438 Err:     0 (0.00%)
+summary +    115 in 00:00:30 =    3.8/s Avg:   637 Min:    45 Max:  4663 Err:     0 (0.00%) Active: 10 Started: 10 Finished: 0
+summary =    907 in 00:05:52 =    2.6/s Avg:  1560 Min:    37 Max: 51438 Err:     0 (0.00%)
+summary +     28 in 00:00:36 =    0.8/s Avg:  5172 Min:   184 Max: 24443 Err:     0 (0.00%) Active: 1 Started: 10 Finished: 9
+summary =    935 in 00:06:28 =    2.4/s Avg:  1668 Min:    37 Max: 51438 Err:     0 (0.00%)
+summary =    935 in 00:06:28 =    2.4/s Avg:  1668 Min:    37 Max: 51438 Err:     0 (0.00%)
+Tidying up ...    @ 2026 Nov 8 16:59:05 PST (1794128345564)
+... end of run

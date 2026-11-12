@@ -1,5 +1,16 @@
 # Verification — 2026-11-02
 
+## Batangas map coverage ? 2026-11-12
+
+Focused map and member-analytics tests: 30 passed, zero failed or skipped. Browser
+verification: seven Chromium tests passed with mocked APIs and basemap tiles, including
+1,077 polygons at 1440/768/390px, searchable duplicate names, popup and keyboard access,
+retry, zero data, unavailable basemap tiles, fullscreen and focus return. The three
+viewport screenshots were visually reviewed. Typecheck and focused ESLint passed.
+The repository-wide lint baseline is blocked by unrelated local JMeter report assets
+and scripts under `evidence/jmeter`; the baseline was not regenerated. No database
+integration or deployed-site verification is implied by these fixture-based checks.
+
 ## Automated checks
 
 | Command | Result |

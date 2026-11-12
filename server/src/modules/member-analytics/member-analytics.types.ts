@@ -8,6 +8,7 @@ export type AnalyticsFilters = {
 };
 export type AnalyticsSelection = { kind?: string; value?: string; sector?: string };
 export type AnalyticsMember = {
+  municipality?: string | null; province?: string | null;
   selectedSectors?: string[];
   memberCode?: string; fullName?: string;
   id: string; barangay: string | null; sector: string | null; membershipType: string;
@@ -45,6 +46,8 @@ export type AnalyticsSources = {
 export type CountItem = { name: string; count: number };
 export type Cohort = { month: string; days: number; total: number; mature: number; participated: number; rate: number | null };
 export type AnalyticsResult = {
+  mapGeography?: Array<{ barangay: string; municipality?: string | null; province?: string | null; totalMembers: number;
+    trueMembers: number; associates: number; sectorCounts: Record<string, number>; engagementCounts: Record<string, number>; newApprovals: number; change: number }>;
   generatedAt: string; filters: AnalyticsFilters; population: number;
   options: { barangays: string[]; sectors: readonly string[] };
   availability: { capital: boolean; engagement: boolean; participation: boolean; recruitment: boolean; referrals: boolean };

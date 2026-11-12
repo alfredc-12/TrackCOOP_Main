@@ -19,7 +19,7 @@ function dashboard(empty = false) {
   source.applications = []; source.applicationHistory = []; source.participation = []; source.referrals = [];
   for (const row of empty ? [] : rows) {
     const assigned = row.sectorCounts.flatMap(s => Array.from({ length: s.count }, () => s.sector));
-    for (let i = 0; i < row.totalMembers; i++) source.members.push({ id: String(source.members.length + 1), barangay: row.barangay, sector: assigned[i] ?? null, membershipType: "Associate", officialStatus: "Active", approvalStatus: "Approved", approvedAt: "2025-01-01T01:00:00Z", deadline: null });
+    for (let i = 0; i < row.totalMembers; i++) source.members.push({ id: String(source.members.length + 1), barangay: row.barangay, municipality: "Nasugbu", province: "Batangas", sector: assigned[i] ?? null, membershipType: "Associate", officialStatus: "Active", approvalStatus: "Approved", approvedAt: "2025-01-01T01:00:00Z", deadline: null });
   }
   return createAnalyticsEngine(source, fixtureFilters, "2026-11-02T00:00:00Z").result;
 }
@@ -51,23 +51,23 @@ for (const width of [1440, 768, 390]) {
     const { externalBoundaryRequests } = await setup(page);
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/chairman/dashboard");
-    const map = page.getByRole("region", { name: "Nasugbu member distribution map", exact: true });
+    const map = page.getByRole("region", { name: "Batangas member distribution map", exact: true });
     const polygons = map.locator('path[role="button"]');
-    await expect(polygons).toHaveCount(42);
+    await expect(polygons).toHaveCount(1077);
     await map.scrollIntoViewIfNeeded();
     await expect(map.locator("circle, .leaflet-marker-icon")).toHaveCount(0);
     await expect(page.getByText("Top Barangays by Members", { exact: true })).toHaveCount(0);
     expect(await map.evaluate((element) => element.getBoundingClientRect().width / element.closest("section")!.getBoundingClientRect().width)).toBeGreaterThan(0.8);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.getByText("4 members in locations without a matching boundary", { exact: true })).toBeVisible();
-    const area = map.getByRole("button", { name: "Aga, 30 members", exact: true });
+    const area = map.getByRole("button", { name: "Aga, Nasugbu, 30 members", exact: true });
     await expect(area).toHaveAttribute("fill", "#123d2a");
-    await expect(map.getByRole("button", { name: "Barangay 1, 5 members", exact: true })).toHaveAttribute("fill", "#e3f7e7");
-    await expect(map.getByRole("button", { name: "Calayo, 0 members", exact: true })).toHaveAttribute("fill", "#eef2ec");
+    await expect(map.getByRole("button", { name: "Barangay 1, Nasugbu, 5 members", exact: true })).toHaveAttribute("fill", "#e3f7e7");
+    await expect(map.getByRole("button", { name: "Calayo, Nasugbu, 0 members", exact: true })).toHaveAttribute("fill", "#eef2ec");
     await map.screenshot({ path: testInfo.outputPath(`map-${width}.png`) });
     await page.getByRole("combobox", { name: "Find a barangay", exact: true }).click();
-    await page.getByRole("option", { name: "Aga", exact: true }).click();
-    const detail = page.getByRole("region", { name: "Aga member details", exact: true });
+    await page.getByRole("option", { name: "Aga, Nasugbu", exact: true }).click();
+    const detail = page.getByRole("region", { name: "Aga, Nasugbu member details", exact: true });
     await expect(detail).toBeVisible();
     await expect(detail.locator("dl > div").filter({ hasText: "Rice" })).toContainText("20");
     await expect(detail.locator("dl > div").filter({ hasText: "Fishery" })).toContainText("5");
@@ -104,7 +104,7 @@ for (const width of [1440, 768, 390]) {
     await expect(detail).toBeVisible();
     await map.locator(".leaflet-popup-close-button").click();
     await page.getByRole("button", { name: "Show all barangays", exact: true }).click();
-    await expect(page.getByRole("combobox", { name: "Find a barangay", exact: true })).toHaveText("Find a barangay");
+    await expect(page.getByRole("combobox", { name: "Find a barangay", exact: true })).toHaveValue("Find a barangay");
     expect(externalBoundaryRequests).toEqual([]);
     expect(errors).toEqual([]);
   });
@@ -115,17 +115,34 @@ test("boundary failure can retry the local geometry asset", async ({ page }) => 
   await page.goto("/chairman/dashboard");
   await expect(page.getByText("Barangay boundaries could not be loaded. Please try again.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await expect(page.locator('path[role="button"]')).toHaveCount(42);
+  await expect(page.locator('path[role="button"]')).toHaveCount(1077);
 });
 
 test("zero data and failed basemap tiles still show real boundaries and honest details", async ({ page }) => {
   await setup(page, { empty: true, failTiles: true });
   await page.goto("/chairman/dashboard");
-  const map = page.getByRole("region", { name: "Nasugbu member distribution map", exact: true });
-  await expect(map.locator('path[role="button"]')).toHaveCount(42);
+  const map = page.getByRole("region", { name: "Batangas member distribution map", exact: true });
+  await expect(map.locator('path[role="button"]')).toHaveCount(1077);
   const fills = await map.locator('path[role="button"]').evaluateAll((paths) => [...new Set(paths.map((path) => path.getAttribute("fill")))]);
   expect(fills).toEqual(["#eef2ec"]);
   await page.getByRole("combobox", { name: "Find a barangay", exact: true }).click();
-    await page.getByRole("option", { name: "Aga", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Aga member details", exact: true })).toContainText("No member records in the current results.");
+    await page.getByRole("option", { name: "Aga, Nasugbu", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Aga, Nasugbu member details", exact: true })).toContainText("No member records in the current results.");
+});
+
+test("search distinguishes same-name barangays in different municipalities", async ({ page }) => {
+  await setup(page, { empty: true });
+  await page.goto("/chairman/dashboard");
+  const map = page.getByRole("region", { name: "Batangas member distribution map", exact: true });
+  await expect(map.locator('path[role="button"]')).toHaveCount(1077);
+  const search = page.getByRole("combobox", { name: "Find a barangay", exact: true });
+  for (const label of ["San Jose, Alitagtag", "San Jose, Tuy"]) {
+    await search.fill("San Jose");
+    await page.getByRole("option", { name: label, exact: true }).click();
+    await expect(search).toHaveValue(label);
+    const details = page.getByRole("region", { name: `${label} member details`, exact: true });
+    await expect(details).toBeVisible();
+    await expect(details.getByRole("link", { name: "View matching members" })).toHaveCount(0);
+    await map.locator(".leaflet-popup-close-button").click();
+  }
 });

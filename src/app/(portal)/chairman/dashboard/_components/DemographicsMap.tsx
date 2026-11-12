@@ -7,16 +7,16 @@ import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { Expand, RefreshCw, RotateCcw } from "lucide-react";
-import { barangayFill, isBarangayBoundaries, joinBarangayMembers, normalizeBarangayName, zeroMemberColor, type BarangayArea, type BarangayBoundaries, type BarangayMembers } from "./barangay-choropleth";
+import { barangayFill, isBarangayBoundaries, joinBarangayMembers, resolveBarangayId, zeroMemberColor, type BarangayArea, type BarangayBoundaries, type BarangayMembers } from "./barangay-choropleth";
 import "leaflet/dist/leaflet.css";
 import styles from "./DemographicsMap.module.css";
 
 const number = (value: number) => value.toLocaleString("en-PH");
 
-type GeographicAnalytics = { barangay: string; trueMembers: number; associates: number; engagementCounts: Record<string, number>; newApprovals: number; change: number };
+type GeographicAnalytics = Pick<BarangayMembers, "barangay" | "municipality" | "province"> & { trueMembers: number; associates: number; engagementCounts: Record<string, number>; newApprovals: number; change: number };
 function BarangayInfo({ area, detail, expanded = false }: { area: BarangayArea; detail?: GeographicAnalytics; expanded?: boolean }) {
   return <div className={styles.info}>
-    <h3>{area.barangay}</h3>
+    <h3>{area.label}</h3>
     <dl>
       <div className={styles.total}><dt>Total members</dt><dd>{number(area.totalMembers)}</dd></div>
       {detail && <><div><dt>True Members</dt><dd>{number(detail.trueMembers)}</dd></div><div><dt>Associates</dt><dd>{number(detail.associates)}</dd></div></>}
@@ -51,7 +51,7 @@ function BarangayPolygon({ area, fill, register, detail, memberLink, dimmed, hig
       if (!element) return;
       element.setAttribute("tabindex", "0");
       element.setAttribute("role", "button");
-      element.setAttribute("aria-label", `${area.barangay}, ${number(area.totalMembers)} members`);
+      element.setAttribute("aria-label", `${area.label}, ${number(area.totalMembers)} members`);
       const focus = () => { map.eachLayer(layer => { if (layer instanceof L.Tooltip && layer !== group.getTooltip()) map.closeTooltip(layer); }); group.setStyle({ color: "#123d2a", weight: 2.5 }); group.openTooltip(); };
       const blur = () => { group.closeTooltip(); group.setStyle({ color: highlighted ? "#123d2a" : "#ffffff", weight: highlighted ? 3 : 1.3 }); };
       const activate = (event: Event) => {
@@ -82,7 +82,7 @@ function BarangayPolygon({ area, fill, register, detail, memberLink, dimmed, hig
 
   return <GeoJSON ref={layerRef} data={area.feature} style={baseStyle} eventHandlers={{ mouseover: highlight, mouseout: reset }}>
     <Tooltip sticky direction="auto" opacity={1} className={styles.tooltip}><BarangayInfo area={area} detail={detail} /></Tooltip>
-    <Popup maxWidth={300} maxHeight={380} className={styles.popup}><section aria-label={`${area.barangay} member details`}><BarangayInfo area={area} detail={detail} expanded />{memberLink && <Link className="mt-3 inline-flex min-h-11 items-center font-semibold underline underline-offset-4" href={memberLink(area.barangay)}>View matching members</Link>}</section></Popup>
+    <Popup maxWidth={300} maxHeight={380} className={styles.popup}><section aria-label={`${area.label} member details`}><BarangayInfo area={area} detail={detail} expanded />{memberLink && area.canDrilldown && <Link className="mt-3 inline-flex min-h-11 items-center font-semibold underline underline-offset-4" href={memberLink(area.barangay)}>View matching members</Link>}</section></Popup>
   </GeoJSON>;
 }
 
@@ -102,7 +102,7 @@ export default function DemographicsMap({ demographics, analytics, memberLink, h
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/maps/nasugbu", { signal: controller.signal })
+    fetch("/api/maps/nasugbu", { signal: controller.signal, cache: "no-cache" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Boundary request failed");
         const data: unknown = await response.json();
@@ -115,12 +115,27 @@ export default function DemographicsMap({ demographics, analytics, memberLink, h
 
   const model = useMemo(() => boundaries ? joinBarangayMembers(boundaries, demographics) : null, [boundaries, demographics]);
   const bounds = useMemo(() => boundaries ? L.geoJSON(boundaries).getBounds() : null, [boundaries]);
+  const analyticsByArea = useMemo(() => {
+    const details = new Map<string, GeographicAnalytics>();
+    if (boundaries) for (const row of analytics ?? []) {
+      const id = resolveBarangayId(boundaries, row);
+      if (!id) continue;
+      const previous = details.get(id);
+      details.set(id, previous ? { ...row,
+        trueMembers: previous.trueMembers + row.trueMembers, associates: previous.associates + row.associates,
+        newApprovals: previous.newApprovals + row.newApprovals, change: previous.change + row.change,
+        engagementCounts: Object.fromEntries([...new Set([...Object.keys(previous.engagementCounts), ...Object.keys(row.engagementCounts)])].map(key => [key, (previous.engagementCounts[key] ?? 0) + (row.engagementCounts[key] ?? 0)])),
+      } : row);
+    }
+    return details;
+  }, [boundaries, analytics]);
+  const highlightedId = useMemo(() => boundaries && highlightBarangay ? resolveBarangayId(boundaries, { barangay: highlightBarangay }) : undefined, [boundaries, highlightBarangay]);
+  const areaOptions = useMemo(() => [...(model?.areas ?? [])].sort((a, b) => a.label.localeCompare(b.label, "en", { numeric: true })), [model]);
   useEffect(() => {
-    if (!highlightBarangay || !model) return;
-    const area = model.areas.find(a => normalizeBarangayName(a.barangay) === normalizeBarangayName(highlightBarangay));
-    const layer = area ? layers.current.get(area.id) : undefined;
+    if (!highlightedId) return;
+    const layer = layers.current.get(highlightedId);
     if (layer) { mapRef.current?.fitBounds(layer.getBounds(), { padding: [48, 48], maxZoom: 14, animate: false }); }
-  }, [highlightBarangay, model]);
+  }, [highlightedId, model]);
   useEffect(() => {
     const resize = () => { setNativeFullscreen(Boolean(document.fullscreenElement)); window.setTimeout(() => mapRef.current?.invalidateSize(), 100); };
     document.addEventListener("fullscreenchange", resize);
@@ -153,17 +168,17 @@ export default function DemographicsMap({ demographics, analytics, memberLink, h
     if (!fullscreenRef.current?.requestFullscreen) { setExpanded(true); return; }
     try { await fullscreenRef.current.requestFullscreen(); } catch { setExpanded(true); }
   };
-  const mapView = <div ref={fullscreenRef} className={`${styles.map} ${expanded ? styles.expandedMap : ""}`} role={expanded ? "dialog" : "region"} aria-label={expanded ? "Expanded barangay map" : "Nasugbu member distribution map"}>
-      {expanded && <><Dialog.Title className="sr-only">Expanded barangay map</Dialog.Title><Dialog.Description className="sr-only">Nasugbu member distribution. Use the map controls or press Escape to return to the dashboard.</Dialog.Description></>}
+  const mapView = <div ref={fullscreenRef} className={`${styles.map} ${expanded ? styles.expandedMap : ""}`} role={expanded ? "dialog" : "region"} aria-label={expanded ? "Expanded barangay map" : "Batangas member distribution map"}>
+      {expanded && <><Dialog.Title className="sr-only">Expanded barangay map</Dialog.Title><Dialog.Description className="sr-only">Batangas member distribution. Use the map controls or press Escape to return to the dashboard.</Dialog.Description></>}
       <MapContainer ref={mapRef} bounds={bounds} boundsOptions={{ paddingTopLeft: [24, 72], paddingBottomRight: [24, 112] }} scrollWheelZoom={false} zoomControl={false} zoomSnap={0.25} className={styles.canvas}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' opacity={0.65} />
         <ZoomControl position="bottomright" />
-        {model.areas.map((area) => <BarangayPolygon key={area.id} area={area} fill={barangayFill(area.totalMembers, model.bins)} register={register} detail={analytics ? analytics.find(a => normalizeBarangayName(a.barangay) === normalizeBarangayName(area.barangay)) ?? { barangay: area.barangay, trueMembers: 0, associates: 0, engagementCounts: {}, newApprovals: 0, change: 0 } : undefined} memberLink={memberLink} dimmed={Boolean(legendRange && (area.totalMembers < legendRange.min || area.totalMembers > legendRange.max))} highlighted={Boolean(highlightBarangay && normalizeBarangayName(area.barangay) === normalizeBarangayName(highlightBarangay))} />)}
+        {model.areas.map((area) => <BarangayPolygon key={area.id} area={area} fill={barangayFill(area.totalMembers, model.bins)} register={register} detail={analytics ? analyticsByArea.get(area.id) ?? { barangay: area.barangay, trueMembers: 0, associates: 0, engagementCounts: {}, newApprovals: 0, change: 0 } : undefined} memberLink={memberLink} dimmed={Boolean(legendRange && (area.totalMembers < legendRange.min || area.totalMembers > legendRange.max))} highlighted={area.id === highlightedId} />)}
       </MapContainer>
 
       <div className={styles.controls}>
         <label className="sr-only" htmlFor="map-barangay">Find a barangay</label>
-        <StyledSelect id="map-barangay" aria-label="Find a barangay" className="min-w-0 flex-1 bg-white" value={model.areas.find(area => area.id === chosen)?.barangay ?? "Find a barangay"} options={["Find a barangay", ...[...model.areas].sort((a, b) => a.barangay.localeCompare(b.barangay, "en", { numeric: true })).map(area => area.barangay)]} onChange={name => choose(model.areas.find(area => area.barangay === name)?.id ?? "")} />
+        <StyledSelect searchable id="map-barangay" aria-label="Find a barangay" placeholder="Search barangay or municipality" className="min-w-0 flex-1 bg-white" value={model.areas.find(area => area.id === chosen)?.label ?? "Find a barangay"} options={["Find a barangay", ...areaOptions.map(area => area.label)]} onChange={label => choose(model.areas.find(area => area.label === label)?.id ?? "")} />
         <button type="button" onClick={showAll} aria-label="Show all barangays" title="Show all barangays" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--portal-green)] grid size-11 shrink-0 place-items-center rounded-md border border-[var(--portal-border)] bg-[var(--portal-surface)] text-[var(--portal-forest)] shadow-[0_4px_12px_rgba(18,61,42,0.06)] hover:bg-[#EAF3E8]"><RotateCcw aria-hidden="true" className="size-4" /></button>
         <button ref={expandButtonRef} type="button" onClick={() => void toggleExpansion()} aria-label={expanded || nativeFullscreen ? "Exit expanded map" : "Expand map to fullscreen"} title={expanded || nativeFullscreen ? "Exit expanded map" : "Expand map"} className="grid size-11 shrink-0 place-items-center rounded-md border border-[var(--portal-border)] bg-white text-[var(--portal-forest)]"><Expand className="size-4" aria-hidden="true" /></button>
       </div>
@@ -185,7 +200,7 @@ export default function DemographicsMap({ demographics, analytics, memberLink, h
     </div>
     {model.unmapped.length > 0 && <details className="mt-2 rounded-lg bg-[#FFF4D7] px-3 py-2 text-sm text-[#8A6200]">
       <summary className="cursor-pointer font-medium">{number(unmatchedMembers)} members in locations without a matching boundary</summary>
-      <p className="mt-1 break-words">{model.unmapped.map((row) => `${row.barangay || "Unspecified"} (${number(row.totalMembers)})`).join(", ")}. These records are not assigned to a different barangay.</p>
+      <p className="mt-1 break-words">{model.unmapped.map((row) => `${[row.barangay || "Unspecified", row.municipality, row.province].filter(Boolean).join(", ")} (${number(row.totalMembers)})`).join(", ")}. Missing or ambiguous locations are not assigned to a different barangay.</p>
     </details>}
   </div>;
 }

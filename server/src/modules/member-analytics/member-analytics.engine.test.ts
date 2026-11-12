@@ -100,8 +100,20 @@ test("recruitment best periods include zero calendar months and resolve ties det
 });
 test("actual geometry names match all comparison rows, including zero-count barangays", () => {
   const geo = JSON.parse(readFileSync("src/lib/Nasugbu.geojson", "utf8"));
-  assert.deepEqual([...NASUGBU_BARANGAYS].sort(), geo.features.map((f: { properties: { adm4_en: string } }) => f.properties.adm4_en).sort());
+  const nasugbu = geo.features.filter((f: { properties: { adm3_psgc: number | string } }) => Number(f.properties.adm3_psgc) === 401019000);
+  assert.deepEqual([...NASUGBU_BARANGAYS].sort(), nasugbu.map((f: { properties: { adm4_en: string } }) => f.properties.adm4_en).sort());
   assert.equal(createAnalyticsEngine(analyticsFixture(), fixtureFilters).result.geography.length, 42);
+});
+
+test("map counts retain municipality and province for identically named barangays", () => {
+  const source = analyticsFixture();
+  source.members = source.members.map((member, index) => ({ ...member, barangay: "San Jose", municipality: index % 2 ? "Balayan" : "Nasugbu", province: "Batangas" }));
+  const result = createAnalyticsEngine(source, fixtureFilters).result;
+  assert.equal(result.mapGeography!.reduce((total, row) => total + row.totalMembers, 0), result.population);
+  const populated = result.mapGeography!.filter(row => row.totalMembers > 0);
+  assert.equal(populated.length, 2);
+  assert.deepEqual(populated.map(row => row.municipality).sort(), ["Balayan", "Nasugbu"]);
+  assert.ok(populated.every(row => row.province === "Batangas"));
 });
 test("missing optional activity tables make participation rates unavailable and disclose coverage", () => {
   const source = analyticsFixture(); source.capabilities.cooperative_activities = false; source.participation = [];

@@ -1,0 +1,58 @@
+[
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "membership-growth",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\membership-growth.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "engagement-summary",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\engagement-summary.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "sector-distribution",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\sector-distribution.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "recruitment-trends",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\recruitment-trends.png",
+    "status": "captured"
+  },
+  {
+    "role": "chairman",
+    "folder": "member-analytics",
+    "name": "referral-summary",
+    "route": "/portal/chairman/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\member-analytics\\referral-summary.png",
+    "status": "captured"
+  },
+  {
+    "role": "bookkeeper",
+    "folder": "document-management",
+    "name": "document-preview",
+    "route": "/portal/bookkeeper/documents",
+    "status": "unavailable",
+    "reason": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Preview' })\u001b[22m\n"
+  },
+  {
+    "role": "member",
+    "folder": "pos-sales",
+    "name": "member-orders",
+    "route": "/portal/member/dashboard",
+    "file": "evidence\\playwright\\final-screenshots\\pos-sales\\member-orders.png",
+    "status": "captured"
+  }
+]

@@ -1,0 +1,12 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1794123510573,664,SETUP login,200,OK,Total virtual users 1-1,text,true,,1640,316,1,1,http://127.0.0.1:3218/api/auth/login,656,0,32
+1794123512337,186,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,false,Expected HTTP 200; received 200,11148,282,1,1,http://127.0.0.1:3218/api/public/landing,186,0,0
+1794123511331,186,TX_J01,,"Number of samples in transaction : 1, number of failing samples : 1",Total virtual users 1-1,,false,,11148,282,1,1,null,186,1042,0
+1794123513564,46,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,1,1,http://127.0.0.1:3218/api/auth/me,46,0,0
+1794123512559,46,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,1,1,null,46,1007,0
+1794123514653,227,J04 01 /api/membership-applications,200,OK,Total virtual users 1-1,text,true,,10392,291,1,1,http://127.0.0.1:3218/api/membership-applications,227,0,0
+1794123513638,227,TX_J04,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,10392,291,1,1,null,227,1045,0
+1794123515928,152,J06 01 /api/financial-records,200,OK,Total virtual users 1-1,text,true,,12152,285,1,1,http://127.0.0.1:3218/api/financial-records,151,0,0
+1794123517093,1925,J06 02 /api/financial-records/summary,200,OK,Total virtual users 1-1,text,true,,1337,293,1,1,http://127.0.0.1:3218/api/financial-records/summary,1925,0,0
+1794123514927,2077,TX_J06,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,13489,578,1,1,null,2076,2016,0
+1794123520044,1675,J07 01 /api/chairman/member-analytics,200,OK,Total virtual users 1-1,text,true,,60913,293,1,1,http://127.0.0.1:3218/api/chairman/member-analytics,1674,0,0

@@ -149,6 +149,23 @@ export function createAnalyticsEngine(source: AnalyticsSources, filters: Analyti
       newApprovals: rows.filter(periodApproval).length, previousMembers: previous.length, change: rows.length - previous.length,
       cells: ANALYTICS_SECTORS.map(sector => { const cell = rows.filter(m => m.sector === sector); return { sector, members: cell.length, newApprovals: cell.filter(periodApproval).length, engaged: cell.filter(m => m.engagement === "Active").length, change: cell.length - previous.filter(m => m.sector === sector).length, periodChange: cell.length - before.filter(m => m.sector === sector && normalizeBarangay(m.barangay || "Unspecified") === normalizeBarangay(barangay)).length }; }) };
   });
+  const locationKey = (member: AnalyticsMember) => JSON.stringify([
+    (member.province ?? "").trim().toLowerCase(), (member.municipality ?? "").trim().toLowerCase(),
+    normalizeBarangay(member.barangay || "Unspecified"),
+  ]);
+  const currentLocations = grouped(members, locationKey);
+  const previousLocations = grouped(priorMembers, locationKey);
+  const mapGeography = [...new Set([...currentLocations.keys(), ...previousLocations.keys()])].map(key => {
+    const rows = currentLocations.get(key) ?? [];
+    const previous = previousLocations.get(key) ?? [];
+    const location = rows[0] ?? previous[0];
+    return { barangay: location.barangay || "Unspecified", municipality: location.municipality, province: location.province,
+      totalMembers: rows.length, trueMembers: rows.filter(m => m.membershipType === "True Member").length,
+      associates: rows.filter(m => m.membershipType === "Associate").length,
+      sectorCounts: Object.fromEntries(ANALYTICS_SECTORS.map(s => [s, rows.filter(m => m.sector === s).length])),
+      engagementCounts: Object.fromEntries(ENGAGEMENT_LABELS.map(s => [s, rows.filter(m => m.engagement === s).length])),
+      newApprovals: rows.filter(periodApproval).length, change: rows.length - previous.length };
+  });
   const monthly = growth.map(g => ({ month: g.month, count: g.newMembers }));
   const yearly = [...grouped(monthly, m => m.month.slice(0, 4))].map(([year, rows]) => ({ year, count: sum(rows.map(r => r.count)) }));
   const bestMonth = [...monthly].sort((a, b) => b.count - a.count || a.month.localeCompare(b.month))[0] ?? null;
@@ -223,7 +240,7 @@ export function createAnalyticsEngine(source: AnalyticsSources, filters: Analyti
       provisional: members.filter(m => m.membershipType === "Associate" && provisional(m)).length, reconciled: members.filter(m => m.capital.known).length, unknown: members.filter(m => !m.capital.known).length,
       completions: monthList.map(month => ({ month, count: members.filter(m => (m.membershipType === "True Member" || provisional(m)) && completionDate(m)?.startsWith(month) && completionDate(m)! >= filters.start && completionDate(m)! <= filters.end).length })), medianDays: stats.median, averageDays: stats.average },
     unassignedSectorCount: members.filter(m=>!m.selectedSectors?.length && !m.sector).length,
-    sectors: ANALYTICS_SECTORS.map(name => ({ name, count: members.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(name)).length })), geography,
+    sectors: ANALYTICS_SECTORS.map(name => ({ name, count: members.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(name)).length })), geography, mapGeography,
     sectorDetails: ANALYTICS_SECTORS.map(sector => { const rows = members.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(sector)), previous = priorMembers.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(sector)), sectorEligible = rows.filter(m => m.membershipType === "True Member"); const sectorComplete = sectorEligible.filter(m => m.capital.known && m.capital.balance >= source.settings.target); return { sector, members: rows.length, newApprovals: rows.filter(periodApproval).length, previousMembers: previous.length, change: rows.length - previous.length,
       engagement: ENGAGEMENT_LABELS.map(name => ({ name, count: rows.filter(m => m.engagement === name).length })), eligibleCapital: sectorEligible.length, completedCapital: sectorComplete.length, completionRate: sectorEligible.some(m => !m.capital.known) ? null : rate(sectorComplete.length, sectorEligible.length), recruitment: monthList.map(month => ({ month, count: rows.filter(m => periodApproval(m) && m.approved!.startsWith(month)).length })) }; }),
     recruitment: { monthly, yearly, bestMonth, bestQuarter, journey, applicationConversion: rate(journeyDates.filter(j => j.dates.has("Approved")).length, apps.length), approvedApplications: journeyDates.filter(j => j.dates.has("Approved")).length,

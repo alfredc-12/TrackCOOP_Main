@@ -1,0 +1,71 @@
+{
+  "label": "JMR03-after",
+  "time": "2026-11-08T08:44:55.372Z",
+  "database": "trackcoopdb_main",
+  "version": "8.4.9",
+  "tables": {
+    "member_profiles": {
+      "count": 233,
+      "checksum": 3884270923
+    },
+    "share_capital_payments": {
+      "count": 612,
+      "checksum": 28913757
+    },
+    "share_capital_accounts": {
+      "count": 218,
+      "checksum": 626715370
+    },
+    "share_capital_transactions": {
+      "count": 616,
+      "checksum": 4000137919
+    },
+    "financial_records": {
+      "count": 1598,
+      "checksum": 3469261247
+    },
+    "financial_categories": {
+      "count": 38,
+      "checksum": 1463017029
+    },
+    "payment_references": {
+      "count": 1877,
+      "checksum": 1117039367
+    },
+    "products": {
+      "count": 13,
+      "checksum": 326989388
+    },
+    "inventory_movements": {
+      "count": 43,
+      "checksum": 3941425756
+    },
+    "pos_sales": {
+      "count": 37,
+      "checksum": 4159458192
+    },
+    "pos_sale_items": {
+      "count": 43,
+      "checksum": 178475250
+    },
+    "rental_bookings": {
+      "count": 27,
+      "checksum": 2343890081
+    },
+    "rental_pos_records": {
+      "count": 8,
+      "checksum": 1001438616
+    }
+  },
+  "invariants": {
+    "validated_reference_duplicates": 0,
+    "duplicate_payment_ledger_sources": 0,
+    "ledger_balance_mismatches": 0,
+    "duplicate_rental_pos_financial_sources": 0,
+    "negative_inventory_products": 0,
+    "active_capital_labeled_income_records": 10,
+    "capital_in_operating_eligibility": 0,
+    "account_balance_total": "508323.74",
+    "financial_record_total": "6593519.96"
+  }
+}

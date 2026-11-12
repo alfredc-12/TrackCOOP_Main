@@ -1,0 +1,92 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1794125280503,615,SETUP login,200,OK,Total virtual users 1-1,text,true,,1632,316,3,3,http://127.0.0.1:3218/api/auth/login,615,0,33
+1794125280523,589,SETUP login,200,OK,Total virtual users 1-2,text,true,,1634,316,3,3,http://127.0.0.1:3218/api/auth/login,584,0,13
+1794125281522,343,SETUP login,200,OK,Total virtual users 1-3,text,true,,1630,316,3,3,http://127.0.0.1:3218/api/auth/login,342,0,2
+1794125283342,164,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,164,0,0
+1794125281331,164,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,11148,282,3,3,null,164,2059,0
+1794125283342,262,J01 01 /api/public/landing,200,OK,Total virtual users 1-2,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,262,0,0
+1794125281330,262,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,11148,282,3,3,null,262,2015,0
+1794125283872,156,J01 01 /api/public/landing,200,OK,Total virtual users 1-3,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,156,0,0
+1794125281866,156,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,11148,282,3,3,null,156,2008,0
+1794125285566,42,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,3,3,http://127.0.0.1:3218/api/auth/me,42,0,0
+1794125283554,42,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,3,3,null,42,2013,0
+1794125285613,41,J02 01 /api/auth/me,200,OK,Total virtual users 1-2,text,true,,1360,275,3,3,http://127.0.0.1:3218/api/auth/me,41,0,0
+1794125283607,41,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,1360,275,3,3,null,41,2008,0
+1794125286031,40,J02 01 /api/auth/me,200,OK,Total virtual users 1-3,text,true,,1356,275,3,3,http://127.0.0.1:3218/api/auth/me,40,0,0
+1794125284030,40,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,1356,275,3,3,null,40,2002,0
+1794125287631,203,J04 01 /api/membership-applications,200,OK,Total virtual users 1-1,text,true,,10392,291,3,3,http://127.0.0.1:3218/api/membership-applications,203,0,0
+1794125285628,203,TX_J04,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,10392,291,3,3,null,203,2006,0
+1794125287662,277,J04 01 /api/membership-applications,200,OK,Total virtual users 1-2,text,true,,10392,291,3,3,http://127.0.0.1:3218/api/membership-applications,277,0,0
+1794125285656,277,TX_J04,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,10392,291,3,3,null,277,2008,0
+1794125289858,124,J06 01 /api/financial-records,200,OK,Total virtual users 1-1,text,true,,12152,285,3,3,http://127.0.0.1:3218/api/financial-records,124,0,0
+1794125288084,1941,J03 01 /api/members/me/dashboard,200,OK,Total virtual users 1-3,text,true,,2961,288,3,3,http://127.0.0.1:3218/api/members/me/dashboard,1941,0,0
+1794125286073,1941,TX_J03,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,2961,288,3,3,null,1941,2049,0
+1794125289951,217,J06 01 /api/financial-records,200,OK,Total virtual users 1-2,text,true,,12152,285,3,3,http://127.0.0.1:3218/api/financial-records,217,0,0
+1794125292066,394,J05 01 /api/members/me/share-capital/overview,200,OK,Total virtual users 1-3,text,false,Share-capital owner or reconciliation mismatch,1564,301,3,3,http://127.0.0.1:3218/api/members/me/share-capital/overview,394,0,0
+1794125291988,1927,J06 02 /api/financial-records/summary,200,OK,Total virtual users 1-1,text,true,,1337,293,3,3,http://127.0.0.1:3218/api/financial-records/summary,1927,0,0
+1794125287853,2051,TX_J06,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,13489,578,3,3,null,2051,4013,0
+1794125292174,1935,J06 02 /api/financial-records/summary,200,OK,Total virtual users 1-2,text,true,,1337,293,3,3,http://127.0.0.1:3218/api/financial-records/summary,1935,0,0
+1794125287941,2152,TX_J06,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-2,,true,,13489,578,3,3,null,2152,4018,0
+1794125294507,195,J05 02 /api/members/me/share-capital/transactions,200,OK,Total virtual users 1-3,text,false,Missing owner or transaction list,1220,305,3,3,http://127.0.0.1:3218/api/members/me/share-capital/transactions,195,0,0
+1794125290062,589,TX_J05,,"Number of samples in transaction : 2, number of failing samples : 2",Total virtual users 1-3,,false,,2784,606,3,3,null,589,4081,0
+1794125296127,151,J08 01 /api/rental/schedules,200,OK,Total virtual users 1-2,text,true,,7384,284,3,3,http://127.0.0.1:3218/api/rental/schedules,151,0,0
+1794125294119,151,TX_J08,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,7384,284,3,3,null,151,2038,0
+1794125296761,160,J01 01 /api/public/landing,200,OK,Total virtual users 1-3,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,155,0,0
+1794125294749,160,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,11148,282,3,3,null,155,2013,0
+1794125295938,1675,J07 01 /api/chairman/member-analytics,200,OK,Total virtual users 1-1,text,true,,60913,293,3,3,http://127.0.0.1:3218/api/chairman/member-analytics,1674,0,0
+1794125298321,126,J09 01 /api/inventory,200,OK,Total virtual users 1-2,text,true,,7919,277,3,3,http://127.0.0.1:3218/api/inventory,126,0,0
+1794125298926,41,J02 01 /api/auth/me,200,OK,Total virtual users 1-3,text,true,,1356,275,3,3,http://127.0.0.1:3218/api/auth/me,41,0,0
+1794125296922,41,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,1356,275,3,3,null,41,2004,0
+1794125300449,121,J09 02 /api/pos/orders,200,OK,Total virtual users 1-2,text,true,,21113,278,3,3,http://127.0.0.1:3218/api/pos/orders,121,0,0
+1794125296308,247,TX_J09,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-2,,true,,29032,555,3,3,null,247,4015,0
+1794125299628,1826,J07 02 /api/chairman/financial-analytics,200,OK,Total virtual users 1-1,text,true,,49721,296,3,3,http://127.0.0.1:3218/api/chairman/financial-analytics,1826,0,0
+1794125293925,3501,TX_J07,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,110634,589,3,3,null,3500,4032,0
+1794125300978,915,J03 01 /api/members/me/dashboard,200,OK,Total virtual users 1-3,text,true,,2961,288,3,3,http://127.0.0.1:3218/api/members/me/dashboard,915,0,0
+1794125298968,915,TX_J03,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,2961,288,3,3,null,915,2011,0
+1794125302578,203,J10 01 /api/documents,200,OK,Total virtual users 1-2,text,true,,11823,277,3,3,http://127.0.0.1:3218/api/documents,202,0,0
+1794125303460,121,J08 01 /api/rental/schedules,200,OK,Total virtual users 1-1,text,true,,7384,284,3,3,http://127.0.0.1:3218/api/rental/schedules,121,0,0
+1794125301459,121,TX_J08,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,7384,284,3,3,null,121,2002,0
+1794125303908,202,J05 01 /api/members/me/share-capital/overview,200,OK,Total virtual users 1-3,text,false,Share-capital owner or reconciliation mismatch,1564,301,3,3,http://127.0.0.1:3218/api/members/me/share-capital/overview,202,0,0
+1794125304806,389,J10 02 /api/announcements,200,OK,Total virtual users 1-2,text,true,,10637,281,3,3,http://127.0.0.1:3218/api/announcements,389,0,0
+1794125305596,127,J09 01 /api/inventory,200,OK,Total virtual users 1-1,text,true,,7919,277,3,3,http://127.0.0.1:3218/api/inventory,127,0,0
+1794125306112,202,J05 02 /api/members/me/share-capital/transactions,200,OK,Total virtual users 1-3,text,false,Missing owner or transaction list,1220,305,3,3,http://127.0.0.1:3218/api/members/me/share-capital/transactions,202,0,0
+1794125301894,404,TX_J05,,"Number of samples in transaction : 2, number of failing samples : 2",Total virtual users 1-3,,false,,2784,606,3,3,null,404,4020,0
+1794125307200,85,J10 03 /api/activities,200,OK,Total virtual users 1-2,text,true,,1188,278,3,3,http://127.0.0.1:3218/api/activities,85,0,0
+1794125300571,677,TX_J10,200,"Number of samples in transaction : 3, number of failing samples : 0",Total virtual users 1-2,,true,,23648,836,3,3,null,676,6038,0
+1794125307728,126,J09 02 /api/pos/orders,200,OK,Total virtual users 1-1,text,true,,21113,278,3,3,http://127.0.0.1:3218/api/pos/orders,126,0,0
+1794125303582,253,TX_J09,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-1,,true,,29032,555,3,3,null,253,4021,0
+1794125308329,251,J01 01 /api/public/landing,200,OK,Total virtual users 1-3,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,251,0,0
+1794125306319,251,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,11148,282,3,3,null,251,2012,0
+1794125309295,155,J01 01 /api/public/landing,200,OK,Total virtual users 1-2,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,155,0,0
+1794125307286,155,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,11148,282,3,3,null,155,2012,0
+1794125309857,194,J10 01 /api/documents,200,OK,Total virtual users 1-1,text,true,,11724,277,3,3,http://127.0.0.1:3218/api/documents,194,0,0
+1794125310583,41,J02 01 /api/auth/me,200,OK,Total virtual users 1-3,text,true,,1356,275,3,3,http://127.0.0.1:3218/api/auth/me,41,0,0
+1794125308581,41,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,1356,275,3,3,null,41,2003,0
+1794125311461,40,J02 01 /api/auth/me,200,OK,Total virtual users 1-2,text,true,,1360,275,3,3,http://127.0.0.1:3218/api/auth/me,40,0,0
+1794125309452,40,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,1360,275,3,3,null,40,2010,0
+1794125312068,245,J10 02 /api/announcements,200,OK,Total virtual users 1-1,text,true,,15748,281,3,3,http://127.0.0.1:3218/api/announcements,245,0,0
+1794125312630,991,J03 01 /api/members/me/dashboard,200,OK,Total virtual users 1-3,text,true,,2961,288,3,3,http://127.0.0.1:3218/api/members/me/dashboard,991,0,0
+1794125310625,991,TX_J03,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,2961,288,3,3,null,991,2006,0
+1794125313503,256,J04 01 /api/membership-applications,200,OK,Total virtual users 1-2,text,true,,10392,291,3,3,http://127.0.0.1:3218/api/membership-applications,256,0,0
+1794125311502,256,TX_J04,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,10392,291,3,3,null,256,2002,0
+1794125314316,87,J10 03 /api/activities,200,OK,Total virtual users 1-1,text,true,,1188,278,3,3,http://127.0.0.1:3218/api/activities,87,0,0
+1794125307855,526,TX_J10,200,"Number of samples in transaction : 3, number of failing samples : 0",Total virtual users 1-1,,true,,28660,836,3,3,null,526,6023,0
+1794125315765,123,J06 01 /api/financial-records,200,OK,Total virtual users 1-2,text,true,,12152,285,3,3,http://127.0.0.1:3218/api/financial-records,123,0,0
+1794125315624,379,J05 01 /api/members/me/share-capital/overview,200,OK,Total virtual users 1-3,text,false,Share-capital owner or reconciliation mismatch,1564,301,3,3,http://127.0.0.1:3218/api/members/me/share-capital/overview,379,0,0
+1794125316417,173,J01 01 /api/public/landing,200,OK,Total virtual users 1-1,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,173,0,0
+1794125314405,173,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,11148,282,3,3,null,173,2013,0
+1794125318014,213,J05 02 /api/members/me/share-capital/transactions,200,OK,Total virtual users 1-3,text,false,Missing owner or transaction list,1220,305,3,3,http://127.0.0.1:3218/api/members/me/share-capital/transactions,213,0,0
+1794125313622,592,TX_J05,,"Number of samples in transaction : 2, number of failing samples : 2",Total virtual users 1-3,,false,,2784,606,3,3,null,592,4014,0
+1794125318604,45,J02 01 /api/auth/me,200,OK,Total virtual users 1-1,text,true,,1358,275,3,3,http://127.0.0.1:3218/api/auth/me,45,0,0
+1794125316591,45,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,1358,275,3,3,null,45,2014,0
+1794125317891,1931,J06 02 /api/financial-records/summary,200,OK,Total virtual users 1-2,text,true,,1337,293,3,3,http://127.0.0.1:3218/api/financial-records/summary,1931,0,0
+1794125313760,2054,TX_J06,200,"Number of samples in transaction : 2, number of failing samples : 0",Total virtual users 1-2,,true,,13489,578,3,3,null,2054,4009,0
+1794125320243,162,J01 01 /api/public/landing,200,OK,Total virtual users 1-3,text,true,,11148,282,3,3,http://127.0.0.1:3218/api/public/landing,162,0,0
+1794125318229,162,TX_J01,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,11148,282,3,3,null,162,2015,0
+1794125320666,120,J04 01 /api/membership-applications,200,OK,Total virtual users 1-1,text,true,,10392,291,3,3,http://127.0.0.1:3218/api/membership-applications,120,0,0
+1794125318650,120,TX_J04,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-1,,true,,10392,291,3,3,null,120,2017,0
+1794125321831,119,J08 01 /api/rental/schedules,200,OK,Total virtual users 1-2,text,true,,7384,284,2,2,http://127.0.0.1:3218/api/rental/schedules,119,0,0
+1794125319824,119,TX_J08,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-2,,true,,7384,284,2,2,null,119,2008,0
+1794125322407,42,J02 01 /api/auth/me,200,OK,Total virtual users 1-3,text,true,,1356,275,1,1,http://127.0.0.1:3218/api/auth/me,42,0,0
+1794125320406,42,TX_J02,200,"Number of samples in transaction : 1, number of failing samples : 0",Total virtual users 1-3,,true,,1356,275,1,1,null,42,2002,0
+1794125322450,0,TX_J03,200,"Number of samples in transaction : 1, number of failing samples : 0",,,true,,0,0,0,0,null,0,0,0
