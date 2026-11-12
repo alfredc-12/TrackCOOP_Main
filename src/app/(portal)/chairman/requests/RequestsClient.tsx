@@ -7,9 +7,13 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  UserRound,
+  MessageCircle,
+  Archive,
+  XCircle,
+  Ban,
   Search,
   RefreshCcw,
-  MessageSquare,
   ChevronDown,
 } from "lucide-react";
 import {
@@ -22,6 +26,7 @@ import {
   StatusBadge,
   FormDialog,
 } from "@/components/portal/PortalPrimitives";
+import { PageHeader } from "@/components/portal/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { ApiClientError } from "@/lib/api-client";
 import {
@@ -39,7 +44,7 @@ import type {
   RequestStatus,
   RequestStatusHistoryRecord,
 } from "@/features/communication/communication-types";
-import { requestTypes, requestPriorities } from "@/features/communication/communication-types";
+import { requestTypes, requestPriorities, requestStatuses } from "@/features/communication/communication-types";
 
 function getAssigneeLabel(assigneeName: string | null | undefined) {
   if (!assigneeName) return "Unassigned";
@@ -304,47 +309,44 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
     }
   };
 
-  // Derive simple metrics from the current page of results for the summary cards
+  // Derive one count for every supported request status from the loaded result page.
   const metrics = useMemo(() => {
-    return {
-      submitted: requests.filter((r) => r.requestStatus === "Submitted").length,
-      underReview: requests.filter((r) => r.requestStatus === "Under Review").length,
-      inProgress: requests.filter((r) => r.requestStatus === "In Progress").length,
-      resolved: requests.filter((r) => r.requestStatus === "Resolved").length,
-      unread: requests.filter((r) => !r.isReadByAdmin).length,
-    };
+    const counts = requestStatuses.reduce<Record<RequestStatus, number>>((result, status) => {
+      result[status] = 0;
+      return result;
+    }, {} as Record<RequestStatus, number>);
+    requests.forEach((request) => {
+      counts[request.requestStatus] += 1;
+    });
+    return { ...counts, unread: requests.filter((request) => !request.isReadByAdmin).length };
   }, [requests]);
 
   return (
     <div className="grid gap-6">
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0D432D] via-[#125A3B] to-[#1F7A4D] px-6 py-7 text-white shadow-[0_16px_34px_rgba(13,67,45,0.24)] sm:px-8">
-        <div className="absolute -right-12 -top-20 size-64 rounded-full border-[24px] border-[#D8F0DE]/10" />
-        <div className="absolute -bottom-20 right-48 size-40 rounded-full bg-[#F6D354]/10 blur-2xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#F6D354]"><span className="h-2 w-2 rounded-full bg-[#F6D354]" /> {assignedOnly ? "Bookkeeper support" : "Communication center"}</div><h1 className="text-3xl font-black tracking-tight sm:text-4xl">{assignedOnly ? "My Assigned Requests" : "Requests & Inquiries"}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">{assignedOnly ? "Read and answer payment or record questions assigned to you." : "Review questions from members and the public, respond clearly, and keep every conversation organized."}</p></div>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm"><div className="flex size-11 items-center justify-center rounded-xl bg-[#F6D354] text-[#0D432D]"><MessageSquare className="size-5" /></div><div><p className="text-xs font-semibold text-white/60">Inbox status</p><p className="font-bold">{metrics.unread ? `${metrics.unread} unread message${metrics.unread > 1 ? "s" : ""}` : "All messages reviewed"}</p></div></div>
-        </div>
-        <button type="button" onClick={() => void fetchRequests()} disabled={isLoading} aria-busy={isLoading} className="relative mt-6 inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 disabled:cursor-wait disabled:opacity-70"><RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} /> {isLoading ? "Refreshing..." : "Refresh inbox"}</button>
-      </section>
+      <PageHeader
+        eyebrow={assignedOnly ? "Bookkeeper support" : "Communication center"}
+        title={assignedOnly ? "My Assigned Requests" : "Requests & Inquiries"}
+        description={assignedOnly ? "Read and answer payment or record questions assigned to you." : "Review questions from members and the public, respond clearly, and keep every conversation organized."}
+        actions={(
+          <Button type="button" variant="secondary" onClick={() => void fetchRequests()} disabled={isLoading} aria-busy={isLoading}>
+            <RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />
+            {isLoading ? "Refreshing..." : "Refresh inbox"}
+          </Button>
+        )}
+      />
 
-      <div className="grid gap-4 sm:grid-cols-5">
-        <StatCard label="New Inquiries" value={String(metrics.submitted)} icon={Inbox} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard label="New Inquiries" value={String(metrics.Submitted)} icon={Inbox} />
         <StatCard label="Unread" value={String(metrics.unread)} icon={AlertCircle} className={metrics.unread > 0 ? "border-red-400 bg-red-50 text-red-700" : ""} />
-        <StatCard label="Awaiting Review" value={String(metrics.underReview)} icon={Clock} />
-        <StatCard label="In Progress" value={String(metrics.inProgress)} icon={Clock} />
-        <StatCard label="Resolved" value={String(metrics.resolved)} icon={CheckCircle2} />
+        <StatCard label="Under Review" value={String(metrics["Under Review"])} icon={Clock} />
+        <StatCard label="Assigned" value={String(metrics.Assigned)} icon={UserRound} />
+        <StatCard label="In Progress" value={String(metrics["In Progress"])} icon={MessageCircle} />
+        <StatCard label="Waiting for Information" value={String(metrics["Waiting for Information"])} icon={AlertCircle} />
+        <StatCard label="Resolved" value={String(metrics.Resolved)} icon={CheckCircle2} />
+        <StatCard label="Closed" value={String(metrics.Closed)} icon={Archive} />
+        <StatCard label="Rejected" value={String(metrics.Rejected)} icon={XCircle} />
+        <StatCard label="Cancelled" value={String(metrics.Cancelled)} icon={Ban} />
       </div>
-
-      {requests.length > 0 && (
-        <div className="rounded-2xl border border-[#DCE9DE] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#789181]">Communication inbox</p><h2 className="mt-1 text-lg font-black text-[#123D2A]">Needs attention</h2></div><MessageSquare className="size-5 text-[#1F6B43]" /></div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <button type="button" onClick={() => setQuery({ ...query, status: "Submitted", page: 1 })} className="rounded-xl border border-[#E8D6A3] bg-[#FFF9E8] p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"><p className="text-xs font-bold text-[#8A6800]">New inquiries</p><p className="mt-1 text-2xl font-black text-[#123D2A]">{metrics.submitted}</p><p className="text-xs text-[#789181]">Awaiting first review</p></button>
-            <button type="button" onClick={() => setQuery({ ...query, status: "All", page: 1 })} className="rounded-xl border border-red-200 bg-red-50 p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"><p className="text-xs font-bold text-red-700">Unread messages</p><p className="mt-1 text-2xl font-black text-[#123D2A]">{metrics.unread}</p><p className="text-xs text-[#789181]">Open and respond promptly</p></button>
-            <div className="rounded-xl border border-[#D8E5DB] bg-[#F5F8F3] p-3"><p className="text-xs font-bold text-[#52705D]">Current page</p><p className="mt-1 text-2xl font-black text-[#123D2A]">{requests.length}</p><p className="text-xs text-[#789181]">Inquiry conversations</p></div>
-          </div>
-        </div>
-      )}
 
       <div className="rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -358,7 +360,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
             onChange={(e) => setQuery({ ...query, search: e.target.value, page: 1 })}
           />
         </label>
-        <div className="flex flex-wrap gap-2"><RequestThemedSelect prefix="Status" value={query.status || "All"} onChange={(value) => setQuery({ ...query, status: value, page: 1 })} ariaLabel="Filter request status" options={["All", "Submitted", "Under Review", "Assigned", "In Progress", "Resolved", "Closed", "Rejected"]} /><RequestThemedSelect prefix="Type" value={query.requestType || "All"} onChange={(value) => setQuery({ ...query, requestType: value, page: 1 })} ariaLabel="Filter request type" options={["All", ...requestTypes]} /><RequestThemedSelect prefix="Priority" value={query.priority || "All"} onChange={(value) => setQuery({ ...query, priority: value, page: 1 })} ariaLabel="Filter request priority" options={["All", ...requestPriorities]} /></div>
+        <div className="flex flex-wrap gap-2"><RequestThemedSelect prefix="Status" value={query.status || "All"} onChange={(value) => setQuery({ ...query, status: value, page: 1 })} ariaLabel="Filter request status" options={["All", ...requestStatuses]} /><RequestThemedSelect prefix="Type" value={query.requestType || "All"} onChange={(value) => setQuery({ ...query, requestType: value, page: 1 })} ariaLabel="Filter request type" options={["All", ...requestTypes]} /><RequestThemedSelect prefix="Priority" value={query.priority || "All"} onChange={(value) => setQuery({ ...query, priority: value, page: 1 })} ariaLabel="Filter request priority" options={["All", ...requestPriorities]} /></div>
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#EEF4EF] pt-3 text-xs font-medium text-[#789181]"><span>Showing {requests.length} of {total} requests</span><button type="button" onClick={() => setQuery(defaultQuery)} className="font-bold text-[#1F6B43] hover:underline">Clear filters</button></div>
       </div>

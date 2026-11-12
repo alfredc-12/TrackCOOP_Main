@@ -26,7 +26,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import {
   DataTable,
@@ -349,34 +350,12 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <PaymentWorkspaceHeader
-        icon={FileText}
+      <PageHeader
         eyebrow={role === "bookkeeper" ? "Bookkeeper · Records" : "Records · Documents"}
         title={role === "bookkeeper" ? "Receipts & Documents" : "Documents"}
         description="Manage cooperative files, access permissions, and document activity."
         actions={
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-            <div className="flex bg-[#F8FAF8] rounded-md border border-[#CAD8CB] p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "table" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
-                aria-label="Table View"
-                aria-pressed={viewMode === "table"}
-              >
-                <List className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "grid" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
-                aria-label="Grid View"
-                aria-pressed={viewMode === "grid"}
-              >
-                <LayoutGrid className="size-4" />
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
               <a
                 href={expressApiUrl(`/api/documents/export?${queryFor(filters)}`)}
                 className={secondaryButtonClass}
@@ -397,7 +376,6 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
               >
                 <Upload className="size-4" /> Upload Document
               </button>
-            </div>
           </div>
         }
       />
@@ -408,28 +386,33 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
           aria-label="Document summary"
         >
           <PaymentSummaryCard
+            showTopBorder={false}
             label="Total Documents"
             value={String(data.summary.total)}
             icon={FileText}
           />
           <PaymentSummaryCard
+            showTopBorder={false}
             label="Recently Uploaded"
             value={String(data.summary.recentlyUploaded)}
             icon={Clock3}
           />
           <PaymentSummaryCard
+            showTopBorder={false}
             tone="gold"
             label="Expiring Soon"
             value={String(data.summary.expiringSoon)}
             icon={Clock3}
           />
           <PaymentSummaryCard
+            showTopBorder={false}
             tone="sage"
             label="Archived"
             value={String(data.summary.archived)}
             icon={FolderArchive}
           />
           <PaymentSummaryCard
+            showTopBorder={false}
             label="Restricted"
             value={String(data.summary.restricted)}
             icon={FileLock2}
@@ -438,7 +421,29 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
       ) : null}
 
       <section className="min-w-0 rounded-2xl border border-coop-border bg-coop-surface p-4 shadow-coop-soft">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-coop-forest"><Search className="size-4 text-coop-green" aria-hidden="true" />Find a document</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-bold text-coop-forest">Find a document</h2>
+          <div className="flex rounded-md border border-[#CAD8CB] bg-[#F8FAF8] p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "table" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
+              aria-label="Table View"
+              aria-pressed={viewMode === "table"}
+            >
+              <List className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`flex items-center justify-center rounded px-3 py-1.5 transition-colors ${viewMode === "grid" ? "bg-white text-[#1F6B43] shadow-sm font-medium" : "text-[#6C7A70] hover:text-[#123D2A]"}`}
+              aria-label="Grid View"
+              aria-pressed={viewMode === "grid"}
+            >
+              <LayoutGrid className="size-4" />
+            </button>
+          </div>
+        </div>
         <form
           onSubmit={(event) => {
             event.preventDefault();

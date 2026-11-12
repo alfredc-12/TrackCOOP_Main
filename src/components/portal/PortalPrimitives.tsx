@@ -219,6 +219,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Confirm",
   loading = false,
+  confirmDisabled = false,
   cancelLabel = "Cancel",
   variant = "warning",
   onConfirm,
@@ -231,6 +232,7 @@ export function ConfirmDialog({
   description: string;
   confirmLabel?: string;
   loading?: boolean;
+  confirmDisabled?: boolean;
   cancelLabel?: string;
   variant?: "warning" | "danger";
   onConfirm: () => void;
@@ -288,7 +290,7 @@ export function ConfirmDialog({
                 <button
                   type="button"
                   onClick={onConfirm}
-                  disabled={loading}
+                  disabled={loading || confirmDisabled}
                   className={cn(
                     "min-h-12 rounded-lg px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_24px_rgba(18,61,42,0.18)] transition focus:outline-none focus:ring-2",
                     isDanger

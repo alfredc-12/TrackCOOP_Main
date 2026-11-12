@@ -63,6 +63,7 @@ import {
 import { MemberShareOverview } from "@/features/member-share-capital/MemberShareOverview";
 import MemberPosClient from "@/features/pos/components/MemberPosClient";
 import { MemberRequestsClient } from "@/app/(portal)/member/requests/MemberRequestsClient";
+import { MemberAttendanceQr } from "@/features/activities/MemberAttendanceQr";
 import { SeasonGuide } from "@/features/member-livelihoods/SeasonGuide";
 import { TrueMembershipApplication, type UpgradeStatus } from "@/features/membership/TrueMembershipApplication";
 import { ProfileSettings } from "./components/ProfileSettings";
@@ -1197,6 +1198,7 @@ export default function MemberDashboardPage() {
                 <section aria-labelledby="dashboard-actions-heading" className="rounded-2xl border border-[#DDE8D8] bg-white p-3 shadow-sm sm:p-4">
                   <h2 id="dashboard-actions-heading" className="mb-3 text-lg font-bold text-[#173626]">Quick Actions</h2>
                   <div className="grid gap-1">
+                    <MemberAttendanceQr memberCode={dashboardData?.member?.code ?? ""} memberName={user?.displayName} />
                     {[
                       { label: "View My Savings", detail: "Share Capital and earnings", icon: Wallet, action: () => selectTab("Member & Share") },
                       { label: "Rent Equipment", detail: "Find equipment for your farm", icon: Tractor, action: () => selectTab("Rental") },

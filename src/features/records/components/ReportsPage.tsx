@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import { calendarDateInMonth } from "@/lib/calendar-date";
 import {
@@ -283,8 +284,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <PaymentWorkspaceHeader
-        icon={BarChart3}
+      <PageHeader
         eyebrow={role === "bookkeeper" ? "Bookkeeper · Reports" : "Records · Reports"}
         title="Reports"
         description="Generate and review cooperative financial, membership, rental, operational, and records reports."
@@ -318,10 +318,10 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
 
       {data ? (
         <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
-          <PaymentSummaryCard label="Available Reports" value={String(data.summary.available)} icon={Database} />
-          <PaymentSummaryCard tone="gold" label="Generated This Month" value={error ? "—" : String(data.summary.generatedThisMonth)} icon={Clock3} />
-          <PaymentSummaryCard label="Financial Reports" value={String(data.summary.financial)} icon={Landmark} />
-          <PaymentSummaryCard label="Operational Reports" value={String(data.summary.operational)} icon={BarChart3} />
+          <PaymentSummaryCard showTopBorder={false} label="Available Reports" value={String(data.summary.available)} icon={Database} />
+          <PaymentSummaryCard showTopBorder={false} tone="gold" label="Generated This Month" value={error ? "—" : String(data.summary.generatedThisMonth)} icon={Clock3} />
+          <PaymentSummaryCard showTopBorder={false} label="Financial Reports" value={String(data.summary.financial)} icon={Landmark} />
+          <PaymentSummaryCard showTopBorder={false} label="Operational Reports" value={String(data.summary.operational)} icon={BarChart3} />
         </section>
       ) : null}
 

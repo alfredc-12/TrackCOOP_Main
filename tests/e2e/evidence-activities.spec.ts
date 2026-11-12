@@ -18,20 +18,27 @@ test("P40 P41 scheduled event and recorded attendance drive member analytics wit
     expect((await member.request.post(`${api}/api/activities`,{data:payload})).status()).toBe(403);
     expect((await bookkeeper.request.post(`${api}/api/activities`,{data:payload})).status()).toBe(403);
     expect((await context.request.post(`${api}/api/activities`,{data:{...payload,title:""}})).status()).toBe(400);
-    await page.goto("/portal/chairman/activities"); await expect(page.getByRole("heading",{name:"Events and Attendance"})).toBeVisible();
-    await page.getByLabel("Event title").fill(title); await page.getByLabel("Date",{exact:true}).fill(payload.date); await page.getByLabel("Time",{exact:true}).fill(payload.time); await page.getByLabel("Location").fill(payload.location); await page.getByLabel("Details").fill(payload.details);
+    await page.goto("/portal/chairman/activities"); await expect(page.getByRole("heading",{name:"Events and Attendance"})).toBeVisible(); await page.getByRole("button",{name:"New event"}).click();
+    await page.getByLabel("Event title").fill(title);
+    await page.getByRole("button",{name:"Date",exact:true}).click();
+    await page.getByRole("button",{name:"Month",exact:true}).click(); await page.getByRole("option",{name:"October",exact:true}).click();
+    await page.locator(`[data-date="${payload.date}"]`).click(); await page.getByRole("button",{name:"Confirm",exact:true}).click();
+    await page.getByRole("combobox",{name:"Time"}).click(); await page.getByRole("option",{name:"10:30 AM",exact:true}).click();
+    await page.getByLabel("Location").fill(payload.location); await page.getByLabel("Details").fill(payload.details);
     await page.getByRole("button",{name:"Schedule event"}).click(); await expect(page.getByRole("status")).toContainText("Event scheduled");
     const [events]=await db.execute<RowDataPacket[]>("SELECT activity_id FROM cooperative_activities WHERE activity_name=?",[title]); expect(events).toHaveLength(1); const eventId=String(events[0].activity_id);
     expect((await member.request.get(`${api}/api/activities/${eventId}`)).status()).toBe(403);
     expect((await member.request.patch(`${api}/api/activities/${eventId}`,{data:payload})).status()).toBe(403);
+    expect((await member.request.post(`${api}/api/activities/${eventId}/attendance/scan`,{data:{memberCode:code}})).status()).toBe(403);
     await page.getByRole("button",{name:"Edit",exact:true}).first().click();
     await page.getByLabel("Location").fill("Updated hall"); await page.getByRole("button",{name:"Save changes"}).click();
     await expect(page.getByRole("status")).toContainText("Event updated");
     await page.getByRole("button",{name:"View attendance"}).first().click(); await expect(page.getByText("Updated hall").first()).toBeVisible();
     await page.screenshot({path:`evidence/playwright/${process.env.PLAYWRIGHT_EVIDENCE_RUN}/screenshots/P40-events.png`,fullPage:true});
-    await page.getByLabel("Find approved member").fill(code); await page.getByRole("button",{name:"Search members"}).click();
-    const select=page.getByRole("combobox",{name:"Member"}); await select.fill(code); await page.getByRole("option",{name:new RegExp(code)}).click();
-    await page.getByRole("button",{name:"Record attendance"}).click(); await expect(page.getByRole("status")).toContainText("Attendance recorded"); await expect(page.getByText(new RegExp(`Event Member ${token}`))).toBeVisible();
+    await page.getByRole("button",{name:"Scan member QR"}).click();
+    await page.locator(`input[id^="attendance-member-code-"]`).fill(code);
+    await page.getByRole("button",{name:"Record attendance",exact:true}).click(); await expect(page.getByText(new RegExp(`Event Member ${token}`))).toBeVisible();
+    const attendanceExport=await context.request.get(`${api}/api/activities/${eventId}/attendance/export`); expect(attendanceExport.status()).toBe(200); expect(attendanceExport.headers()["content-type"]).toContain("spreadsheetml.sheet"); expect(attendanceExport.headers()["content-disposition"]).toContain(".xlsx"); expect((await attendanceExport.body()).subarray(0,2).toString()).toBe("PK");
     await page.screenshot({path:`evidence/playwright/${process.env.PLAYWRIGHT_EVIDENCE_RUN}/screenshots/P40-attendance.png`,fullPage:true});
     for(const width of [768,390]) { await page.setViewportSize({width,height:844}); await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true); }
     expect((await context.request.post(`${api}/api/activities/${eventId}/attendance`,{data:{memberId}})).status()).toBe(409);
@@ -47,8 +54,8 @@ test("P40 P41 scheduled event and recorded attendance drive member analytics wit
     const afterVoid=await context.request.post(`${api}/api/member-indicators/workspace/preview`,{data:input});expect(afterVoid.status()).toBe(200);
     const recalc=await context.request.post(`${api}/api/member-indicators/workspace/recalculate`,{data:{...input,confirmed:true,previewFingerprint:(await afterVoid.json()).data.previewFingerprint}});expect(recalc.status()).toBe(200);
     const [corrected]=await db.execute<RowDataPacket[]>("SELECT frequency_count FROM member_status_indicators WHERE member_id=? ORDER BY indicator_id DESC LIMIT 1",[memberId]);expect(Number(corrected[0].frequency_count)).toBe(0);
-    expect((await context.request.post(`${api}/api/activities/${eventId}/cancel`)).status()).toBe(200);
-    const [cancelled]=await db.execute<RowDataPacket[]>("SELECT activity_status,is_rfm_qualifying FROM cooperative_activities WHERE activity_id=?",[eventId]);expect(cancelled[0].activity_status).toBe("Cancelled");expect(Number(cancelled[0].is_rfm_qualifying)).toBe(0);
+    expect((await context.request.post(`${api}/api/activities/${eventId}/cancel`,{data:{reason:"Attendance test event has ended"}})).status()).toBe(200);
+    const [cancelled]=await db.execute<RowDataPacket[]>("SELECT activity_status,is_rfm_qualifying,cancellation_reason FROM cooperative_activities WHERE activity_id=?",[eventId]);expect(cancelled[0].activity_status).toBe("Cancelled");expect(Number(cancelled[0].is_rfm_qualifying)).toBe(0);expect(cancelled[0].cancellation_reason).toBe("Attendance test event has ended");
     const [status]=await db.execute<RowDataPacket[]>("SELECT official_member_status FROM member_profiles WHERE member_id=?",[memberId]);expect(status[0].official_member_status).toBe("Active");
   } finally {await db.end();await member.close();await bookkeeper.close();}
 });
