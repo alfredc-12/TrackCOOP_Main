@@ -42,6 +42,13 @@ function createPoolOptions(): PoolOptions {
 }
 
 export function getPool() {
+  if (process.env.NODE_TEST_CONTEXT) {
+    // Services may capture the pool during module initialization. Provide mockable
+    // methods which fail before any socket is opened if a test forgets to inject one.
+    const denied = async () => { throw new Error("Application database is unavailable in tests; inject a verified disposable database"); };
+    pool ??= { execute: denied, query: denied, getConnection: denied, end: async () => undefined } as unknown as Pool;
+    return pool;
+  }
   pool ??= mysql.createPool(createPoolOptions());
   return pool;
 }

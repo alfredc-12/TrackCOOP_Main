@@ -28,7 +28,7 @@ export class LocalStorageProvider implements StorageProvider {
   async put(input: PutObjectInput): Promise<StoredFile> {
     const absolute = this.absolutePath(input.key, input.visibility);
     await mkdir(path.dirname(absolute), { recursive: true });
-    await writeFile(absolute, input.body);
+    await writeFile(absolute, input.body, input.ifAbsent ? { flag: "wx" } : undefined);
     const key = normalizeObjectKey(input.key);
     return {
       key,
@@ -44,7 +44,7 @@ export class LocalStorageProvider implements StorageProvider {
     try {
       return await readFile(absolute);
     } catch (error) {
-      if (input.visibility === "protected") {
+      if (input.visibility === "protected" && !process.env.NODE_TEST_CONTEXT) {
         return readFile(this.legacyAbsolutePath(input.key));
       }
       throw error;
@@ -53,7 +53,7 @@ export class LocalStorageProvider implements StorageProvider {
 
   async delete(input: GetObjectInput): Promise<void> {
     await rm(this.absolutePath(input.key, input.visibility), { force: true });
-    if (input.visibility === "protected") {
+    if (input.visibility === "protected" && !process.env.NODE_TEST_CONTEXT) {
       await rm(this.legacyAbsolutePath(input.key), { force: true }).catch(() => undefined);
     }
   }
@@ -63,7 +63,7 @@ export class LocalStorageProvider implements StorageProvider {
       await access(this.absolutePath(input.key, input.visibility));
       return true;
     } catch {
-      if (input.visibility === "protected") {
+      if (input.visibility === "protected" && !process.env.NODE_TEST_CONTEXT) {
         try {
           await access(this.legacyAbsolutePath(input.key));
           return true;
