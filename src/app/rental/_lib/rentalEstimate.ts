@@ -1,4 +1,5 @@
-import type { RentalFeeEstimate, RentalService, RequesterType } from "../_types/rental";
+import { isTractorService, dailyWorkError, totalWorkHectares } from "./rentalHectares";
+import type { RentalDailyWork, RentalFeeEstimate, RentalService, RequesterType } from "../_types/rental";
 
 const MS_PER_DAY = 86_400_000;
 export const MEMBER_RENTAL_DISCOUNT_PERCENT = 5;
@@ -24,14 +25,20 @@ export function estimateRentalFee({
   requesterType,
   startDate,
   endDate,
+  dailyWork,
 }: {
-  service?: Pick<RentalService, "standardRate" | "memberRate" | "nonMemberRate">;
+  service?: Pick<RentalService, "standardRate" | "memberRate" | "nonMemberRate"> & Partial<Pick<RentalService, "name" | "category" | "serviceId">>;
   requesterType: RequesterType;
   startDate: string;
   endDate: string;
+  dailyWork?: RentalDailyWork[];
 }): RentalFeeEstimate | undefined {
   const days = getInclusiveRentalDays(startDate, endDate);
   if (!service || !days) return undefined;
+
+  const perHectare = isTractorService(service);
+  if (perHectare && dailyWorkError(dailyWork, startDate, endDate)) return undefined;
+  const totalHectares = perHectare ? totalWorkHectares(dailyWork) : undefined;
 
   const originalDailyRate = service.standardRate ?? undefined;
   if (
@@ -51,14 +58,15 @@ export function estimateRentalFee({
   const dailyRate = roundMoney(originalDailyRate - discountAmount);
 
   return {
-    days,
+    ...(perHectare ? { pricingUnit: "hectare" as const, totalHectares } : {}),
+    days: perHectare ? dailyWork!.length : days,
     originalDailyRate,
     dailyRate,
     discountPercent,
     discountAmount,
     rateLabel:
       requesterType === "Member" ? "Member discounted rate" : "Regular rate",
-    total: roundMoney(days * dailyRate),
+    total: roundMoney((totalHectares ?? days) * dailyRate),
     currency: "PHP",
   };
 }

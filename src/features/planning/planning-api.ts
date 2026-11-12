@@ -99,7 +99,7 @@ export type SeasonalAnalytics = {
   };
   productionByCrop: Array<{ cropName: string; sector: string; quantityProduced: number; productionCost: number; records: number }>;
   financialByCategory: Array<{ categoryName: string; recordType: "Income" | "Expense"; amount: number; records: number }>;
-  monthlyTrend: Array<{ month: string; productionQuantity: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>;
+  monthlyTrend: Array<{ month: string; productionQuantity: number; productionCost: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>;
 };
 
 export function listBudgets(status?: BudgetStatus) {
@@ -134,9 +134,12 @@ export function updateSeasonStatus(id: string, action: "activate" | "close") {
   return apiRequest<Season>(`/api/seasons/${encodeURIComponent(id)}/status`, { method: "POST", body: JSON.stringify({ action }) });
 }
 
-export function listProductionRecords(seasonId?: string) {
+export function listProductionRecords(seasonId?: string, period?: { startDate?: string; endDate?: string }, status?: ProductionRecord["productionStatus"]) {
   const query = new URLSearchParams({ page: "1", pageSize: "100" });
   if (seasonId) query.set("seasonId", seasonId);
+  if (period?.startDate) query.set("startDate", period.startDate);
+  if (period?.endDate) query.set("endDate", period.endDate);
+  if (status) query.set("status", status);
   return apiRequest<ProductionRecord[]>(`/api/production-records?${query.toString()}`);
 }
 

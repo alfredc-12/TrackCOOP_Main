@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { PageHeader } from "@/components/portal/PageHeader";
+import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
 import {
   CurrencyDisplay,
   DataTable,
@@ -24,7 +24,6 @@ import {
   ErrorState,
   LoadingSkeleton,
   PaginationControls,
-  StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
@@ -274,9 +273,9 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
   const visiblePayments = payments;
 
   return (
-    <div className="grid gap-4">
-      <PageHeader eyebrow="Payments" title="Share Capital" description="Validated member capital progress, contribution limits, and payment records." actions={
-        <div className="flex items-center gap-2">
+    <div className="grid min-w-0 gap-4">
+      <PaymentWorkspaceHeader icon={WalletCards} title="Share Capital" description="Validated member capital progress, contribution limits, and payment records." actions={
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center [&>button]:justify-center">
           {role === "bookkeeper" ? <button
               onClick={() => { setFormError(""); setCreatedPaymentId(null); setIsAddOpen(true); }}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white transition hover:bg-[#1F6B43]"
@@ -288,11 +287,11 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
           <DividendManagementPanel role={role} />
         </div>
       } />
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Current Share Capital" value={isLoading ? "…" : error ? "—" : money(summary.currentBalance)} icon={WalletCards} />
-        <StatCard label="Pending Capital" value={isLoading ? "…" : error ? "—" : money(summary.pendingTotal)} icon={ListChecks} />
-        <StatCard label="Validated Payments" value={isLoading ? "…" : error ? "—" : String(summary.validatedPayments)} icon={BadgeCheck} />
-        <StatCard label="Members Holding Capital" value={isLoading ? "…" : error ? "—" : String(summary.capitalHolders)} icon={Banknote} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <PaymentSummaryCard label="Current Share Capital" value={isLoading ? "…" : error ? "—" : money(summary.currentBalance)} icon={WalletCards} />
+        <PaymentSummaryCard tone="gold" label="Pending Capital" value={isLoading ? "…" : error ? "—" : money(summary.pendingTotal)} icon={ListChecks} />
+        <PaymentSummaryCard label="Validated Payments" value={isLoading ? "…" : error ? "—" : String(summary.validatedPayments)} icon={BadgeCheck} />
+        <PaymentSummaryCard label="Members Holding Capital" value={isLoading ? "…" : error ? "—" : String(summary.capitalHolders)} icon={Banknote} />
       </div>
       <p className="text-xs text-[#5D6D63]">Totals cover all accounts and payments; filters apply to the list.</p>
       <Toolbar
@@ -318,12 +317,13 @@ function BookkeeperShareCapitalView({ role }: { role: "chairman" | "bookkeeper" 
         )}
       />
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1"><h2 className="flex items-center gap-2 text-base font-bold text-coop-forest"><WalletCards className="size-4 text-coop-green" aria-hidden="true" />Capital contributions</h2><p className="text-xs text-coop-muted">Member payments and contribution history</p></div>
       {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? (
         <EmptyState icon={WalletCards} title="No share capital payments found" description="Share capital payments will appear here once recorded." />
       ) : (
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
-            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+            <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]">
               <tr><th className="px-5 py-4 text-left">Member</th><th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Payment method</th><th className="px-5 py-4 text-center">Reference number</th><th className="px-5 py-4 text-center">Status</th><th className="px-5 py-4 text-center">Payment date</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
@@ -566,13 +566,13 @@ export function FinancialLedgerView({
   const visibleRecords = records.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="grid gap-4">
-      <PageHeader eyebrow="Finance" title={title} description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Income" value={money(summary.incomeTotal)} icon={Landmark} />
-        <StatCard label="Expenses" value={money(summary.expenseTotal)} icon={ReceiptText} />
-        <StatCard label="Net" value={money(summary.netTotal)} icon={Banknote} />
-        <StatCard label="Active Records" value={String(summary.activeRecords)} icon={ListChecks} />
+    <div className="grid min-w-0 gap-4">
+      <PaymentWorkspaceHeader eyebrow="Finance · Money records" icon={Landmark} title={title} description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <PaymentSummaryCard label="Income" value={money(summary.incomeTotal)} icon={Landmark} />
+        <PaymentSummaryCard tone="gold" label="Expenses" value={money(summary.expenseTotal)} icon={ReceiptText} />
+        <PaymentSummaryCard label="Net" value={money(summary.netTotal)} icon={Banknote} />
+        <PaymentSummaryCard label="Active Records" value={String(summary.activeRecords)} icon={ListChecks} />
       </div>
       {hasLedgerFilters(filters) ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CAD8CB] bg-[#EAF3E8] p-4 text-sm text-[#294B39]" role="status">
@@ -585,12 +585,13 @@ export function FinancialLedgerView({
       ) : fromAnalytics ? <a className="w-fit text-sm font-bold text-[#1F6B43] underline underline-offset-4" href="/portal/chairman/financial-dashboard">Back to Financial Analytics</a> : null}
       <Toolbar search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onRefresh={() => void load()} refreshing={isLoading} label="ledger" />
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      <h2 className="flex items-center gap-2 px-1 text-base font-bold text-coop-forest"><Landmark className="size-4 text-coop-green" aria-hidden="true" />Transaction history</h2>
       {isLoading ? <LoadingSkeleton /> : records.length === 0 ? (
         <EmptyState icon={Landmark} title="No financial records found" description="Ledger entries will appear here once posted or recorded by the bookkeeper." />
       ) : (
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
-            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+            <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]">
               <tr><th className="px-5 py-4 text-left">Record</th><th className="px-5 py-4 text-left">Category</th><th className="px-5 py-4 text-center">Type</th><th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
@@ -612,7 +613,7 @@ export function FinancialLedgerView({
   );
 }
 
-export function FinancialCategoriesView() {
+export function FinancialCategoriesView({ title = "Financial Categories" }: { title?: string } = {}) {
   const [categories, setCategories] = useState<FinancialCategory[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -640,9 +641,15 @@ export function FinancialCategoriesView() {
   const visibleCategories = categories.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="grid gap-4">
-      <PageHeader eyebrow="Finance" title="Financial Categories" description="Reusable income and expense categories for ledger organization." />
-      <div className="flex flex-wrap items-center justify-end gap-3 rounded-lg border border-[#CAD8CB] bg-white p-3">
+    <div className="grid min-w-0 gap-4">
+      <PaymentWorkspaceHeader eyebrow="Finance · Categories" icon={ListChecks} title={title} description="Keep income and expense records organized with consistent categories." />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <PaymentSummaryCard label="Income types" value={isLoading ? "…" : String(categories.filter((category) => category.categoryType === "Income").length)} icon={Landmark} />
+        <PaymentSummaryCard tone="gold" label="Expense types" value={isLoading ? "…" : String(categories.filter((category) => category.categoryType === "Expense").length)} icon={ReceiptText} />
+        <PaymentSummaryCard tone="sage" label="Active categories" value={isLoading ? "…" : String(categories.filter((category) => category.isActive).length)} icon={ListChecks} />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-coop-border bg-coop-surface p-3">
+        <h2 className="flex items-center gap-2 text-base font-bold text-coop-forest"><ListChecks className="size-4 text-coop-green" aria-hidden="true" />Category directory</h2>
         <button type="button" onClick={() => void load()} disabled={isLoading} aria-busy={isLoading} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#CAD8CB] bg-white px-4 text-sm font-bold text-[#123D2A] hover:bg-[#EEF2EC] disabled:cursor-wait disabled:opacity-60">
           <RefreshCcw className={`size-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />{isLoading ? "Loading..." : "Refresh"}
         </button>
@@ -653,7 +660,7 @@ export function FinancialCategoriesView() {
       ) : (
         <DataTable>
           <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
-            <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+            <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]">
               <tr><th className="px-5 py-4 text-left">Code</th><th className="px-5 py-4 text-left">Name</th><th className="px-5 py-4 text-center">Type</th><th className="px-5 py-4 text-center">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">

@@ -115,6 +115,8 @@ function periodClause(alias: string, query: { startDate?: string; endDate?: stri
   return { sql: clauses.length ? `AND ${clauses.join(" AND ")}` : "", values };
 }
 
+const harvestedProductionCondition = "production_status = 'Harvested' AND harvest_date IS NOT NULL";
+
 async function getSeason(connection: Pool | PoolConnection, id: string) {
   const [rows] = await connection.execute<SeasonRow[]>(
     `SELECT CAST(s.season_id AS CHAR) AS id,
@@ -128,7 +130,7 @@ async function getSeason(connection: Pool | PoolConnection, id: string) {
             CAST(s.created_by AS CHAR) AS createdBy,
             s.created_at AS createdAt,
             s.updated_at AS updatedAt,
-            (SELECT COUNT(*) FROM production_records pr WHERE pr.season_id = s.season_id AND pr.production_status <> 'Cancelled') AS productionRecordCount
+            (SELECT COUNT(*) FROM production_records pr WHERE pr.season_id = s.season_id AND pr.production_status = 'Harvested' AND pr.harvest_date BETWEEN s.start_date AND s.end_date) AS productionRecordCount
        FROM seasons s
       WHERE s.season_id = ?
       LIMIT 1`,
@@ -165,7 +167,7 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
                 CAST(s.created_by AS CHAR) AS createdBy,
                 s.created_at AS createdAt,
                 s.updated_at AS updatedAt,
-                (SELECT COUNT(*) FROM production_records pr WHERE pr.season_id = s.season_id AND pr.production_status <> 'Cancelled') AS productionRecordCount
+                (SELECT COUNT(*) FROM production_records pr WHERE pr.season_id = s.season_id AND pr.production_status = 'Harvested' AND pr.harvest_date BETWEEN s.start_date AND s.end_date) AS productionRecordCount
            FROM seasons s
            ${where.sql}
           ORDER BY s.start_date DESC, s.season_id DESC
@@ -223,6 +225,12 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
       const values: Array<string | number> = [];
       if (query.seasonId) { where.push("pr.season_id = ?"); values.push(query.seasonId); }
       if (query.status) { where.push("pr.production_status = ?"); values.push(query.status); }
+      if (query.status === "Harvested") where.push("pr.harvest_date BETWEEN s.start_date AND s.end_date");
+      const productionPeriod = periodClause(query.status === "Harvested" ? "pr.harvest_date" : "COALESCE(pr.harvest_date, DATE(pr.created_at))", query);
+      if (productionPeriod.sql) {
+        where.push(productionPeriod.sql.replace(/^AND /, ""));
+        values.push(...productionPeriod.values);
+      }
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
       const offset = (query.page - 1) * query.pageSize;
       const [rows] = await databasePool().execute<ProductionRow[]>(
@@ -253,7 +261,13 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
           ${limitOffsetSql(query.pageSize, offset)}`,
         values,
       );
-      const [countRows] = await databasePool().execute<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM production_records pr ${whereSql}`, values);
+      const [countRows] = await databasePool().execute<RowDataPacket[]>(
+        `SELECT COUNT(*) AS total
+           FROM production_records pr
+           JOIN seasons s ON s.season_id = pr.season_id
+           ${whereSql}`,
+        values,
+      );
       return { records: rows.map(mapProduction), total: numberValue(countRows[0]?.total), page: query.page, pageSize: query.pageSize };
     },
 
@@ -262,6 +276,10 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
       return withTransaction(async (connection) => {
         const season = await getSeason(connection, input.seasonId);
         if (!season) throw new AppError("Season was not found", 404, "SEASON_NOT_FOUND");
+        if (!input.harvestDate) throw new AppError("Harvest date is required for production records.", 400, "HARVEST_DATE_REQUIRED");
+        if (input.harvestDate < season.startDate || input.harvestDate > season.endDate) {
+          throw new AppError("Harvest date must fall within the selected season.", 400, "HARVEST_DATE_OUTSIDE_SEASON");
+        }
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO production_records
              (season_id, member_id, barangay, sector, crop_name, area_planted, area_unit,
@@ -310,8 +328,8 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
     async analytics(query) {
       const selectedSeason = query.seasonId ? await getSeason(databasePool(), query.seasonId) : null;
       if (query.seasonId && !selectedSeason) throw new AppError("Season was not found", 404, "SEASON_NOT_FOUND");
-      const seasonFilter = query.seasonId ? "AND season_id = ?" : "";
-      const seasonParams = query.seasonId ? [query.seasonId] : [];
+      const seasonFilter = query.seasonId && selectedSeason ? "AND season_id = ? AND harvest_date BETWEEN ? AND ?" : "";
+      const seasonParams = query.seasonId && selectedSeason ? [query.seasonId, selectedSeason.startDate, selectedSeason.endDate] : [];
       const salesSeasonFilter = query.seasonId && selectedSeason
         ? "AND (pos_sales.season_id = ? OR (pos_sales.season_id IS NULL AND DATE(pos_sales.sale_date) BETWEEN ? AND ?))"
         : "";
@@ -320,7 +338,7 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
         ? "AND (fr.season_id = ? OR (fr.season_id IS NULL AND DATE(fr.record_date) BETWEEN ? AND ?))"
         : "";
       const financeSeasonParams = query.seasonId && selectedSeason ? [query.seasonId, selectedSeason.startDate, selectedSeason.endDate] : [];
-      const productionPeriod = periodClause("COALESCE(harvest_date, DATE(created_at))", query);
+      const productionPeriod = periodClause("harvest_date", query);
       const salesPeriod = periodClause("DATE(sale_date)", query);
       const financePeriod = periodClause("record_date", query);
       const postedIncomeCondition = `fr.source_module <> 'Share Capital'
@@ -330,7 +348,7 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
         `SELECT COALESCE(SUM(quantity_produced), 0) AS productionQuantity,
                 COALESCE(SUM(production_cost), 0) AS productionCost
            FROM production_records
-          WHERE production_status IN ('Recorded', 'Verified', 'Harvested') ${seasonFilter} ${productionPeriod.sql}`,
+          WHERE ${harvestedProductionCondition} ${seasonFilter} ${productionPeriod.sql}`,
         [...seasonParams, ...productionPeriod.values],
       );
       const [salesSummary] = await databasePool().execute<RowDataPacket[]>(
@@ -359,7 +377,7 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
                 COALESCE(SUM(production_cost), 0) AS productionCost,
                 COUNT(*) AS records
            FROM production_records
-          WHERE production_status IN ('Recorded', 'Verified', 'Harvested') ${seasonFilter} ${productionPeriod.sql}
+          WHERE ${harvestedProductionCondition} ${seasonFilter} ${productionPeriod.sql}
           GROUP BY crop_name, sector
           ORDER BY quantityProduced DESC, cropName ASC`,
         [...seasonParams, ...productionPeriod.values],
@@ -381,10 +399,11 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
         [...financeSeasonParams, ...financePeriod.values],
       );
       const [productionTrend] = await databasePool().execute<RowDataPacket[]>(
-        `SELECT DATE_FORMAT(COALESCE(harvest_date, DATE(created_at)), '%Y-%m') AS month,
-                COALESCE(SUM(quantity_produced), 0) AS productionQuantity
+        `SELECT DATE_FORMAT(harvest_date, '%Y-%m') AS month,
+                COALESCE(SUM(quantity_produced), 0) AS productionQuantity,
+                COALESCE(SUM(production_cost), 0) AS productionCost
            FROM production_records
-          WHERE production_status IN ('Recorded', 'Verified', 'Harvested') ${seasonFilter} ${productionPeriod.sql}
+          WHERE ${harvestedProductionCondition} ${seasonFilter} ${productionPeriod.sql}
           GROUP BY month ORDER BY month ASC`,
         [...seasonParams, ...productionPeriod.values],
       );
@@ -402,13 +421,17 @@ export function createSeasonRepository(pool?: Pool): SeasonRepository {
           GROUP BY month ORDER BY month ASC`,
         [...financeSeasonParams, ...financePeriod.values],
       );
-      const trendMap = new Map<string, { month: string; productionQuantity: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>();
+      const trendMap = new Map<string, { month: string; productionQuantity: number; productionCost: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>();
       const ensureMonth = (month: string) => {
-        const current = trendMap.get(month) ?? { month, productionQuantity: 0, salesTotal: 0, incomeTotal: 0, expenseTotal: 0, netResult: 0 };
+        const current = trendMap.get(month) ?? { month, productionQuantity: 0, productionCost: 0, salesTotal: 0, incomeTotal: 0, expenseTotal: 0, netResult: 0 };
         trendMap.set(month, current);
         return current;
       };
-      for (const row of productionTrend) ensureMonth(String(row.month)).productionQuantity += numberValue(row.productionQuantity);
+      for (const row of productionTrend) {
+        const item = ensureMonth(String(row.month));
+        item.productionQuantity += numberValue(row.productionQuantity);
+        item.productionCost += numberValue(row.productionCost);
+      }
       for (const row of financeTrend) {
         const item = ensureMonth(String(row.month));
         item.salesTotal += numberValue(row.salesTotal);

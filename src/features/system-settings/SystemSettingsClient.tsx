@@ -12,6 +12,8 @@ import {
   Info,
   LockKeyhole,
   WalletCards,
+  Sprout,
+  HandCoins,
 } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -28,10 +30,12 @@ import {
   type SettingsCatalog,
   type DraftValues,
 } from "./settings-client";
+import { HighValueCropsGuide } from "@/features/crops/HighValueCropsGuide";
 import styles from "./SystemPages.module.css";
 const icons = {
   membership: UsersRound,
   share_capital: WalletCards,
+  patronage: HandCoins,
   referrals: Gift,
   indicators: Activity,
   inventory: Boxes,
@@ -75,6 +79,11 @@ export function SystemSettingsClient() {
   }, [revision]);
   const data = resource.data,
     loading = resource.revision !== revision;
+  const configuredHighValueCrops = Array.isArray(draft["inventory.high_value_crops"])
+    ? draft["inventory.high_value_crops"].filter(
+        (value): value is string => typeof value === "string",
+      )
+    : undefined;
   const changed =
       data?.settings.filter(
         (s) =>
@@ -278,6 +287,7 @@ export function SystemSettingsClient() {
                         "thresholds",
                         "labels",
                         "statuses",
+                        "crop_list",
                       ].includes(s.kind)}
                     >
                       <div>
@@ -306,7 +316,9 @@ export function SystemSettingsClient() {
                             ? "The saved value is invalid or withheld. Review the proposed values before explicitly saving."
                             : s.kind === "thresholds"
                               ? "Configured score ranges"
-                              : describeValue(s.value)}
+                              : s.kind === "crop_list"
+                                ? "Configured reference crop names"
+                                : describeValue(s.value)}
                         </p>
                         {changed.some((v) => v.key === s.key) && (
                           <span className={styles.pending}>Unsaved change</span>
@@ -359,6 +371,31 @@ export function SystemSettingsClient() {
               </Tabs.Content>
             ))}
           </Tabs.Root>
+          <section className={styles.panel}>
+            <div className={styles.toolbar}>
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-coop-control bg-coop-subtle text-coop-green">
+                  <Sprout className="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2>Crop classification</h2>
+                  <p className={styles.hint}>
+                    Review the cooperative reference used to identify
+                    High-Value Crops in Inventory and Seasonal Analytics.
+                  </p>
+                </div>
+              </div>
+              <HighValueCropsGuide
+                cropNames={configuredHighValueCrops}
+                onEdit={() => setCategory("inventory")}
+                trigger={
+                  <Button type="button" variant="secondary">
+                    View High-Value Crops guide
+                  </Button>
+                }
+              />
+            </div>
+          </section>
           <details className={styles.technical}>
             <summary>
               <Settings2 className="mr-2 inline size-4" aria-hidden="true" />

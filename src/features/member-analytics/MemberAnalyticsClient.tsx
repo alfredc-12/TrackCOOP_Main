@@ -1,6 +1,6 @@
 "use client";
 import { MonthlyCapitalCompletion } from "@/features/membership/MonthlyCapitalCompletion";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -30,7 +30,9 @@ function InsightRow({ insight, tone, action }: { insight: AnalyticsResult["insig
 }
 export function MemberAnalyticsClient({ today }: { today: string }) {
   const params = useSearchParams();
-  return <AnalyticsWorkspace key={params.toString()} today={today} initial={filtersFromParams(new URLSearchParams(params.toString()), today)} />;
+  const key = params.toString();
+  const applied = useMemo(() => filtersFromParams(new URLSearchParams(key), today), [key, today]);
+  return <AnalyticsWorkspace today={today} initial={applied} />;
 }
 function AnalyticsWorkspace({ today, initial }: { today: string; initial: AnalyticsFilters }) {
   const router = useRouter(), pathname = usePathname();
@@ -43,10 +45,12 @@ function AnalyticsWorkspace({ today, initial }: { today: string; initial: Analyt
   const [interval, setInterval] = useState("Monthly");
   const [mapHighlight, setMapHighlight] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
-  const [applied] = useState(initial);
+  const applied = initial;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const pendingFilterApply = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
-    getMemberAnalytics(applied, controller.signal).then(report => { if (!controller.signal.aborted) { setData(report); setError(""); } }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Analytics could not be loaded."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    getMemberAnalytics(applied, controller.signal).then(report => { if (!controller.signal.aborted) { setData(report); setError(""); if (pendingFilterApply.current) { setFiltersOpen(false); pendingFilterApply.current = false; } } }).catch(e => { if (!controller.signal.aborted) { pendingFilterApply.current = false; setError(e instanceof Error ? e.message : "Analytics could not be loaded."); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [applied, refresh]);
   const open = (kind: Exclude<AnalyticsOverlay, null>["kind"], element: HTMLElement, value?: string) => { returnFocus.current = element; setOverlay({ kind, value }); };
@@ -70,7 +74,12 @@ function AnalyticsWorkspace({ today, initial }: { today: string; initial: Analyt
   ] : [];
   return <div className={styles.dashboard}>
     <PageHeader eyebrow="Chairman · Member analytics" title="Member analytics" description="Growth, participation and capital health from recorded cooperative activity." actions={<><Button variant="secondary" size="sm" disabled={loading} onClick={() => { setLoading(true); setRefresh(v => v + 1); }}><RefreshCw className="size-4" aria-hidden="true" />Refresh</Button><Button variant="secondary" size="sm" disabled={!data || loading} loading={exporting} onClick={() => void exportReport()}><Download className="size-4" aria-hidden="true" />Export Excel</Button></>} />
-    <AnalyticsFilterForm applied={applied} today={today} barangays={data?.options.barangays ?? []} loading={loading} onApply={next => router.push(`${pathname}?${analyticsParams(next)}`, { scroll: false })} />
+    <AnalyticsFilterForm key={analyticsParams(applied).toString()} applied={applied} summaryFilters={data?.filters ?? applied} expanded={filtersOpen} onExpandedChange={setFiltersOpen} today={today} barangays={data?.options.barangays ?? []} loading={loading} onApply={next => {
+      pendingFilterApply.current = true; setLoading(true);
+      const query = analyticsParams(next).toString();
+      if (query === analyticsParams(applied).toString()) setRefresh(value => value + 1);
+      else router.push(`${pathname}?${query}`, { scroll: false });
+    }} />
     {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{error}</p><Button variant="secondary" size="sm" onClick={() => { setLoading(true); setRefresh(v => v + 1); }}>Retry analytics</Button></div>}
     {loading && <p role="status" className={styles.notice}>Loading filtered analytics…</p>}
     {data && <>

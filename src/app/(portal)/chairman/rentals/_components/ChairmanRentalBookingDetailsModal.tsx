@@ -1,4 +1,5 @@
 "use client";
+import { RentalPaymentNotice } from "@/app/rental/_components/RentalPaymentNotice";
 
 
 import {
@@ -19,10 +20,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
+import { TractorWorkPlan, TractorWorkSummary } from "@/app/rental/_components/TractorWorkPlan";
+import { isTractorService, TRACTOR_SCHEDULE_DEFAULTS, dailyWorkError, totalWorkHectares, shiftDailyWork } from "@/app/rental/_lib/rentalHectares";
 import { rentalScheduleSchema } from "@/app/rental/_lib/rentalValidation";
 import {
   type EquipmentAvailability,
   type RentalInquiry,
+  type RentalDailyWork,
   type RentalSchedule,
   type RentalService,
   type RentalStatus,
@@ -53,6 +57,7 @@ type ReviewDraft = {
 };
 
 type ScheduleDraft = {
+  dailyWork?: RentalDailyWork[];
   serviceId: string;
   date: string;
   endDate: string;
@@ -120,7 +125,9 @@ function defaultPublicResponse(
     return "Your rental inquiry is now under review by NFFAC.";
   }
   if (action.id === "approve-scheduling") {
-    return "Your rental inquiry is approved for scheduling. NFFAC will send the proposed date and time after checking availability.";
+    return isTractorService({ name: inquiry.equipmentName, serviceId: inquiry.serviceId })
+      ? "Your rental inquiry is approved for scheduling. NFFAC will confirm the work dates, hectares, and assigned operator."
+      : "Your rental inquiry is approved for scheduling. NFFAC will send the proposed date and time after checking availability.";
   }
   if (action.id === "mark-in-progress") {
     return `Your ${inquiry.equipmentName} rental is now in progress.`;
@@ -146,13 +153,13 @@ function rentalEstimateDetails(inquiry: RentalInquiry) {
     estimate.dailyRate + (estimate.discountAmount ?? 0);
   const discount =
     estimate.discountPercent && estimate.discountAmount
-      ? `${estimate.discountPercent}% off (${formatPeso(estimate.discountAmount)} per day)`
+      ? `${estimate.discountPercent}% off (${formatPeso(estimate.discountAmount)} per ${estimate.pricingUnit === "hectare" ? "hectare" : "day"})`
       : "None";
 
   return {
-    originalRate: formatPeso(originalDailyRate),
+    originalRate: `${formatPeso(originalDailyRate)} per ${estimate.pricingUnit === "hectare" ? "hectare" : "day"}`,
     discount,
-    finalAmount: `${formatPeso(estimate.total)} estimated (${estimate.days} day${estimate.days === 1 ? "" : "s"} x ${formatPeso(estimate.dailyRate)})`,
+    finalAmount: `${formatPeso(estimate.total)} estimated (${estimate.pricingUnit === "hectare" ? `${estimate.totalHectares} hectares` : `${estimate.days} day${estimate.days === 1 ? "" : "s"}`} x ${formatPeso(estimate.dailyRate)})`,
   };
 }
 
@@ -190,6 +197,8 @@ export function ChairmanRentalBookingDetailsModal({
     { kind: "review" | "schedule"; title: string; description: string } | undefined
   >();
   const [saving, setSaving] = useState(false);
+  const tractorBooking = isTractorService({ name: inquiry?.equipmentName, serviceId: inquiry?.serviceId });
+  const NotesContainer = tractorBooking ? "details" : "div";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -221,6 +230,7 @@ export function ChairmanRentalBookingDetailsModal({
         internalNote: nextInquiry.internalNote ?? "",
       });
       setScheduleDraft({
+        dailyWork: shiftDailyWork(nextSchedule?.dailyWork ?? nextInquiry.dailyWork, nextSchedule?.date ?? nextInquiry.preferredDate, nextInquiry.status === "Rescheduled" && nextInquiry.rescheduleRequest?.status === "Pending" ? nextInquiry.rescheduleRequest.requestedDate : nextSchedule?.date ?? nextInquiry.preferredDate),
         serviceId: nextSchedule?.serviceId ?? nextInquiry.serviceId,
         date:
           nextInquiry.status === "Rescheduled" &&
@@ -272,7 +282,7 @@ export function ChairmanRentalBookingDetailsModal({
   const chairmanActions = useMemo(
     () =>
       inquiry
-        ? getChairmanRentalActions(inquiry.status, schedule?.status)
+        ? getChairmanRentalActions(inquiry.status, schedule?.status, inquiry.paymentStatus)
         : [],
     [inquiry, schedule?.status],
   );
@@ -332,7 +342,7 @@ export function ChairmanRentalBookingDetailsModal({
     key: K,
     value: ScheduleDraft[K],
   ) {
-    setScheduleDraft((current) => current ? { ...current, [key]: value } : current);
+    setScheduleDraft((current) => current ? { ...current, ...(key === "date" ? { dailyWork: shiftDailyWork(current.dailyWork, current.date, String(value)) } : {}), [key]: value } : current);
     setConflict(undefined);
     setScheduleErrors((current) => {
       const next = { ...current };
@@ -345,6 +355,7 @@ export function ChairmanRentalBookingDetailsModal({
     if (!inquiry || !scheduleDraft) return false;
     const result = rentalScheduleSchema.safeParse({
       ...scheduleDraft,
+      ...(tractorBooking ? TRACTOR_SCHEDULE_DEFAULTS : {}),
       rentalId: inquiry.rentalId,
     });
     const nextErrors: Record<string, string> = {};
@@ -355,9 +366,14 @@ export function ChairmanRentalBookingDetailsModal({
       }
     }
     const selectedAsset = services.find((item) => item.serviceId === scheduleDraft.serviceId);
-    const operatorRequired = selectedAsset?.operatorRequirement &&
+    if (isTractorService(selectedAsset) && inquiry.dailyWork) {
+      const issue = dailyWorkError(scheduleDraft.dailyWork, scheduleDraft.date, scheduleDraft.endDate);
+      if (issue) nextErrors.dailyWork = issue;
+      else if (totalWorkHectares(scheduleDraft.dailyWork) !== totalWorkHectares(inquiry.dailyWork)) nextErrors.dailyWork = "Keep the paid total hectares unchanged.";
+    }
+    const operatorRequired = tractorBooking || selectedAsset?.operatorRequirement &&
       !/not required|self[- ]?operated/i.test(selectedAsset.operatorRequirement);
-    if (scheduleDraft.status === "Confirmed" && operatorRequired && !scheduleDraft.assignedOperator.trim()) {
+    if (scheduleDraft.status === "Confirmed" && operatorRequired && (!scheduleDraft.assignedOperator.trim() || (tractorBooking && scheduleDraft.assignedOperator === "Chairman to assign"))) {
       nextErrors.assignedOperator = "Assign an operator before confirming the schedule.";
     }
     setScheduleErrors(nextErrors);
@@ -381,6 +397,7 @@ export function ChairmanRentalBookingDetailsModal({
             ?.name ?? inquiry.equipmentName,
         requesterName: inquiry.requester.fullName,
         requesterType: inquiry.requester.requesterType,
+        dailyWork: scheduleDraft.dailyWork,
         date: scheduleDraft.date,
         endDate: scheduleDraft.endDate,
         startTime: scheduleDraft.startTime,
@@ -393,6 +410,7 @@ export function ChairmanRentalBookingDetailsModal({
         bufferMinutes: scheduleDraft.bufferMinutes,
         specialInstructions: scheduleDraft.specialInstructions || undefined,
         customerInstructions: scheduleDraft.customerInstructions || undefined,
+        ...(tractorBooking ? TRACTOR_SCHEDULE_DEFAULTS : {}),
       });
       setConflict(result);
       if (result.hasConflict) toast.error("A scheduling conflict was found.");
@@ -455,6 +473,7 @@ export function ChairmanRentalBookingDetailsModal({
         equipmentName: equipment,
         requesterName: inquiry.requester.fullName,
         requesterType: inquiry.requester.requesterType,
+        dailyWork: scheduleDraft.dailyWork,
         date: scheduleDraft.date,
         endDate: scheduleDraft.endDate,
         startTime: scheduleDraft.startTime,
@@ -467,6 +486,7 @@ export function ChairmanRentalBookingDetailsModal({
         bufferMinutes: scheduleDraft.bufferMinutes,
         specialInstructions: scheduleDraft.specialInstructions || undefined,
         customerInstructions: scheduleDraft.customerInstructions || undefined,
+        ...(tractorBooking ? TRACTOR_SCHEDULE_DEFAULTS : {}),
         status: scheduleDraft.status,
         paymentStatus: inquiry.paymentStatus,
       };
@@ -587,6 +607,7 @@ export function ChairmanRentalBookingDetailsModal({
         <StatusBadge tone={tone(availability?.status ?? "")}>
           Asset: {availability?.status ?? "Unknown"}
         </StatusBadge>
+        <RentalPaymentNotice inquiry={inquiry} />
       </section>
 
       {activeTab === "Actions" && (
@@ -636,7 +657,7 @@ export function ChairmanRentalBookingDetailsModal({
                       : "text-[#5D6D63]"
                   }`}
                 >
-                  {action.description}
+                  {tractorBooking && action.kind === "schedule" ? "Review hectares, optionally assign AM/PM for each date, and choose the operator." : action.description}
                 </span>
               </button>
             ))}
@@ -729,6 +750,7 @@ export function ChairmanRentalBookingDetailsModal({
               ["Notes or purpose", inquiry.requestDescription || inquiry.intendedUse],
             ]}
           />
+          <TractorWorkSummary value={schedule?.dailyWork ?? inquiry.dailyWork} />
           {inquiry.validId ? (
             <a
               href={rentalApiRepository.getRentalValidIdUrl(inquiry.inquiryId)}
@@ -812,7 +834,7 @@ export function ChairmanRentalBookingDetailsModal({
               [
                 "Confirmed schedule",
                 schedule
-                  ? `${displayDateRange(schedule.date, schedule.endDate)} · ${schedule.startTime}–${schedule.endTime}`
+                  ? `${displayDateRange(schedule.date, schedule.endDate)}${tractorBooking ? "" : ` · ${schedule.startTime}–${schedule.endTime}`}`
                   : "Not scheduled",
               ],
             ]}
@@ -991,43 +1013,24 @@ export function ChairmanRentalBookingDetailsModal({
               : "Create rental schedule"
         }
         description={
-          activeAction?.kind === "schedule"
-            ? activeAction.description
-            : "The server checks persisted bookings, maintenance periods, asset state, buffers, travel, and preparation time."
+          tractorBooking
+            ? "Review hectares, optionally assign AM/PM for each date, and choose the operator. Maximum 5 hectares per tractor per day."
+            : activeAction?.kind === "schedule"
+              ? activeAction.description
+              : "The server checks persisted bookings, maintenance periods, asset state, buffers, travel, and preparation time."
         }
       >
         {scheduleDraft ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Rental asset">
-              <select
-                value={scheduleDraft.serviceId}
-                onChange={(event) => updateScheduleDraft("serviceId", event.target.value)}
-                className="h-11 rounded-md border border-[#CAD8CB] px-3"
-              >
-                {services
-                  .filter(
-                    (item) =>
-                      !["Archived", "Out of Service"].includes(
-                        item.operationalStatus,
-                      ),
-                  )
-                  .map((item) => (
-                    <option key={item.serviceId} value={item.serviceId}>
-                      {item.name}
-                    </option>
-                  ))}
-              </select>
+              {tractorBooking ? <p className="min-h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 py-2.5 text-sm font-semibold text-[#123D2A]">{inquiry?.equipmentName}</p> : <StyledSelect
+                value={services.find((item) => item.serviceId === scheduleDraft.serviceId)?.name ?? "Choose asset"}
+                options={services.filter((item) => !["Archived", "Out of Service"].includes(item.operationalStatus)).map((item) => item.name)}
+                onChange={(name) => updateScheduleDraft("serviceId", services.find((item) => item.name === name)?.serviceId ?? "")}
+              />}
             </FormField>
             <FormField label="Schedule status">
-              <select
-                value={scheduleDraft.status}
-                disabled={activeAction?.kind === "schedule"}
-                onChange={(event) => updateScheduleDraft("status", event.target.value as ScheduleStatus)}
-                className="h-11 rounded-md border border-[#CAD8CB] px-3 disabled:bg-[#F1F3EF] disabled:text-[#5D6D63]"
-              >
-                <option>Awaiting Confirmation</option>
-                <option>Confirmed</option>
-              </select>
+              {tractorBooking ? <p className="min-h-11 rounded-md border border-[#CAD8CB] bg-[#F7F8F3] px-3 py-2.5 text-sm font-semibold text-[#123D2A]">{scheduleDraft.status}</p> : <StyledSelect value={scheduleDraft.status} options={["Awaiting Confirmation", "Confirmed"]} disabled={activeAction?.kind === "schedule"} onChange={(status) => updateScheduleDraft("status", status as ScheduleStatus)} />}
             </FormField>
             <ScheduleInput
               label="Start date"
@@ -1044,7 +1047,9 @@ export function ChairmanRentalBookingDetailsModal({
               error={scheduleErrors.endDate}
               onChange={(endDate) => updateScheduleDraft("endDate", endDate)}
             />
-            <div className="grid grid-cols-2 gap-3">
+            {inquiry?.dailyWork && isTractorService(services.find((item) => item.serviceId === scheduleDraft.serviceId)) ? <div className="sm:col-span-2"><TractorWorkPlan allowShiftAssignment startDate={scheduleDraft.date} endDate={scheduleDraft.endDate} value={scheduleDraft.dailyWork} onChange={(work) => updateScheduleDraft("dailyWork", work)} error={scheduleErrors.dailyWork} /></div> : null}
+            {tractorBooking && !inquiry?.dailyWork ? <p className="text-sm text-[#5D6D63] sm:col-span-2">This existing booking has no hectare breakdown recorded. Its original reservation and amount are preserved.</p> : null}
+            {!tractorBooking ? <div className="grid grid-cols-2 gap-3">
               <ScheduleInput
                 label="Start"
                 type="time"
@@ -1059,7 +1064,8 @@ export function ChairmanRentalBookingDetailsModal({
                 error={scheduleErrors.endTime}
                 onChange={(endTime) => updateScheduleDraft("endTime", endTime)}
               />
-            </div>
+            </div> : null}
+            <div className={tractorBooking ? "sm:col-span-2" : undefined}>
             <FormField
               label="Assigned operator"
               required={scheduleDraft.status === "Confirmed"}
@@ -1073,7 +1079,7 @@ export function ChairmanRentalBookingDetailsModal({
                   !ASSIGNED_OPERATOR_OPTIONS.includes(scheduleDraft.assignedOperator)
                     ? [scheduleDraft.assignedOperator]
                     : []),
-                  ...ASSIGNED_OPERATOR_OPTIONS,
+                  ...ASSIGNED_OPERATOR_OPTIONS.filter((operator) => !tractorBooking || operator !== "Chairman to assign"),
                 ]}
                 onChange={(operator) =>
                   updateScheduleDraft(
@@ -1083,6 +1089,7 @@ export function ChairmanRentalBookingDetailsModal({
                 }
               />
             </FormField>
+            </div>
             <ScheduleInput
               label="Service location"
               value={scheduleDraft.serviceLocation}
@@ -1110,7 +1117,8 @@ export function ChairmanRentalBookingDetailsModal({
                 The customer reads this in their schedule email. Anything internal belongs in the staff-only field below.
               </p>
             </div>
-            <div className="sm:col-span-2">
+            <NotesContainer className="sm:col-span-2">
+              {tractorBooking ? <summary className="cursor-pointer py-2 text-sm font-bold text-[#123D2A]">Internal notes</summary> : null}
               <FormField label="Internal schedule instructions (staff only, never sent to the customer)">
                 <textarea
                   rows={3}
@@ -1120,7 +1128,7 @@ export function ChairmanRentalBookingDetailsModal({
                   className="rounded-md border border-[#CAD8CB] p-3"
                 />
               </FormField>
-            </div>
+            </NotesContainer>
             {conflict ? (
               <div
                 className={`sm:col-span-2 rounded-md border p-4 text-sm ${
@@ -1185,8 +1193,9 @@ export function ChairmanRentalBookingDetailsModal({
                       : schedule
                         ? "Update this rental schedule?"
                         : "Create this rental schedule?",
-                    description:
-                      "The server will re-check conflicts inside a database transaction before saving.",
+                    description: inquiry.paymentStatus === "Paid"
+                      ? "Save the selected dates, work plan and operator."
+                      : "Reserve the selected dates and operator. Payment will remain pending and must be verified before work starts.",
                   })
                 }
                 className="min-h-11 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white disabled:opacity-50"

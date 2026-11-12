@@ -750,3 +750,139 @@ div[role="dialog"].max-w-3xl:has(> .mt-5.space-y-5 > .grid) > .mt-5.space-y-5::-
     padding: 8px 12px;
   }
 }
+
+.seasonal-analytics-layout > .contents {
+  display: contents;
+}
+
+.seasonal-analytics-layout > .contents:first-child > :first-child {
+  grid-row: 3;
+}
+
+.seasonal-analytics-layout > .contents:first-child > :nth-child(2) {
+  grid-row: 1;
+}
+
+.seasonal-analytics-layout > .contents:nth-child(2) > :first-child {
+  grid-row: 2;
+}
+
+.seasonal-analytics-layout > .contents:nth-child(2) > :first-child {
+  height: auto;
+}
+
+.seasonal-analytics-layout > .contents:nth-child(2) > :first-child > :nth-child(2) {
+  flex: none;
+  overflow-y: visible;
+}
+
+.harvest-coverage-panel > div {
+  display: grid;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.harvest-coverage-panel > div > :first-child {
+  min-width: 0;
+}
+
+.harvest-coverage-panel > div > :first-child > :last-child {
+  min-width: 0;
+}
+
+.harvest-coverage-panel > div > :last-child {
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.harvest-coverage-panel > div > :last-child > div {
+  min-width: 0;
+  min-height: 4.75rem;
+  border: 1px solid #e1e9df;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.harvest-coverage-panel > div > :last-child > div > p:first-child {
+  min-height: 1.8rem;
+  line-height: 1.1;
+}
+
+.harvest-coverage-panel > div > :last-child > div > p:last-child {
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .archived-products-pagination > span {
+    white-space: nowrap;
+  }
+
+  .archived-products-pagination > div:nth-child(2) {
+    flex-wrap: nowrap;
+  }
+
+  .archived-products-pagination > div:nth-child(3) {
+    width: 9rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .harvest-coverage-panel > div {
+    grid-template-columns: minmax(0, 1.5fr) minmax(31rem, 1fr);
+  }
+
+  .harvest-coverage-panel > div > :last-child {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .harvest-coverage-panel > div > :last-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Keep ranked crop and production-record content readable at every width. */
+.seasonal-analytics-layout [class*="grid-cols-[1.5rem_1fr_auto]"],
+.seasonal-analytics-layout [class*="grid-cols-[1.5rem_minmax(0,1fr)_minmax(5rem,auto)]"] {
+  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(5rem, auto);
+  gap: 1rem;
+  padding-block: 1rem;
+}
+
+.seasonal-analytics-layout [class*="grid-cols-[1.5rem_1fr_auto]"] > :last-child,
+.seasonal-analytics-layout [class*="grid-cols-[1.5rem_minmax(0,1fr)_minmax(5rem,auto]"] > :last-child {
+  min-width: 5rem;
+  text-align: right;
+}
+
+.seasonal-analytics-layout > .contents:nth-child(2) > :first-child .grid.gap-2 > .rounded-md.border {
+  padding: 1rem;
+}
+
+.seasonal-analytics-layout > .contents:nth-child(2) > :first-child .grid.gap-2 > .rounded-md.border > :last-child {
+  min-width: 5.5rem;
+  text-align: right;
+}
+
+@media (min-width: 1280px) {
+  .seasonal-analytics-layout {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .seasonal-analytics-layout > .contents:first-child > :first-child {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .seasonal-analytics-layout > .contents:first-child > :nth-child(2) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .seasonal-analytics-layout > .contents:nth-child(2) > :first-child {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

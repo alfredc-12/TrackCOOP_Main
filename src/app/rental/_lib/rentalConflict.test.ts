@@ -4,11 +4,11 @@ import type { RentalSchedule, RentalService } from "../_types/rental";
 import { checkRentalScheduleConflict } from "./rentalConflict";
 
 const service: RentalService = {
-  serviceId: "RNT-TRACTOR-001",
-  name: "Farm Tractor",
+  serviceId: "RNT-PUMP-001",
+  name: "Irrigation Pump",
   category: "Farm Equipment",
-  shortDescription: "Cooperative farm tractor.",
-  description: "Cooperative farm tractor for approved agricultural use.",
+  shortDescription: "Cooperative irrigation pump.",
+  description: "Cooperative irrigation pump for approved agricultural use.",
   imageUrls: [],
   availability: "Available",
   operationalStatus: "Ready for Use",
@@ -95,14 +95,14 @@ test("allows an adjacent booking after the existing buffer", () => {
 test("blocks operator overlap even when the asset differs", () => {
   const result = checkRentalScheduleConflict(
     candidate({
-      serviceId: "RNT-PUMP-001",
+      serviceId: "RNT-OTHER-PUMP-001",
       equipmentName: "Water Pump",
       startTime: "09:30",
       endTime: "10:30",
       assignedOperator: "Operator A",
     }),
     [existing],
-    [{ ...service, serviceId: "RNT-PUMP-001", name: "Water Pump" }],
+    [{ ...service, serviceId: "RNT-OTHER-PUMP-001", name: "Water Pump" }],
   );
   assert.equal(result.hasConflict, true);
   assert.match(result.reasons[0] ?? "", /operator/i);

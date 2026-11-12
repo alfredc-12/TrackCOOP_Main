@@ -69,7 +69,23 @@ test("Chairman-only settings/history routes validate before persistence and expo
         403,
       );
   }
-  assert.equal(reads, 0);
+  for (role of ["chairman", "bookkeeper"]) {
+    const response = await request(app)
+      .get("/api/system-settings/high-value-crops")
+      .set("Cookie", "trackcoop_session=fixture");
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.data, []);
+  }
+  role = "member";
+  assert.equal(
+    (
+      await request(app)
+        .get("/api/system-settings/high-value-crops")
+        .set("Cookie", "trackcoop_session=fixture")
+    ).status,
+    403,
+  );
+  assert.equal(reads, 2);
   role = "chairman";
   const response = await request(app)
     .get("/api/audit-logs?page=2")

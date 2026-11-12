@@ -21,6 +21,7 @@
     "test:e2e": "playwright test",
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
+    "db:seed:seasons": "tsx server/src/scripts/seed-seasonal-analytics-sample.ts",
     "db:migrate:membership-upgrades": "tsx server/src/scripts/migrate-membership-upgrades.ts",
     "user:create-associate-test": "tsx server/src/scripts/create-associate-test-account.ts",
     "db:migrate:records": "tsx server/src/scripts/migrate-records.ts",

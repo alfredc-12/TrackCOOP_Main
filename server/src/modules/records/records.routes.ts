@@ -23,6 +23,8 @@ import {
 import {
   archiveGeneratedReport,
   generateReport,
+  getReportHomeData,
+  getCooperativeProgress,
   listGeneratedReports,
   recordReportAction,
   recordReportRegisterExport,
@@ -37,7 +39,6 @@ import type {
   DocumentAccessLevel,
   DocumentStatus,
   ReportFilterKey,
-  ReportFilterOptions,
   ReportFilters,
 } from "./records-types";
 
@@ -72,18 +73,6 @@ const filterKeys: ReportFilterKey[] = [
   "auditAction",
 ];
 
-const emptyReportFilterOptions: ReportFilterOptions = {
-  barangays: [],
-  sectors: [],
-  paymentMethods: [],
-  rentalAssets: [],
-  products: [],
-  productCategories: [],
-  documentCategories: [],
-  relatedModules: [],
-  users: [],
-  roles: [],
-};
 
 function metadata(request: Request): RequestMetadata {
   const forwarded = request.headers["x-forwarded-for"];
@@ -398,14 +387,15 @@ async function reportsHomeRoute(request: Request, response: Response) {
     const actor = user(request);
     const catalog = reportCatalogFor(actor);
     const summary = reportCatalogSummary(actor);
+    const home = await getReportHomeData(actor);
     response.json({
       catalog,
       summary: {
         ...summary,
-        generatedThisMonth: 0,
+        generatedThisMonth: home.generatedThisMonth,
       },
-      recent: [],
-      filterOptions: emptyReportFilterOptions,
+      recent: home.recent,
+      filterOptions: home.filterOptions,
     });
   } catch (error) {
     handleRecordsError(response, error);
@@ -621,6 +611,10 @@ export function createRecordsRouter(authService: AuthService = createAuthService
   router.get("/documents", ...allRoles, listDocumentsRoute);
   router.post("/documents", ...staff, upload.single("file"), uploadDocumentRoute);
 
+  router.get("/reports/progress", ...staff, async (request, response) => {
+    try { response.json(await getCooperativeProgress(reportFiltersFromQuery(request), user(request))); }
+    catch (error) { handleRecordsError(response, error); }
+  });
   router.get("/reports/history/export", ...staff, reportsHistoryExportRoute);
   router.get("/reports/history", ...staff, reportsHistoryRoute);
   router.post("/reports/generate/:reportType", ...staff, generateReportRoute);

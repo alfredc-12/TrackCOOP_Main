@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, Download, FileText, Plus, ReceiptText, RefreshCcw, TrendingDown } from "lucide-react";
+import { CalendarDays, Download, FileText, Plus, ReceiptText, RefreshCcw, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
-import { CurrencyDisplay, DataTable, ErrorState, LoadingSkeleton, StatCard, StatusBadge } from "@/components/portal/PortalPrimitives";
+import { CurrencyDisplay, DataTable, ErrorState, LoadingSkeleton, StatusBadge } from "@/components/portal/PortalPrimitives";
+import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { ApiClientError } from "@/lib/api-client";
 import {
   createOperatingExpense,
@@ -44,40 +46,7 @@ function formatDate(value: string) {
 }
 
 function ExpenseTypeSelect({ value, onChange }: { value: OperatingExpenseType; onChange: (value: OperatingExpenseType) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label="Select expense type"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none transition focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
-      >
-        <span className="truncate">{value}</span>
-        <ChevronDown className={`size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-      {open ? (
-        <div role="listbox" className="absolute z-40 mt-2 w-full overflow-hidden rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_14px_30px_rgba(18,61,42,0.18)]">
-          {operatingExpenseTypes.map((type) => (
-            <button
-              key={type}
-              type="button"
-              role="option"
-              aria-selected={type === value}
-              onClick={() => {
-                onChange(type);
-                setOpen(false);
-              }}
-              className={`w-full rounded px-3 py-2.5 text-left text-sm ${type === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+  return <StyledSelect value={value} options={operatingExpenseTypes} aria-label="Select expense type" onChange={(selected) => onChange(selected as OperatingExpenseType)} />;
 }
 
 export function OperatingExpensesView() {
@@ -185,13 +154,10 @@ export function OperatingExpensesView() {
   }
 
   return (
-    <section className="space-y-5 rounded-lg border border-[#CAD8CB] bg-[#FBFCF8] p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)] sm:p-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#D8A011]">Finance</p>
-          <h2 className="mt-2 text-2xl font-black text-[#123D2A]">Operating Expenses</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5D6D63]">Record cooperative operating costs and download the posted expense document for the selected period.</p>
-        </div>
+    <section className="grid min-w-0 gap-4">
+      <PaymentWorkspaceHeader eyebrow="Bookkeeper · Finance" title="Operating Expenses" icon={TrendingDown}
+        description="Record cooperative operating costs and download the posted expense document for the selected period." />
+      <div>
         <div className="rounded-lg border border-[#D9E2D8] bg-white p-3">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[11rem_11rem_auto_auto] xl:items-end">
             <label className="grid gap-1 text-xs font-bold uppercase text-[#5D6D63]">
@@ -214,26 +180,16 @@ export function OperatingExpensesView() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Operating Total" value={money(summary?.total ?? 0)} icon={TrendingDown} />
-        <StatCard label="Expense Records" value={String(summary?.count ?? 0)} icon={ReceiptText} />
-        <div className="min-w-0 rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.06)]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7A70]">Largest Type</p>
-              <p className="mt-1 break-words text-xl font-black leading-tight text-[#123D2A]">{topExpense.total > 0 ? topExpense.expenseType : "None"}</p>
-              <p className="mt-1 text-xs font-bold text-[#5D6D63]">{topExpense.total > 0 ? money(topExpense.total) : money(0)}</p>
-            </div>
-            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EEF2EC] text-[#1F6B43]">
-              <FileText className="size-5" aria-hidden="true" />
-            </span>
-          </div>
-        </div>
-        <StatCard label="Patronage Basis" value="Posted" icon={CalendarDays} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <PaymentSummaryCard tone="gold" label="Operating Total" value={money(summary?.total ?? 0)} icon={TrendingDown} />
+        <PaymentSummaryCard label="Expense Records" value={String(summary?.count ?? 0)} icon={ReceiptText} />
+        <PaymentSummaryCard tone="sage" label="Largest type" value={topExpense.total > 0 ? topExpense.expenseType : "None"} description={money(topExpense.total)} icon={FileText} valueClassName="break-words text-xl" />
+        <PaymentSummaryCard label="Patronage Basis" value="Posted" icon={CalendarDays} />
       </div>
 
-      <form onSubmit={submitExpense} className="rounded-lg border border-[#CAD8CB] bg-white p-4">
-        <div className={`grid gap-3 ${form.expenseType === "Other" ? "xl:grid-cols-[1.05fr_1.05fr_0.82fr_0.82fr_1.2fr_auto]" : "xl:grid-cols-[1.1fr_0.8fr_0.8fr_1.3fr_auto]"} xl:items-end`}>
+      <form onSubmit={submitExpense} className="rounded-2xl border border-coop-border bg-coop-surface p-4 shadow-coop-soft sm:p-5">
+        <div className="mb-4 border-b border-coop-border pb-3"><h2 className="flex items-center gap-2 text-base font-bold text-coop-forest"><Plus className="size-4 text-coop-green" aria-hidden="true" />Record an expense</h2><p className="mt-1 text-sm text-coop-muted">Enter the cost, payment date, and optional season.</p></div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:items-end">
           <label className="grid gap-2 text-sm font-bold text-[#294B39]">
             Expense type
             <ExpenseTypeSelect value={form.expenseType} onChange={(expenseType) => setForm((current) => ({ ...current, expenseType }))} />
@@ -250,10 +206,9 @@ export function OperatingExpensesView() {
           </label>
           <label className="grid gap-2 text-sm font-bold text-[#294B39]">
             Season
-            <select className={inputClass} value={form.seasonId} onChange={(event) => setForm((current) => ({ ...current, seasonId: event.target.value }))}>
-              <option value="">Unassigned</option>
-              {seasons.map((season) => <option key={season.id} value={season.id}>{season.seasonName}</option>)}
-            </select>
+            <StyledSelect aria-label="Season" value={seasons.find((season) => season.id === form.seasonId)?.seasonName ?? "Unassigned"}
+              options={["Unassigned", ...seasons.map((season) => season.seasonName)]}
+              onChange={(value) => setForm((current) => ({ ...current, seasonId: value === "Unassigned" ? "" : seasons.find((season) => season.seasonName === value)?.id ?? "" }))} />
           </label>
           <label className="grid gap-2 text-sm font-bold text-[#294B39]">
             Amount
@@ -270,12 +225,13 @@ export function OperatingExpensesView() {
         </div>
       </form>
 
+      <h2 className="flex items-center gap-2 px-1 text-base font-bold text-coop-forest"><ReceiptText className="size-4 text-coop-green" aria-hidden="true" />Expense breakdown & recent records</h2>
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {isLoading ? <LoadingSkeleton /> : (
-        <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
           <DataTable>
             <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
-              <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+              <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]">
                 <tr><th className="px-5 py-4 text-left">Type</th><th className="px-5 py-4 text-center">Records</th><th className="px-5 py-4 text-center">Total</th></tr>
               </thead>
               <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
@@ -291,8 +247,8 @@ export function OperatingExpensesView() {
           </DataTable>
 
           <DataTable>
-            <table className="min-w-[720px] divide-y divide-[#E2E8E2] text-left text-sm">
-              <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]">
+            <table className="w-full min-w-[560px] divide-y divide-[#E2E8E2] text-left text-sm">
+              <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]">
                 <tr><th className="px-5 py-4 text-left">Record</th><th className="px-5 py-4 text-left">Expense</th><th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Status</th></tr>
               </thead>
               <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">

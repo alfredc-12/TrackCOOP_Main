@@ -6,7 +6,6 @@ import {
   Banknote,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Clock3,
   Eye,
   History,
@@ -24,6 +23,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/PageHeader";
+import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import {
   CurrencyDisplay,
   DataTable,
@@ -33,7 +34,6 @@ import {
   FormField,
   LoadingSkeleton,
   PaginationControls,
-  StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { ApiClientError, apiRequest } from "@/lib/api-client";
@@ -176,20 +176,9 @@ function mutationAllowed(payment: PaymentReferenceDetail) {
 }
 
 function Select({ value, onChange, options, label }: { value: string; onChange: (value: string) => void; options: string[]; label: string }) {
-  const [open, setOpen] = useState(false);
-  const selectedLabel = value ? (selectLabels[value] ?? value) : label;
-  return (
-    <div className="relative min-w-0">
-      <button type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen((current) => !current)}
-        className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#8FB79A] focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20">
-        <span className="truncate">{selectedLabel}</span><ChevronDown className={`size-4 shrink-0 text-[#365F4A] transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open ? <div role="listbox" aria-label={label} className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">
-        {options.map((option) => { const optionLabel = option ? (selectLabels[option] ?? option) : label; const selected = option === value; return <button key={option || label} type="button" role="option" aria-selected={selected} onClick={() => { onChange(option); setOpen(false); }}
-          className={`flex w-full items-center rounded px-3 py-2 text-left text-sm transition ${selected ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{optionLabel}</button>; })}
-      </div> : null}
-    </div>
-  );
+  const labels = options.map((option) => option ? (selectLabels[option] ?? option) : label);
+  return <StyledSelect value={labels[options.indexOf(value)] ?? label} options={labels}
+    aria-label="Validation status" onChange={(selected) => onChange(options[labels.indexOf(selected)])} />;
 }
 
 /* Date filtering is intentionally handled by the server defaults; the advanced panel only exposes page size. */
@@ -314,7 +303,7 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
   const monitoring = useFinanceMonitor<PaymentMonitor>("payments", role === "chairman");
   const [legacyPayments, setPayments] = useState<PaymentReferenceListItem[]>([]);
   const [summary, setSummary] = useState(emptySummary);
-  const [filters, setFilters] = useState<PaymentReferenceFilters>({ page: 1, pageSize: 5, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all" });
+  const [filters, setFilters] = useState<PaymentReferenceFilters>({ page: 1, pageSize: 5, sortBy: "submittedAt", sortDirection: "desc", gatewayManual: "all", validationStatus: role === "bookkeeper" ? "Pending" : undefined });
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<PaymentReferenceDetail | null>(null);
   const [diagnostics,setDiagnostics] = useState<PaymentDiagnostics|null>(null);
@@ -453,28 +442,26 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
     finally { setIsSecondarySubmitting(false); }
   };
 
-  return <div className="grid gap-6">
-    <PageHeader eyebrow={role === "bookkeeper" ? "Payments" : ""} title={role === "bookkeeper" ? "Payments to Check" : "Payments"}
-      description={role === "bookkeeper" ? "Check payment details and approve only when everything matches." : "View payment status, posting history, and receipts."}
-      actions={<StatusBadge tone={role === "bookkeeper" ? "success" : "neutral"}>{role === "bookkeeper" ? "Bookkeeper" : "View only"}</StatusBadge>} />
-
-    {role === "bookkeeper" ? <div className="rounded-lg border border-[#B7D7BD] bg-[#F2FAF3] p-4 text-sm text-[#294B39]">
-      <span className="font-bold text-[#123D2A]">Check the payment slip:</span> payer, item or rent, count, amount, payment method, and status. Approve only when the proof and saved details match.
-    </div> : null}
+  return <div className="grid min-w-0 gap-4">
+    {role === "bookkeeper" ? <PaymentWorkspaceHeader title="Payments to Check" icon={ReceiptText}
+      description="Match the payer, item, quantity, amount, and payment method against the proof before approving." /> :
+      <PageHeader eyebrow="" title="Payments" description="View payment status, posting history, and receipts."
+        actions={<StatusBadge tone="neutral">View only</StatusBadge>} />}
 
     {role === "chairman" ? <PaymentMonitorPanel monitor={monitoring} /> : <>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Pending manual review" value={String(summary.pendingManual)} icon={Clock3} />
-      <StatCard label="Needs clarification" value={String(summary.needsClarification)} icon={Send} />
-      <StatCard label="Validated today (Manila)" value={String(summary.validatedToday)} icon={BadgeCheck} />
-      <StatCard label="All-time validated (includes test)" value={money(summary.validatedAmount)} icon={Banknote} />
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <PaymentSummaryCard tone="gold" label="Pending review" description="Manual payments" value={String(summary.pendingManual)} icon={Clock3} />
+      <PaymentSummaryCard tone="gold" label="Needs clarification" description="Awaiting payer correction" value={String(summary.needsClarification)} icon={Send} />
+      <PaymentSummaryCard label="Approved today" description="Manila time" value={String(summary.validatedToday)} icon={BadgeCheck} />
+      <PaymentSummaryCard label="Total approved" description="All time · includes test payments" value={money(summary.validatedAmount)} icon={Banknote} valueClassName="break-words text-xl 2xl:text-2xl" />
     </div>
 
-      <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4">
+      <div className="grid gap-3 rounded-lg border border-coop-border bg-coop-surface p-3">
       <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(11rem,13rem)_auto]">
         <label className="relative block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6C7A70]" />
           <input value={filters.search ?? ""} onChange={(e) => setFilter("search", e.target.value)} type="search"
             placeholder="Search payer or reference number"
+            aria-label="Search payer or reference number"
             className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-4 text-sm outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20" />
         </label>
         <Select value={filters.validationStatus ?? ""} onChange={(v) => setFilter("validationStatus", v)} options={statusOptions} label="All statuses" />
@@ -484,19 +471,20 @@ export function PaymentValidationView({ role }: { role: "chairman" | "bookkeeper
 
     </>}
     {role === "bookkeeper" && error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1"><h2 className="flex items-center gap-2 text-base font-bold text-coop-forest"><ReceiptText className="size-4 text-coop-green" aria-hidden="true" />Payment queue</h2><p className="text-xs text-coop-muted">Review proof and saved payment details</p></div>
     {isLoading ? <LoadingSkeleton /> : payments.length === 0 ? <EmptyState icon={ReceiptText} title="No payment references found" description="No saved TrackCOOP payments match the selected filters." /> : <DataTable>
       <table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
-        <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.16em] text-[#5D6D63]"><tr>
-          <th className="whitespace-nowrap px-5 py-4">Payer</th><th className="whitespace-nowrap px-5 py-4">Payment for</th><th className="whitespace-nowrap px-5 py-4">Quantity / count</th><th className="whitespace-nowrap px-5 py-4">Amount</th><th className="whitespace-nowrap px-5 py-4">Payment method</th><th className="whitespace-nowrap px-5 py-4">Validation status</th><th className="whitespace-nowrap px-5 py-4" aria-label="Actions" />
+        <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]"><tr>
+          <th className="whitespace-nowrap px-4 py-3">Payer</th><th className="whitespace-nowrap px-4 py-3">Payment for</th><th className="whitespace-nowrap px-4 py-3">Quantity</th><th className="whitespace-nowrap px-4 py-3 text-right">Amount</th><th className="whitespace-nowrap px-4 py-3">Method</th><th className="whitespace-nowrap px-4 py-3">Status</th><th className="whitespace-nowrap px-4 py-3 text-right">Actions</th>
         </tr></thead>
         <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">{payments.map((payment) => <tr key={payment.id} className="hover:bg-[#F7F8F3]">
-          <td className="px-5 py-4"><p className="font-semibold text-[#123D2A]">{safe(payment.payerName)}</p><p className="mt-1 text-xs text-[#6C7A70]">{paymentForLabel(payment)}</p></td>
-          <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{rentedItemLabel(payment)}</p><p className="mt-1 text-xs text-[#6C7A70]">{rentedItemSubLabel(payment)}</p><div className="mt-1 flex flex-wrap gap-1">{payment.gatewayEnvironment === "Test" ? <StatusBadge tone="warning">Test Mode</StatusBadge> : null}{"exception" in payment && typeof payment.exception === "number" && payment.exception > 0 ? <span title="Processing or posting requires review"><StatusBadge tone="warning"><AlertTriangle className="mr-1 size-3" aria-hidden="true" />Review needed</StatusBadge></span> : null}{payment.failedGatewayEvents ? <StatusBadge tone="danger">{payment.failedGatewayEvents} failed event</StatusBadge> : null}</div></td>
-          <td className="px-5 py-4 font-semibold">{paymentCountLabel(payment)}</td>
-          <td className="px-5 py-4"><CurrencyDisplay value={payment.amount} /></td>
-          <td className="px-5 py-4"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{paidThroughLabel(payment)}</StatusBadge></td>
-          <td className="px-5 py-4"><StatusBadge tone={badgeTone(payment.validationStatus)}>{statusLabel(payment.validationStatus)}</StatusBadge></td>
-          <td className="px-5 py-4"><button type="button" onClick={() => void openDetail(payment.id)} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><Eye className="size-4" />Review</button></td>
+          <td className="px-4 py-3"><p className="font-semibold text-[#123D2A]">{safe(payment.payerName)}</p><p className="mt-1 text-xs leading-5 text-coop-muted">{paymentForLabel(payment)}</p></td>
+          <td className="px-4 py-3"><p className="font-semibold text-[#123D2A]">{rentedItemLabel(payment)}</p><p className="mt-1 text-xs leading-5 text-coop-muted">{rentedItemSubLabel(payment)}</p><div className="mt-1 flex flex-wrap gap-1 empty:hidden">{payment.gatewayEnvironment === "Test" ? <StatusBadge tone="warning">Test Mode</StatusBadge> : null}{"exception" in payment && typeof payment.exception === "number" && payment.exception > 0 ? <span title="Processing or posting requires review"><StatusBadge tone="warning"><AlertTriangle className="mr-1 size-3" aria-hidden="true" />Review needed</StatusBadge></span> : null}{payment.failedGatewayEvents ? <StatusBadge tone="danger">{payment.failedGatewayEvents} failed event</StatusBadge> : null}</div></td>
+          <td className="px-4 py-3 font-semibold">{paymentCountLabel(payment)}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums"><CurrencyDisplay value={payment.amount} /></td>
+          <td className="px-4 py-3"><StatusBadge tone={payment.paymentChannel === "PayMongo" ? "success" : "neutral"}>{paidThroughLabel(payment)}</StatusBadge></td>
+          <td className="px-4 py-3"><StatusBadge tone={badgeTone(payment.validationStatus)}>{statusLabel(payment.validationStatus)}</StatusBadge></td>
+          <td className="px-4 py-3 text-right"><button type="button" onClick={() => void openDetail(payment.id)} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#123D2A] px-4 text-sm font-bold text-white hover:bg-[#1F6B43]"><Eye className="size-4" />Review</button></td>
         </tr>)}</tbody>
       </table>
     </DataTable>}

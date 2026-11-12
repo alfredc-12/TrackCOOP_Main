@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, ChevronDown, RotateCcw, Loader2, RefreshCw, CalendarDays } from "lucide-react";
+import { Banknote, CheckCircle, Printer, Search, ShoppingBag, Smartphone, XCircle, AlertCircle, X, Eye, RotateCcw, Loader2, RefreshCw, CalendarDays } from "lucide-react";
 import { expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
+import { PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { PaginationControls } from "@/components/portal/PortalPrimitives";
 
 type PosOrderItem = {
@@ -32,12 +34,9 @@ type PosOrder = {
 };
 
 function PosThemedSelect({ value, onChange, options, ariaLabel }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; ariaLabel: string }) {
-  const [open, setOpen] = useState(false);
   const selected = options.find((option) => option.value === value)?.label ?? value;
-  return <div className="relative">
-    <button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex min-w-[150px] items-center justify-between gap-4 rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-semibold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20"><span>{selected}</span><ChevronDown className={`size-4 text-[#52705D] transition ${open ? "rotate-180" : ""}`} /></button>
-    {open && <div role="listbox" className="absolute left-0 top-full z-[80] mt-2 min-w-full overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button type="button" role="option" aria-selected={value === option.value} key={option.value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center justify-between whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm transition ${value === option.value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>{option.label}{value === option.value && <span className="text-lg text-[#1F6B43]">✓</span>}</button>)}</div>}
-  </div>;
+  return <StyledSelect value={selected} options={options.map((option) => option.label)} aria-label={ariaLabel}
+    onChange={(label) => onChange(options.find((option) => option.label === label)?.value ?? value)} />;
 }
 
 function formatMoney(value: number | string) {
@@ -309,9 +308,9 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
   };
 
   return (
-    <main className="-mx-4 -my-6 flex-1 overflow-y-auto bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="min-w-0">
+      <div className="grid w-full min-w-0 max-w-full gap-4 [&>*]:min-w-0">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {[
             ["Pending Orders", String(pendingCount), "Orders awaiting review"],
             ["Validated Orders", String(validatedCount), "Paid or completed transactions"],
@@ -319,14 +318,12 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
             ["Cash Sales", formatMoney(cashSales), "Paid POS orders"],
             ["QRPH Sales", formatMoney(qrphSales), "Paid QRPH orders"],
           ].map(([label, value, hint], index) => (
-            <div key={`${label}-${index}`} className="flex min-h-[118px] items-center gap-3 rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-              <div className="shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">{index === 0 ? <AlertCircle className="size-5" /> : index === 1 ? <CheckCircle className="size-5" /> : index === 4 ? <Smartphone className="size-5" /> : <Banknote className="size-5" />}</div>
-              <div className="min-w-0"><p className="text-xs font-bold text-gray-500">{label}</p><p className="text-[10px] leading-4 text-gray-400">{hint}</p><p className="break-words text-lg font-black leading-7 text-[#123D2A]">{value}</p></div>
-            </div>
+            <PaymentSummaryCard key={label} label={label} value={value} description={hint} tone={index === 0 ? "gold" : "green"} showTopBorder={false}
+              valueClassName="break-words text-xl" icon={index === 0 ? AlertCircle : index === 1 ? CheckCircle : index === 4 ? Smartphone : Banknote} />
           ))}
         </div>
 
-        <div className="mb-6 rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-[#DCE9DE] bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
             <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#7d9a89]" />
@@ -335,10 +332,11 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
               value={searchQuery}
               onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }}
               placeholder="Search order or customer..."
+              aria-label="Search order or customer"
               className="w-full rounded-xl border border-[#d8e4d6] bg-white py-3 pl-12 pr-4 text-sm text-[#123D2A] outline-none transition focus:border-[#0f7a46] focus:ring-2 focus:ring-[#0f7a46]/15"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 [&>button[role=combobox]]:flex-1">
             <CalendarDays className="hidden size-4 text-[#52705D] sm:block" />
             <PosThemedSelect value={dateFilter} onChange={(value) => { setDateFilter(value); setCurrentPage(1); }} ariaLabel="Filter sales by date" options={['All time', 'Today', 'This week', 'This month', 'This year'].map((date) => ({ value: date, label: date }))} />
             <button type="button" onClick={() => void refreshOrders()} disabled={isRefreshing} aria-busy={isRefreshing} className="inline-flex items-center gap-2 rounded-xl bg-[#123D2A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60"><RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">{isRefreshing ? "Refreshing..." : "Refresh"}</span></button>
@@ -349,6 +347,7 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
               <button
                 key={status}
                 type="button"
+                aria-pressed={statusFilter === status}
                 onClick={() => { setStatusFilter(status); setCurrentPage(1); }}
                 className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition ${
                   statusFilter === status
@@ -369,6 +368,7 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
           </div>
         </div>
 
+        <h2 className="flex items-center gap-2 px-1 text-base font-bold text-coop-forest"><ShoppingBag className="size-4 text-coop-green" aria-hidden="true" />Sales orders</h2>
         {isLoading ? (
           <div aria-live="polite" className="rounded-2xl border border-[#d8e4d6] bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3 text-sm font-semibold text-[#607a6b]"><Loader2 className="size-5 animate-spin text-[#1F6B43]" /> Loading POS sales...</div>
@@ -391,7 +391,7 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
           <div className="overflow-x-auto rounded-xl border border-[#d8e4d6] bg-white shadow-sm">
             <table className="w-full min-w-[860px] text-left text-sm">
               <caption className="sr-only">POS sales orders and available actions</caption>
-              <thead className="bg-[#fbfcfa] font-bold text-[#607a6b]">
+              <thead className="bg-coop-sage/60 text-xs uppercase tracking-wide font-bold text-coop-muted">
                 <tr>
                   <th className="border-b border-[#d8e4d6] px-4 py-3">Sale #</th>
                   <th className="border-b border-[#d8e4d6] px-4 py-3">Date</th>
@@ -809,6 +809,6 @@ export default function PosSalesClient({ role }: PosSalesClientProps) {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

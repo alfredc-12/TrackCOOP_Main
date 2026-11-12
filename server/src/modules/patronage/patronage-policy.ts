@@ -1,6 +1,10 @@
 import { AppError } from "../../utils/app-error";
 
-export const PATRONAGE_POLICY = "Rental3PercentAnnual";
+export const PATRONAGE_POLICY = "RentalSurplusAnnual";
+export const CONFIGURED_RENTAL_POLICY = "RentalConfiguredAnnual";
+export const FIXED_RENTAL_POLICY = "Rental3PercentAnnual";
+export const PATRONAGE_ALLOCATION_RATE = 30;
+// Retained only to validate periods saved under the previous policy.
 export const PATRONAGE_RATE = 3;
 
 export function patronageToday() {
@@ -19,11 +23,26 @@ export function assertAnnualPatronage(startDate: string, endDate: string, closed
 }
 
 export function assertCurrentPatronagePolicy(policy: string | undefined) {
-  if (policy !== PATRONAGE_POLICY) throw new AppError("This is a legacy allocation. Review it against the annual 3% rental-only policy before any further payment or transfer. Existing paid records have been preserved.", 409, "PATRONAGE_LEGACY_REVIEW_REQUIRED");
+  if (!isSupportedPatronagePolicy(policy)) throw new AppError("This is a legacy allocation. Review its calculation before any further payment or transfer. Existing paid records have been preserved.", 409, "PATRONAGE_LEGACY_REVIEW_REQUIRED");
 }
 
-// Store member refunds independently, rounded to the nearest cent; there is no shared pool to divide.
-export function rentalRefund(amount: number) {
+export function isSupportedPatronagePolicy(policy: string | undefined) {
+  return policy === PATRONAGE_POLICY || policy === FIXED_RENTAL_POLICY || policy === CONFIGURED_RENTAL_POLICY;
+}
+
+export function surplusRefundPool(netSurplus: number, statutoryReserves: number, allocationRate = PATRONAGE_ALLOCATION_RATE) {
+  if (![netSurplus, statutoryReserves, allocationRate].every(Number.isFinite) || netSurplus < 0 || statutoryReserves < 0 || statutoryReserves > netSurplus || allocationRate < 30 || allocationRate > 100) {
+    throw new AppError("Enter a non-negative reviewed net surplus, statutory reserves no greater than surplus, and a patronage allocation from 30% to 100%.", 422, "PATRONAGE_FINANCIAL_BASIS_INVALID");
+  }
+  const availableCents = Math.round(netSurplus * 100) - Math.round(statutoryReserves * 100);
+  const basisPoints = Math.round(allocationRate * 100);
+  const poolCents = (BigInt(availableCents) * BigInt(basisPoints) + BigInt(5000)) / BigInt(10000);
+  return Number(poolCents) / 100;
+}
+
+// Apply the saved rental percentage independently and round each member to cents.
+export function rentalRefund(amount: number, rate = PATRONAGE_RATE) {
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 100) throw new AppError("Review the member rental refund rate.", 422, "PATRONAGE_RATE_INVALID");
   const cents = Math.round(Math.max(0, Number(amount) || 0) * 100);
-  return Math.round(cents * PATRONAGE_RATE / 100) / 100;
+  return Number((BigInt(cents) * BigInt(Math.round(rate * 100)) + BigInt(5000)) / BigInt(10000)) / 100;
 }

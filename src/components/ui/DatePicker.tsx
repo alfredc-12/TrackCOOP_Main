@@ -15,6 +15,8 @@ type DatePickerProps = {
   onChange: (value: string) => void;
   min?: string;
   max?: string;
+  disabledDates?: string[];
+  disabled?: boolean;
   placeholder?: string;
   error?: string;
   className?: string;
@@ -90,6 +92,8 @@ export function DatePicker({
   onChange,
   min = "1900-01-01",
   max = todayKey(),
+  disabledDates = [],
+  disabled = false,
   placeholder = "Select date",
   error,
   className,
@@ -105,12 +109,15 @@ export function DatePicker({
   const selectedDate = useMemo(() => parseDateKey(value), [value]);
   const maxDate = useMemo(() => parseDateKey(max) ?? new Date(), [max]);
   const minDate = useMemo(() => parseDateKey(min) ?? new Date(1900, 0, 1), [min]);
+  const unavailableDates = useMemo(() => new Set(disabledDates), [disabledDates]);
+  const initialDate = selectedDate ?? (parseDateKey(todayKey() < min ? min : todayKey() > max ? max : todayKey()) ?? minDate);
   const [isOpen, setIsOpen] = useState(false);
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null);
   const [viewMonth, setViewMonth] = useState(
-    selectedDate?.getMonth() ?? maxDate.getMonth(),
+    initialDate.getMonth(),
   );
   const [viewYear, setViewYear] = useState(
-    selectedDate?.getFullYear() ?? maxDate.getFullYear(),
+    initialDate.getFullYear(),
   );
   const [pendingDateKey, setPendingDateKey] = useState(value);
   const draftSourceValue = useRef(value);
@@ -213,15 +220,15 @@ export function DatePicker({
         date,
         dateKey,
         isCurrentMonth: date.getMonth() === viewMonth,
-        isDisabled: isOutsideRange(dateKey, min, max),
+        isDisabled: isOutsideRange(dateKey, min, max) || unavailableDates.has(dateKey),
         isSelected: pendingDateKey === dateKey,
         isToday: todayKey() === dateKey,
       };
     });
-  }, [max, min, pendingDateKey, viewMonth, viewYear]);
+  }, [max, min, pendingDateKey, unavailableDates, viewMonth, viewYear]);
 
   function resetDraft() {
-    const anchorDate = selectedDate ?? maxDate;
+    const anchorDate = initialDate;
     setViewMonth(anchorDate.getMonth());
     setViewYear(anchorDate.getFullYear());
     setPendingDateKey(value);
@@ -231,6 +238,7 @@ export function DatePicker({
 
   function togglePicker() {
     if (!isOpen) {
+      setPortalContainer(rootRef.current?.closest('[role="dialog"]') ?? document.body);
       // Dismissal keeps the draft; a change made by the parent replaces it.
       if (draftSourceValue.current !== value) resetDraft();
       setPickerPosition(null);
@@ -241,7 +249,7 @@ export function DatePicker({
   }
 
   function selectDate(dateKey: string) {
-    if (isOutsideRange(dateKey, min, max)) return;
+    if (isOutsideRange(dateKey, min, max) || unavailableDates.has(dateKey)) return;
     const date = parseDateKey(dateKey)!;
     preferredDay.current = date.getDate();
     setViewMonth(date.getMonth());
@@ -279,6 +287,7 @@ export function DatePicker({
         aria-labelledby={labelId}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
+        disabled={disabled}
         onClick={togglePicker}
         className={cn(
           "mt-2 flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-left text-base text-coop-forest outline-none transition hover:border-[#B9D1B6] focus:border-coop-green focus:ring-2 focus:ring-[#1F6B43]/20",
@@ -390,6 +399,7 @@ export function DatePicker({
               <button
                 key={day.dateKey}
                 type="button"
+                data-date={day.dateKey}
                 disabled={day.isDisabled}
                 aria-pressed={day.isSelected}
                 onClick={() => selectDate(day.dateKey)}
@@ -444,13 +454,13 @@ export function DatePicker({
               <button
                 type="button"
                 onClick={() => {
-                  if (pendingDateKey && !isOutsideRange(pendingDateKey, min, max)) {
+                  if (pendingDateKey && !isOutsideRange(pendingDateKey, min, max) && !unavailableDates.has(pendingDateKey)) {
                     draftSourceValue.current = pendingDateKey;
                     onChange(pendingDateKey);
                   }
                   setIsOpen(false);
                 }}
-                disabled={!pendingDateKey || isOutsideRange(pendingDateKey, min, max)}
+                disabled={!pendingDateKey || isOutsideRange(pendingDateKey, min, max) || unavailableDates.has(pendingDateKey)}
                 className="h-7 rounded-full px-2 text-[0.68rem] font-black text-coop-green transition hover:text-coop-forest focus:outline-none focus:ring-2 focus:ring-[#1F6B43]/15 disabled:pointer-events-none disabled:opacity-50"
               >
                 Confirm
@@ -458,7 +468,8 @@ export function DatePicker({
             </div>
           </div>
         </div>,
-        document.body,
+        // Keep the popup inside a modal's focus and pointer boundary, outside its scrolling panel.
+        portalContainer ?? document.body,
       ) : null}
 
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}

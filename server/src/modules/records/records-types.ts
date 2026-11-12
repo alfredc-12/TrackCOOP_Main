@@ -126,6 +126,7 @@ export type ReportColumn = {
 };
 
 export type ReportResult = {
+  notes?: string[];
   reportId: string;
   reportReference: string;
   reportKey: string;

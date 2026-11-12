@@ -9,6 +9,7 @@ import { cssUploadUrl } from "@/lib/upload-url";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { ErrorState, LoadingSkeleton } from "@/components/portal/PortalPrimitives";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
+import { isTractorService } from "@/app/rental/_lib/rentalHectares";
 import { getMemberDiscountedRate } from "@/app/rental/_lib/rentalEstimate";
 import { formatPeso } from "@/app/rental/_lib/rentalFormatting";
 import { rentalServiceSchema } from "@/app/rental/_lib/rentalValidation";
@@ -234,6 +235,7 @@ export function ChairmanRentalAssetEditor({
     const rentalRate = Number(form.standardRate ?? 0);
     const payload = {
       ...form,
+      unitOfUsage: isTractorService(form) ? "Per Hectare" : form.unitOfUsage,
       visibility,
       imageUrl: photos[0] ?? "",
       imageUrls: photos,
@@ -448,14 +450,14 @@ export function ChairmanRentalAssetEditor({
         <Section title="Rental setup">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Unit of usage" required error={fieldErrors.unitOfUsage}>
-              <StyledSelect value={form.unitOfUsage || "Choose a charging unit"} options={["Choose a charging unit", ...USAGE_UNITS]} onChange={(value) => update("unitOfUsage", value === "Choose a charging unit" ? "" : value)} />
+              <StyledSelect value={isTractorService(form) ? "Per Hectare" : form.unitOfUsage || "Choose a charging unit"} disabled={isTractorService(form)} options={["Choose a charging unit", ...USAGE_UNITS]} onChange={(value) => update("unitOfUsage", value === "Choose a charging unit" ? "" : value)} />
             </Field>
             <Field label="Capacity" error={fieldErrors.capacity}>
               <input
                 value={form.capacity}
                 onChange={(event) => update("capacity", event.target.value)}
                 maxLength={160}
-                placeholder="Example: Up to 2 hectares per day"
+                placeholder={isTractorService(form) ? "5 hectares per day across approved bookings" : "Describe the operating capacity"}
               />
             </Field>
             <Field label="Suitable agricultural activity" required error={fieldErrors.suitableActivity}>
@@ -544,10 +546,10 @@ export function ChairmanRentalAssetEditor({
         <Section title="Rental price">
           <div className="grid gap-4 md:grid-cols-2">
             <Field
-              label="Rental rate"
+              label={isTractorService(form) ? "Rental rate per hectare" : "Rental rate"}
               required
               error={fieldErrors.standardRate}
-              hint="Enter the original rental rate. Members automatically get 20% off."
+              hint={isTractorService(form) ? "Charge per hectare. Maximum 5 hectares per tractor per day; the existing member discount applies." : "Enter the original rental rate. The existing member discount applies."}
             >
               <input
                 type="number"

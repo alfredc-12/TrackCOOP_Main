@@ -29,8 +29,8 @@ export const productionRecordSchema = z.object({
   quantityProduced: z.coerce.number().positive().max(999_999_999),
   quantityUnit: z.string().trim().min(1).max(40).default("kg"),
   productionCost: z.coerce.number().min(0).max(999_999_999.99).default(0),
-  harvestDate: z.iso.date().nullable().optional(),
-  productionStatus: z.enum(["Draft", "Recorded", "Verified", "Harvested", "Cancelled"]).default("Recorded"),
+  harvestDate: z.iso.date(),
+  productionStatus: z.enum(["Draft", "Recorded", "Verified", "Harvested", "Cancelled"]).default("Harvested"),
   remarks: z.string().trim().max(2000).nullable().optional(),
 });
 
@@ -39,6 +39,11 @@ export const productionListQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   seasonId: z.string().trim().min(1).optional(),
   status: z.enum(["Draft", "Recorded", "Verified", "Harvested", "Cancelled"]).optional(),
+  startDate: z.iso.date().optional(),
+  endDate: z.iso.date().optional(),
+}).refine((value) => !value.startDate || !value.endDate || value.endDate >= value.startDate, {
+  message: "End date must be on or after the start date.",
+  path: ["endDate"],
 });
 
 export const seasonStatusSchema = z.object({

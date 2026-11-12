@@ -1,5 +1,8 @@
 "use client";
 
+import { isTractorService } from "../_lib/rentalHectares";
+
+import { TractorWorkSummary } from "./TractorWorkPlan";
 import { SearchCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -226,10 +229,11 @@ export function RentalStatusLookup({ initial }: { initial?: RentalStatusLinkPara
                 term="Schedule status"
                 value={result.scheduleStatus}
               />
+              {result.dailyWork ? <div className="sm:col-span-2"><TractorWorkSummary value={result.dailyWork} /></div> : null}
               {result.confirmedSchedule ? (
                 <StatusDetail
                   term="Confirmed schedule"
-                  value={`${formatRentalDateRange(result.confirmedSchedule.date, result.confirmedSchedule.endDate)} · ${result.confirmedSchedule.startTime}–${result.confirmedSchedule.endTime}`}
+                  value={`${formatRentalDateRange(result.confirmedSchedule.date, result.confirmedSchedule.endDate)}${isTractorService({ name: result.equipmentName }) ? "" : ` · ${result.confirmedSchedule.startTime}–${result.confirmedSchedule.endTime}`}`}
                 />
               ) : null}
               <StatusDetail

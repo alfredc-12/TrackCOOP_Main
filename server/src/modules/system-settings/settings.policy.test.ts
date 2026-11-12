@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   byKey,
+  categories,
   definitions,
   validateValue,
   parseStored,
@@ -46,6 +47,21 @@ test("share-capital policy rates are editable percentages with a safe interest d
   assert.equal(validateValue(interest, 25), 25);
   assert.throws(() => validateValue(reserve, 100.01));
   assert.throws(() => validateValue(interest, -1));
+});
+
+test("patronage policy follows share capital and validates its surplus allocation percentage", () => {
+  const definition = byKey.get("patronage.allocation_rate")!;
+  assert.equal(categories[categories.findIndex((category) => category.id === "share_capital") + 1].id, "patronage");
+  assert.equal(definition.fallback, 30);
+  assert.equal(definition.editable, true);
+  assert.equal(validateValue(definition, 30), 30);
+  assert.equal(validateValue(definition, 40), 40);
+  assert.throws(() => validateValue(definition, 29.99));
+  assert.throws(() => validateValue(definition, 100.01));
+  const memberRate = byKey.get("patronage.member_refund_rate")!;
+  assert.equal(memberRate.fallback, 3);
+  assert.equal(validateValue(memberRate, 4.25), 4.25);
+  for (const invalid of [0, -1, 100.01, 3.125, NaN]) assert.throws(() => validateValue(memberRate, invalid));
 });
 test("unapproved referral rewards are read-only; historical stored values remain readable", () => {
  const d=byKey.get("referrals.reward_policy")!;

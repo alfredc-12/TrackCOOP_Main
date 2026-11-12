@@ -1,3 +1,4 @@
+import { confirmRentalPaymentState } from "../rental/rental-payment-state";
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { enqueueRentalPaymentConfirmed } from "../rental/rental-outbox";
 import { AppError } from "../../utils/app-error";
@@ -130,19 +131,16 @@ export async function postRentalSettlement(input: {
   }
 
   const purpose = parsePurpose(booking.purpose);
-  purpose.statusOverride = "Approved for Scheduling";
-  purpose.scheduleStatus = "Proposed";
-  purpose.paymentStatusOverride = "Paid";
-  purpose.publicNote = "Payment confirmed. Your rental is approved for scheduling.";
+  const nextBookingStatus = confirmRentalPaymentState(booking.bookingStatus, purpose);
 
   await input.connection.execute(
     `UPDATE rental_bookings
-        SET booking_status = 'Approved',
+        SET booking_status = ?,
             payment_status = 'Paid',
             purpose = ?,
             updated_at = UTC_TIMESTAMP()
       WHERE rental_booking_id = ?`,
-    [JSON.stringify(purpose), booking.id],
+    [nextBookingStatus, JSON.stringify(purpose), booking.id],
   );
 
   if (booking.memberId) {

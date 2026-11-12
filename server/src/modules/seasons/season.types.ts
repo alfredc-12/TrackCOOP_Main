@@ -55,6 +55,8 @@ export type ProductionListQuery = {
   pageSize: number;
   seasonId?: string;
   status?: ProductionStatus;
+  startDate?: string;
+  endDate?: string;
 };
 
 export type SeasonalAnalyticsQuery = {
@@ -77,5 +79,5 @@ export type SeasonalAnalytics = {
   };
   productionByCrop: Array<{ cropName: string; sector: string; quantityProduced: number; productionCost: number; records: number }>;
   financialByCategory: Array<{ categoryName: string; recordType: "Income" | "Expense"; amount: number; records: number }>;
-  monthlyTrend: Array<{ month: string; productionQuantity: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>;
+  monthlyTrend: Array<{ month: string; productionQuantity: number; productionCost: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>;
 };

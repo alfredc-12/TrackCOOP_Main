@@ -30,7 +30,8 @@ export type SettingDefinition = {
     | "referral"
     | "thresholds"
     | "labels"
-    | "statuses";
+    | "statuses"
+    | "crop_list";
   group: string;
   fallback: SettingValue;
   editable: boolean;
@@ -81,6 +82,37 @@ const thresholds = z
   })
   .partial()
   .strict();
+const cropList = z
+  .array(z.string().trim().min(1).max(80))
+  .min(1)
+  .max(64)
+  .refine(
+    (names) => new Set(names.map((name) => name.toLowerCase())).size === names.length,
+    "Crop names must be unique.",
+  );
+const HIGH_VALUE_CROP_NAMES_FALLBACK = [
+  "Tomato",
+  "Onion",
+  "Garlic",
+  "Bell Pepper",
+  "Chili Pepper",
+  "Eggplant",
+  "Cabbage",
+  "Carrot",
+  "Lettuce",
+  "Cucumber",
+  "Squash",
+  "String Beans",
+  "Bitter Gourd",
+  "Ampalaya",
+  "Okra",
+  "Pechay",
+  "Mustard Greens",
+  "Broccoli",
+  "Cauliflower",
+  "Radish",
+  "Ginger",
+] as const;
 export const categories = [
   {
     id: "membership",
@@ -91,6 +123,11 @@ export const categories = [
     id: "share_capital",
     label: "Share Capital Policy",
     help: "Annual Interest on Share Capital and statutory reserve settings.",
+  },
+  {
+    id: "patronage",
+    label: "Patronage Refund Policy",
+    help: "Set the surplus allocation and the refund rate for each member’s rentals.",
   },
   {
     id: "referrals",
@@ -233,6 +270,30 @@ export const definitions: SettingDefinition[] = [
     schema: percentage,
   },
   {
+    key: "patronage.allocation_rate",
+    category: "patronage",
+    group: "patronage",
+    label: "Patronage allocation",
+    help: "Percentage of net surplus after statutory deductions reserved for patronage refunds.",
+    kind: "number",
+    unit: "%",
+    fallback: 30,
+    editable: true,
+    schema: percentage.refine((value) => value >= 30, "Use an allocation of at least 30%. Review any CDA rate-limit exception separately."),
+  },
+  {
+    key: "patronage.member_refund_rate",
+    category: "patronage",
+    group: "patronage",
+    label: "Member rental refund rate",
+    help: "Percentage of each member’s total qualifying rentals returned as a refund.",
+    kind: "number",
+    unit: "%",
+    fallback: 3,
+    editable: true,
+    schema: percentage.refine((value) => value > 0, "Use a refund rate greater than 0% and no more than 100%."),
+  },
+  {
     key: "referrals.reward_policy",
     category: "referrals",
     group: "Referrals",
@@ -303,6 +364,17 @@ export const definitions: SettingDefinition[] = [
     enforced: false,
     editable: false,
     schema: z.boolean(),
+  },
+  {
+    key: "inventory.high_value_crops",
+    category: "inventory",
+    group: "inventory",
+    label: "High-Value Crops reference list",
+    help: "Crop names in this list are marked as High-Value Crops in Inventory and Seasonal Analytics. Edit the cooperative reference list only after approval.",
+    kind: "crop_list",
+    fallback: [...HIGH_VALUE_CROP_NAMES_FALLBACK],
+    editable: true,
+    schema: cropList,
   },
 ];
 export const byKey = new Map(definitions.map((d) => [d.key, d]));

@@ -45,6 +45,7 @@ import {
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { env } from "@/config/env";
+import { RentalListFilters } from "./RentalListFilters";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 
 const fieldClass =
@@ -619,6 +620,7 @@ export function ChairmanRentalAssetsClient() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const visibleAssets = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const activeFilterCount = [category !== "All", visibility !== "All", statusFilter !== "All", sort !== "updated-desc"].filter(Boolean).length;
 
   function resetPageAndSetSearch(value: string) {
     setSearch(value);
@@ -681,7 +683,7 @@ export function ChairmanRentalAssetsClient() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 grid-cols-1 gap-6">
         <PageHeader
         eyebrow="Operations"
         title="Rental Assets"
@@ -721,7 +723,9 @@ export function ChairmanRentalAssetsClient() {
         ))}
       </div>
 
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(4,minmax(0,1fr))]">
+      <RentalListFilters label="Rental asset filters" activeCount={activeFilterCount} hasFilters={Boolean(search.trim() || activeFilterCount)}
+        onClear={() => { setSearch(""); setCategory("All"); setVisibility("All"); setStatusFilter("All"); setSort("updated-desc"); setPage(1); }}
+        search={
         <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
           Search
           <span className="relative">
@@ -735,6 +739,7 @@ export function ChairmanRentalAssetsClient() {
             />
           </span>
         </label>
+        }>
         <Filter
           label="Category"
           value={category}
@@ -764,7 +769,7 @@ export function ChairmanRentalAssetsClient() {
             "next-booking": "Next booking",
           }}
         />
-      </section>
+      </RentalListFilters>
 
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {loading ? (
@@ -1203,6 +1208,7 @@ function Filter({
     <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
       {label}
       <StyledSelect
+        aria-label={label}
         value={labels?.[value] ?? value}
         options={options.map((option) => labels?.[option] ?? option)}
         onChange={(selected) => {

@@ -87,9 +87,13 @@ test("Associate personal payment history checks owner and converted-application 
   assert.equal(response.status, 200);
   assert.equal(response.body.data.items[0].amount, 200);
   const query = calls.find((c) => c.sql.includes("SELECT p.reference_number"))!;
-  assert.deepEqual(query.params, ["12", "12"]);
+  assert.deepEqual(query.params, ["12", "12", "12"]);
   assert.match(query.sql, /p.related_entity_type='membership_application'/);
   assert.match(query.sql, /a.converted_member_id=\?/);
+  assert.match(query.sql, /p.payment_purpose='Rental'/);
+  assert.match(query.sql, /p.related_entity_type='rental_bookings'/);
+  assert.match(query.sql, /p.member_id IS NULL/);
+  assert.match(query.sql, /rb.member_id=\?/);
 });
 test("Member cannot inspect staff capital progress or monthly finance aggregates", async () => {
   const { app, calls } = fixture();

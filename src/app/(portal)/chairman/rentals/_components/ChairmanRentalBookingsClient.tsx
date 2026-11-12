@@ -1,4 +1,7 @@
 "use client";
+import { RentalPaymentNotice } from "@/app/rental/_components/RentalPaymentNotice";
+
+import { isTractorService, formatWorkShiftAssignments } from "@/app/rental/_lib/rentalHectares";
 
 import {
   CalendarCheck2,
@@ -35,6 +38,7 @@ import {
 } from "@/components/portal/PortalPrimitives";
 import { ChairmanRentalBookingDetailsModal } from "./ChairmanRentalBookingDetailsModal";
 import { StyledSelect } from "@/components/ui/StyledSelect";
+import { RentalListFilters } from "./RentalListFilters";
 import { DatePicker } from "@/components/ui/DatePicker";
 
 type BookingView =
@@ -300,11 +304,17 @@ export function ChairmanRentalBookingsClient() {
           (item.preferredDate <= preferredDate &&
             item.preferredEndDate >= preferredDate))
       );
+    }).sort((left, right) => {
+      const leftSubmitted = Date.parse(left.submittedAt) || 0;
+      const rightSubmitted = Date.parse(right.submittedAt) || 0;
+      return rightSubmitted - leftSubmitted || right.inquiryId.localeCompare(left.inquiryId, "en", { numeric: true });
     });
   }, [asset, inquiries, payment, preferredDate, requesterType, search, view]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const activeFilterCount = [view !== "All", asset !== "All", requesterType !== "All", payment !== "All", Boolean(preferredDate)].filter(Boolean).length;
 
   async function bulkUpdate(status: RentalStatus) {
     const records = inquiries.filter(
@@ -378,7 +388,7 @@ export function ChairmanRentalBookingsClient() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 grid-cols-1 gap-6">
       <PageHeader
         eyebrow="Operations"
         title="Rental Requests"
@@ -440,7 +450,10 @@ export function ChairmanRentalBookingsClient() {
         equipment-day(s) are used or booked.
       </section>
 
-      <section className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-2 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))]">
+      <RentalListFilters label="Rental booking filters" activeCount={activeFilterCount} hasFilters={Boolean(search.trim() || activeFilterCount)}
+        note="Newest requests first - ordered by submission date."
+        onClear={() => { setSearch(""); setView("All"); setAsset("All"); setRequesterType("All"); setPayment("All"); setPreferredDate(""); setPage(1); }}
+        search={
         <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
           Search
           <span className="relative">
@@ -457,6 +470,7 @@ export function ChairmanRentalBookingsClient() {
             />
           </span>
         </label>
+        }>
         <QueueFilter
           value={view}
           counts={viewCounts}
@@ -504,7 +518,7 @@ export function ChairmanRentalBookingsClient() {
           }}
           triggerClassName="h-11 rounded-md border-[#9BC7A9] bg-[#F7F8F3] text-[#294B39] hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
         />
-      </section>
+      </RentalListFilters>
 
       {selected.length ? (
         <section className="flex flex-wrap items-center gap-2 rounded-lg border border-[#CAD8CB] bg-[#E7F2E4] p-3 text-sm">
@@ -620,7 +634,7 @@ export function ChairmanRentalBookingsClient() {
 
           <div className="border-t border-[#CAD8CB] bg-white px-4 py-4 sm:px-6">
             <PaginationControls
-              currentPage={page}
+              currentPage={currentPage}
               totalPages={totalPages}
               totalItems={filtered.length}
               itemName="bookings"
@@ -693,8 +707,9 @@ function BookingRow({
       </td>
       <td className="px-4 py-4">
         {schedule
-          ? `${formatDateRange(schedule.date, schedule.endDate)} · ${schedule.startTime}–${schedule.endTime}`
+          ? `${formatDateRange(schedule.date, schedule.endDate)}${isTractorService({ name: schedule.equipmentName, serviceId: schedule.serviceId }) ? "" : ` · ${schedule.startTime}–${schedule.endTime}`}`
           : "Not confirmed"}
+        {schedule && formatWorkShiftAssignments(schedule.dailyWork) ? <p className="mt-1 text-xs text-[#6C7A70]">{formatWorkShiftAssignments(schedule.dailyWork)}</p> : null}
       </td>
       <td className="px-4 py-4">
         <StatusBadge tone={statusTone(inquiry.status)}>{inquiry.status}</StatusBadge>
@@ -706,6 +721,7 @@ function BookingRow({
         <StatusBadge tone={statusTone(inquiry.paymentStatus)}>
           {inquiry.paymentStatus}
         </StatusBadge>
+        <RentalPaymentNotice inquiry={inquiry} />
       </td>
       <td className="px-4 py-4">
         <BookingActions
@@ -755,15 +771,17 @@ function BookingMobileCard({
         <StatusBadge tone={statusTone(inquiry.paymentStatus)}>
           {inquiry.paymentStatus}
         </StatusBadge>
+        <RentalPaymentNotice inquiry={inquiry} />
       </div>
       <p className="mt-4 text-sm text-[#5D6D63]">
         Schedule:{" "}
         <strong>
           {schedule
-            ? `${formatDateRange(schedule.date, schedule.endDate)} ${schedule.startTime}–${schedule.endTime}`
+            ? `${formatDateRange(schedule.date, schedule.endDate)}${isTractorService({ name: schedule.equipmentName, serviceId: schedule.serviceId }) ? "" : ` ${schedule.startTime}–${schedule.endTime}`}`
             : "Not confirmed"}
         </strong>
       </p>
+      {schedule && formatWorkShiftAssignments(schedule.dailyWork) ? <p className="mt-1 text-xs text-[#6C7A70]">{formatWorkShiftAssignments(schedule.dailyWork)}</p> : null}
       <div className="mt-4">
         <BookingActions
           onSelectBooking={onSelectBooking}
@@ -800,7 +818,7 @@ function Filter({
   return (
     <div className="grid gap-1 text-xs font-bold text-[#5D6D63]">
       <span>{label}</span>
-      <StyledSelect value={value} options={options} onChange={onChange} />
+      <StyledSelect aria-label={label} value={value} options={options} onChange={onChange} />
     </div>
   );
 }
@@ -815,19 +833,14 @@ function QueueFilter({
   onChange: (value: BookingView) => void;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-bold text-[#5D6D63]">
-      Request queue
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value as BookingView)}
-        className="h-11 rounded-md border border-[#9BC7A9] bg-[#F7F8F3] px-4 text-sm font-bold text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"
-      >
-        {bookingViews.map((item) => (
-          <option key={item} value={item}>
-            {bookingViewLabels[item]} ({counts.get(item) ?? 0})
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="grid min-w-0 gap-1 text-xs font-bold text-[#5D6D63]">
+      <span>Request queue</span>
+      <StyledSelect aria-label="Request queue" value={`${bookingViewLabels[value]} (${counts.get(value) ?? 0})`}
+        options={bookingViews.map(item => `${bookingViewLabels[item]} (${counts.get(item) ?? 0})`)}
+        onChange={label => {
+          const next = bookingViews.find(item => `${bookingViewLabels[item]} (${counts.get(item) ?? 0})` === label);
+          if (next) onChange(next);
+        }} />
+    </div>
   );
 }

@@ -27,6 +27,7 @@ export function StatCard({
   variant = "default",
   className,
   valueClassName,
+  description,
 }: {
   label: string;
   value: string;
@@ -34,6 +35,7 @@ export function StatCard({
   variant?: "default" | "compact";
   className?: string;
   valueClassName?: string;
+  description?: string;
 }) {
   if (variant === "compact") {
     return (
@@ -57,6 +59,7 @@ export function StatCard({
         <div className="min-w-0">
           <p className="text-sm font-medium leading-5 text-coop-muted">{label}</p>
           <p className={cn("mt-1 text-2xl font-bold tabular-nums text-coop-forest", valueClassName ?? "break-words")}>{value}</p>
+          {description ? <p className="mt-1 text-xs leading-4 text-coop-muted">{description}</p> : null}
         </div>
         <span className="shrink-0 text-coop-green">
           <Icon className="size-5" aria-hidden="true" />

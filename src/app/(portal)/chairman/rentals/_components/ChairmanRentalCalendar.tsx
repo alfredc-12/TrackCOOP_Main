@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatWorkShiftAssignments } from "@/app/rental/_lib/rentalHectares";
 import { rentalApiRepository } from "@/app/rental/_lib/rentalApi";
 import type {
   RentalInquiry,
@@ -394,6 +395,7 @@ function MonthGrid({
                   >
                     <strong className="truncate">{item.equipmentName}</strong>
                     <span className="truncate">{item.requesterName}</span>
+                    {item.dailyWork?.find((day) => day.date === key)?.shift ? <span className="font-bold">{item.dailyWork.find((day) => day.date === key)?.shift}</span> : null}
                     <span className="truncate text-[#5D6D63]">
                       {item.barangay || "Barangay not recorded"}
                     </span>
@@ -438,6 +440,7 @@ function ScheduleList({ schedules }: { schedules: RentalSchedule[] }) {
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6C7A70]">
               {formatDateRange(item)}
             </p>
+            {formatWorkShiftAssignments(item.dailyWork) ? <p className="mt-1 text-xs text-[#5D6D63]">{formatWorkShiftAssignments(item.dailyWork)}</p> : null}
           </div>
           <div>
             <p className="font-black text-[#123D2A]">{item.equipmentName}</p>

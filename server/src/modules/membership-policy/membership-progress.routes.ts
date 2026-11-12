@@ -153,14 +153,14 @@ export function createMembershipProgressRouter(
     asyncHandler(async (req, res) => {
       const m = await ownMember(req.auth!.user.id);
       const { page, pageSize } = parseQuery(pageSchema, req.query);
-      const ownership = `(p.member_id=? OR (p.related_entity_type='membership_application' AND EXISTS(SELECT 1 FROM membership_applications a WHERE a.membership_application_id=p.related_entity_id AND a.converted_member_id=?)))`;
+      const ownership = `(p.member_id=? OR (p.related_entity_type='membership_application' AND EXISTS(SELECT 1 FROM membership_applications a WHERE a.membership_application_id=p.related_entity_id AND a.converted_member_id=?)) OR (p.payment_purpose='Rental' AND p.related_entity_type='rental_bookings' AND p.member_id IS NULL AND EXISTS(SELECT 1 FROM rental_bookings rb WHERE rb.rental_booking_id=p.related_entity_id AND rb.member_id=?)))`;
       const [counts] = await db().execute<RowDataPacket[]>(
         `SELECT COUNT(*) AS total FROM payment_references p WHERE ${ownership}`,
-        [m.id, m.id],
+        [m.id, m.id, m.id],
       );
       const [items] = await db().execute<RowDataPacket[]>(
         `SELECT p.reference_number AS reference,p.payment_purpose AS purpose,p.amount,p.validation_status AS status,p.submitted_at AS submittedAt FROM payment_references p WHERE ${ownership} ORDER BY p.submitted_at DESC,p.payment_reference_id DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
-        [m.id, m.id],
+        [m.id, m.id, m.id],
       );
       res.json(
         success({

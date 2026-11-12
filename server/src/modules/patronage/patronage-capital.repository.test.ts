@@ -15,7 +15,7 @@ type Transfer = { id: string; allocationId: string; memberId: string; amount: nu
 // A transactional adapter: unknown SQL fails, writes are rolled back on failure, and
 // transactions serialize to exercise competing requests against the same locked member.
 class Database {
-  state = { balance: 2000, refundAmount: 500, paymentStatus: "Pending", periodStatus: "Finalized", pendingQrph: 0, membershipType: "True Member", policyVersion: "Rental3PercentAnnual", transfers: [] as Transfer[], ledger: [] as number[] };
+  state = { balance: 2000, refundAmount: 500, refundRate: 3, paymentStatus: "Pending", periodStatus: "Finalized", pendingQrph: 0, membershipType: "True Member", policyVersion: "Rental3PercentAnnual", transfers: [] as Transfer[], ledger: [] as number[] };
   statements: string[] = [];
   failAudit = false;
   rentalSourceAvailable = true;
@@ -39,7 +39,8 @@ class Database {
       return rows(found.map((t) => ({ ...t, memberName: "Member", memberCode: "M-1", periodName: "2026", requestedAt: new Date(), processedAt: null, notes: null })));
     }
     if (sql.includes("FROM member_profiles m") && sql.includes("JOIN rental_bookings")) return rows(this.rentalSourceAvailable ? [{ memberId: "1", memberCode: "M-1", memberName: "Member", membershipType: this.state.membershipType, purchasePatronage: 0, rentalPatronage: 16666.67 }] : []);
-    if (sql.includes("DATE_FORMAT(p.period_start") && sql.includes("AS rentalPatronage") && sql.includes("FOR UPDATE")) return rows([{ memberId: "1", startDate: "2025-01-01", endDate: "2025-12-31", rentalPatronage: 16666.67, refundAmount: 500 }]);
+    if (sql.includes("DATE_FORMAT(p.period_start") && sql.includes("AS rentalPatronage") && sql.includes("FOR UPDATE")) return rows([{ memberId: "1", periodId: "20", policyVersion: this.state.policyVersion, refundPool: this.state.refundAmount, refundRate: this.state.refundRate, startDate: "2025-01-01", endDate: "2025-12-31", rentalPatronage: 16666.67, refundAmount: this.state.refundAmount }]);
+    if (sql.startsWith("SELECT rental_patronage AS rentalPatronage FROM patronage_allocations")) return rows([{ rentalPatronage: 16666.67 }]);
     if (sql.includes("FROM member_profiles") && sql.includes("user_id = ?")) return rows(values[0] === member.user.id && (!sql.includes("membership_type = 'True Member'") || this.state.membershipType === "True Member") ? [{ id: "1" }] : []);
     if (sql.includes("FROM member_profiles") && sql.includes("FOR UPDATE")) return rows([{ approvalStatus: "Approved", memberStatus: "Active", membershipType: this.state.membershipType }]);
     if (sql.includes("FROM patronage_allocations a JOIN patronage_periods") || (sql.includes("FROM patronage_allocations a") && sql.includes("FOR UPDATE") && !sql.includes("a.payment_notes AS paymentNotes"))) {
@@ -93,6 +94,20 @@ test("partial refund request reserves funds; approval credits capital exactly on
   assert.equal(db.state.paymentStatus, "Pending");
   assert.ok(db.statements.some((sql) => sql.includes("a.member_id = ?") && sql.includes("FOR UPDATE")));
   assert.ok(db.statements.some((sql) => sql.includes("FROM share_capital_accounts") && sql.includes("FOR UPDATE")));
+});
+
+for (const policyVersion of ["RentalSurplusAnnual", "RentalConfiguredAnnual"]) test(`${policyVersion} refunds can be reserved and added to capital using their saved policy`, async () => {
+  const db = new Database();
+  db.state.policyVersion = policyVersion;
+  db.state.refundAmount = 600;
+  db.state.refundRate = 3.6;
+  const repo = createPatronageCapitalRepository(db.pool());
+  await repo.request(request, member);
+  await repo.decide("1", { decision: "Approve" }, bookkeeper);
+  assert.equal(db.state.balance, 2300);
+  assert.equal(db.state.refundAmount, 600);
+  assert.equal(db.state.paymentStatus, "Pending");
+  assert.deepEqual(db.state.ledger, [300]);
 });
 
 test("competing refund requests cannot reserve more than the refund", async () => {

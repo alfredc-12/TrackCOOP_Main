@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState } from "react";
-import { ChevronDown, Filter, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
+import { ReportingFilterToggle, reportingDate } from "@/components/portal/ReportingFilterToggle";
 import { Button } from "@/components/ui/Button";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { StyledSelect } from "@/components/ui/StyledSelect";
@@ -11,10 +12,11 @@ import styles from "./MemberAnalytics.module.css";
 function shiftMonth(date: string, months: number) {
   const d = new Date(`${date.slice(0, 7)}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + months); return d.toISOString().slice(0, 10);
 }
-export function AnalyticsFilterForm({ applied, today, barangays, loading, onApply }: { applied: Filters; today: string; barangays: string[]; loading: boolean; onApply: (filters: Filters) => void }) {
+export function AnalyticsFilterForm({ applied, summaryFilters = applied, expanded, onExpandedChange, today, barangays, loading, onApply }: { applied: Filters; summaryFilters?: Filters; expanded: boolean; onExpandedChange: (expanded: boolean) => void; today: string; barangays: string[]; loading: boolean; onApply: (filters: Filters) => void }) {
   const [draft, setDraft] = useState(applied);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedId = useId();
+  const panelId = useId();
   const [barangay, setBarangay] = useState("");
   const [error, setError] = useState("");
   const [period, setPeriod] = useState("Custom range");
@@ -36,9 +38,11 @@ export function AnalyticsFilterForm({ applied, today, barangays, loading, onAppl
     if (!next.start || !next.end || !next.asOf || next.start > next.end || next.end > next.asOf || next.asOf > today) { setError("Choose a reporting start before its end, ending on or before the as-of date. Future dates are unavailable."); return; }
     setError(""); onApply(next);
   };
-  const chips = Object.entries(applied).filter(([k, v]) => !["start", "end", "asOf"].includes(k) && (Array.isArray(v) ? v.length : v)).flatMap(([key, value]) => (Array.isArray(value) ? value : [value]).map(v => ({ key: key as keyof Filters, value: v })));
+  const chips = Object.entries(summaryFilters).filter(([k, v]) => !["start", "end", "asOf"].includes(k) && (Array.isArray(v) ? v.length : v)).flatMap(([key, value]) => (Array.isArray(value) ? value : [value]).map(v => ({ key: key as keyof Filters, value: v })));
   return <form className={`${styles.panel} ${styles.filters}`} onSubmit={e => { e.preventDefault(); apply(); }} aria-label="Member analytics filters">
-    <div className="mb-4 flex items-center gap-2"><h2 className="flex items-center gap-2 text-base font-semibold"><Filter className="size-4" aria-hidden="true" />Reporting filters</h2><button type="button" aria-expanded={advancedOpen} aria-controls={advancedId} aria-label="More filters" onClick={() => setAdvancedOpen(open => !open)} className="grid size-10 place-items-center rounded-md text-coop-forest hover:bg-coop-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-coop-green"><ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} aria-hidden="true" /></button></div>
+    <ReportingFilterToggle expanded={expanded} onToggle={() => onExpandedChange(!expanded)} controls={panelId}
+      summary={`${reportingDate(summaryFilters.start)} – ${reportingDate(summaryFilters.end)} · As of ${reportingDate(summaryFilters.asOf)}`} activeCount={chips.length} />
+    <div id={panelId} hidden={!expanded} className="mt-4 border-t border-coop-card-border pt-4">
     <div className={styles.fields}>
       <AnalyticsSelectField label="Reporting period" value={period} options={["This month", "Last month", "Last 3 months", "Last 6 months", "This year", "Last year", "Custom range"]} onChange={preset} />
       <DatePicker triggerClassName="h-11 min-h-11 rounded-md px-3 text-sm" label="Reporting start" value={draft.start} max={draft.end || today} onChange={v => update("start", v)} />
@@ -50,12 +54,14 @@ export function AnalyticsFilterForm({ applied, today, barangays, loading, onAppl
     </div>
     {draft.barangays.length > 0 && <div className={styles.chips}>{draft.barangays.map(b => <button type="button" className={styles.chip} key={b} onClick={() => update("barangays", draft.barangays.filter(v => v !== b))}>{b}<X className="size-3" aria-label="Remove" /></button>)}</div>}
     <div className="flex flex-wrap items-end justify-between gap-3"><fieldset className={styles.sectors}><legend className="pt-4 text-xs font-semibold">Primary sectors · select any</legend>{sectors.map(s => <label key={s}><input type="checkbox" checked={draft.sectors.includes(s)} onChange={e => update("sectors", e.target.checked ? [...draft.sectors, s] : draft.sectors.filter(v => v !== s))} />{s === "High-value crops (gulayan)" ? "High-Value Crops" : s}</label>)}</fieldset><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" size="sm" onClick={() => { const next = defaultAnalyticsFilters(today); setDraft(next); apply(next); }}>Clear filters</Button><Button type="submit" size="sm" loading={loading}>Apply filters</Button></div></div>
+    <button type="button" aria-expanded={advancedOpen} aria-controls={advancedId} aria-label="More filters" onClick={() => setAdvancedOpen(open => !open)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-semibold text-coop-secondary hover:text-coop-forest">More filters<ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} aria-hidden="true" /></button>
     <div id={advancedId} hidden={!advancedOpen}><div className={`${styles.fields} mt-4`}>
       <AnalyticsSelectField label="Official membership status" value={draft.officialStatus} allLabel="All official statuses" options={["Pending", "Active", "Inactive", "Suspended", "Terminated"]} onChange={v => update("officialStatus", v)} />
       <AnalyticsSelectField label="Share-capital stage" value={draft.capitalStage} allLabel="All capital stages" options={stages} onChange={v => update("capitalStage", v)} />
       <AnalyticsSelectField label="Application source" value={draft.source} allLabel="All sources" options={["Public Website", "Chairman Entry", "Imported Paper Form"]} onChange={v => update("source", v)} />
     </div></div>
     {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
-    {chips.length > 0 && <div className={styles.chips} aria-label="Applied filters">{chips.map(c => <button key={`${c.key}:${c.value}`} type="button" className={styles.chip} aria-label={`Remove ${c.value} filter`} onClick={() => { const next = { ...applied }; if (c.key === "barangays" || c.key === "sectors") next[c.key] = next[c.key].filter(v => v !== c.value); else next[c.key] = ""; setDraft(next); apply(next); }}>{c.value}<X className="size-3" aria-hidden="true" /></button>)}</div>}
+    </div>
+    {chips.length > 0 && <div className={styles.chips} aria-label="Applied filters">{chips.map(c => <button key={`${c.key}:${c.value}`} type="button" className={styles.chip} aria-label={`Remove ${c.value} filter`} onClick={() => { const next = { ...summaryFilters }; if (c.key === "barangays" || c.key === "sectors") next[c.key] = next[c.key].filter(v => v !== c.value); else next[c.key] = ""; setDraft(next); apply(next); }}>{c.value}<X className="size-3" aria-hidden="true" /></button>)}</div>}
   </form>;
 }

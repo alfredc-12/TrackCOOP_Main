@@ -157,7 +157,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
         `SELECT CAST(a.patronage_allocation_id AS CHAR) AS id, p.period_name AS periodName,
                 a.refund_amount AS refundAmount, a.payment_status AS paymentStatus, ${patronageCapitalColumns}
            FROM patronage_allocations a JOIN patronage_periods p ON p.patronage_period_id = a.patronage_period_id
-          WHERE a.member_id = ? AND p.period_status = 'Finalized' AND p.calculation_policy = 'Rental3PercentAnnual' AND a.payment_status = 'Pending'
+          WHERE a.member_id = ? AND p.period_status = 'Finalized' AND p.calculation_policy IN ('Rental3PercentAnnual', 'RentalSurplusAnnual', 'RentalConfiguredAnnual') AND a.payment_status = 'Pending'
             AND EXISTS (SELECT 1 FROM member_profiles m WHERE m.member_id = a.member_id AND m.membership_type = 'True Member')
           ORDER BY p.period_end, a.patronage_allocation_id`, [memberId],
       );
@@ -240,7 +240,7 @@ export function createPatronageCapitalRepository(pool?: Pool): PatronageCapitalR
           if (moneyCents(totals.capitalizedAmount) + moneyCents(transfer.amount) === moneyCents(refund.refundAmount)) {
             await connection.execute(`UPDATE patronage_allocations SET payment_status = 'Paid', paid_at = UTC_TIMESTAMP(), paid_by = ?, payment_notes = 'Refund added to Share Capital.' WHERE patronage_allocation_id = ?`, [auth.user.id, refund.id]);
             await connection.execute(`UPDATE patronage_periods p SET period_status = 'Paid', paid_at = UTC_TIMESTAMP()
-              WHERE p.patronage_period_id = ? AND NOT EXISTS (SELECT 1 FROM patronage_allocations a WHERE a.patronage_period_id = p.patronage_period_id AND a.payment_status = 'Pending')`, [refund.periodId]);
+              WHERE p.patronage_period_id = ? AND NOT EXISTS (SELECT 1 FROM patronage_allocations a WHERE a.patronage_period_id = p.patronage_period_id AND a.payment_status = 'Pending' AND a.refund_amount > 0)`, [refund.periodId]);
           }
         }
         await connection.execute(

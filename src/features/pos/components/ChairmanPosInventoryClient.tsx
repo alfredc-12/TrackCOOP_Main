@@ -5,11 +5,14 @@ import { Plus, X, Camera, Search, Image as ImageIcon, ChevronDown, Wheat, Sprout
 import { expressApiUrl, expressFetch } from "@/lib/express-api";
 import { toast } from "sonner";
 import { normalizeProductImage } from "../product-image-url";
+import { PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import { PaginationControls } from "@/components/portal/PortalPrimitives";
 import {
     HIGH_VALUE_CROP_CRITERIA,
     HIGH_VALUE_CROP_DEFINITION,
     HIGH_VALUE_CROP_NAMES,
+    getHighValueCropNames,
     isHighValueCropRecord,
 } from "@/features/crops/high-value-crops";
 
@@ -125,8 +128,8 @@ function getStockStatus(item: Pick<InventoryItem, "stock" | "pending_qty" | "reo
     return "Healthy";
 }
 
-function isHighValueInventoryItem(item: Pick<InventoryItem, "name" | "category">) {
-    return isHighValueCropRecord(item.name, item.category);
+function isHighValueInventoryItem(item: Pick<InventoryItem, "name" | "category">, cropNames: readonly string[]) {
+    return isHighValueCropRecord(item.name, item.category, cropNames);
 }
 
 function stockStatusClass(status: StockStatus) {
@@ -322,31 +325,15 @@ function ThemedSelect({
     options: { value: string; label: string }[];
     ariaLabel: string;
 }) {
-    const [open, setOpen] = useState(false);
-    const selected = options.find((option) => option.value === value)?.label ?? value;
-
-    return (
-            <div className="relative min-w-0">
-            <button type="button" onClick={() => setOpen((current) => !current)} aria-haspopup="listbox" aria-expanded={open} aria-label={ariaLabel} className="flex w-full min-w-0 items-center justify-between overflow-hidden whitespace-nowrap rounded-xl border border-[#BBD7C1] bg-[#F8FBF8] px-4 py-3 text-left text-sm font-medium text-[#123D2A] outline-none transition hover:border-[#1F6B43] focus:ring-2 focus:ring-[#1F6B43]/20">
-                <span className="min-w-0 truncate">{selected}</span>
-                <ChevronDown className={`size-4 shrink-0 text-[#52705D] transition ${open ? "rotate-180" : ""}`} />
-            </button>
-            {open && (
-                <div className="absolute left-0 right-0 top-full z-[90] mt-2 overflow-hidden rounded-xl border border-[#CDE2D1] bg-white p-1.5 shadow-[0_12px_28px_rgba(18,61,42,0.16)]" role="listbox" aria-label={ariaLabel}>
-                    {options.map((option) => (
-                        <button key={option.value} type="button" role="option" aria-selected={value === option.value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${value === option.value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#52705D] hover:bg-[#F5F8F3] hover:text-[#123D2A]"}`}>
-                            {option.label}{value === option.value && <span className="text-[#1F6B43]">✓</span>}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
+    return <StyledSelect value={options.find((option) => option.value === value)?.label ?? value}
+        options={options.map((option) => option.label)} aria-label={ariaLabel}
+        onChange={(label) => onChange(options.find((option) => option.label === label)?.value ?? value)} />;
 }
 
 export default function ChairmanPosInventoryClient({ showOrdersPayments = true }: { showOrdersPayments?: boolean }) {
     const [isMounted, setIsMounted] = useState(false);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [highValueCropNames, setHighValueCropNames] = useState<readonly string[]>(HIGH_VALUE_CROP_NAMES);
     const [demandPeriod, setDemandPeriod] = useState<DemandPeriod>("all");
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -375,6 +362,14 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     const [ordersPageSize, setOrdersPageSize] = useState(5);
     const [inventoryPage, setInventoryPage] = useState(1);
     const [inventoryPageSize, setInventoryPageSize] = useState(8);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        void getHighValueCropNames(controller.signal)
+            .then((names) => { if (names.length) setHighValueCropNames(names); })
+            .catch(() => { /* Keep the approved fallback list when the reference endpoint is unavailable. */ });
+        return () => controller.abort();
+    }, []);
 
     const fetchInventory = useCallback(async () => {
         try {
@@ -972,7 +967,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
             const demand = demandByProductId.get(item.id) ?? "Low";
             const matchesDemand = demandFilter === "All" || demand === demandFilter;
-            const isHighValue = isHighValueInventoryItem(item);
+            const isHighValue = isHighValueInventoryItem(item, highValueCropNames);
             const matchesHighValue = highValueFilter === "All" || (highValueFilter === "High-Value" ? isHighValue : !isHighValue);
             return matchesSearch && matchesCategory && matchesDemand && matchesHighValue;
         })
@@ -1067,64 +1062,13 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
     }
 
     return (
-      <div className="-mx-4 -my-6 w-auto overflow-x-hidden bg-[#F5F8F3] p-4 sm:-mx-6 sm:p-5 lg:-mx-8 lg:-my-8 lg:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-            {/* Summary Cards */}
-            <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43] shadow-sm">
-                        <Wheat className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">Total Products</p>
-                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Active catalog products</p>
-                        <p className="break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 text-[#123D2A]">{inventory.length}</p>
-                    </div>
-                </div>
-
-                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#E8F7EE] p-2.5 text-[#168047]">
-                        <Activity className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">High Demand</p>
-                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">{totalSoldUnits.toLocaleString()} units sold · {demandPeriodDescription(demandPeriod)}</p>
-                        <p className="break-words text-[clamp(1.15rem,1.5vw,1.5rem)] font-black leading-7 text-[#168047]">{highDemandCount}</p>
-                    </div>
-                </div>
-
-                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
-                        <Sprout className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">Total Stock Value</p>
-                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Based on selling price</p>
-                        <p className="whitespace-nowrap text-[clamp(0.95rem,1.2vw,1.25rem)] font-black leading-7 tracking-tight text-[#123D2A]" title={`₱ ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}>₱ {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                    </div>
-                </div>
-
-                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
-                        <Banknote className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">Cash Sales</p>
-                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Paid POS orders</p>
-                        <p className="whitespace-nowrap text-[clamp(0.95rem,1.2vw,1.25rem)] font-black leading-7 tracking-tight text-[#123D2A]" title={`₱ ${totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}>₱ {totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                    </div>
-                </div>
-
-                <div className="group relative flex min-h-[132px] min-w-0 items-center overflow-hidden rounded-2xl border border-[#DDE9E0] bg-white p-4 shadow-[0_6px_18px_rgba(18,61,42,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(18,61,42,0.12)]">
-                    <div className="mr-2.5 shrink-0 rounded-xl bg-[#EAF5EC] p-2.5 text-[#1F6B43]">
-                        <Smartphone className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="mb-0.5 text-xs font-bold leading-4 text-gray-500">QRPH Sales</p>
-                        <p className="min-h-8 text-[10px] leading-4 text-gray-400">Paid QRPH orders</p>
-                        <p className="whitespace-nowrap text-[clamp(0.95rem,1.2vw,1.25rem)] font-black leading-7 tracking-tight text-[#123D2A]" title={`₱ ${totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}>₱ {totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                    </div>
-                </div>
+      <div className="min-w-0">
+            <div className="mb-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                <PaymentSummaryCard label="Total Products" description="Active catalog products" value={String(inventory.length)} icon={Wheat} showTopBorder={false} />
+                <PaymentSummaryCard label="High Demand" description={`${totalSoldUnits.toLocaleString()} units sold · ${demandPeriodDescription(demandPeriod)}`} value={String(highDemandCount)} icon={Activity} showTopBorder={false} />
+                <PaymentSummaryCard tone="sage" label="Total Stock Value" description="Based on selling price" value={`₱ ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Sprout} valueClassName="break-words text-xl" showTopBorder={false} />
+                <PaymentSummaryCard label="Cash Sales" description="Paid POS orders" value={`₱ ${totalCashSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Banknote} valueClassName="break-words text-xl" showTopBorder={false} />
+                <PaymentSummaryCard label="QRPH Sales" description="Paid QRPH orders" value={`₱ ${totalQRPHSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Smartphone} valueClassName="break-words text-xl" showTopBorder={false} />
             </div>
 
             {/* Header */}
@@ -1135,7 +1079,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                         <span className="h-2 w-2 rounded-full bg-[#F2C94C] shadow-[0_0_0_4px_rgba(242,201,76,0.18)]" />
                         <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B8A76]">Operations / Products</span>
                     </div>
-                    <h2 className="text-3xl font-bold text-[#123D2A]">All Products</h2>
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-coop-forest"><Wheat className="size-5 text-coop-green" aria-hidden="true" />Product catalog</h2>
                     <p className="text-sm text-[#64748b] mt-1">Manage products, stock levels, and reorder alerts.</p>
                 </div>
                 <div className="flex flex-wrap items-center justify-start gap-2 lg:max-w-[620px] lg:justify-end">
@@ -1412,7 +1356,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                                             <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${demandBadgeClass(demand)}`} title={`Demand level based on ${Number(item.sold || 0).toLocaleString()} completed units sold for ${demandPeriodDescription(demandPeriod)}`}>
                                                 {demand} demand
                                             </span>
-                                            {isHighValueInventoryItem(item) && (
+                                            {isHighValueInventoryItem(item, highValueCropNames) && (
                                                 <span className="inline-flex w-fit items-center rounded-full bg-[#FFF6DD] px-2.5 py-1 text-[11px] font-bold text-[#A76500] ring-1 ring-inset ring-[#F2D28B]" title={HIGH_VALUE_CROP_DEFINITION}>
                                                     High-value crop
                                                 </span>
@@ -1565,7 +1509,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             <div>
                                 <h3 className="text-sm font-black text-[#123D2A]">Reference crop list</h3>
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {HIGH_VALUE_CROP_NAMES.map((crop) => <span key={crop} className="rounded-full bg-[#EAF5EC] px-2.5 py-1 text-xs font-semibold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{crop}</span>)}
+                                    {highValueCropNames.map((crop) => <span key={crop} className="rounded-full bg-[#EAF5EC] px-2.5 py-1 text-xs font-semibold text-[#1F6B43] ring-1 ring-inset ring-[#C9E2CF]">{crop}</span>)}
                                 </div>
                             </div>
                             <p className="rounded-2xl border border-[#F2D28B] bg-[#FFF8E8] px-4 py-3 text-xs leading-5 text-[#7A5100]">This is the current system reference list. The cooperative can finalize or revise the official crop list before production use.</p>
@@ -2231,7 +2175,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
             {/* Archived Products Modal */}
             {isArchivedModalOpen && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B2E20]/55 p-4 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="archived-products-title">
-                    <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
+                    <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-[#D8E5DB] bg-white shadow-[0_24px_70px_rgba(18,61,42,0.28)]">
                         <div className="flex items-start justify-between border-b border-[#E7EFE8] bg-[#F8FBF8] px-5 py-5 sm:px-7">
                             <div className="flex items-start gap-3">
                                 <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF5EC] text-[#1F6B43]">
@@ -2293,7 +2237,7 @@ export default function ChairmanPosInventoryClient({ showOrdersPayments = true }
                             pageSize={archivedPageSize}
                             pageSizeOptions={[5, 10, 20]}
                             onPageSizeChange={(nextPageSize) => { setArchivedPageSize(nextPageSize); setArchivedPage(1); }}
-                            className="mt-0 border-t border-[#E7EFE8] bg-[#F8FBF8] px-5 py-4 text-sm sm:px-7"
+                            className="archived-products-pagination mt-0 border-t border-[#E7EFE8] bg-[#F8FBF8] px-5 py-4 text-sm sm:px-7"
                         />
                     </div>
                 </div>

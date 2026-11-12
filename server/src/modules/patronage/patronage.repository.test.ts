@@ -152,6 +152,42 @@ test("True Members with a missing effective date receive guidance rather than an
   assert.equal(result.refunds.pendingTotal, 0);
 });
 
+test("a personal rental total cannot produce an estimate without the annual financial basis", async () => {
+  const source = { memberId: "7", memberCode: "M-7", memberName: "Vince", membershipType: "True Member", purchasePatronage: 0, rentalPatronage: 1000 };
+  const { pool } = fakePool([[{ ...source, trueMemberSince: "2025-01-01" }], [source], [], []]);
+  const result = await createPatronageRepository(pool as never).memberSummary({ ...auth, user: { ...auth.user, role: "member" } });
+  assert.equal(result.member.eligible, true);
+  assert.equal(result.currentYear.totalPatronage, 1000);
+  assert.equal(result.currentYear.estimateAvailable, false);
+  assert.equal(result.currentYear.estimatedRefund, 0);
+  assert.equal(result.currentYear.refundRate, 0);
+});
+
+test("member estimates use all participants as the denominator rather than allocating the full pool to one member", async () => {
+  const source = { memberId: "7", memberCode: "M-7", memberName: "Vince", membershipType: "True Member", purchasePatronage: 0, rentalPatronage: 1000 };
+  const { pool } = fakePool([
+    [{ ...source, trueMemberSince: "2025-01-01" }], [source], [],
+    [{ policyVersion: "RentalSurplusAnnual", refundPool: 30000, refundRate: 3 }],
+    [source, { ...source, memberId: "8", rentalPatronage: 999000 }],
+  ]);
+  const result = await createPatronageRepository(pool as never).memberSummary({ ...auth, user: { ...auth.user, role: "member" } });
+  assert.equal(result.currentYear.estimateAvailable, true);
+  assert.equal(result.currentYear.estimatedRefund, 30);
+  assert.equal(result.currentYear.refundRate, 3);
+});
+
+test("configured member estimates use the annual saved rate rather than a share of the funding pool", async () => {
+  const source = { memberId: "7", memberCode: "M-7", memberName: "Vince", membershipType: "True Member", purchasePatronage: 0, rentalPatronage: 1000 };
+  const { pool } = fakePool([
+    [{ ...source, trueMemberSince: "2025-01-01" }], [source], [],
+    [{ policyVersion: "RentalConfiguredAnnual", refundPool: 60000, refundRate: 4.25 }],
+    [source, { ...source, memberId: "8", rentalPatronage: 999000 }],
+  ]);
+  const result = await createPatronageRepository(pool as never).memberSummary({ ...auth, user: { ...auth.user, role: "member" } });
+  assert.equal(result.currentYear.estimatedRefund, 42.5);
+  assert.equal(result.currentYear.refundRate, 4.25);
+});
+
 test("financialBasis excludes reversal adjustments from netOperatingSurplus and applies Manila +08:00 and Test gateway filters in source SQL", async () => {
   const { pool, state } = fakePool([
     [{ memberId: "1", memberCode: "M-1", memberName: "True Member", membershipType: "True Member", purchasePatronage: 0, rentalPatronage: 10000 }],
@@ -173,6 +209,8 @@ test("financialBasis excludes reversal adjustments from netOperatingSurplus and 
   assert.equal(basis.netOperatingSurplus, 60000);
   assert.equal(basis.eligibleMemberPatronage, 10000);
   assert.equal(basis.estimatedRefund, 300);
+  assert.equal(basis.memberRefundRate, 3);
+  assert.equal(basis.allocationRate, 30);
   assert.match(state.queries[0], /TIMESTAMPADD\(HOUR, 8, COALESCE\(payment\.validated_at, payment\.paid_at\)\)/);
   assert.match(state.queries[0], /COALESCE\(payment\.gateway_environment, ''\) = 'Test'/);
 });

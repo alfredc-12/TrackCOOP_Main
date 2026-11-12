@@ -6,6 +6,9 @@ export type PatronagePeriodStatus = "Draft" | "Finalized" | "Paid";
 export type PatronagePaymentStatus = "Pending" | "Paid";
 
 export type PatronagePeriod = {
+  netSurplus?: number | null;
+  statutoryReserves?: number | null;
+  allocationRate?: number | null;
   policyVersion?: string;
   refundRate?: number;
   id: string;
@@ -53,6 +56,8 @@ export type PatronageOverview = {
 };
 
 export type PatronageFinancialBasis = {
+  memberRefundRate?: number;
+  allocationRate?: number;
   startDate: string;
   endDate: string;
   posIncome: number;
@@ -74,7 +79,7 @@ export type PatronageFinancialBasis = {
 
 export type MemberPatronageSummary = {
   member: { code: string; name: string; membershipType: "Associate" | "True Member"; eligible?: boolean; trueMemberSince?: string | null; eligibilityMessage?: string };
-  currentYear: { startDate: string; endDate: string; purchasePatronage: number; rentalPatronage: number; totalPatronage: number; estimatedRefund?: number; refundRate?: number };
+  currentYear: { startDate: string; endDate: string; purchasePatronage: number; rentalPatronage: number; totalPatronage: number; estimatedRefund?: number; refundRate?: number; estimateAvailable?: boolean };
   refunds: { allocatedTotal: number; paidTotal: number; pendingTotal: number; capitalizedTotal?: number; pendingCapitalTotal?: number };
   history: Array<{
     policyVersion?: string;
@@ -102,7 +107,7 @@ export function getPatronageFinancialBasis(startDate: string, endDate: string) {
   return apiRequest<PatronageFinancialBasis>(`/api/patronage/financial-basis?${query}`);
 }
 
-export function createPatronagePeriod(input: { name: string; startDate: string; endDate: string; refundPool?: number; notes?: string | null }) {
+export function createPatronagePeriod(input: { name: string; startDate: string; endDate: string; netSurplus: number; statutoryReserves: number; refundPool?: number; notes?: string | null }) {
   return apiRequest<PatronagePeriod>("/api/patronage/periods", { method: "POST", body: JSON.stringify(input) });
 }
 

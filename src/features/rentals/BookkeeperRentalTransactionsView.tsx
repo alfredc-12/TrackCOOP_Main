@@ -4,7 +4,6 @@ import {
   BadgeCheck,
   Banknote,
   CalendarDays,
-  ChevronDown,
   Eye,
   RefreshCcw,
   Search,
@@ -14,7 +13,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/portal/PageHeader";
+import { PaymentWorkspaceHeader, PaymentSummaryCard } from "@/components/portal/PaymentWorkspace";
+import { StyledSelect } from "@/components/ui/StyledSelect";
 import {
   CurrencyDisplay,
   DataTable,
@@ -23,7 +23,6 @@ import {
   FormDialog,
   LoadingSkeleton,
   PaginationControls,
-  StatCard,
   StatusBadge,
 } from "@/components/portal/PortalPrimitives";
 import { ApiClientError } from "@/lib/api-client";
@@ -63,10 +62,10 @@ function dateOnly(value: string | null) {
 }
 
 function RentalStatusSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [open, setOpen] = useState(false);
   const options = [{ value: "", label: "All statuses" }, { value: "Pending", label: "Waiting" }, { value: "Needs Clarification", label: "Needs correction" }, { value: "Validated", label: "Approved" }, { value: "Rejected", label: "Rejected" }, { value: "Reversed", label: "Reversed" }];
-  const selected = options.find((option) => option.value === value)?.label ?? "All statuses";
-  return <div className="relative"><button type="button" aria-label="Filter payment status" aria-expanded={open} onClick={() => setOpen((current) => !current)} className="flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#CAD8CB] bg-white px-3 text-left text-sm font-bold text-[#123D2A] outline-none focus:border-[#1F6B43] focus:ring-4 focus:ring-[#82E6A7]/20"><span>{selected}</span><ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} /></button>{open ? <div role="listbox" className="absolute z-30 mt-2 w-full rounded-md border border-[#CAD8CB] bg-white p-1 shadow-[0_12px_28px_rgba(18,61,42,0.16)]">{options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => { onChange(option.value); setOpen(false); }} className={`w-full rounded px-3 py-3 text-left text-sm ${option.value === value ? "bg-[#EAF5EC] font-bold text-[#123D2A]" : "text-[#294B39] hover:bg-[#F2FAF3]"}`}>{option.label}</button>)}</div> : null}</div>;
+  return <StyledSelect value={options.find((option) => option.value === value)?.label ?? "All statuses"}
+    options={options.map((option) => option.label)} aria-label="Filter payment status"
+    onChange={(label) => onChange(options.find((option) => option.label === label)?.value ?? "")} />;
 }
 
 function rentalPeriod(payment: Pick<PaymentReferenceListItem, "rentalStartAt" | "rentalEndAt">) {
@@ -232,20 +231,15 @@ export function BookkeeperRentalTransactionsView() {
   const canReview = selected && !["Validated", "Reversed"].includes(selected.validationStatus);
   const isOnline = selected?.paymentChannel === "PayMongo";
 
-  return <div className="grid gap-7">
-    <PageHeader eyebrow="Operations" title="Rental Transactions"
-      description="Check who rented, what they rented, the amount paid, and approve the payment."
-      actions={<StatusBadge tone="success">Bookkeeper</StatusBadge>} />
-
-    <div className="rounded-lg border border-[#B7D7BD] bg-[#F2FAF3] p-4 text-sm leading-6 text-[#294B39]">
-      <strong>Simple rule:</strong> PayMongo confirms online payments. For cash, you check that the money was received and decide whether to approve it.
-    </div>
+  return <div className="grid min-w-0 gap-4">
+    <PaymentWorkspaceHeader eyebrow="Bookkeeper · Rentals" title="Rental Payments" icon={Tractor}
+      description="Review equipment rental payments. PayMongo confirms online payments; verify money received before approving cash payments." />
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Waiting for review" value={String(totals.waiting)} icon={CalendarDays} />
-      <StatCard label="Online / PayMongo" value={String(totals.online)} icon={WalletCards} />
-      <StatCard label="Cash payments" value={String(totals.cash)} icon={Banknote} />
-      <StatCard label="Approved" value={String(totals.approved)} icon={BadgeCheck} />
+      <PaymentSummaryCard tone="gold" label="Waiting for review" value={String(totals.waiting)} icon={CalendarDays} />
+      <PaymentSummaryCard label="Online / PayMongo" value={String(totals.online)} icon={WalletCards} />
+      <PaymentSummaryCard label="Cash payments" value={String(totals.cash)} icon={Banknote} />
+      <PaymentSummaryCard label="Approved" value={String(totals.approved)} icon={BadgeCheck} />
     </div>
 
     <div className="grid gap-3 rounded-lg border border-[#CAD8CB] bg-white p-4 md:grid-cols-[minmax(0,1fr)_13rem_auto]">
@@ -259,12 +253,13 @@ export function BookkeeperRentalTransactionsView() {
       </button>
     </div>
 
+    <h2 className="flex items-center gap-2 px-1 text-base font-bold text-coop-forest"><Tractor className="size-4 text-coop-green" aria-hidden="true" />Rental payment history</h2>
     {error ? <ErrorState message={error} onRetry={() => void load()} /> : loading ? <LoadingSkeleton /> : filtered.length === 0
       ? <EmptyState icon={Tractor} title="No rental payments found" description="Rental payments will appear here after they are recorded." />
       : <><DataTable><table className="min-w-full divide-y divide-[#E2E8E2] text-left text-sm">
-        <thead className="bg-[#F7F8F3] text-xs uppercase tracking-[0.14em] text-[#5D6D63]"><tr>
+        <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]"><tr>
           <th className="px-5 py-4">Renter</th><th className="px-5 py-4">Equipment / period</th><th className="px-5 py-4 text-center">Quantity</th>
-          <th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Payment method</th><th className="px-5 py-4 text-center">Status</th><th className="px-5 py-4"><span className="sr-only">Action</span></th>
+          <th className="px-5 py-4 text-center">Amount</th><th className="px-5 py-4 text-center">Payment method</th><th className="px-5 py-4 text-center">Status</th><th className="px-5 py-4">Actions</th>
         </tr></thead>
         <tbody className="divide-y divide-[#EEF2EC]">{visiblePayments.map((payment) => <tr key={payment.id} className="hover:bg-[#F7F8F3]">
           <td className="px-5 py-4"><p className="font-bold text-[#123D2A]">{payment.payerName || "Not recorded"}</p><p className="mt-1 text-xs text-[#6C7A70]">{payment.rentalNumber || payment.referenceNumber}</p></td>

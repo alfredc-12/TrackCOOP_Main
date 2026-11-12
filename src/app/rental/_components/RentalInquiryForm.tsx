@@ -24,6 +24,8 @@ import {
   PERSON_NAME_PATTERN,
   validateUpload,
 } from "../_lib/rentalValidation";
+import { TractorWorkPlan, TractorWorkSummary } from "./TractorWorkPlan";
+import { isTractorService, dailyWorkError, workDateKeys } from "../_lib/rentalHectares";
 import { estimateRentalFee } from "../_lib/rentalEstimate";
 import { formatPeso, formatRentalDateRange } from "../_lib/rentalFormatting";
 import { z } from "zod";
@@ -32,6 +34,7 @@ import { rentalApiRepository } from "../_lib/rentalApi";
 import {
   VALID_ID_TYPES,
   type PublicRentalBlockedDate,
+  type RentalDailyWork,
   type ValidIdType,
 } from "../_types/rental";
 import { getAuthenticatedUser } from "@/lib/auth-client";
@@ -87,6 +90,7 @@ const requesterFields: FieldPath<ClientFormValues>[] = [
 
 const rentalFields: FieldPath<ClientFormValues>[] = [
   "serviceId",
+  "dailyWork",
   "intendedUse",
   "preferredDate",
   "preferredEndDate",
@@ -143,6 +147,7 @@ export function RentalInquiryForm({
   const [blockedDates, setBlockedDates] = useState<PublicRentalBlockedDate[]>([]);
   const [blockedDatesServiceId, setBlockedDatesServiceId] = useState("");
   const [blockedDatesError, setBlockedDatesError] = useState<string>();
+  const [calendarRangeStart, setCalendarRangeStart] = useState<{ date: string; serviceId: string } | null>(null);
   const [selectedFarmWork, setSelectedFarmWork] = useState("");
   const [otherFarmWork, setOtherFarmWork] = useState("");
   const [contactDisplay, setContactDisplay] = useState("");
@@ -218,16 +223,24 @@ export function RentalInquiryForm({
   const selectedService = services.find(
     (service) => service.serviceId === selectedServiceId,
   );
+  const tractor = isTractorService(selectedService);
+  const AvailabilityContainer = tractor ? "details" : "div";
+  const watchedDailyWork = useWatch({ control, name: "dailyWork" });
+  const dailyWork = useMemo(() => {
+    const dates = new Set(workDateKeys(preferredDate, preferredEndDate));
+    return (watchedDailyWork ?? []).filter((day) => dates.has(day.date));
+  }, [watchedDailyWork, preferredDate, preferredEndDate]);
   const estimatedFee = useMemo(
     () =>
       estimateRentalFee({
         service: selectedService,
         requesterType:
-          requesterType ?? (member ? "Member" : "Public or Non-member"),
+          member ? "Member" : requesterType ?? "Public or Non-member",
         startDate: preferredDate,
         endDate: preferredEndDate,
+        dailyWork,
       }),
-    [member, preferredDate, preferredEndDate, requesterType, selectedService],
+    [member, preferredDate, preferredEndDate, requesterType, selectedService, dailyWork],
   );
   const effectiveBlockedDates = useMemo(
     () =>
@@ -247,10 +260,15 @@ export function RentalInquiryForm({
     () => new Map(effectiveBlockedDates.map((item) => [item.date, item])),
     [effectiveBlockedDates],
   );
+  const unavailableDateKeys = useMemo(() => effectiveBlockedDates
+    .filter((day) => day.remainingHectares === undefined || day.remainingHectares <= 0)
+    .map((day) => day.date), [effectiveBlockedDates]);
+  const bookingMaxDate = `${new Date().getFullYear() + 2}-12-31`;
   const preferredBlockedDate = firstBlockedDateInRange(
     preferredDate,
     preferredEndDate,
     blockedDateByKey,
+    tractor ? dailyWork : undefined,
   );
 
   const firstName = useWatch({ control, name: "firstName" });
@@ -434,6 +452,7 @@ export function RentalInquiryForm({
       values.preferredDate,
       values.preferredEndDate,
       blockedDateByKey,
+      tractor ? dailyWork : undefined,
     );
 
     if (selectedPreferredBlock) {
@@ -448,6 +467,7 @@ export function RentalInquiryForm({
       return;
     }
 
+    if (!validateTractorWork()) { setCurrentStep(2); return; }
     const rentalValid = await trigger(rentalFields);
     if (!rentalValid) {
       setCurrentStep(2);
@@ -469,6 +489,8 @@ export function RentalInquiryForm({
       requestIdRef.current ??= crypto.randomUUID();
       await submitInquiry({
         ...values,
+        requesterType: member ? "Member" : values.requesterType,
+        dailyWork: tractor ? dailyWork : undefined,
         validIdType: values.validIdType as ValidIdType,
         clientRequestId: requestIdRef.current,
       }, validIdFile!, member);
@@ -488,6 +510,23 @@ export function RentalInquiryForm({
     setValidIdFile(issue ? undefined : file);
     setValidIdFileError(issue ?? (file ? undefined : "Upload a clear copy of the selected valid ID."));
   };
+
+  function validateTractorWork() {
+    if (!tractor) {
+      setValue("dailyWork", undefined);
+      clearErrors("dailyWork");
+      return true;
+    }
+    const issue = dailyWorkError(dailyWork, preferredDate, preferredEndDate)
+      ?? dailyWork.map((day) => {
+        const available = effectiveBlockedDates.find((entry) => entry.date === day.date)?.remainingHectares ?? 5;
+        return day.hectares > available ? `${day.date} has only ${available} hectares remaining.` : undefined;
+      }).find(Boolean);
+    if (issue) { setError("dailyWork", { type: "manual", message: issue }); return false; }
+    clearErrors("dailyWork");
+    setValue("dailyWork", dailyWork);
+    return true;
+  }
 
   const handleNext = async (fields: FieldPath<ClientFormValues>[], step: number) => {
     const valid = await trigger(fields, { shouldFocus: true });
@@ -702,9 +741,12 @@ export function RentalInquiryForm({
                     hideLabel
                     value={preferredDate}
                     min={todayKey()}
-                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    max={bookingMaxDate}
+                    disabledDates={unavailableDateKeys}
+                    disabled={blockedDatesLoading || Boolean(effectiveBlockedDatesError) || !selectedService}
                     placeholder="Select start date"
                     onChange={(date) => {
+                      setCalendarRangeStart(null);
                       setValue("preferredDate", date, { shouldValidate: true });
                       const currentEndDate = getValues("preferredEndDate");
                       if (!currentEndDate || currentEndDate < date) {
@@ -723,12 +765,19 @@ export function RentalInquiryForm({
                     hideLabel
                     value={preferredEndDate}
                     min={preferredDate || todayKey()}
-                    max={`${new Date().getFullYear() + 2}-12-31`}
+                    max={bookingMaxDate}
+                    disabledDates={unavailableDateKeys}
+                    disabled={blockedDatesLoading || Boolean(effectiveBlockedDatesError) || !selectedService}
                     placeholder="Select end date"
-                    onChange={(date) => setValue("preferredEndDate", date, { shouldValidate: true })}
+                    onChange={(date) => {
+                      setCalendarRangeStart(null);
+                      setValue("preferredEndDate", date, { shouldValidate: true });
+                    }}
                   />
                 </Field>
               </div>
+              <AvailabilityContainer className={tractor ? "rounded-xl border border-[#d7e2dc] bg-[#fbfdfb] px-3 py-2" : undefined}>
+                {tractor ? <summary className="cursor-pointer py-1 text-sm font-bold text-[#365f4a]">View availability calendar</summary> : null}
               <AvailabilityCalendar
                 serviceName={selectedService?.name}
                 selectedDate={preferredDate}
@@ -736,29 +785,38 @@ export function RentalInquiryForm({
                 blockedDates={effectiveBlockedDates}
                 loading={blockedDatesLoading}
                 error={effectiveBlockedDatesError}
+                maxDate={bookingMaxDate}
+                selectingEndDate={calendarRangeStart?.serviceId === selectedServiceId && calendarRangeStart.date === preferredDate}
                 onSelect={(date) => {
-                  setValue("preferredDate", date, { shouldValidate: true });
-                  if (!preferredEndDate || preferredEndDate < date) {
+                  const start = calendarRangeStart?.serviceId === selectedServiceId ? calendarRangeStart.date : undefined;
+                  if (start === preferredDate && start && date >= start) {
+                    setCalendarRangeStart(null);
+                    setValue("preferredEndDate", date, { shouldValidate: true });
+                  } else {
+                    setCalendarRangeStart({ date, serviceId: selectedServiceId });
+                    setValue("preferredDate", date, { shouldValidate: true });
                     setValue("preferredEndDate", date, { shouldValidate: true });
                   }
                 }}
               />
+              </AvailabilityContainer>
+              {tractor && preferredDate && preferredEndDate ? <TractorWorkPlan allowShiftPreference startDate={preferredDate} endDate={preferredEndDate} value={dailyWork} availability={effectiveBlockedDates} error={errors.dailyWork?.message} onChange={(work) => { setValue("dailyWork", work, { shouldDirty: true }); clearErrors("dailyWork"); }} /> : null}
               {selectedService && preferredDate && preferredEndDate && (
                 <div className="mt-4 rounded-xl border border-[#9bc9aa] bg-[#eaf4ec] p-4 text-[#123d2a]">
                   <h4 className="font-bold">Possible rental fee</h4>
                   {estimatedFee ? (
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <span className="text-sm">
-                        Original rate: {formatPeso(estimatedFee.originalDailyRate ?? estimatedFee.dailyRate)}
+                        Original rate: {formatPeso(estimatedFee.originalDailyRate ?? estimatedFee.dailyRate)} per {tractor ? "hectare" : "day"}
                         {estimatedFee.discountPercent ? (
                           <>
                             {" "}
                             - member discount {estimatedFee.discountPercent}% ={" "}
-                            {formatPeso(estimatedFee.dailyRate)} per day
+                            {formatPeso(estimatedFee.dailyRate)} per {tractor ? "hectare" : "day"}
                           </>
                         ) : null}
                         <br />
-                        {estimatedFee.days} day{estimatedFee.days === 1 ? "" : "s"} x{" "}
+                        {tractor ? `${estimatedFee.totalHectares} hectares` : `${estimatedFee.days} day${estimatedFee.days === 1 ? "" : "s"}`} x{" "}
                         {formatPeso(estimatedFee.dailyRate)}
                       </span>
                       <strong className="text-lg">
@@ -767,7 +825,7 @@ export function RentalInquiryForm({
                     </div>
                   ) : (
                     <p className="mt-2 text-sm font-semibold text-[#365f4a]">
-                      Rate is not configured yet. NFFAC will confirm the final amount.
+                      {tractor && !dailyWork.length ? "Enter hectares for your work dates to see the estimate." : "Rate is not configured yet. NFFAC will confirm the final amount."}
                     </p>
                   )}
                   <p className="mt-1 text-xs text-[#168046]">
@@ -807,11 +865,11 @@ export function RentalInquiryForm({
                   return;
                 }
                 const blockedMap = new Map(effectiveBlockedDates.map(item => [item.date, item]));
-                const selectedBlock = firstBlockedDateInRange(getValues("preferredDate"), getValues("preferredEndDate"), blockedMap);
+                const selectedBlock = firstBlockedDateInRange(getValues("preferredDate"), getValues("preferredEndDate"), blockedMap, tractor ? dailyWork : undefined);
                 if (selectedBlock) {
                   setError("preferredEndDate", { type: "manual", message: `${selectedBlock.date} is unavailable.` });
                 }
-                if (!selectedBlock) handleNext(rentalFields, 3);
+                if (!selectedBlock && validateTractorWork()) void handleNext(rentalFields, 3);
               }}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08753a] px-6 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#075f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#08753a]"
             >
@@ -837,6 +895,7 @@ export function RentalInquiryForm({
               <div><dt className="font-bold">Farm work</dt><dd>{intendedUse || "Not provided"}</dd></div>
             </dl>
           </div>
+          {tractor ? <TractorWorkSummary value={dailyWork} /> : null}
           <ConsentField
             error={
               errors.dataPrivacyConsent?.message ||
@@ -1176,6 +1235,8 @@ function AvailabilityCalendar({
   loading,
   error,
   onSelect,
+  maxDate,
+  selectingEndDate,
 }: {
   serviceName?: string;
   selectedDate: string;
@@ -1184,6 +1245,8 @@ function AvailabilityCalendar({
   loading: boolean;
   error?: string;
   onSelect: (date: string) => void;
+  maxDate: string;
+  selectingEndDate: boolean;
 }) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const blockedByDate = useMemo(
@@ -1202,6 +1265,7 @@ function AvailabilityCalendar({
   const days = useMemo(() => monthDays(month), [month]);
   const unavailableCount = blockedDates.filter(
     (item) =>
+      (item.remainingHectares === undefined || item.remainingHectares === 0) &&
       parseDateKey(item.date).getFullYear() === month.getFullYear() &&
       parseDateKey(item.date).getMonth() === month.getMonth(),
   ).length;
@@ -1252,6 +1316,9 @@ function AvailabilityCalendar({
         </div>
       </div>
 
+      <p className="mt-3 text-xs font-semibold text-[#365f4a]" aria-live="polite">
+        {selectingEndDate ? "Choose an end date. Choose the same date for one day." : "Choose a start date, then an end date."}
+      </p>
       {error ? (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
           {error}
@@ -1266,7 +1333,8 @@ function AvailabilityCalendar({
         ))}
         {days.map((date) => {
           const key = localDateKey(date);
-          const blocked = blockedByDate.get(key);
+          const capacity = blockedByDate.get(key);
+          const blocked = capacity && (capacity.remainingHectares === undefined || capacity.remainingHectares === 0) ? capacity : undefined;
           const past = key < todayKey();
           const outsideMonth = date.getMonth() !== month.getMonth();
           const selected = selectedDate === key;
@@ -1274,20 +1342,22 @@ function AvailabilityCalendar({
             Boolean(selectedDate && selectedEndDate) &&
             key >= selectedDate &&
             key <= selectedEndDate;
-          const disabled = Boolean(blocked) || past || !serviceName;
+          const disabled = Boolean(blocked) || past || key > maxDate || !serviceName || loading || Boolean(error);
           const maintenance = blocked?.status === "Maintenance";
 
           return (
             <button
               key={key}
+              data-date={key}
               type="button"
+              aria-pressed={inSelectedRange}
               disabled={disabled}
               title={
                 blocked
                   ? maintenance
                     ? "Unavailable: scheduled maintenance"
                     : blocked.reason
-                  : undefined
+                  : capacity?.reason
               }
               onClick={() => onSelect(key)}
               className={`relative min-h-9 rounded-xl border px-1 font-bold transition ${
@@ -1305,6 +1375,7 @@ function AvailabilityCalendar({
               }`}
             >
               {date.getDate()}
+              {capacity?.remainingHectares !== undefined && !blocked ? <span className="block text-[9px] leading-3">{capacity.remainingHectares} ha</span> : null}
               {blocked ? (
                 maintenance ? (
                   <span className="absolute right-1 top-1 rounded bg-amber-200 px-1 text-[9px] font-black leading-3 text-amber-950">
@@ -1379,10 +1450,11 @@ function firstBlockedDateInRange(
   startDate: string,
   endDate: string,
   blockedDates: Map<string, PublicRentalBlockedDate>,
+  dailyWork?: RentalDailyWork[],
 ) {
-  return dateKeysBetween(startDate, endDate)
+  return (dailyWork ? dailyWork.map((day) => day.date) : dateKeysBetween(startDate, endDate))
     .map((date) => blockedDates.get(date))
-    .find((date): date is PublicRentalBlockedDate => Boolean(date));
+    .find((date): date is PublicRentalBlockedDate => Boolean(date && (date.remainingHectares === undefined || date.remainingHectares === 0)));
 }
 
 function startOfMonth(value: Date) {
