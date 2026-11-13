@@ -63,6 +63,7 @@ DROP TABLE IF EXISTS `dividend_action_history`;
 DROP TABLE IF EXISTS `member_dividends`;
 DROP TABLE IF EXISTS `dividend_declarations`;
 
+DROP TABLE IF EXISTS `member_referrals`;
 DROP TABLE IF EXISTS `member_sectors`;
 DROP TABLE IF EXISTS `membership_application_sectors`;
 DROP TABLE IF EXISTS `cooperative_sectors`;
