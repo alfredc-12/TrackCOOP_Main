@@ -128,7 +128,7 @@ test("unavailable saved livelihood metadata does not hide the member dashboard",
   await fixture(page, { livelihoodsUnavailable: true });
   await page.goto("/member_dashboard");
   await expect(page.getByRole("button", { name: "View My Savings", exact: true })).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "Some saved crop and livelihood details could not be displayed." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Some saved crop and livelihood details need review." })).toBeVisible();
   await expect(page.getByText("₱3,000.00", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "We couldn" })).toHaveCount(0);
 });

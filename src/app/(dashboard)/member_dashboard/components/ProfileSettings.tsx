@@ -18,6 +18,7 @@ type Profile = {
 };
 type Password = { currentPassword: string; newPassword: string; confirmPassword: string };
 type Notice = { text: string; type: "success" | "error" } | null;
+type LivelihoodReview = { issues: string[]; original: string; truncated: boolean };
 const emptyProfile: Profile = { contact_number: "", email: "", barangay: "", municipality: "", province: "", occupation: "", livelihoods: [] };
 const emptyPassword: Password = { currentPassword: "", newPassword: "", confirmPassword: "" };
 const inputClass = "min-h-11 w-full rounded-xl border border-[#DDE8D8] bg-white px-3 text-sm text-[#173626] outline-none transition focus:border-[#2F7D57] focus:ring-2 focus:ring-[#2F7D57]/15 disabled:bg-gray-50";
@@ -33,6 +34,9 @@ export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { 
   const [password, setPassword] = useState<Password>(emptyPassword);
   const [occupationError, setOccupationError] = useState("");
   const [livelihoodError, setLivelihoodError] = useState("");
+  const [livelihoodReview, setLivelihoodReview] = useState<LivelihoodReview | null>(null);
+  const [livelihoodRepairConfirmed, setLivelihoodRepairConfirmed] = useState(false);
+  const [livelihoodsEdited, setLivelihoodsEdited] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<Partial<Record<keyof Password, string>>>({});
   const [visiblePasswords, setVisiblePasswords] = useState<Partial<Record<keyof Password, boolean>>>({});
 
@@ -44,6 +48,9 @@ export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "We could not load your profile.");
       setProfile({ ...(Object.fromEntries(Object.keys(emptyProfile).filter((key) => key !== "livelihoods").map((key) => [key, data[key] ?? ""])) as Omit<Profile, "livelihoods">), livelihoods: Array.isArray(data.livelihoods) ? data.livelihoods : [] });
+      setLivelihoodReview(data.livelihoodsReview ?? null);
+      setLivelihoodRepairConfirmed(false);
+      setLivelihoodsEdited(false);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "We could not load your profile.");
     } finally {
@@ -69,6 +76,10 @@ export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { 
       return;
     }
     setOccupationError("");
+    if (livelihoodReview && livelihoodsEdited && !livelihoodRepairConfirmed) {
+      setLivelihoodError("Review the original saved details and confirm the corrected list before saving these changes.");
+      return;
+    }
     if (profile.livelihoods.length > 20 || new Set(profile.livelihoods.map((item) => item.activity.trim().toLowerCase())).size !== profile.livelihoods.length || profile.livelihoods.some((item) => !item.activity.trim() || item.activity.trim().length > 80 || (item.plantingDate && !isValidPlantingDate(item.plantingDate)))) {
       setLivelihoodError("Check your activity names and sowing dates. Dates cannot be in the future.");
       return;
@@ -76,10 +87,14 @@ export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { 
     setLivelihoodError("");
     setIsSavingProfile(true);
     try {
-      const res = await expressFetch("/api/members/me/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
+      const preserveSavedLivelihoods = Boolean(livelihoodReview && !livelihoodRepairConfirmed);
+      const payload = { ...profile, livelihoods: preserveSavedLivelihoods ? undefined : profile.livelihoods,
+        ...(livelihoodReview && livelihoodRepairConfirmed ? { confirmLivelihoodsRepair: true } : {}) };
+      const res = await expressFetch("/api/members/me/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "We could not save your changes. Please try again.");
-      setProfileMsg({ text: "Your profile changes have been saved.", type: "success" });
+      setProfileMsg({ text: preserveSavedLivelihoods ? "Your profile changes have been saved. The original livelihood details are preserved and still need review." : "Your profile changes have been saved.", type: "success" });
+      await loadProfile();
       onSaved?.();
     } catch (error) {
       setProfileMsg({ text: error instanceof Error ? error.message : "We could not save your changes. Please try again.", type: "error" });
@@ -140,7 +155,16 @@ export function ProfileSettings({ membershipLabel, initialSection, onSaved }: { 
                 <div className="border-t border-[#EDF2EA] pt-4">
                   <OccupationCheckboxes compact value={profile.occupation} error={occupationError} onChange={(value) => { setProfile({ ...profile, occupation: value }); setOccupationError(""); setProfileMsg(null); }} />
                 </div>
-                <LivelihoodFields value={profile.livelihoods} occupation={profile.occupation} error={livelihoodError} onChange={(value) => { setProfile({ ...profile, livelihoods: value }); setLivelihoodError(""); setProfileMsg(null); }} />
+                {livelihoodReview && <section aria-labelledby="livelihood-review-heading" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <h3 id="livelihood-review-heading" className="font-bold">Review your saved livelihood details</h3>
+                  <p>Recognizable activities are shown below. Correct any missing or conflicting details before replacing the saved list. No planting date has been guessed.</p>
+                  <ul className="list-disc space-y-1 pl-5">{livelihoodReview.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>
+                  <details><summary className="min-h-11 cursor-pointer py-2 font-semibold">Original saved details</summary><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-amber-200 bg-white p-3 font-mono text-xs">{livelihoodReview.original}</pre></details>
+                  {livelihoodReview.truncated && <p>The original preview is shortened. Ask the cooperative office to review the complete record before replacing it.</p>}
+                  <label className="flex min-h-11 items-start gap-3"><input type="checkbox" checked={livelihoodRepairConfirmed} disabled={livelihoodReview.truncated} onChange={event => { setLivelihoodRepairConfirmed(event.target.checked); setLivelihoodError(""); }} className="mt-1 size-5 shrink-0 accent-[#1F6B43]" /><span>I reviewed the original details and confirm the corrected list below should replace them.</span></label>
+                  {!livelihoodRepairConfirmed && <p>Other profile changes can be saved while preserving the original livelihood details.</p>}
+                </section>}
+                <LivelihoodFields value={profile.livelihoods} occupation={profile.occupation} error={livelihoodError} onChange={(value) => { setProfile({ ...profile, livelihoods: value }); setLivelihoodsEdited(true); setLivelihoodError(""); setProfileMsg(null); }} />
                 <button type="submit" aria-busy={isSavingProfile} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#123D2A] px-4 text-sm font-bold text-white transition hover:bg-[#1F6B43] disabled:opacity-60">{isSavingProfile ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}{isSavingProfile ? "Saving…" : "Save Changes"}</button>
               </fieldset>
               <Feedback notice={profileMsg} />

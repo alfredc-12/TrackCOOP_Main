@@ -1193,7 +1193,7 @@ export default function MemberDashboardPage() {
                     </div>
                   </section>
                   <MemberMembershipPanel />
-                  {dashboardData?.member?.livelihoodsUnavailable && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Some saved crop and livelihood details could not be displayed. Your other dashboard records are still available.</p>}
+                  {dashboardData?.member?.livelihoodsUnavailable && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><p>Some saved crop and livelihood details need review. Your other dashboard records are available.</p><button type="button" onClick={openLivelihoods} className="min-h-11 rounded-lg px-2 font-bold underline underline-offset-4">Review livelihood details</button></div>}
                   {dashboardLoadError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><p>We couldn’t load your records. Please try again.</p><button onClick={() => void refreshDashboard()} className="min-h-10 rounded-lg px-3 font-bold underline">Try again</button></div>}
 
                   <section aria-label="My activity summary" className={`${isAssociate ? "mt-5" : "mt-4"} grid grid-cols-2 gap-3 ${canAccessFinancials ? "lg:grid-cols-4" : "sm:grid-cols-3"}`}>
