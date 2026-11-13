@@ -5,6 +5,7 @@ export type MemberActivityQuery = {
 };
 
 export type MemberDashboardQuery = {
+  includeFinancialSummary?: string;
   period?: string;
   startDate?: string;
   endDate?: string;
