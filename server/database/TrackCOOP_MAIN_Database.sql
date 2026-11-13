@@ -3772,5 +3772,13 @@ FROM financial_records;
 INSERT IGNORE INTO financial_categories(category_code,category_name,category_type,description,is_system_category,is_active)
  VALUES('SHARE_CAPITAL','Share Capital','Income','Member capital movement; excluded from operating income.',1,1);
 
+-- Dividend payout category must exist on fresh installations. Share capital and
+-- dividend withdrawals are capital movements, not operating income/expense.
+INSERT INTO financial_categories(category_code,category_name,category_type,description,is_system_category,is_active)
+VALUES ('DIVIDEND_PAYMENT','Member Dividend Payment','Expense',
+        'Cash dividends withdrawn by cooperative members.',1,1)
+ON DUPLICATE KEY UPDATE category_name=VALUES(category_name), category_type=VALUES(category_type),
+                        description=VALUES(description), is_active=1;
+
 -- END OF TRACKCOOP DATABASE
 -- ============================================================================
