@@ -4,7 +4,7 @@ import Image from "next/image";
 import { MemberMembershipPanel, MembershipHistory } from "@/features/membership/MembershipProgress";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import * as Select from "@radix-ui/react-select";
@@ -202,87 +202,143 @@ export default function MemberDashboardPage() {
   const memberFinancialSummary = dashboardData?.memberFinancialSummary;
   const memberIncomeItems = (memberFinancialSummary?.incomeByCategory || []) as FinancialCategoryItem[];
   const memberExpenseItems = (memberFinancialSummary?.expenseByCategory || []) as FinancialCategoryItem[];
-  const refreshDashboard = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+  const needsFinancialSummary = activeTab === "Financial";
+  const dashboardRequest = useRef<{ key: string; controller: AbortController; promise: Promise<void> } | null>(null);
+  const dividendRequest = useRef<{ promise: Promise<void> } | null>(null);
+  const patronageRequest = useRef<{ promise: Promise<void> } | null>(null);
+  const refreshDashboard = useCallback(({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
+    const params = new URLSearchParams({ period: financialPeriod, includeFinancialSummary: String(needsFinancialSummary) });
+    if (financialPeriod === "custom" && financialStartDate && financialEndDate) {
+      params.set("startDate", financialStartDate);
+      params.set("endDate", financialEndDate);
+    }
+    const key = params.toString();
+    if (!force && dashboardRequest.current?.key === key) return dashboardRequest.current.promise;
+    dashboardRequest.current?.controller.abort();
+    const request = { key, controller: new AbortController(), promise: Promise.resolve() };
+    dashboardRequest.current = request;
     if (!silent) setIsFetchingDashboard(true);
-    try {
-      const params = new URLSearchParams({ period: financialPeriod });
-      if (financialPeriod === "custom" && financialStartDate && financialEndDate) {
-        params.set("startDate", financialStartDate);
-        params.set("endDate", financialEndDate);
+    request.promise = (async () => {
+      try {
+        const response = await expressFetch(`/api/members/me/dashboard?${key}`, { signal: request.controller.signal });
+        if (!response.ok) throw new Error("Failed to refresh dashboard");
+        const data = await response.json();
+        if (dashboardRequest.current !== request || request.controller.signal.aborted) return;
+        setDashboardData(data);
+        setDashboardLoadError(false);
+      } catch (error) {
+        if (dashboardRequest.current !== request || request.controller.signal.aborted) return;
+        console.error(error);
+        setDashboardLoadError(true);
+      } finally {
+        if (dashboardRequest.current === request) {
+          dashboardRequest.current = null;
+          setIsFetchingDashboard(false);
+        }
       }
-      const response = await expressFetch(`/api/members/me/dashboard?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to refresh dashboard");
-      setDashboardData(await response.json());
-      setDashboardLoadError(false);
-    } catch (error) {
-      console.error(error);
-      setDashboardLoadError(true);
-    } finally {
-      setIsFetchingDashboard(false);
-    }
-  }, [financialEndDate, financialPeriod, financialStartDate]);
+    })();
+    return request.promise;
+  }, [financialEndDate, financialPeriod, financialStartDate, needsFinancialSummary]);
 
-  const refreshMemberDividends = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+  useEffect(() => () => {
+    dashboardRequest.current?.controller.abort();
+    dashboardRequest.current = null;
+  }, []);
+
+  const refreshMemberDividends = useCallback(({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
+    if (!force && dividendRequest.current) return dividendRequest.current.promise;
+    const request = { promise: Promise.resolve() };
+    dividendRequest.current = request;
     if (!silent) setIsFetchingDividends(true);
-    try {
-      if (!canAccessFinancials) { setMemberDividends([]); return; }
-      setMemberDividends(await getMemberDividends());
-      setDividendLoadError(false);
-    } catch (error) {
-      console.error(error);
-      setDividendLoadError(true);
-    } finally {
-      setIsFetchingDividends(false);
-    }
+    request.promise = (async () => {
+      try {
+        if (!canAccessFinancials) { setMemberDividends([]); return; }
+        const data = await getMemberDividends();
+        if (dividendRequest.current !== request) return;
+        setMemberDividends(data);
+        setDividendLoadError(false);
+      } catch {
+        if (dividendRequest.current === request) setDividendLoadError(true);
+      } finally {
+        if (dividendRequest.current === request) {
+          dividendRequest.current = null;
+          setIsFetchingDividends(false);
+        }
+      }
+    })();
+    return request.promise;
   }, [canAccessFinancials]);
 
-  const refreshMemberPatronage = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+  const refreshMemberPatronage = useCallback(({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
+    if (!force && patronageRequest.current) return patronageRequest.current.promise;
+    const request = { promise: Promise.resolve() };
+    patronageRequest.current = request;
     if (!silent) setIsFetchingPatronage(true);
-    try {
-      if (!canAccessFinancials) { setPatronageData(null); return; }
-      setPatronageData(await getMemberPatronage());
-      setPatronageLoadError(false);
-    } catch {
-      setPatronageLoadError(true);
-    } finally {
-      setIsFetchingPatronage(false);
-    }
+    request.promise = (async () => {
+      try {
+        if (!canAccessFinancials) { setPatronageData(null); return; }
+        const data = await getMemberPatronage();
+        if (patronageRequest.current !== request) return;
+        setPatronageData(data);
+        setPatronageLoadError(false);
+      } catch {
+        if (patronageRequest.current === request) setPatronageLoadError(true);
+      } finally {
+        if (patronageRequest.current === request) {
+          patronageRequest.current = null;
+          setIsFetchingPatronage(false);
+        }
+      }
+    })();
+    return request.promise;
   }, [canAccessFinancials]);
 
   useEffect(() => {
-    getAuthenticatedUser()
-      .then(setUser)
-      .catch(console.error);
+    getAuthenticatedUser().then(setUser).catch(console.error);
+  }, []);
 
-    const dashboardRefreshTimer = window.setTimeout(() => {
-      void refreshDashboard();
-    }, 0);
-    const dividendRefreshTimer = window.setTimeout(() => {
-      void refreshMemberDividends();
-    }, 0);
-
-    const patronageRefreshTimer = window.setTimeout(() => { void refreshMemberPatronage(); }, 0);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void refreshDashboard(); }, 0);
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") {
-        void refreshDashboard({ silent: true });
-        void refreshMemberDividends({ silent: true });
-        void refreshMemberPatronage({ silent: true });
-      }
+      if (document.visibilityState === "visible") void refreshDashboard({ silent: true });
     };
-    const interval = window.setInterval(refreshWhenVisible, 15_000);
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
     window.addEventListener("focus", refreshWhenVisible);
-    window.addEventListener("trackcoop:patronage-updated", refreshWhenVisible);
+    const refreshAfterMutation = () => { if (document.visibilityState === "visible") void refreshDashboard({ silent: true, force: true }); };
+    window.addEventListener("trackcoop:patronage-updated", refreshAfterMutation);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(interval);
-      window.clearTimeout(dashboardRefreshTimer);
-      window.clearTimeout(dividendRefreshTimer);
-      window.clearTimeout(patronageRefreshTimer);
       window.removeEventListener("focus", refreshWhenVisible);
-      window.removeEventListener("trackcoop:patronage-updated", refreshWhenVisible);
+      window.removeEventListener("trackcoop:patronage-updated", refreshAfterMutation);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshDashboard, refreshMemberDividends, refreshMemberPatronage]);
+  }, [refreshDashboard]);
+
+  const needsBenefitDetails = activeTab === "Member & Share" && canAccessFinancials;
+  useEffect(() => {
+    if (!needsBenefitDetails) return;
+    const refresh = (silent = false, force = false) => {
+      if (document.visibilityState !== "visible") return;
+      void refreshMemberDividends({ silent, force });
+      void refreshMemberPatronage({ silent, force });
+    };
+    const initial = window.setTimeout(() => refresh(), 0);
+    const background = () => refresh(true);
+    const interval = window.setInterval(background, 60_000);
+    window.addEventListener("focus", background);
+    const afterMutation = () => refresh(true, true);
+    window.addEventListener("trackcoop:patronage-updated", afterMutation);
+    document.addEventListener("visibilitychange", background);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", background);
+      window.removeEventListener("trackcoop:patronage-updated", afterMutation);
+      document.removeEventListener("visibilitychange", background);
+    };
+  }, [needsBenefitDetails, refreshMemberDividends, refreshMemberPatronage]);
 
   function resetDividendAction() {
     setActionDividend(null);
@@ -330,7 +386,7 @@ export default function MemberDashboardPage() {
         toast.success("Annual Interest added to Share Capital.");
       }
       resetDividendAction();
-      await Promise.all([refreshMemberDividends({ silent: true }), refreshDashboard({ silent: true })]);
+      await Promise.all([refreshMemberDividends({ silent: true, force: true }), refreshDashboard({ silent: true, force: true })]);
     } catch (error) {
       setDividendActionError(error instanceof Error ? error.message : "Unable to process this Annual Interest action.");
     } finally {
@@ -1320,7 +1376,7 @@ export default function MemberDashboardPage() {
                         <p className="text-sm font-bold text-[#42594B]">{summary.label}</p>
                         <summary.icon className={`h-4 w-4 ${summary.className}`} />
                       </div>
-                      <p className={`mt-2 text-2xl font-black tracking-tight ${summary.className}`}>{isFetchingDashboard ? "..." : formatPeso(Number(summary.value || 0))}</p>
+                      <p className={`mt-2 text-2xl font-black tracking-tight ${summary.className}`}>{isFetchingDashboard ? "..." : memberFinancialSummary ? formatPeso(Number(summary.value || 0)) : "?"}</p>
                       <p className="mt-1 text-sm leading-snug text-coop-muted">{summary.help}</p>
                     </div>
                   ))}
@@ -1390,7 +1446,7 @@ export default function MemberDashboardPage() {
               patronage={patronageData}
               loading={{ capital: isFetchingDashboard, interest: isFetchingDividends, patronage: isFetchingPatronage }}
               errors={{ capital: dashboardLoadError, interest: dividendLoadError, patronage: patronageLoadError }}
-              onRefresh={() => { void refreshDashboard(); void refreshMemberDividends(); void refreshMemberPatronage(); }}
+              onRefresh={() => { void refreshDashboard({ force: true }); void refreshMemberDividends({ force: true }); void refreshMemberPatronage({ force: true }); }}
               onDividendAction={openDividendAction}
               dividendBusy={dividendActionBusy}
             />
@@ -1615,7 +1671,7 @@ export default function MemberDashboardPage() {
 
           {/* ======================= PROFILE TAB ======================= */}
           {activeTab === "Profile" && (
-            <ProfileSettings membershipLabel={membershipLabel} initialSection={profileSection} onSaved={() => void refreshDashboard({ silent: true })} />
+            <ProfileSettings membershipLabel={membershipLabel} initialSection={profileSection} onSaved={() => void refreshDashboard({ silent: true, force: true })} />
           )}
 
           {/* ======================= HELP CENTER TAB ======================= */}

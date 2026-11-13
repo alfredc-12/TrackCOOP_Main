@@ -161,6 +161,22 @@ function aggregateMemberFinancialCategories(rows: MemberFinancialRow[]) {
     .sort((left, right) => right.amount - left.amount);
 }
 
+// Bound concurrent reads per request so faster responses do not flood the pool.
+function dashboardQueryRunner() {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return <T>(work: () => Promise<T>): Promise<T> => new Promise((resolve, reject) => {
+    const start = () => {
+      active++;
+      void Promise.resolve().then(work).then(resolve, reject).finally(() => {
+        active--;
+        queue.shift()?.();
+      });
+    };
+    if (active < 3) start(); else queue.push(start);
+  });
+}
+
 async function selectMemberFinancialSummary(
   connection: Pool | PoolConnection,
   memberId: string | number,
@@ -397,7 +413,31 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         ).catch(() => undefined);
       }
 
-      const [shareCapitalRows] = await databasePool().execute<RowDataPacket[]>(
+      const hasFinancialAccess = canAccessMemberFinancials(member);
+      const read = dashboardQueryRunner();
+      const [
+        [shareCapitalRows],
+        [sales],
+        [deposits],
+        [unledgeredDividendAdditions],
+        [pendingDeposits],
+        [rentals],
+        [announcements],
+        dividendActivities,
+        rentalPayments,
+        [allAnnouncements],
+        [unreadAnnouncements],
+        [unreadInquiries],
+        [unreadReferrals],
+        [purchaseCount],
+        [depositCount],
+        [rentalCount],
+        [referralCounts],
+        [referralItems],
+        memberFinancialSummary,
+        memberProfile,
+      ] = await Promise.all([
+        read(async () => databasePool().execute<RowDataPacket[]>(
         `SELECT COALESCE(
                   (SELECT current_balance
                      FROM share_capital_accounts
@@ -409,10 +449,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
                   0
                 ) AS validatedTotal`,
         [member.member_id, member.member_id],
-      );
-      const validatedShareCapital = Number(shareCapitalRows[0]?.validatedTotal || 0);
-
-      const [sales] = await databasePool().execute<RowDataPacket[]>(
+      )),
+        read(async () => databasePool().execute<RowDataPacket[]>(
         `SELECT pos_sale_id as id,
                 sale_date as date,
                 total_amount as amount,
@@ -423,9 +461,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           ORDER BY sale_date DESC
           LIMIT 5`,
         [member.member_id],
-      );
-
-      const [deposits] = await databasePool().execute<RowDataPacket[]>(
+      )),
+        read(async () => hasFinancialAccess ? databasePool().execute<RowDataPacket[]>(
         `SELECT CAST(ledger_tx.share_capital_transaction_id AS CHAR) AS id,
                 ledger_tx.transaction_date AS date,
                 ledger_tx.amount,
@@ -444,8 +481,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
                    ledger_tx.share_capital_transaction_id DESC
           LIMIT 5`,
         [member.member_id],
-      );
-      const [unledgeredDividendAdditions] = await databasePool().execute<RowDataPacket[]>(
+      ) : [[], []] as [RowDataPacket[], []]),
+        read(async () => hasFinancialAccess ? databasePool().execute<RowDataPacket[]>(
         `SELECT CONCAT('DIV-CAP-', dividend.member_dividend_id) AS id,
                COALESCE(dividend.processed_at, dividend.decided_at, dividend.updated_at, dividend.created_at) AS date,
                dividend.dividend_amount AS amount,
@@ -459,9 +496,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
                    dividend.member_dividend_id DESC
           LIMIT 5`,
         [member.member_id],
-      );
-
-      const [pendingDeposits] = await databasePool().execute<RowDataPacket[]>(
+      ) : [[], []] as [RowDataPacket[], []]),
+        read(async () => hasFinancialAccess ? databasePool().execute<RowDataPacket[]>(
         `SELECT payment_reference_id as id,
                 submitted_at as date,
                 amount,
@@ -474,8 +510,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           ORDER BY submitted_at DESC
           LIMIT 5`,
         [member.member_id],
-      );
-      const [rentals] = await databasePool().execute<RowDataPacket[]>(
+      ) : [[], []] as [RowDataPacket[], []]),
+        read(async () => databasePool().execute<RowDataPacket[]>(
         `SELECT rental_booking_id as id,
                 created_at as date,
                 total_amount as amount,
@@ -486,9 +522,8 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           ORDER BY created_at DESC, rental_booking_id DESC
           LIMIT 5`,
         [member.member_id],
-      );
-
-      const [announcements] = await databasePool().execute<RowDataPacket[]>(
+      )),
+        read(async () => databasePool().execute<RowDataPacket[]>(
         `SELECT announcement_id as id,
                 created_at as date,
                 NULL as amount,
@@ -503,22 +538,13 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           ORDER BY created_at DESC
           LIMIT 5`,
         [auth.user.id],
-      );
-      const hasFinancialAccess = canAccessMemberFinancials(member);
-      const dividendActivities = canAccessMemberFinancials(member) ? await selectMemberDividendActivities(databasePool(), member.member_id) : [];
-
-      const rentalPayments = await selectMemberRentalPayments(databasePool(), member.member_id);
-      const recentActivity = [...rentalPayments, ...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
-        .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
-        .slice(0, 5);
-      const recentCapitalContributions = [...deposits, ...unledgeredDividendAdditions]
-        .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
-        .slice(0, 5);
-
-      const [allAnnouncements] = await databasePool().execute<CountRow[]>(
+      )),
+        read(async () => canAccessMemberFinancials(member) ? selectMemberDividendActivities(databasePool(), member.member_id) : []),
+        read(async () => selectMemberRentalPayments(databasePool(), member.member_id)),
+        read(async () => databasePool().execute<CountRow[]>(
         "SELECT COUNT(*) as count FROM announcements WHERE announcement_status = 'Published'",
-      );
-      const [unreadAnnouncements] = await databasePool().execute<CountRow[]>(
+      )),
+        read(async () => databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS count
            FROM announcements a
           WHERE a.announcement_status = 'Published'
@@ -569,43 +595,43 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           auth.user.id,
           auth.user.id,
         ],
-      );
-      const [unreadInquiries] = await databasePool().execute<CountRow[]>(
+      )),
+        read(async () => databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS count
            FROM requests_inquiries
           WHERE member_id = ?
             AND is_read_by_member = 0`,
         [member.member_id],
-      );
-      const [unreadReferrals] = await databasePool().execute<CountRow[]>(
+      )),
+        read(async () => databasePool().execute<CountRow[]>(
         `SELECT COUNT(*) AS count
            FROM notifications
           WHERE user_id = ?
             AND is_read = 0
             AND related_entity_type = 'member_referral'`,
         [auth.user.id],
-      );
-      const [purchaseCount] = await databasePool().execute<CountRow[]>(
+      )),
+        read(async () => databasePool().execute<CountRow[]>(
         "SELECT COUNT(*) as count FROM pos_sales WHERE member_id = ?",
         [member.member_id],
-      );
-      const [depositCount] = await databasePool().execute<CountRow[]>(
+      )),
+        read(async () => hasFinancialAccess ? databasePool().execute<CountRow[]>(
         "SELECT COUNT(*) as count FROM share_capital_transactions WHERE member_id = ? AND transaction_status = 'Posted' AND direction = 'Credit'",
         [member.member_id],
-      );
-      const [rentalCount] = await databasePool().execute<CountRow[]>(
+      ) : [[], []] as [RowDataPacket[], []]),
+        read(async () => databasePool().execute<CountRow[]>(
         "SELECT COUNT(*) as count FROM rental_bookings WHERE member_id = ?",
         [member.member_id],
-      );
-      const [referralCounts] = await databasePool().execute<RowDataPacket[]>(
+      )),
+        read(async () => databasePool().execute<RowDataPacket[]>(
         `SELECT COUNT(*) AS total,
                 SUM(CASE WHEN referral_status = 'Pending' THEN 1 ELSE 0 END) AS pending,
                 SUM(CASE WHEN referral_status = 'Successful' THEN 1 ELSE 0 END) AS successful
            FROM member_referrals
           WHERE referrer_member_id = ?`,
         [member.member_id],
-      ).catch(() => [[] as RowDataPacket[]]);
-      const [referralItems] = await databasePool().execute<RowDataPacket[]>(
+      ).catch(() => [[] as RowDataPacket[]])),
+        read(async () => databasePool().execute<RowDataPacket[]>(
         `SELECT CAST(r.member_referral_id AS CHAR) AS id,
                 r.referral_status AS status,
                 r.created_at AS createdAt,
@@ -622,9 +648,17 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           ORDER BY r.created_at DESC, r.member_referral_id DESC
           LIMIT 10`,
         [member.member_id],
-      ).catch(() => [[] as RowDataPacket[]]);
-      const memberFinancialSummary = hasFinancialAccess ? await selectMemberFinancialSummary(databasePool(), member.member_id, query) : null;
-      const memberProfile = await selectMemberProfile(auth);
+      ).catch(() => [[] as RowDataPacket[]])),
+        read(async () => hasFinancialAccess && query.includeFinancialSummary !== "false" ? selectMemberFinancialSummary(databasePool(), member.member_id, query) : null),
+        read(async () => selectMemberProfile(auth)),
+      ]);
+      const validatedShareCapital = Number(shareCapitalRows[0]?.validatedTotal || 0);
+      const recentActivity = [...rentalPayments, ...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
+        .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
+        .slice(0, 5);
+      const recentCapitalContributions = [...deposits, ...unledgeredDividendAdditions]
+        .sort((a, b) => new Date(b.date as string).getTime() - new Date(a.date as string).getTime())
+        .slice(0, 5);
 
       return {
         isLinked: true,
