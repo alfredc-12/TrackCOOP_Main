@@ -324,7 +324,7 @@ export function RequestsClient({ assignedOnly = false }: { assignedOnly?: boolea
   return (
     <div className="grid gap-6">
       <PageHeader
-        eyebrow={assignedOnly ? "Bookkeeper support" : "Communication center"}
+        eyebrow={assignedOnly ? undefined : "Communication center"}
         title={assignedOnly ? "My Assigned Requests" : "Requests & Inquiries"}
         description={assignedOnly ? "Read and answer payment or record questions assigned to you." : "Review questions from members and the public, respond clearly, and keep every conversation organized."}
         actions={(

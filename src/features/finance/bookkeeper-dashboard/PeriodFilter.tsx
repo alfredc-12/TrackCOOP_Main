@@ -90,37 +90,38 @@ export function PeriodFilter({
   return (
     <section aria-label="Dashboard header and reporting filters" className="grid min-w-0 gap-4">
       <PageHeader
-        eyebrow="Bookkeeper · Finance"
         title="Financial Dashboard"
         description="Monitor cooperative income, expenses, payment activity, and financial performance."
-        actions={
-          <div className="flex flex-wrap items-center gap-2.5">
-            {REPORT_SHORTCUTS.map((shortcut) => {
-              const Icon = shortcut.icon;
-              return (
-                <Link
-                  key={shortcut.href}
-                  href={shortcut.href}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] px-3.5 text-xs font-bold text-[#123D2A] transition hover:border-[#1F6B43] hover:bg-[#EEF6EC] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43]"
-                >
-                  <Icon className="size-4 text-[#1F6B43]" aria-hidden="true" />
-                  <span>{shortcut.label}</span>
-                </Link>
-              );
-            })}
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={loading}
-              aria-busy={loading}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#1F6B43] bg-[#123D2A] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#1F6B43] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:cursor-wait disabled:opacity-60"
-            >
-              <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
-              <span>{loading ? "Refreshing..." : "Refresh"}</span>
-            </button>
-          </div>
-        }
       />
+
+      <nav
+        aria-label="Financial dashboard shortcuts"
+        className="grid w-full min-w-0 gap-2.5 sm:grid-cols-2 xl:flex xl:flex-nowrap xl:items-center xl:justify-end"
+      >
+        {REPORT_SHORTCUTS.map((shortcut) => {
+          const Icon = shortcut.icon;
+          return (
+            <Link
+              key={shortcut.href}
+              href={shortcut.href}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#CAD8CB] bg-[#F7F8F3] px-3.5 text-xs font-bold text-[#123D2A] transition hover:border-[#1F6B43] hover:bg-[#EEF6EC] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] xl:w-auto"
+            >
+              <Icon className="size-4 text-[#1F6B43]" aria-hidden="true" />
+              <span>{shortcut.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          aria-busy={loading}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#1F6B43] bg-[#123D2A] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#1F6B43] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F6B43] disabled:cursor-wait disabled:opacity-60 xl:w-auto"
+        >
+          <RefreshCcw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+          <span>{loading ? "Refreshing..." : "Refresh"}</span>
+        </button>
+      </nav>
 
       <div className="rounded-xl border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.05)]">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

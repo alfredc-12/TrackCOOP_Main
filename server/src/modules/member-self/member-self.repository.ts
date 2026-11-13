@@ -518,6 +518,73 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       const [allAnnouncements] = await databasePool().execute<CountRow[]>(
         "SELECT COUNT(*) as count FROM announcements WHERE announcement_status = 'Published'",
       );
+      const [unreadAnnouncements] = await databasePool().execute<CountRow[]>(
+        `SELECT COUNT(*) AS count
+           FROM announcements a
+          WHERE a.announcement_status = 'Published'
+            AND (a.expires_at IS NULL OR a.expires_at > NOW())
+            AND (
+              a.audience_type IN ('Public', 'All Members')
+              OR (a.audience_type = 'Associate Members' AND ? = 'Associate')
+              OR (a.audience_type = 'True Members' AND ? = 'True Member')
+              OR (a.audience_type = 'Barangay' AND ? <> '' AND (
+                a.audience_value = ?
+                OR EXISTS (
+                  SELECT 1 FROM announcement_audience_targets aat
+                   WHERE aat.announcement_id = a.announcement_id
+                     AND aat.target_type = 'Barangay'
+                     AND aat.target_value = ?
+                )
+              ))
+              OR (a.audience_type = 'Sector' AND ? <> '' AND (
+                a.audience_value = ?
+                OR EXISTS (
+                  SELECT 1 FROM announcement_audience_targets aat
+                   WHERE aat.announcement_id = a.announcement_id
+                     AND aat.target_type = 'Sector'
+                     AND aat.target_value = ?
+                )
+              ))
+              OR (a.audience_type = 'Selected Users' AND EXISTS (
+                SELECT 1 FROM announcement_recipients ar
+                 WHERE ar.announcement_id = a.announcement_id
+                   AND ar.user_id = ?
+              ))
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM announcement_acknowledgments ack
+               WHERE ack.announcement_id = a.announcement_id
+                 AND ack.user_id = ?
+            )`,
+        [
+          member.membership_type ?? "",
+          member.membership_type ?? "",
+          member.barangay ?? "",
+          member.barangay ?? "",
+          member.barangay ?? "",
+          member.sector ?? "",
+          member.sector ?? "",
+          member.sector ?? "",
+          auth.user.id,
+          auth.user.id,
+        ],
+      );
+      const [unreadInquiries] = await databasePool().execute<CountRow[]>(
+        `SELECT COUNT(*) AS count
+           FROM requests_inquiries
+          WHERE member_id = ?
+            AND is_read_by_member = 0`,
+        [member.member_id],
+      );
+      const [unreadReferrals] = await databasePool().execute<CountRow[]>(
+        `SELECT COUNT(*) AS count
+           FROM notifications
+          WHERE user_id = ?
+            AND is_read = 0
+            AND related_entity_type = 'member_referral'`,
+        [auth.user.id],
+      );
       const [purchaseCount] = await databasePool().execute<CountRow[]>(
         "SELECT COUNT(*) as count FROM pos_sales WHERE member_id = ?",
         [member.member_id],
@@ -576,6 +643,11 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           purchases: purchaseCount[0]?.count || 0,
           deposits: hasFinancialAccess ? depositCount[0]?.count || 0 : 0,
           rentals: rentalCount[0]?.count || 0,
+        },
+        unreadUpdates: {
+          announcements: Number(unreadAnnouncements[0]?.count || 0),
+          inquiries: Number(unreadInquiries[0]?.count || 0),
+          referrals: Number(unreadReferrals[0]?.count || 0),
         },
         referrals: {
           code: referralCode,

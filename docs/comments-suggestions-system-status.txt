@@ -31,9 +31,6 @@ Details: The member dashboard now provides a member-scoped financial summary wit
 11. Provide a separate Expense Management module with a detailed breakdown of expenses.
 Details: The system has Operating Expenses, expense categories, amount, payee, payment method, receipt, description, remarks, and financial ledger recording.
 
-12. Implement budget controls or a safety net to prevent expenses from exceeding approved limits.
-Details: Chairman Budget Controls supports a draft-to-approval workflow, category and season budget lines, warning percentages, approved limits, utilization tracking, unbudgeted-expense visibility, and an optional hard limit that blocks new expenses after the approved amount is exceeded. Operating Expenses can be assigned to an active season and receives a warning when a budget line approaches its limit.
-
 13. Ensure financial transparency by allowing members to view appropriate income and expense breakdowns.
 Details: The member dashboard shows posted cooperative income, expenses, net operating result, and category-level breakdowns. Share Capital contributions are identified separately. The Financial Transparency modal includes period filters, previous-period comparison, category details, definitions, reconciliation state, loading/empty/error states, fixed-bottom pagination, and Save as PDF.
 
@@ -77,6 +74,9 @@ Details: In-app notifications, notification bells, announcements, and email supp
 5. Coordinate the attendance of Don Johnson during the Final Defense.
 Details: This requires manual coordination and is not a software feature.
 
+12. Implement budget controls or a safety net to prevent expenses from exceeding approved limits.
+Details: Intentionally excluded from the current TrackCOOP scope. The former Budget Controls page, navigation entry, public API registration, Financial Overview budget context, and ordinary-expense limit enforcement were removed. Expense recording, reporting, and Seasonal Analytics continue without budget-limit enforcement.
+
 19. Conduct user testing with cooperative members and use their feedback for system improvements.
 Details: This requires actual user testing sessions, feedback collection, and documentation outside the software implementation.
 
@@ -94,8 +94,8 @@ RECENT IMPLEMENTATION UPDATES
 - Added member referral codes, shareable links, live validation, duplicate protection, referral history, recruitment analytics, and a Chairman-configurable reward policy.
 - Added Seasonal Analytics with season configuration, season lifecycle status, production records, crop summaries, monthly performance, and financial category breakdowns.
 - Added date-range fallback for existing POS and financial records so historical data appears in a selected season even before every record is explicitly tagged.
-- Added Budget Controls with budget lines, approval workflow, warning thresholds, utilization, unbudgeted expense monitoring, and optional hard-limit blocking.
-- Added an optional Season selector to Operating Expenses and budget warning feedback after a successful expense posting.
+- Removed the out-of-scope Budget Controls page, navigation, public API registration, Financial Overview context, and ordinary-expense limit enforcement while retaining historical database compatibility.
+- Kept the optional Season selector on Operating Expenses for Seasonal Analytics.
 - Added a documented one-primary-sector policy to the Chairman member form while preserving the existing scalar member sector field.
 - Added required Primary sector capture to public and Chairman applications, review details, approval conversion, and application PDF output.
 - Removed the duplicate Primary sector control from the Chairman application review form and kept one saved primary-sector field in the workflow.

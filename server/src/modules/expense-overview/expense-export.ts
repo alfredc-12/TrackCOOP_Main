@@ -40,7 +40,6 @@ async function describeFilters(service: ExpenseOverviewService, filters: Expense
   if (filters.recordedBy) lines.push(`Recorded by: ${names([filters.recordedBy], options.recordedBy)}`);
   if (filters.postedBy) lines.push(`Posted by: ${names([filters.postedBy], options.postedBy)}`);
   if (filters.seasonId) lines.push(`Season: ${names([filters.seasonId], options.seasons)}`);
-  if (filters.budget) lines.push(`Budget: ${filters.budget === "covered" ? "covered by an approved budget line" : "no approved budget line"}`);
   if (filters.search) lines.push(`Search: "${filters.search}"`);
   if (view !== "posted") lines.push(`Record view: ${view}`);
   return lines;

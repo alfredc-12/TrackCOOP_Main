@@ -351,7 +351,7 @@ export function DocumentsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   return (
     <div className="grid min-w-0 gap-4">
       <PageHeader
-        eyebrow={role === "bookkeeper" ? "Bookkeeper · Records" : "Records · Documents"}
+        eyebrow={role === "bookkeeper" ? undefined : "Records · Documents"}
         title={role === "bookkeeper" ? "Receipts & Documents" : "Documents"}
         description="Manage cooperative files, access permissions, and document activity."
         actions={

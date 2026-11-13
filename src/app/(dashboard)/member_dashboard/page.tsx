@@ -195,6 +195,10 @@ export default function MemberDashboardPage() {
   const referralLink = referralCode
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/membership/apply?ref=${encodeURIComponent(referralCode)}`
     : "";
+  const unreadUpdates = dashboardData?.unreadUpdates ?? {};
+  const unreadAnnouncementCount = Number(unreadUpdates.announcements || 0);
+  const unreadInquiryCount = Number(unreadUpdates.inquiries || 0);
+  const unreadReferralCount = Number(unreadUpdates.referrals || 0);
   const memberFinancialSummary = dashboardData?.memberFinancialSummary;
   const memberIncomeItems = (memberFinancialSummary?.incomeByCategory || []) as FinancialCategoryItem[];
   const memberExpenseItems = (memberFinancialSummary?.expenseByCategory || []) as FinancialCategoryItem[];
@@ -529,20 +533,24 @@ export default function MemberDashboardPage() {
             <button onClick={() => { setProfileSection(""); selectTab("Profile"); }} className={`grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Profile" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Profile & Settings">
               <User className="size-5" />
             </button>
-            <button onClick={() => selectTab("Announcements")} className={`grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements">
+            <button onClick={() => selectTab("Announcements")} className={`relative grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Announcements" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="Announcements" aria-label={`Announcements${unreadAnnouncementCount ? `, ${unreadAnnouncementCount} unread` : ""}`}>
               <Bell className="size-5" />
+              {unreadAnnouncementCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full border-2 border-white bg-[#F3C94A] px-1 text-center text-[10px] font-black leading-4 text-coop-forest" aria-hidden="true">{unreadAnnouncementCount > 99 ? "99+" : unreadAnnouncementCount}</span>}
             </button>
-            <button onClick={() => selectTab("Requests")} className={`grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests">
+            <button onClick={() => selectTab("Requests")} className={`relative grid size-9 place-items-center rounded-lg transition hover:bg-coop-sage ${activeTab === "Requests" ? "text-coop-green" : "text-coop-secondary hover:text-coop-forest"}`} title="My Requests" aria-label={`My Requests${unreadInquiryCount ? `, ${unreadInquiryCount} unread` : ""}`}>
               <Inbox className="size-5" />
+              {unreadInquiryCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full border-2 border-white bg-[#F3C94A] px-1 text-center text-[10px] font-black leading-4 text-coop-forest" aria-hidden="true">{unreadInquiryCount > 99 ? "99+" : unreadInquiryCount}</span>}
             </button>
             <button
               type="button"
               onClick={() => setReferralModalOpen(true)}
               aria-haspopup="dialog"
-              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border border-[#A9C9B1] bg-coop-sage px-4 py-2.5 text-sm font-bold text-coop-green transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coop-green focus-visible:ring-offset-2"
+              aria-label={`Refer a Friend${unreadReferralCount ? `, ${unreadReferralCount} unread` : ""}`}
+              className="relative flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border border-[#A9C9B1] bg-coop-sage px-4 py-2.5 text-sm font-bold text-coop-green transition hover:bg-[#DCEEDC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coop-green focus-visible:ring-offset-2"
             >
               <UserPlus className="hidden size-4 sm:block" aria-hidden="true" />
               Refer a Friend
+              {unreadReferralCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full border-2 border-white bg-[#F3C94A] px-1 text-center text-[10px] font-black leading-4 text-coop-forest" aria-hidden="true">{unreadReferralCount > 99 ? "99+" : unreadReferralCount}</span>}
             </button>
             <button
               type="button"
@@ -581,9 +589,18 @@ export default function MemberDashboardPage() {
             </nav>
             <div className="mx-auto mt-2 grid max-w-7xl gap-0.5 border-t border-[#DDE8D8] pt-2 sm:grid-cols-2">
               <button type="button" onClick={() => { setMobileMenuOpen(false); setProfileSection(""); selectTab("Profile"); }} className={mobileNavClass("Profile")}>Profile &amp; Settings</button>
-              <button type="button" onClick={() => selectTab("Announcements")} className={mobileNavClass("Announcements")}>Announcements</button>
-              <button type="button" onClick={() => selectTab("Requests")} className={mobileNavClass("Requests")}>My Requests</button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); setReferralModalOpen(true); }} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-coop-green transition hover:text-coop-forest">Refer a Friend</button>
+              <button type="button" onClick={() => selectTab("Announcements")} className={mobileNavClass("Announcements")}>
+                <span>Announcements</span>
+                {unreadAnnouncementCount > 0 && <span className="ml-auto min-w-5 rounded-full bg-[#F3C94A] px-1.5 text-center text-[10px] font-black leading-5 text-coop-forest">{unreadAnnouncementCount > 99 ? "99+" : unreadAnnouncementCount}</span>}
+              </button>
+              <button type="button" onClick={() => selectTab("Requests")} className={mobileNavClass("Requests")}>
+                <span>My Requests</span>
+                {unreadInquiryCount > 0 && <span className="ml-auto min-w-5 rounded-full bg-[#F3C94A] px-1.5 text-center text-[10px] font-black leading-5 text-coop-forest">{unreadInquiryCount > 99 ? "99+" : unreadInquiryCount}</span>}
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); setReferralModalOpen(true); }} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-bold text-coop-green transition hover:text-coop-forest">
+                <span>Refer a Friend</span>
+                {unreadReferralCount > 0 && <span className="ml-auto min-w-5 rounded-full bg-[#F3C94A] px-1.5 text-center text-[10px] font-black leading-5 text-coop-forest">{unreadReferralCount > 99 ? "99+" : unreadReferralCount}</span>}
+              </button>
               <button type="button" onClick={() => { setMobileMenuOpen(false); void handleLogout(); }} disabled={isSigningOut} className="flex min-h-11 w-full items-center rounded-lg bg-coop-forest px-3 text-left text-sm font-bold text-white transition hover:bg-coop-green disabled:cursor-wait disabled:opacity-70">{isSigningOut ? "Logging out" : "Logout"}</button>
             </div>
           </div>

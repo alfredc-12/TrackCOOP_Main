@@ -53,7 +53,6 @@ import { createRealtimeRouter } from "./modules/realtime/realtime.routes";
 import { createRentalRouter } from "./modules/rental/rental.routes";
 import { createShareCapitalRouter } from "./modules/share-capital/share-capital.routes";
 import { createUserRouter } from "./modules/users/user.routes";
-import { createBudgetRouter } from "./modules/budgets/budget.routes";
 import { createSeasonRouter } from "./modules/seasons/season.routes";
 import { AppError } from "./utils/app-error";
 import { LocalStorageProvider } from "./storage/local-storage-provider";
@@ -195,7 +194,6 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/api", createFinancialPolicyRouter(options.authService));
   app.use("/api", createExpenseOverviewRouter(options.authService));
   app.use("/api", createFinancialOverviewRouter(options.authService));
-  app.use("/api", createBudgetRouter(options.authService));
   app.use("/api", createSeasonRouter(options.authService));
   app.use("/api", createInventoryRouter(options.authService));
   app.use("/api", createPosRouter(options.authService));

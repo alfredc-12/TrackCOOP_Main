@@ -9,8 +9,6 @@ export type ExpenseRange = { startDate: string | null; endDate: string };
 export type ExpenseCapabilities = {
   /** financial_records.season_id and the seasons table exist. */
   seasons: boolean;
-  /** budgets and budget_lines exist. */
-  budgets: boolean;
 };
 
 export type CountAmount = { records: number; amount: number };
@@ -183,7 +181,6 @@ export type ExpenseRecordDetail = ExpenseRecordRow & {
   history: Array<{ action: string; at: string; by: string | null; description: string | null }>;
   evidence: { available: false; note: string };
   disbursement: { verified: false; note: string };
-  budget: { budgetName: string; limitAmount: number } | null;
 };
 
 export type IntegrityCheck = {
@@ -200,37 +197,11 @@ export type IntegrityCheck = {
 
 export type ExpenseIntegrity = { checks: IntegrityCheck[]; reviewCount: number };
 
-export type BudgetContextLine = {
-  budgetLineId: string;
-  budgetId: string;
-  budgetName: string;
-  categoryId: string;
-  categoryName: string;
-  seasonName: string | null;
-  coverageStart: string;
-  coverageEnd: string;
-  limitAmount: number;
-  warningPercentage: number;
-  hardLimit: boolean;
-  spentAmount: number;
-  records: number;
-  utilization: number | null;
-  remaining: number;
-  state: "within" | "warning" | "over" | "no_limit";
-};
-
-export type ExpenseBudgetContext = {
-  available: boolean;
-  unavailableReason: string | null;
-  lines: BudgetContextLine[];
-  unbudgeted: { categories: Array<{ categoryId: string; name: string; amount: number; records: number }>; amount: number; records: number };
-};
-
 export type ExpenseInsight = {
   id: string;
   text: string;
   basis: string;
-  drill: { categoryId?: string; view?: ExpenseRecordView; classes?: ExpenseClass[]; panel?: "drivers" | "integrity" | "budget" } | null;
+  drill: { categoryId?: string; view?: ExpenseRecordView; classes?: ExpenseClass[]; panel?: "drivers" | "integrity" } | null;
 };
 
 export type ExpenseFilterOptions = {

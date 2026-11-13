@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ArrowUpRight, Download, ExternalLink, Minus, Plus, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, ExternalLink, Minus, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { FilterSelect, SearchField } from "@/features/people-management/PeopleFilterUi";
 import { RankedBars } from "./ExpenseCharts";
 import {
   classLabel, count, dateTime, downloadExpenseReport, errorMessage, getExpenseCategories, getExpenseMatrix, getExpenseRecord, getExpenseRecords,
   getExpenseSources, peso, percentText, periodOptions, saveBlob, shortDate, signedPeso,
-  type ComparisonMode, type ExpenseBudgetContext, type ExpenseCategories, type ExpenseDrivers, type ExpenseIntegrity, type ExpenseRecordDetail,
+  type ComparisonMode, type ExpenseCategories, type ExpenseDrivers, type ExpenseIntegrity, type ExpenseRecordDetail,
   type ExpenseSources, type ExpenseSummary, type ExpenseUiQuery, type PeriodPreset,
 } from "./expense-client";
 import { useExpenseData } from "./expense-hooks";
@@ -346,11 +346,6 @@ export function RecordDetailView({ record }: { record: ExpenseRecordDetail }) {
           </ol>
         ) : <p className="text-sm text-[#5D6D63]">No audit entries are stored for this record.</p>}
       </Block>
-      {record.budget ? (
-        <Block title="Approved budget">
-          <p className="text-sm text-[#365F4A]">Covered by {record.budget.budgetName}, with a limit of {peso(record.budget.limitAmount)} for this category.</p>
-        </Block>
-      ) : null}
       <Block title="What the system cannot confirm">
         <ul className="list-disc space-y-1 pl-5 text-sm text-[#365F4A]">
           <li>{record.disbursement.note}</li>
@@ -392,48 +387,6 @@ export function IntegrityDrawer({ integrity, onDrill }: { integrity: ExpenseInte
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- budget
-
-export function BudgetDrawer({ budget }: { budget: ExpenseBudgetContext | null }) {
-  if (!budget) return <Loading />;
-  if (!budget.available) return <p className="rounded-md bg-[#F4F8F2] p-4 text-sm text-[#365F4A]">{budget.unavailableReason}</p>;
-  return (
-    <div>
-      <p className="text-sm leading-6 text-[#365F4A]">
-        Read-only context from approved budgets. Each posted expense is counted against one line only, the most specific one covering its date, so overlapping budgets are never added twice. Limits and approvals are managed in Budget Controls.
-      </p>
-      <Block title="Approved budget lines">
-        {budget.lines.length ? (
-          <ul className="grid gap-2">
-            {budget.lines.map((line) => (
-              <li key={line.budgetLineId} className={`${panel} p-3`}>
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-sm font-black text-[#123D2A]">{line.categoryName}{line.seasonName ? ` · ${line.seasonName}` : ""}</p>
-                  <span className="text-xs font-bold text-[#52675A]">{line.state === "over" ? "Over the limit" : line.state === "warning" ? "Near the limit" : line.state === "no_limit" ? "No limit set" : "Within the limit"}</span>
-                </div>
-                <p className="text-xs text-[#5D6D63]">{line.budgetName} · {shortDate(line.coverageStart)} to {shortDate(line.coverageEnd)}</p>
-                <div className="mt-2 h-2 rounded-full bg-[#E9F0E9]" aria-hidden="true">
-                  <div className={`h-full rounded-full ${line.state === "over" ? "bg-[#A13226]" : line.state === "warning" ? "bg-[#C98A00]" : "bg-[#1F6B43]"}`} style={{ width: `${Math.min(line.utilization ?? 0, 100)}%` }} />
-                </div>
-                <dl className="mt-2 grid gap-2 sm:grid-cols-4">
-                  <Fact label="Posted">{peso(line.spentAmount)}</Fact>
-                  <Fact label="Limit">{peso(line.limitAmount)}</Fact>
-                  <Fact label="Remaining">{peso(line.remaining)}</Fact>
-                  <Fact label="Used">{line.utilization === null ? "N/A" : `${line.utilization}%`}</Fact>
-                </dl>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="rounded-md bg-[#F4F8F2] p-3 text-sm text-[#5D6D63]">No approved budget line covers the selected period.</p>}
-      </Block>
-      <Block title="Posted expenses without an approved budget line" note="Within the selected period and filters.">
-        {budget.unbudgeted.categories.length ? <RankedBars items={budget.unbudgeted.categories.map((item) => ({ key: item.categoryId, label: item.name, amount: item.amount, records: item.records, share: null }))} onOpen={() => undefined} emptyText="" /> : <p className="rounded-md bg-[#F4F8F2] p-3 text-sm text-[#5D6D63]">Every posted expense in this period is covered by an approved line.</p>}
-      </Block>
-      <div className="mt-4"><Link href="/portal/chairman/budget-controls" className={actionButton}>Open Budget Controls<ArrowUpRight className="size-4" aria-hidden="true" /></Link></div>
     </div>
   );
 }

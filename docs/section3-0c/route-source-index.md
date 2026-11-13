@@ -2,7 +2,9 @@
 
 Source baseline `740def0e611d77734b45a13d2f2f675ff635e5cc`. This mechanical index records literal Express router declarations in relevant modules; it is not proof of reachability or a complete route inventory. Consult middleware, controllers, schemas and service authorization; dynamically dispatched routes and variable paths require manual review (notably rental). Paths are router-local and generally mounted under `/api`.
 
-## budgets
+## budgets (retired and unmounted)
+
+These declarations remain only as legacy source compatibility for the controlled-finance safety scaffolding. `server/src/app.ts` does not register the Budget router, so these paths are not reachable through the TrackCOOP API.
 
 | Method | Local path | Declaration |
 | --- | --- | --- |

@@ -567,7 +567,7 @@ export function FinancialLedgerView({
 
   return (
     <div className="grid min-w-0 gap-4">
-      <PaymentWorkspaceHeader eyebrow="Finance · Money records" icon={Landmark} title={title} description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
+      <PaymentWorkspaceHeader icon={Landmark} title={title} description="Income, expenses, adjustments, posting, and void tracking for cooperative finances." />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PaymentSummaryCard label="Income" value={money(summary.incomeTotal)} icon={Landmark} />
         <PaymentSummaryCard tone="gold" label="Expenses" value={money(summary.expenseTotal)} icon={ReceiptText} />
@@ -642,7 +642,7 @@ export function FinancialCategoriesView({ title = "Financial Categories" }: { ti
 
   return (
     <div className="grid min-w-0 gap-4">
-      <PaymentWorkspaceHeader eyebrow="Finance · Categories" icon={ListChecks} title={title} description="Keep income and expense records organized with consistent categories." />
+      <PaymentWorkspaceHeader icon={ListChecks} title={title} description="Keep income and expense records organized with consistent categories." />
       <div className="grid gap-3 sm:grid-cols-3">
         <PaymentSummaryCard label="Income types" value={isLoading ? "…" : String(categories.filter((category) => category.categoryType === "Income").length)} icon={Landmark} />
         <PaymentSummaryCard tone="gold" label="Expense types" value={isLoading ? "…" : String(categories.filter((category) => category.categoryType === "Expense").length)} icon={ReceiptText} />

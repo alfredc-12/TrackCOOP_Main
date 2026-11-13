@@ -232,7 +232,7 @@ export function BookkeeperRentalTransactionsView() {
   const isOnline = selected?.paymentChannel === "PayMongo";
 
   return <div className="grid min-w-0 gap-4">
-    <PaymentWorkspaceHeader eyebrow="Bookkeeper · Rentals" title="Rental Payments" icon={Tractor}
+    <PaymentWorkspaceHeader title="Rental Payments" icon={Tractor}
       description="Review equipment rental payments. PayMongo confirms online payments; verify money received before approving cash payments." />
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -13,13 +13,13 @@ import { replaceUrlParams } from "@/features/people-management/people-hooks";
 import type { KpiSpec } from "@/features/people-management/people-kpis";
 import { RankedBars, TrendChart } from "./ExpenseCharts";
 import {
-  BudgetDrawer, CategoryDrawer, DriversDrawer, IntegrityDrawer, LoadError, Loading, MatrixDrawer, PeriodDrawer, RecordDrawer, TotalDrawer, ledgerHref,
+  CategoryDrawer, DriversDrawer, IntegrityDrawer, LoadError, Loading, MatrixDrawer, PeriodDrawer, RecordDrawer, TotalDrawer, ledgerHref,
 } from "./ExpenseDrawerViews";
 import { ExpenseDrawer } from "./ExpenseDrawer";
 import { MultiPicker } from "./ExpenseMultiPicker";
 import { ExpenseRecordsTable } from "./ExpenseRecordsTable";
 import {
-  buildChips, classOptions, compareOptions, count, defaultQuery, downloadExpenseReport, errorMessage, filterParams, getExpenseBudget, getExpenseCategories,
+  buildChips, classOptions, compareOptions, count, defaultQuery, downloadExpenseReport, errorMessage, filterParams, getExpenseCategories,
   getExpenseDrivers, getExpenseInsights, getExpenseIntegrity, getExpenseOptions, getExpenseRecords, getExpenseSources, getExpenseSummary, getExpenseTrends,
   moreFilterCount, paramsFromQuery, peso, percentText, periodOptions, queryFromParams, recordParams, saveBlob, shortDate, signedPeso,
   type ExpenseUiQuery, type ExportKind,
@@ -33,7 +33,6 @@ type Drawer =
   | { side: "right"; kind: "period"; key: string }
   | { side: "right"; kind: "record"; id: string }
   | { side: "right"; kind: "integrity" }
-  | { side: "right"; kind: "budget" }
   | { side: "left"; kind: "matrix" };
 
 const card = "rounded-lg border border-[#CAD8CB] bg-white p-4 shadow-[0_10px_24px_rgba(18,61,42,0.05)] sm:p-5";
@@ -49,7 +48,6 @@ const drawerTitle = (drawer: Drawer, bucketLabel?: string) => {
     case "period": return bucketLabel ?? "Period details";
     case "record": return "Expense record";
     case "integrity": return "Data integrity";
-    case "budget": return "Budget context";
     case "matrix": return "Compare expenses";
   }
 };
@@ -104,7 +102,6 @@ export function ExpenseOverviewClient() {
   const sources = useExpenseData(`sources|${key}`, (signal) => getExpenseSources(query, { signal }), ready);
   const drivers = useExpenseData(`drivers|${key}`, (signal) => getExpenseDrivers(query, { signal }), ready);
   const integrity = useExpenseData(`integrity|${key}`, (signal) => getExpenseIntegrity(query, { signal }), ready);
-  const budget = useExpenseData(`budget|${key}`, (signal) => getExpenseBudget(query, { signal }), ready);
   const insights = useExpenseData(`insights|${key}`, (signal) => getExpenseInsights(query, { signal }), ready);
   const records = useExpenseData(`records|${recordsKey}`, (signal) => getExpenseRecords(query, { signal }), ready);
   const options = useExpenseData("options", (signal) => getExpenseOptions({ signal }), ready);
@@ -140,8 +137,8 @@ export function ExpenseOverviewClient() {
   const dirty = filterParams({ ...draft, search: query.search }).toString() !== filterParams(query).toString();
   const amountError = draft.amountMin && draft.amountMax && Number(draft.amountMin) > Number(draft.amountMax) ? "The maximum cannot be below the minimum." : null;
   const submitDraft = () => {
-    const { period, startDate, endDate, compare, categoryIds, sourceModules, classes, amountMin, amountMax, recordedBy, postedBy, seasonId, budget: budgetScope } = draft;
-    apply({ period, startDate: period === "custom" ? startDate : undefined, endDate: period === "custom" ? endDate : undefined, compare, categoryIds, sourceModules, classes: classes.length ? classes : [...defaultQuery.classes], amountMin: amountMin || undefined, amountMax: amountMax || undefined, recordedBy, postedBy, seasonId, budget: budgetScope, page: 1 });
+    const { period, startDate, endDate, compare, categoryIds, sourceModules, classes, amountMin, amountMax, recordedBy, postedBy, seasonId } = draft;
+    apply({ period, startDate: period === "custom" ? startDate : undefined, endDate: period === "custom" ? endDate : undefined, compare, categoryIds, sourceModules, classes: classes.length ? classes : [...defaultQuery.classes], amountMin: amountMin || undefined, amountMax: amountMax || undefined, recordedBy, postedBy, seasonId, page: 1 });
   };
   const patchDraft = (patch: Partial<ExpenseUiQuery>) => setDraft((current) => ({ ...current, ...patch }));
 
@@ -324,7 +321,6 @@ export function ExpenseOverviewClient() {
           <SearchableFilterSelect label="Recorded by" value={draft.recordedBy ?? ""} allLabel="Anyone" options={names.recordedBy.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => patchDraft({ recordedBy: value || undefined })} />
           <SearchableFilterSelect label="Posted by" value={draft.postedBy ?? ""} allLabel="Anyone" options={names.postedBy.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => patchDraft({ postedBy: value || undefined })} />
           {options.data?.capabilities.seasons ? <SearchableFilterSelect label="Season" value={draft.seasonId ?? ""} allLabel="Any season" options={names.seasons.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => patchDraft({ seasonId: value || undefined })} /> : null}
-          {options.data?.capabilities.budgets ? <FilterSelect label="Budget" value={draft.budget ?? "any"} onChange={(value) => patchDraft({ budget: value === "any" ? undefined : value })} options={[{ value: "any", label: "Any" }, { value: "covered", label: "Covered by an approved line" }, { value: "uncovered", label: "No approved line" }]} /> : null}
         </MoreFilters>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={submitDraft} disabled={!dirty || draftInvalid || Boolean(amountError)} className={primaryButton}>Apply filters</button>
@@ -432,32 +428,11 @@ export function ExpenseOverviewClient() {
         <ExpenseRecordsTable data={records.data} loading={records.loading} error={records.error} onRetry={records.retry} query={query} onChange={apply} onOpen={(id) => open({ side: "right", kind: "record", id })} />
       </section>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <section className={card} aria-labelledby="budget-heading">
-          <h2 id="budget-heading" className="text-base font-black text-[#123D2A]">Budget context</h2>
-          {budget.error ? <LoadError message={budget.error} onRetry={budget.retry} /> : budget.loading ? <Loading /> : !budget.data?.available ? (
-            <p className="mt-2 rounded-md bg-[#F4F8F2] p-4 text-sm text-[#365F4A]">{budget.data?.unavailableReason}</p>
-          ) : budget.data.lines.length === 0 ? (
-            <p className="mt-2 rounded-md bg-[#F4F8F2] p-4 text-sm text-[#365F4A]">No approved budget line covers this period. Posted expenses are shown without a budget comparison.</p>
-          ) : (
-            <ul className="mt-3 grid gap-2">
-              {[...budget.data.lines].sort((a, b) => (b.utilization ?? -1) - (a.utilization ?? -1)).slice(0, 4).map((line) => (
-                <li key={line.budgetLineId} className="rounded-md border border-[#E1E8E2] p-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-bold text-[#123D2A]">{line.categoryName}</span><span className="text-xs font-bold text-[#52675A]">{line.utilization === null ? "No limit set" : `${line.utilization}% of ${peso(line.limitAmount)}`}</span></div>
-                  <div className="mt-1.5 h-2 rounded-full bg-[#E9F0E9]" aria-hidden="true"><div className={`h-full rounded-full ${line.state === "over" ? "bg-[#A13226]" : line.state === "warning" ? "bg-[#C98A00]" : "bg-[#1F6B43]"}`} style={{ width: `${Math.min(line.utilization ?? 0, 100)}%` }} /></div>
-                  <p className="mt-1 text-xs text-[#5D6D63]">{peso(line.spentAmount)} posted · {peso(line.remaining)} remaining · {line.state === "over" ? "over the limit" : line.state === "warning" ? "near the limit" : "within the limit"}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button type="button" onClick={() => open({ side: "right", kind: "budget" })} className={`${ghostButton} mt-4`}>Budget details<ArrowUpRight className="size-4" aria-hidden="true" /></button>
-        </section>
-
-        <section className={card} aria-labelledby="insights-heading">
+      <section className={card} aria-labelledby="insights-heading">
           <h2 id="insights-heading" className="flex items-center gap-2 text-base font-black text-[#123D2A]"><Sparkles className="size-4" aria-hidden="true" />Observations</h2>
           <p className="mb-3 text-xs text-[#5D6D63]">Plain statements drawn from the figures above. They describe recorded spending; they do not explain or judge it.</p>
           {insights.error ? <LoadError message={insights.error} onRetry={insights.retry} /> : insights.loading ? <Loading /> : insights.data && insights.data.length ? (
-            <ul className="grid gap-3">
+            <ul className="grid gap-3 lg:grid-cols-2">
               {insights.data.map((item) => (
                 <li key={item.id} className="rounded-md border border-[#E1E8E2] p-3">
                   <p className="text-sm font-bold text-[#123D2A]">{item.text}</p>
@@ -468,7 +443,6 @@ export function ExpenseOverviewClient() {
                       onClick={() => {
                         const drill = item.drill!;
                         if (drill.panel === "drivers") open({ side: "right", kind: "drivers" });
-                        else if (drill.panel === "budget") open({ side: "right", kind: "budget" });
                         else if (drill.panel === "integrity") open({ side: "right", kind: "integrity" });
                         else if (drill.categoryId && !drill.view) open({ side: "right", kind: "category", id: drill.categoryId, name: categoryBars.find((entry) => entry.key === drill.categoryId)?.label ?? names.categories.find((entry) => entry.id === drill.categoryId)?.name ?? "Category" });
                         else showRecords({ ...(drill.view ? { view: drill.view } : {}), ...(drill.classes ? { classes: drill.classes } : {}) });
@@ -482,8 +456,7 @@ export function ExpenseOverviewClient() {
               ))}
             </ul>
           ) : <p className="rounded-md bg-[#F4F8F2] p-4 text-sm text-[#365F4A]">Nothing to report for this period.</p>}
-        </section>
-      </div>
+      </section>
 
       {drawer ? (
         <ExpenseDrawer
@@ -503,7 +476,6 @@ export function ExpenseOverviewClient() {
           {drawer.kind === "period" ? (bucket ? <PeriodDrawer query={query} bucket={bucket} onShowRecords={() => showRecords({ period: "custom", startDate: bucket.startDate, endDate: bucket.endDate, compare: "none" })} onOpenRecord={(id) => openFromDrawer({ side: "right", kind: "record", id })} onOpenCategory={(id, name) => openFromDrawer({ side: "right", kind: "category", id, name })} /> : <Loading />) : null}
           {drawer.kind === "record" ? <RecordDrawer id={drawer.id} /> : null}
           {drawer.kind === "integrity" ? <IntegrityDrawer integrity={integrity.data} onDrill={(drill) => showRecords({ ...(drill.view ? { view: drill.view } : {}), ...(drill.classes ? { classes: drill.classes } : {}) })} /> : null}
-          {drawer.kind === "budget" ? <BudgetDrawer budget={budget.data} /> : null}
           {drawer.kind === "matrix" ? <MatrixDrawer query={query} sourceModules={options.data?.sourceModules.map((item) => item.value) ?? []} onPick={(categoryId, sourceModule) => showRecords({ categoryIds: [categoryId], sourceModules: [sourceModule] })} /> : null}
         </ExpenseDrawer>
       ) : null}

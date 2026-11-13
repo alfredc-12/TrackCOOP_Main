@@ -28,6 +28,7 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
   const [basisError, setBasisError] = useState("");
   const [allocationPage, setAllocationPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const [capitalReviewRefreshKey, setCapitalReviewRefreshKey] = useState(0);
   const inFlight = useRef(false);
   const year = Number(new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "Asia/Manila" }).format(new Date()));
   const [draft, setDraft] = useState({ name: `${year - 1} Patronage Refund`, startDate: `${year - 1}-01-01`, endDate: `${year - 1}-12-31`, netSurplus: "", statutoryReserves: "", notes: "" });
@@ -53,6 +54,7 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
     try {
       const result = await getPatronageOverview(id);
       setData(result); setSelectedId(result.selectedPeriod?.id); setError("");
+      setCapitalReviewRefreshKey((current) => current + 1);
     } catch (caught) { if (!silent) setError(caught instanceof Error ? caught.message : "Unable to load patronage records."); }
     finally { inFlight.current = false; }
   }, []);
@@ -81,9 +83,9 @@ export function ChairmanPatronageClient({ mode = "chairman" }: { mode?: Patronag
   }
 
   return <div className="grid min-w-0 gap-4">
-    <Header icon={HandCoins} eyebrow={canManage ? "Member benefits" : "Bookkeeper · Member benefits"} title="Patronage Refunds" description="Yearly refunds based on each member’s qualifying equipment rentals and the saved refund rate. January–December; POS products are excluded." actions={<div className="flex flex-wrap gap-2">{canManage && <button onClick={() => { setBasis(null); setBasisError(""); setCreateOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-coop-control bg-coop-forest px-4 text-sm font-bold text-white"><Plus className="size-4" />New yearly period</button>}<button disabled={Boolean(busy)} onClick={() => void load(selectedId)} className="inline-flex min-h-11 items-center gap-2 rounded-coop-control border border-coop-border bg-coop-surface px-4 text-sm font-bold text-coop-forest"><RefreshCw className="size-4" />Refresh</button></div>} />
+    <Header icon={HandCoins} eyebrow={canManage ? "Member benefits" : undefined} title="Patronage Refunds" description="Yearly refunds based on each member’s qualifying equipment rentals and the saved refund rate. January–December; POS products are excluded." actions={<div className="flex flex-wrap gap-2">{canManage && <button onClick={() => { setBasis(null); setBasisError(""); setCreateOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-coop-control bg-coop-forest px-4 text-sm font-bold text-white"><Plus className="size-4" />New yearly period</button>}<button disabled={Boolean(busy)} onClick={() => void load(selectedId)} className="inline-flex min-h-11 items-center gap-2 rounded-coop-control border border-coop-border bg-coop-surface px-4 text-sm font-bold text-coop-forest"><RefreshCw className="size-4" />Refresh</button></div>} />
     {period?.policyVersion === policy && period.allocatedRefund > period.refundPool && <p role="alert" className="rounded-coop-panel border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Calculated refunds exceed the allocated pool. Review funding before finalization.</p>}
-    <PatronageCapitalReviewPanel canReview={mode === "bookkeeper"} onProcessed={() => void load(selectedId)} />
+    <PatronageCapitalReviewPanel canReview={mode === "bookkeeper"} onProcessed={() => void load(selectedId)} refreshKey={capitalReviewRefreshKey} />
     {error && <ErrorState message={error} onRetry={() => void load(selectedId)} />}
     {!data && !error && <LoadingSkeleton />}
     {data && <>

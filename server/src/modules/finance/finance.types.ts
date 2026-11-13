@@ -108,13 +108,6 @@ export type OperatingExpenseRecord = {
   recordedBy: string;
   approvedBy: string | null;
   createdAt: Date;
-  budgetCheck?: {
-    budgetName: string | null;
-    remainingAmount: number | null;
-    utilizationPercentage: number | null;
-    warning: boolean;
-    message: string;
-  };
 };
 
 export type OperatingExpenseTypeTotal = {

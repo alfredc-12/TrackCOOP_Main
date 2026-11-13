@@ -285,7 +285,7 @@ export function ReportsPage({ role }: { role: "chairman" | "bookkeeper" }) {
   return (
     <div className="grid min-w-0 gap-4">
       <PageHeader
-        eyebrow={role === "bookkeeper" ? "Bookkeeper · Reports" : "Records · Reports"}
+        eyebrow={role === "bookkeeper" ? undefined : "Records · Reports"}
         title="Reports"
         description="Generate and review cooperative financial, membership, rental, operational, and records reports."
         actions={

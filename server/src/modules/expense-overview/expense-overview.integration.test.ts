@@ -11,10 +11,10 @@ import { createExpenseOverviewService } from "./expense-overview.service";
 import type { AuthContext } from "../auth/auth.types";
 
 /**
- * Runs the Financial Overview SQL against a real MySQL schema (baseline + 20261027 seasons/budgets).
+ * Runs the Financial Overview SQL against a real MySQL schema (baseline + seasons).
  *
  * Opt in with EXPENSE_TEST_DB_NAME (must end in `_test`) plus optional EXPENSE_TEST_DB_HOST / _PORT / _USER /
- * _PASSWORD. The ledger, budgets, seasons, audit log and users are emptied first, so the test refuses to
+ * _PASSWORD. The ledger, seasons, audit log and users are emptied first, so the test refuses to
  * run against any database whose name does not end in `_test`.
  *
  * The clock is pinned to 2026-11-12 (Asia/Manila). "This month" is therefore 1-12 November, compared with
@@ -68,7 +68,7 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
       decimalNumbers: false,
     });
     await run("SET FOREIGN_KEY_CHECKS = 0");
-    for (const table of ["financial_records", "budget_lines", "budgets", "audit_logs", "seasons", "users"]) await run(`TRUNCATE TABLE ${table}`);
+    for (const table of ["financial_records", "audit_logs", "seasons", "users"]) await run(`TRUNCATE TABLE ${table}`);
     await run("SET FOREIGN_KEY_CHECKS = 1");
     await run("INSERT INTO roles (role_name, role_slug) VALUES ('Chairman', 'chairman'), ('Bookkeeper', 'bookkeeper') ON DUPLICATE KEY UPDATE role_slug = VALUES(role_slug)");
     const [roles] = await run("SELECT role_id AS id, role_slug AS slug FROM roles");
@@ -125,9 +125,6 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
     // ---- 130 small rows in August to prove nothing stops at 100
     for (let day = 0; day < 130; day += 1) await insert({ category: "OTHER_EXPENSE", amount: 1, date: `2026-08-${String((day % 28) + 1).padStart(2, "0")}` });
 
-    // ---- budgets: a November budget and an overlapping approved Q4 budget for fuel; a draft that must be ignored
-    await run("INSERT INTO budgets (budget_id, budget_name, coverage_start, coverage_end, budget_status, created_by) VALUES (1, 'November', '2026-11-01', '2026-11-30', 'Approved', 1), (2, 'Q4', '2026-10-01', '2026-12-31', 'Approved', 1), (3, 'Draft', '2026-11-01', '2026-11-30', 'Draft', 1)");
-    await run("INSERT INTO budget_lines (budget_id, financial_category_id, season_id, limit_amount, warning_percentage, hard_limit) VALUES (1, ?, NULL, 2000, 80, 1), (2, ?, NULL, 5000, 80, 0), (3, ?, NULL, 1, 80, 1)", [category.get("FUEL_GASOLINE"), category.get("FUEL_GASOLINE"), category.get("UTILITIES")]);
     await run("INSERT INTO audit_logs (user_id, action, entity_table, record_id, description) VALUES (2, 'financial_record.posted', 'financial_records', 1, 'posted')");
   });
 
@@ -243,7 +240,7 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
     assert.equal(voided.records[0]?.postingStatus, "Voided");
   });
 
-  it("search, category, source, amount, recorder, season and budget filters narrow the same population", async () => {
+  it("search, category, source, amount, recorder and season filters narrow the same population", async () => {
     const s = service();
     const count = async (extra: Record<string, string>) => (await s.records(expenseRecordQuerySchema.parse({ period: "this_month", ...extra }))).total;
     assert.equal(await count({ search: "fuel" }), 2);
@@ -255,23 +252,7 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
     assert.equal(await count({ recordedBy: "1" }), 0);
     assert.equal(await count({ postedBy: "1" }), 6);
     assert.equal(await count({ seasonId: "1" }), 1);
-    assert.equal(await count({ budget: "covered" }), 2); // the two fuel rows are under an approved line
-    assert.equal(await count({ budget: "uncovered" }), 4);
     assert.equal(await count({ search: "100%" }), 0); // LIKE wildcards are escaped, not interpreted
-  });
-
-  it("budget context assigns each expense to one governing line, so overlaps never count twice", async () => {
-    const budget = await service().budget(filters());
-    assert.equal(budget.available, true);
-    const november = budget.lines.find((line) => line.budgetName === "November")!;
-    const q4 = budget.lines.find((line) => line.budgetName === "Q4")!;
-    // November's line governs every posted November fuel row: 1000.10 + 500.20 + 50.00 (dated 20 Nov).
-    assert.deepEqual([november.spentAmount, november.utilization, november.remaining, november.state], [1550.3, 77.52, 449.7, "within"]);
-    // The 4 October row (800) is governed by the Q4 line, never by both.
-    assert.equal(q4.spentAmount, 800);
-    assert.equal(budget.lines.some((line) => line.budgetName === "Draft"), false);
-    assert.equal(budget.unbudgeted.amount, 7420); // utilities, salaries, training, POS supplies
-    assert.equal(budget.unbudgeted.records, 4);
   });
 
   it("integrity checks find the planted problems and use neutral labels", async () => {
@@ -294,7 +275,6 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
     assert.equal(detail?.history.length, 1);
     assert.equal(detail?.disbursement.verified, false);
     assert.equal(detail?.evidence.available, false);
-    assert.equal(detail?.budget?.budgetName, "November");
     assert.equal(await service().recordDetail("999999"), null);
     const [incomeRows] = await run("SELECT financial_record_id AS id FROM financial_records WHERE record_type = 'Income' LIMIT 1");
     assert.equal(await service().recordDetail(String((incomeRows as Array<{ id: number }>)[0].id)), null);
@@ -302,7 +282,7 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
 
   it("filter options list inactive categories that still have history", async () => {
     const options = await service().options();
-    assert.equal(options.capabilities.seasons && options.capabilities.budgets, true);
+    assert.equal(options.capabilities.seasons, true);
     assert.equal(options.categories.find((item) => item.code === "OLD_TRAINING")?.isActive, false);
     assert.ok(options.sourceModules.some((item) => item.value === "Rental"));
     assert.deepEqual(options.recordedBy.map((item) => item.name), ["Book Keeper"]);
@@ -365,7 +345,7 @@ describe("Financial Overview SQL against MySQL", { skip: enabled ? false : "set 
   it("insights quote real figures with their basis", async () => {
     const insights = await service().insights(filters());
     const ids = insights.map((item) => item.id);
-    assert.ok(ids.includes("change") && ids.includes("largest") && ids.includes("unposted") && ids.includes("unbudgeted"));
+    assert.ok(ids.includes("change") && ids.includes("largest") && ids.includes("unposted"));
     const change = insights.find((item) => item.id === "change")!;
     assert.match(change.text, /PHP 5,620\.30 \(170\.31%\) higher/);
     assert.match(change.basis, /2026-11-01 to 2026-11-12/);
