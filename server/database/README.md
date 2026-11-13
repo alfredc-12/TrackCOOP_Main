@@ -5,7 +5,10 @@ files:
 
 1. `TrackCOOP_MAIN_Database.sql`
    - Creates the full TrackCOOP database schema.
-   - Use this first when setting up a fresh database.
+   - **DESTRUCTIVE / FRESH DATABASES ONLY:** this script drops and recreates TrackCOOP objects. Never run it on production or the populated `trackcoopdb_main_2` demo database.
+   - Includes the structural definitions from the merged migration set and the currently unmerged PR #18 evidence metadata migrations. The latter do **not** activate unfinished finance workflows.
+   - A brand-new install that runs this file must **not** re-run its already incorporated migration DDL.
+   - Use this first only when setting up an empty/disposable database.
    - Includes PayMongo test-gateway support tables and payment validation
      history for new installs.
    - When the system needs new tables, add those `CREATE TABLE`, index, view,
@@ -27,3 +30,14 @@ source of truth.
 
 Existing databases that were created before the PayMongo test integration should
 apply only the outstanding PayMongo migration files manually after a backup.
+
+## Status of source-bound evidence migrations
+
+The four `20261107_*evidence*` / `20261107_receipt_attempt_recovery.sql` SQL files
+are copied from draft PR #18 for traceability and fresh-install schema coverage.
+Their presence in this directory is **not** approval to activate or deploy that
+unfinished workflow. PR #18's durable recovery and integration requirements remain
+open, and no migration here is automatically executed against any live database.
+For existing databases, inventory missing structures, review exact dependencies,
+and use a separate additive, verified upgrade plan; never run the reset-oriented
+full setup SQL.
