@@ -230,6 +230,8 @@ export function MembershipPaymentsView() {
   const [statusFilter, setStatusFilter] = useState<(typeof simpleStatuses)[number]>("All");
   const [paymentPage, setPaymentPage] = useState(1);
   const [paymentsPerPage, setPaymentsPerPage] = useState(5);
+  const [applicationPage, setApplicationPage] = useState(1);
+  const [applicationsPerPage, setApplicationsPerPage] = useState(5);
   const [manualPurpose, setManualPurpose] = useState<PaymentPurpose>("Associate Membership Fee");
   const [manualChannel, setManualChannel] = useState<ManualChannel>("Cash");
   const [manualReference, setManualReference] = useState("");
@@ -368,7 +370,11 @@ export function MembershipPaymentsView() {
     });
   }, [payments, search, statusFilter]);
   const paymentPageCount = Math.max(1, Math.ceil(filteredPayments.length / paymentsPerPage));
-  const visiblePayments = filteredPayments.slice((paymentPage - 1) * paymentsPerPage, paymentPage * paymentsPerPage);
+  const currentPaymentPage = Math.min(paymentPage, paymentPageCount);
+  const visiblePayments = filteredPayments.slice((currentPaymentPage - 1) * paymentsPerPage, currentPaymentPage * paymentsPerPage);
+  const applicationPageCount = Math.max(1, Math.ceil(filteredApplications.length / applicationsPerPage));
+  const currentApplicationPage = Math.min(applicationPage, applicationPageCount);
+  const visibleApplications = filteredApplications.slice((currentApplicationPage - 1) * applicationsPerPage, currentApplicationPage * applicationsPerPage);
 
   async function openManualPayment(applicationId: string) {
     setSubmitting(true);
@@ -586,6 +592,7 @@ export function MembershipPaymentsView() {
               onChange={(event) => {
                 setSearch(event.target.value);
                 setPaymentPage(1);
+                setApplicationPage(1);
               }}
               className="h-11 w-full rounded-md border border-[#CAD8CB] bg-[#F7F8F3] pl-10 pr-3 text-sm outline-none focus:border-[#1F6B43]"
               placeholder="Search applicant or reference"
@@ -598,6 +605,7 @@ export function MembershipPaymentsView() {
             onChange={(value) => {
               setStatusFilter(value);
               setPaymentPage(1);
+              setApplicationPage(1);
             }}
           />
           <button
@@ -617,8 +625,8 @@ export function MembershipPaymentsView() {
       {loading ? <LoadingSkeleton /> : (
         <>
           {filteredApplications.length ? (
-            <section className="grid min-w-0 gap-3">
-              <h2 className="flex items-center gap-2 text-base font-bold text-coop-forest"><CircleDollarSign className="size-4 text-coop-warning" aria-hidden="true" />Applicants needing payment</h2>
+            <section className="grid min-w-0 gap-3" aria-labelledby="applicants-needing-payment-heading">
+              <h2 id="applicants-needing-payment-heading" className="flex items-center gap-2 text-base font-bold text-coop-forest"><CircleDollarSign className="size-4 text-coop-warning" aria-hidden="true" />Applicants needing payment</h2>
               <DataTable>
                 <table className="w-full min-w-[900px] divide-y divide-[#E2E8E2] text-left text-sm">
                   <thead className="bg-coop-sage/60 text-xs uppercase tracking-[0.12em] text-[#5D6D63]">
@@ -631,7 +639,7 @@ export function MembershipPaymentsView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EEF2EC] text-[#294B39]">
-                    {filteredApplications.map((application) => {
+                    {visibleApplications.map((application) => {
                       const due = nextRequiredPayment(application, payments);
                       if (!due) return null;
                       return (
@@ -671,11 +679,22 @@ export function MembershipPaymentsView() {
                   </tbody>
                 </table>
               </DataTable>
+              <PaginationControls
+                currentPage={currentApplicationPage}
+                totalPages={applicationPageCount}
+                totalItems={filteredApplications.length}
+                itemName="applicants"
+                onPageChange={setApplicationPage}
+                pageSize={applicationsPerPage}
+                pageSizeOptions={[5, 10, 20, 50]}
+                onPageSizeChange={(size) => { setApplicationsPerPage(size); setApplicationPage(1); }}
+                className="mt-0 rounded-lg border border-coop-border bg-coop-surface p-3"
+              />
             </section>
           ) : null}
 
-          <section className="grid min-w-0 gap-3">
-            <h2 className="flex items-center gap-2 text-base font-bold text-coop-forest"><ReceiptText className="size-4 text-coop-green" aria-hidden="true" />Recorded membership payments</h2>
+          <section className="grid min-w-0 gap-3" aria-labelledby="recorded-membership-payments-heading">
+            <h2 id="recorded-membership-payments-heading" className="flex items-center gap-2 text-base font-bold text-coop-forest"><ReceiptText className="size-4 text-coop-green" aria-hidden="true" />Recorded membership payments</h2>
             {filteredPayments.length ? (
               <>
               <DataTable>
@@ -728,7 +747,7 @@ export function MembershipPaymentsView() {
                 </table>
               </DataTable>
               <PaginationControls
-                currentPage={paymentPage}
+                currentPage={currentPaymentPage}
                 totalPages={paymentPageCount}
                 totalItems={filteredPayments.length}
                 itemName="payments"

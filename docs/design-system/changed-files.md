@@ -1,5 +1,13 @@
 # Implementation map
 
+## Membership queues
+
+`MembershipPaymentsView.tsx` uses independent shared pagination controls for the
+applicant queue and recorded payments. `MembershipUpgradeReviews.tsx` opens from
+the Members header and contains its searchable, paginated queue and review form
+inside one responsive drawer. See [membership queue layouts](../membership-queue-layout.md)
+for behavior and fixture-based verification scope.
+
 ## Batangas map coverage ? 2026-11-12
 
 `src/lib/Nasugbu.geojson` now holds the supplied complete Batangas asset (1,077 barangays).

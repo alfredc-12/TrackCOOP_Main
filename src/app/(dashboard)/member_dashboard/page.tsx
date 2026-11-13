@@ -221,7 +221,11 @@ export default function MemberDashboardPage() {
     request.promise = (async () => {
       try {
         const response = await expressFetch(`/api/members/me/dashboard?${key}`, { signal: request.controller.signal });
-        if (!response.ok) throw new Error("Failed to refresh dashboard");
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+          const message = failure?.error || failure?.message || response.statusText;
+          throw new Error(`Failed to refresh dashboard (HTTP ${response.status}): ${message}`);
+        }
         const data = await response.json();
         if (dashboardRequest.current !== request || request.controller.signal.aborted) return;
         setDashboardData(data);
@@ -1189,6 +1193,7 @@ export default function MemberDashboardPage() {
                     </div>
                   </section>
                   <MemberMembershipPanel />
+                  {dashboardData?.member?.livelihoodsUnavailable && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Some saved crop and livelihood details could not be displayed. Your other dashboard records are still available.</p>}
                   {dashboardLoadError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><p>We couldn’t load your records. Please try again.</p><button onClick={() => void refreshDashboard()} className="min-h-10 rounded-lg px-3 font-bold underline">Try again</button></div>}
 
                   <section aria-label="My activity summary" className={`${isAssociate ? "mt-5" : "mt-4"} grid grid-cols-2 gap-3 ${canAccessFinancials ? "lg:grid-cols-4" : "sm:grid-cols-3"}`}>
