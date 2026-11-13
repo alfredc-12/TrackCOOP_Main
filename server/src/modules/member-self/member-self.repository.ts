@@ -1,6 +1,6 @@
 import { canAccessMemberFinancials } from "../../middleware/true-member";
 import bcrypt from "bcryptjs";
-import { readLivelihoods, validateLivelihoods } from "./member-livelihoods";
+import { inspectStoredLivelihoods, validateLivelihoods } from "./member-livelihoods";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getPool } from "../../db/pool";
 import { AppError } from "../../utils/app-error";
@@ -30,6 +30,7 @@ type MemberProfileRow = RowDataPacket & {
   municipality?: string | null;
   province?: string | null;
   sector?: string | null;
+  livelihoods?: unknown;
 };
 
 type CountRow = RowDataPacket & { count?: number | string; total?: number | string };
@@ -347,7 +348,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
 
   async function getMemberForUser(userId: string | number) {
     const [members] = await databasePool().execute<MemberProfileRow[]>(
-      "SELECT member_id, membership_type FROM member_profiles WHERE user_id = ?",
+      "SELECT member_id, membership_type, livelihoods FROM member_profiles WHERE user_id = ?",
       [userId],
     );
     return members[0] ?? null;
@@ -359,7 +360,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
     return member;
   }
 
-  async function selectMemberProfile(auth: AuthContext, tolerateInvalidLivelihoods = false) {
+  async function selectMemberProfile(auth: AuthContext, includeLivelihoodReview = false) {
       const [members] = await databasePool().execute<SelfProfileRow[]>(
         `SELECT m.membership_type, m.contact_number, m.email, m.barangay, m.municipality, m.province, m.livelihoods,
                 COALESCE(m.occupation, (
@@ -372,14 +373,12 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       );
       const member = members[0];
       if (!member) throw new AppError("Member profile not found", 404, "MEMBER_PROFILE_NOT_FOUND");
-      try {
-        return { ...member, livelihoods: readLivelihoods(member.livelihoods), livelihoodsUnavailable: false };
-      } catch (error) {
-        if (!tolerateInvalidLivelihoods || !(error instanceof SyntaxError || (error instanceof AppError && error.code === "INVALID_LIVELIHOODS"))) throw error;
-        // Invalid optional profile metadata must not hide the member's other
-        // dashboard records. Preserve the stored value and flag the omission.
-        return { ...member, livelihoods: [], livelihoodsUnavailable: true };
-      }
+      const inspected = inspectStoredLivelihoods(member.livelihoods);
+      const original = typeof member.livelihoods === "string" ? member.livelihoods : JSON.stringify(member.livelihoods, null, 2) ?? "";
+      return { ...member, livelihoods: inspected.livelihoods, livelihoodsUnavailable: inspected.issues.length > 0,
+        livelihoodsReview: includeLivelihoodReview && inspected.issues.length ? {
+          issues: inspected.issues, original: original.slice(0, 12000), truncated: original.length > 12000,
+        } : undefined };
   }
 
   return {
@@ -657,7 +656,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       ).catch(() => [[] as RowDataPacket[]])),
         read(async () => hasFinancialAccess && query.includeFinancialSummary !== "false" ? selectMemberFinancialSummary(databasePool(), member.member_id, query) : null),
-        read(async () => selectMemberProfile(auth, true)),
+        read(async () => selectMemberProfile(auth)),
       ]);
       const validatedShareCapital = Number(shareCapitalRows[0]?.validatedTotal || 0);
       const recentActivity = [...rentalPayments, ...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
@@ -785,7 +784,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
     },
 
     async profile(auth) {
-      return selectMemberProfile(auth);
+      return selectMemberProfile(auth, true);
     },
 
     async updateProfile(auth, input) {
@@ -795,6 +794,9 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       }
       const livelihoods = input.livelihoods === undefined ? undefined : validateLivelihoods(input.livelihoods);
       const member = await requireMemberForUser(auth.user.id);
+      if (livelihoods !== undefined && inspectStoredLivelihoods(member.livelihoods).issues.length && input.confirmLivelihoodsRepair !== true) {
+        throw new AppError("Review the original livelihood details and confirm the corrected list before replacing them.", 409, "LIVELIHOODS_REVIEW_REQUIRED");
+      }
       await databasePool().execute(
         `UPDATE member_profiles
             SET contact_number = ?,

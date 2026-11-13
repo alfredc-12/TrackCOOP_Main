@@ -45,6 +45,7 @@ export type MemberFinancialSummary = {
 export type MemberProfileInput = {
   occupation?: string | null;
   livelihoods?: import("./member-livelihoods").MemberLivelihood[];
+  confirmLivelihoodsRepair?: boolean;
   contact_number?: string | null;
   email?: string | null;
   barangay?: string | null;
