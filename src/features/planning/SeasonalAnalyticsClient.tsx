@@ -398,7 +398,7 @@ export function SeasonalAnalyticsClient({ canManageSeasons = true }: Props) {
   return (
     <div className="grid gap-6">
       <PageHeader
-        eyebrow="Operations / Analytics"
+        eyebrow={canManageSeasons ? "Operations / Analytics" : undefined}
         title="Seasonal Analytics"
         description="Review actual harvested production by crop cycle, including quantity, production cost, and harvest timing."
         actions={

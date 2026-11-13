@@ -114,12 +114,6 @@ export const portalNavigation: Record<PortalRole, PortalNavGroup[]> = {
           icon: HandCoins,
           summary: "Calculate patronage and administer member refund allocations.",
         },
-        {
-          label: "Budget Controls",
-          href: "/portal/chairman/budget-controls",
-          icon: ShieldCheck,
-          summary: "Set approved spending limits and monitor budget warnings.",
-        },
       ],
     },
     {

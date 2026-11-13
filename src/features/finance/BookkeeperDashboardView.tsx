@@ -146,7 +146,6 @@ export function BookkeeperDashboardView() {
   return (
     <div className="grid gap-6">
       <PageHeader
-        eyebrow="Today"
         title="Bookkeeper Home"
         description="Start with payments that need checking. Approved payments are automatically added to the correct cooperative records."
         actions={

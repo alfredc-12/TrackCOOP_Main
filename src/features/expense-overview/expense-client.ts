@@ -6,7 +6,6 @@ import type { ExpenseClass } from "../../../server/src/modules/expense-overview/
 import type { ComparisonMode, Granularity, PeriodPreset } from "../../../server/src/modules/expense-overview/expense-periods";
 import type { ExpenseRecordView, ExpenseSortField, ExportKind } from "../../../server/src/modules/expense-overview/expense-overview.schema";
 import type {
-  ExpenseBudgetContext,
   ExpenseCategories,
   ExpenseDrivers,
   ExpenseFilterOptions,
@@ -21,7 +20,7 @@ import type {
 } from "../../../server/src/modules/expense-overview/expense-overview.types";
 
 export type {
-  ComparisonMode, ExpenseBudgetContext, ExpenseCategories, ExpenseClass, ExpenseDrivers, ExpenseFilterOptions, ExpenseInsight, ExpenseIntegrity,
+  ComparisonMode, ExpenseCategories, ExpenseClass, ExpenseDrivers, ExpenseFilterOptions, ExpenseInsight, ExpenseIntegrity,
   ExpenseMatrix, ExpenseRecordDetail, ExpenseRecordView, ExpenseRecordsPage, ExpenseSources, ExpenseSummary, ExpenseTrend, ExportKind, Granularity, PeriodPreset,
 };
 
@@ -84,7 +83,6 @@ export type ExpenseUiQuery = {
   recordedBy?: string;
   postedBy?: string;
   seasonId?: string;
-  budget?: "covered" | "uncovered";
   search: string;
   view: ExpenseRecordView;
   page: number;
@@ -136,7 +134,6 @@ export function queryFromParams(params: URLSearchParams): ExpenseUiQuery {
   const classes = list(params.get("classes")).filter((item): item is ExpenseClass => classSet.has(item));
   const amountMin = money(params.get("amountMin"));
   const amountMax = money(params.get("amountMax"));
-  const budget = params.get("budget");
   const view = params.get("view");
   const sortBy = params.get("sort");
   const pageSize = Number(params.get("pageSize"));
@@ -154,7 +151,6 @@ export function queryFromParams(params: URLSearchParams): ExpenseUiQuery {
     recordedBy: id(params.get("recordedBy")),
     postedBy: id(params.get("postedBy")),
     seasonId: id(params.get("seasonId")),
-    budget: budget === "covered" || budget === "uncovered" ? budget : undefined,
     search: (params.get("q") ?? "").slice(0, 190),
     view: view && views.has(view) ? (view as ExpenseRecordView) : defaultQuery.view,
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -183,7 +179,6 @@ export function paramsFromQuery(query: ExpenseUiQuery) {
   if (query.recordedBy) params.set("recordedBy", query.recordedBy);
   if (query.postedBy) params.set("postedBy", query.postedBy);
   if (query.seasonId) params.set("seasonId", query.seasonId);
-  if (query.budget) params.set("budget", query.budget);
   if (query.search.trim()) params.set("q", query.search.trim());
   if (query.view !== defaultQuery.view) params.set("view", query.view);
   if (query.page > 1) params.set("page", String(query.page));
@@ -210,7 +205,6 @@ export function filterParams(query: ExpenseUiQuery, extra: Partial<Record<"granu
   if (query.recordedBy) params.set("recordedBy", query.recordedBy);
   if (query.postedBy) params.set("postedBy", query.postedBy);
   if (query.seasonId) params.set("seasonId", query.seasonId);
-  if (query.budget) params.set("budget", query.budget);
   if (query.search.trim()) params.set("search", query.search.trim());
   for (const [key, value] of Object.entries(extra)) if (value) params.set(key, value);
   return params;
@@ -228,7 +222,7 @@ export function recordParams(query: ExpenseUiQuery) {
 
 /** How many of the "More filters" are set, for the badge on the toggle. */
 export function moreFilterCount(query: ExpenseUiQuery) {
-  return [query.amountMin || query.amountMax, query.recordedBy, query.postedBy, query.seasonId, query.budget, query.view !== "posted" ? query.view : ""].filter(Boolean).length;
+  return [query.amountMin || query.amountMax, query.recordedBy, query.postedBy, query.seasonId, query.view !== "posted" ? query.view : ""].filter(Boolean).length;
 }
 
 export function hasActiveFilters(query: ExpenseUiQuery) {
@@ -270,7 +264,6 @@ export function buildChips(query: ExpenseUiQuery, names: NameLookups): Array<Fil
   if (query.recordedBy) chips.push({ key: "recordedBy", label: `Recorded by: ${name(names.recordedBy, query.recordedBy)}`, clear: { recordedBy: undefined, page: 1 } });
   if (query.postedBy) chips.push({ key: "postedBy", label: `Posted by: ${name(names.postedBy, query.postedBy)}`, clear: { postedBy: undefined, page: 1 } });
   if (query.seasonId) chips.push({ key: "season", label: `Season: ${name(names.seasons, query.seasonId)}`, clear: { seasonId: undefined, page: 1 } });
-  if (query.budget) chips.push({ key: "budget", label: query.budget === "covered" ? "Budget: covered" : "Budget: no approved line", clear: { budget: undefined, page: 1 } });
   if (query.view !== defaultQuery.view) chips.push({ key: "view", label: `Records: ${viewOptions.find((option) => option.value === query.view)?.label}`, clear: { view: defaultQuery.view, page: 1 } });
   if (query.search.trim()) chips.push({ key: "search", label: `Search: ${query.search.trim()}`, clear: { search: "", page: 1 } });
   return chips;
@@ -308,7 +301,6 @@ export const getExpenseSources = (query: ExpenseUiQuery, options: Options = {}) 
 export const getExpenseDrivers = (query: ExpenseUiQuery, options: Options = {}) => get<ExpenseDrivers>("drivers", filterParams(query), options);
 export const getExpenseMatrix = (query: ExpenseUiQuery, options: Options = {}) => get<ExpenseMatrix>("matrix", filterParams(query), options);
 export const getExpenseIntegrity = (query: ExpenseUiQuery, options: Options = {}) => get<ExpenseIntegrity>("integrity", filterParams(query), options);
-export const getExpenseBudget = (query: ExpenseUiQuery, options: Options = {}) => get<ExpenseBudgetContext>("budget", filterParams(query), options);
 export const getExpenseInsights = (query: ExpenseUiQuery, options: Options = {}) => get<ExpenseInsight[]>("insights", filterParams(query), options);
 export const getExpenseRecords = (query: ExpenseUiQuery, options: Options = {}) => get<ExpenseRecordsPage>("records", recordParams(query), options);
 export const getExpenseOptions = (options: Options = {}) => apiRequest<ExpenseFilterOptions>(`${base}/options`, { signal: options.signal });

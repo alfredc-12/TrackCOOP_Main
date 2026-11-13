@@ -49,12 +49,11 @@ Financial Analytics counts every posted, non-capital-movement Expense. The summa
 * **Expense change** = current − previous; % = change ÷ previous × 100 only when previous > 0, otherwise N/A with the peso change shown. An unfinished period is compared with the same number of elapsed days (this month on the 12th vs 1st-12th of last month; a finished month vs the whole previous month, with month-end/leap-year clamping). Options: previous equivalent, same period last year, none.
 * **Largest category** = max total by category ID; share = category ÷ total.
 * **Category, source, matrix and trend totals** all add up to the headline; the API verifies it (`reconciles`) and the UI warns if not. **Drivers**: category changes sum to the overall change, including new and stopped categories.
-* **Budget context**: each posted expense is assigned to the single most specific approved line covering it (season-specific first, then latest coverage start), so overlapping budgets never count one expense twice. This differs deliberately from Budget Controls' enforcement query, which counts all Active expenses; see the doc comment in `budgetContext`.
 * **Observations** are rule-based sentences, each carrying its figure, period and comparison basis; none forecasts or explains a cause.
 
 ## API (all `GET`, Chairman only; the Bookkeeper and members get 403)
 
-`/api/financial-overview/expenses/` `summary`, `trends`, `categories`, `sources`, `drivers`, `matrix`, `records`, `records/:id`, `integrity`, `budget`, `insights`, `options`, `export`. Filters are validated once (zod) and parsed identically by every endpoint: `period, startDate, endDate, compare, categoryIds, sourceModules, classes, amountMin, amountMax, recordedBy, postedBy, seasonId, budget, search`; the table adds `view, page, pageSize, sortBy, sortDirection` (allow-listed). SQL is parameterized; there are no N+1 queries; detail views (matrix, record, period, category) load on demand.
+`/api/financial-overview/expenses/` `summary`, `trends`, `categories`, `sources`, `drivers`, `matrix`, `records`, `records/:id`, `integrity`, `insights`, `options`, `export`. Filters are validated once (zod) and parsed identically by every endpoint: `period, startDate, endDate, compare, categoryIds, sourceModules, classes, amountMin, amountMax, recordedBy, postedBy, seasonId, search`; the table adds `view, page, pageSize, sortBy, sortDirection` (allow-listed). SQL is parameterized; there are no N+1 queries; detail views (matrix, record, period, category) load on demand.
 
 Exports (`kind` = summary, records, categories, comparison, sources, integrity; `format` = xlsx, pdf) carry the cooperative name, generation time, period, comparison, filters, definitions and the "not an audited financial statement / not cash outflow" notes. Records exports cover the entire filtered population (Excel up to 100,000 rows, PDF up to 5,000, else a clear 413). Spreadsheet text is protected against formula injection.
 
@@ -62,7 +61,7 @@ Exports (`kind` = summary, records, categories, comparison, sources, integrity; 
 
 * **Confirmed cash outflow / partial payments / payee:** the ledger has no disbursement events. Rental expense entries store a payee and method as JSON in `remarks`; these are shown as "as entered", never as proof.
 * **Evidence coverage:** `documents` has no link to financial records.
-* **Budget context / seasons** appear only if their migration (`20261027`) is applied; the page detects this and says so otherwise.
+* **Season context** appears only if its migration (`20261027`) is applied; the page detects this and says so otherwise.
 
 ## Tests
 

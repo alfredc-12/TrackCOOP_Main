@@ -8,9 +8,7 @@ import { fromCents, toCents } from "./expense-money";
 import { describeExpense } from "./expense-record-details";
 import type { ExpenseFilters, ExpenseRecordView, ExpenseSortField } from "./expense-overview.schema";
 import type {
-  BudgetContextLine,
   CountAmount,
-  ExpenseBudgetContext,
   ExpenseCapabilities,
   ExpenseFilterOptions,
   ExpenseIntegrity,
@@ -54,7 +52,6 @@ type Scope = {
   view?: ExpenseRecordView;
   /** The class filter is left out where a panel must see every class (reconciliation, integrity). */
   ignoreClasses?: boolean;
-  ignoreBudget?: boolean;
 };
 
 export type RecordSort = { sortBy: ExpenseSortField; sortDirection: "asc" | "desc" };
@@ -73,11 +70,8 @@ export interface ExpenseOverviewRepository {
   listRecords(filters: ExpenseFilters, view: ExpenseRecordView, sort: RecordSort, range: ExpenseRange | null, page: number, pageSize: number): Promise<{ records: ExpenseRecordRow[]; total: number; totalAmount: number }>;
   recordDetail(id: string): Promise<ExpenseRecordDetail | null>;
   integrity(filters: ExpenseFilters, range: ExpenseRange | null, today: string): Promise<ExpenseIntegrity>;
-  budgetContext(filters: ExpenseFilters, range: ExpenseRange | null): Promise<ExpenseBudgetContext>;
   filterOptions(): Promise<ExpenseFilterOptions>;
 }
-
-const bareFilters: ExpenseFilters = { period: "all_time", compare: "none", categoryIds: [], sourceModules: [], classes: [] };
 
 function count(value: unknown) {
   return Number(value ?? 0);
@@ -131,14 +125,11 @@ export function createExpenseOverviewRepository(pool?: Pool): ExpenseOverviewRep
          FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND ((table_name = 'financial_records' AND column_name = 'season_id')
-            OR (table_name = 'seasons' AND column_name = 'season_id')
-            OR (table_name = 'budgets' AND column_name = 'budget_id')
-            OR (table_name = 'budget_lines' AND column_name = 'budget_line_id'))`,
+            OR (table_name = 'seasons' AND column_name = 'season_id'))`,
     );
     const has = (table: string, column: string) => rows.some((row) => row.tableName === table && row.columnName === column);
     const value = {
       seasons: has("financial_records", "season_id") && has("seasons", "season_id"),
-      budgets: has("budgets", "budget_id") && has("budget_lines", "budget_line_id"),
     };
     capabilityCache = { at: Date.now(), value };
     return value;
@@ -190,14 +181,6 @@ export function createExpenseOverviewRepository(pool?: Pool): ExpenseOverviewRep
       if (!caps.seasons) throw new AppError("Seasons are not available in this database", 409, "SEASONS_UNAVAILABLE");
       conditions.push("r.season_id = ?");
       values.push(filters.seasonId);
-    }
-    if (filters.budget && !scope.ignoreBudget) {
-      if (!caps.budgets) throw new AppError("Budget controls are not available in this database", 409, "BUDGETS_UNAVAILABLE");
-      const covered = `EXISTS (SELECT 1 FROM budget_lines bl JOIN budgets b ON b.budget_id = bl.budget_id
-        WHERE b.budget_status = 'Approved' AND r.record_date BETWEEN b.coverage_start AND b.coverage_end
-          AND bl.financial_category_id = r.financial_category_id
-          ${caps.seasons ? "AND (bl.season_id IS NULL OR bl.season_id = r.season_id)" : "AND bl.season_id IS NULL"})`;
-      conditions.push(filters.budget === "covered" ? covered : `NOT ${covered}`);
     }
     if (filters.search) {
       const term = likeTerm(filters.search);
@@ -422,19 +405,6 @@ export function createExpenseOverviewRepository(pool?: Pool): ExpenseOverviewRep
           ORDER BY a.action_time ASC, a.audit_log_id ASC LIMIT 50`,
         [id],
       );
-      let budget: ExpenseRecordDetail["budget"] = null;
-      if (caps.budgets) {
-        const [budgetRows] = await db().query<Row[]>(
-          `SELECT b.budget_name AS budgetName, bl.limit_amount AS limitAmount
-             FROM budget_lines bl JOIN budgets b ON b.budget_id = bl.budget_id
-            WHERE b.budget_status = 'Approved' AND ? BETWEEN b.coverage_start AND b.coverage_end
-              AND bl.financial_category_id = ?
-              ${caps.seasons ? "AND (bl.season_id IS NULL OR bl.season_id <=> ?)" : "AND bl.season_id IS NULL AND ? IS NULL"}
-            ORDER BY (bl.season_id IS NULL), b.coverage_start DESC, bl.budget_line_id DESC LIMIT 1`,
-          [base.recordDate, base.categoryId, base.season?.id ?? null],
-        );
-        if (budgetRows[0]) budget = { budgetName: String(budgetRows[0].budgetName), limitAmount: fromCents(toCents(budgetRows[0].limitAmount)) };
-      }
       return {
         ...base,
         description: described.description,
@@ -452,7 +422,6 @@ export function createExpenseOverviewRepository(pool?: Pool): ExpenseOverviewRep
         })),
         evidence: { available: false, note: "Supporting documents are not linked to financial records in the current database, so evidence coverage cannot be reported." },
         disbursement: { verified: false, note: "The ledger records when an expense was booked, not when or how it was paid. Actual disbursement is not verified here." },
-        budget,
       };
     },
 
@@ -495,99 +464,6 @@ export function createExpenseOverviewRepository(pool?: Pool): ExpenseOverviewRep
         { id: "future-dated", label: "Dated after today", status: mark(futureDated.records, "info"), ...futureDated, description: "Posted expenses dated after today. Figures on this page count only dates up to today.", drill: null },
       ];
       return { checks, reviewCount: checks.filter((check) => check.status === "review").length };
-    },
-
-    async budgetContext(filters, range) {
-      const caps = await capabilities();
-      if (!caps.budgets) {
-        return { available: false, unavailableReason: "Budget controls have not been set up in this database.", lines: [], unbudgeted: { categories: [], amount: 0, records: 0 } };
-      }
-      const startDate = range?.startDate ?? "1000-01-01";
-      const endDate = range?.endDate ?? "9999-12-31";
-      const seasonJoin = caps.seasons ? "LEFT JOIN seasons s ON s.season_id = bl.season_id" : "";
-      const [lineRows] = await db().query<Row[]>(
-        `SELECT CAST(bl.budget_line_id AS CHAR) AS budgetLineId, CAST(b.budget_id AS CHAR) AS budgetId, b.budget_name AS budgetName,
-                CAST(c.financial_category_id AS CHAR) AS categoryId, c.category_name AS categoryName,
-                ${caps.seasons ? "s.season_name" : "NULL"} AS seasonName,
-                DATE_FORMAT(b.coverage_start, '%Y-%m-%d') AS coverageStart, DATE_FORMAT(b.coverage_end, '%Y-%m-%d') AS coverageEnd,
-                bl.limit_amount AS limitAmount, bl.warning_percentage AS warningPercentage, bl.hard_limit AS hardLimit
-           FROM budget_lines bl
-           JOIN budgets b ON b.budget_id = bl.budget_id
-           JOIN financial_categories c ON c.financial_category_id = bl.financial_category_id
-           ${seasonJoin}
-          WHERE b.budget_status = 'Approved' AND b.coverage_start <= ? AND b.coverage_end >= ?
-            ${filters.categoryIds.length ? `AND bl.financial_category_id IN (${filters.categoryIds.map(() => "?").join(", ")})` : ""}
-          ORDER BY b.coverage_start DESC, c.category_name ASC`,
-        [endDate, startDate, ...filters.categoryIds],
-      );
-      if (!lineRows.length) {
-        return { available: true, unavailableReason: null, lines: [], unbudgeted: { categories: [], amount: 0, records: 0 } };
-      }
-      // Each posted expense is assigned to the single most specific approved line that covers it (the same
-      // precedence Budget Controls uses), so overlapping budgets never count one expense twice.
-      // Utilization is a property of the budget line, so the page's search, amount and source filters must not shrink it.
-      const w = await where(bareFilters, { range: null, ignoreClasses: true, ignoreBudget: true });
-      const minStart = lineRows.reduce((min, row) => (String(row.coverageStart) < min ? String(row.coverageStart) : min), "9999-12-31");
-      const maxEnd = lineRows.reduce((max, row) => (String(row.coverageEnd) > max ? String(row.coverageEnd) : max), "0000-01-01");
-      const governing = `(SELECT bl2.budget_line_id FROM budget_lines bl2 JOIN budgets b2 ON b2.budget_id = bl2.budget_id
-          WHERE b2.budget_status = 'Approved' AND r.record_date BETWEEN b2.coverage_start AND b2.coverage_end
-            AND bl2.financial_category_id = r.financial_category_id
-            ${caps.seasons ? "AND (bl2.season_id IS NULL OR bl2.season_id = r.season_id)" : "AND bl2.season_id IS NULL"}
-          ORDER BY (bl2.season_id IS NULL), b2.coverage_start DESC, bl2.budget_line_id DESC LIMIT 1)`;
-      const [spentRows] = await db().query<Row[]>(
-        `SELECT CAST(line_id AS CHAR) AS lineId, COUNT(*) AS records, COALESCE(SUM(amount), 0) AS amount FROM (
-           SELECT r.financial_record_id, r.amount, ${governing} AS line_id
-             ${fromSql}
-            WHERE ${w.sql} AND r.record_date BETWEEN ? AND ?
-         ) assigned GROUP BY line_id`,
-        [...w.values, minStart, maxEnd],
-      );
-      const spent = new Map(spentRows.map((row) => [row.lineId === null ? "" : String(row.lineId), { cents: toCents(row.amount), records: count(row.records) }]));
-      const lines: BudgetContextLine[] = lineRows.map((row) => {
-        const used = spent.get(String(row.budgetLineId)) ?? { cents: 0, records: 0 };
-        const limit = toCents(row.limitAmount);
-        const warning = Number(row.warningPercentage ?? 80);
-        const utilization = limit > 0 ? Math.round((used.cents * 10_000) / limit) / 100 : null;
-        const state: BudgetContextLine["state"] = limit <= 0 ? "no_limit" : used.cents > limit ? "over" : utilization !== null && utilization >= warning ? "warning" : "within";
-        return {
-          budgetLineId: String(row.budgetLineId),
-          budgetId: String(row.budgetId),
-          budgetName: String(row.budgetName),
-          categoryId: String(row.categoryId),
-          categoryName: String(row.categoryName),
-          seasonName: row.seasonName === null ? null : String(row.seasonName),
-          coverageStart: String(row.coverageStart),
-          coverageEnd: String(row.coverageEnd),
-          limitAmount: fromCents(limit),
-          warningPercentage: warning,
-          hardLimit: Boolean(row.hardLimit),
-          spentAmount: fromCents(used.cents),
-          records: used.records,
-          utilization,
-          remaining: fromCents(limit - used.cents),
-          state,
-        };
-      });
-      // Posted expenses in the selected period that no approved line covers.
-      const periodWhere = await where({ ...filters, budget: undefined }, { range, ignoreBudget: true });
-      const [unbudgeted] = await db().query<Row[]>(
-        `SELECT CAST(c.financial_category_id AS CHAR) AS categoryId, c.category_name AS name,
-                COUNT(DISTINCT r.financial_record_id) AS records, COALESCE(SUM(r.amount), 0) AS amount
-           ${fromSql} WHERE ${periodWhere.sql} AND ${governing} IS NULL
-          GROUP BY c.financial_category_id, c.category_name ORDER BY amount DESC`,
-        periodWhere.values,
-      );
-      const categories = unbudgeted.map((row) => ({ categoryId: String(row.categoryId), name: String(row.name), records: count(row.records), amount: fromCents(toCents(row.amount)) }));
-      return {
-        available: true,
-        unavailableReason: null,
-        lines,
-        unbudgeted: {
-          categories,
-          amount: fromCents(categories.reduce((sum, item) => sum + toCents(item.amount), 0)),
-          records: categories.reduce((sum, item) => sum + item.records, 0),
-        },
-      };
     },
 
     async filterOptions() {

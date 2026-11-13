@@ -24,7 +24,6 @@ export function createExpenseOverviewRouter(
   router.get("/financial-overview/expenses/drivers", ...chairman, controller.drivers);
   router.get("/financial-overview/expenses/matrix", ...chairman, controller.matrix);
   router.get("/financial-overview/expenses/integrity", ...chairman, controller.integrity);
-  router.get("/financial-overview/expenses/budget", ...chairman, controller.budget);
   router.get("/financial-overview/expenses/insights", ...chairman, controller.insights);
   router.get("/financial-overview/expenses/options", ...chairman, controller.options);
   router.get("/financial-overview/expenses/export", ...chairman, controller.export);

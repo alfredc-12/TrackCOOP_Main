@@ -1884,17 +1884,23 @@ CREATE TABLE cooperative_activities (
     barangay VARCHAR(120) NULL,
     sector VARCHAR(120) NULL,
     description TEXT NULL,
+    image_path VARCHAR(1000) NULL,
     is_rfm_qualifying TINYINT(1) NOT NULL DEFAULT 1,
+    archived_at DATETIME NULL,
+    archived_by BIGINT UNSIGNED NULL,
     created_by BIGINT UNSIGNED NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_cooperative_activity_code UNIQUE (activity_code),
-    CONSTRAINT fk_cooperative_activity_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+    CONSTRAINT fk_cooperative_activity_creator FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_cooperative_activity_archiver FOREIGN KEY (archived_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE = InnoDB;
 
 CREATE INDEX `idx_cooperative_activity_date` ON `cooperative_activities` (activity_date);
 
 CREATE INDEX `idx_cooperative_activity_type_date` ON `cooperative_activities` (activity_type, activity_date);
+
+CREATE INDEX `idx_cooperative_activity_archive_date` ON `cooperative_activities` (archived_at, activity_date);
 
 CREATE TABLE member_activity_participation (
     participation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

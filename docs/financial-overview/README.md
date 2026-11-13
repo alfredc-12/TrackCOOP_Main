@@ -4,7 +4,7 @@ Implemented on `feature/chairman-financial-overview`, from local main `8990cd6`,
 
 ## Workspace and financial contract
 
-`/portal/chairman/finance` renders a dedicated, read-only overview. It no longer mounts the expense-only page or a second Financial Dashboard. Existing Bookkeeper recording, payment validation, Budget Controls, Share Capital, and deeper Financial Analytics remain separate.
+`/portal/chairman/finance` renders a dedicated, read-only overview. It no longer mounts the expense-only page or a second Financial Dashboard. Existing Bookkeeper recording, payment validation, Share Capital, and deeper Financial Analytics remain separate.
 
 The four cards show **Money In** (posted operating Income), **Money Out** (posted operating Expense), **Net Operating Result** (Income minus Expense), and distinct **Financial Records for Review**. Income/expense cards focus activity; net and information controls open a right-side drawer. Review conditions overlap but each record is counted once. A zero result says Balanced; negative net is a deficit. Ordinary voided history is not automatically a new problem.
 

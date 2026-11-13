@@ -23,7 +23,6 @@ export type ExpenseFilters = {
   recordedBy?: string;
   postedBy?: string;
   seasonId?: string;
-  budget?: "covered" | "uncovered";
   search?: string;
   granularity?: Granularity;
 };
@@ -60,7 +59,6 @@ const filterShape = {
   recordedBy: idString.optional(),
   postedBy: idString.optional(),
   seasonId: idString.optional(),
-  budget: z.enum(["covered", "uncovered"]).optional(),
   search: z.string().trim().min(1).max(190).optional(),
   granularity: z.enum(["day", "week", "month", "quarter", "year"]).optional(),
 };
@@ -88,7 +86,6 @@ function normalize(value: z.infer<z.ZodObject<typeof filterShape>>, ctx: z.Refin
     recordedBy: value.recordedBy,
     postedBy: value.postedBy,
     seasonId: value.seasonId,
-    budget: value.budget,
     search: value.search,
     granularity: value.granularity,
   };

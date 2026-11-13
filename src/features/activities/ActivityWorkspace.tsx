@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { toast } from "sonner";
 import {
+  Archive,
+  ArchiveRestore,
   CalendarCheck2,
   CalendarClock,
   CalendarDays,
@@ -11,9 +13,12 @@ import {
   CircleX,
   ClipboardCheck,
   Download,
+  ImagePlus,
+  Inbox,
   Plus,
   QrCode,
   Search,
+  X,
   Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
@@ -23,6 +28,7 @@ import { Modal } from "@/components/ui/Modal";
 import { StyledSelect } from "@/components/ui/StyledSelect";
 import { env } from "@/config/env";
 import { apiRequest } from "@/lib/api-client";
+import { resolveUploadUrl } from "@/lib/upload-url";
 import { ChairmanAttendanceScanner } from "./ChairmanAttendanceScanner";
 
 type Activity = {
@@ -32,9 +38,12 @@ type Activity = {
   time: string;
   location: string;
   details: string;
+  imagePath?: string | null;
   status: "Scheduled" | "Completed" | "Cancelled";
   cancellationReason?: string | null;
   completedAt?: string | null;
+  archivedAt?: string | null;
+  archivedBy?: string | null;
   qualifies: number | boolean;
 };
 
@@ -50,10 +59,10 @@ type Attendance = {
 
 type Detail = Activity & { eligibleMemberCount: number; attendance: Attendance[] };
 type CorrectionRequest = { eventId: string; row: Attendance };
-type Draft = { title: string; date: string; time: string; location: string; details: string; qualifies: boolean };
+type Draft = { title: string; date: string; time: string; location: string; details: string; imagePath: string; qualifies: boolean };
 type EventFilter = "All" | "Upcoming" | "Past" | "Completed" | "Cancelled";
 
-const empty: Draft = { title: "", date: "", time: "", location: "", details: "", qualifies: true };
+const empty: Draft = { title: "", date: "", time: "", location: "", details: "", imagePath: "", qualifies: true };
 const field = "coop-field min-h-11 w-full rounded-coop-control border border-coop-border bg-coop-surface px-3 py-2 text-coop-forest";
 const action = "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-coop-control bg-coop-green px-4 py-2 font-semibold text-white transition hover:bg-coop-forest disabled:cursor-not-allowed disabled:opacity-50";
 const secondary = "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-coop-control border border-coop-border bg-coop-surface px-4 py-2 font-semibold text-coop-forest transition hover:bg-coop-subtle disabled:cursor-not-allowed disabled:opacity-50";
@@ -82,9 +91,36 @@ function formatEventDate(value: string) {
   return new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(new Date(year, month - 1, day));
 }
 
+function manilaTodayKey() {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 function eventIsUpcoming(event: Activity) {
   const time = String(event.time || "00:00").slice(0, 5);
   return event.status === "Scheduled" && Date.parse(`${event.date}T${time}:00+08:00`) >= Date.now();
+}
+
+function EventPhoto({ path }: { path?: string | null }) {
+  const src = resolveUploadUrl(path);
+  if (!src) return null;
+
+  return (
+    <div className="h-20 w-28 shrink-0 overflow-hidden rounded-coop-control border border-coop-border bg-coop-subtle">
+      {/* eslint-disable-next-line @next/next/no-img-element -- Event photos may be served by the configured public storage provider. */}
+      <img src={src} alt="" className="size-full object-cover" />
+    </div>
+  );
 }
 
 async function downloadAttendanceExcel(detail: Detail) {
@@ -99,6 +135,16 @@ async function downloadAttendanceExcel(detail: Detail) {
   link.download = `trackcoop-attendance-${detail.date}-${detail.id}.xlsx`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function uploadActivityImage(file: File) {
+  const formData = new FormData();
+  formData.append("image", file);
+  const result = await apiRequest<{ url: string; urls: string[] }>("/api/announcements/upload-image", {
+    method: "POST",
+    body: formData,
+  });
+  return result.url || result.urls[0] || "";
 }
 
 type AttendanceDetailsBodyProps = {
@@ -164,15 +210,24 @@ function AttendanceDetailsBody({ selected, busy, requestCorrection, attendanceOp
 
 export function ActivityWorkspace() {
   const [events, setEvents] = useState<Activity[]>([]);
+  const [archivedEvents, setArchivedEvents] = useState<Activity[]>([]);
   const [selected, setSelected] = useState<Detail | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(empty);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [eventSearch, setEventSearch] = useState("");
   const [eventFilter, setEventFilter] = useState<EventFilter>("All");
   const [eventPage, setEventPage] = useState(1);
   const [eventPageSize, setEventPageSize] = useState(5);
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [archivedModalOpen, setArchivedModalOpen] = useState(false);
+  const [archivedSearch, setArchivedSearch] = useState("");
+  const [archivedPage, setArchivedPage] = useState(1);
+  const [archivedPageSize, setArchivedPageSize] = useState(5);
+  const [archiveTarget, setArchiveTarget] = useState<Activity | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Activity | null>(null);
   const [attendanceModalEventId, setAttendanceModalEventId] = useState<string | null>(null);
   const [scannerEventId, setScannerEventId] = useState<string | null>(null);
   const [cancelEventId, setCancelEventId] = useState<string | null>(null);
@@ -183,13 +238,30 @@ export function ActivityWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
   const load = useCallback(async () => {
-    setEvents(await apiRequest<Activity[]>("/api/activities"));
+    const [active, archived] = await Promise.all([
+      apiRequest<Activity[]>("/api/activities"),
+      apiRequest<Activity[]>("/api/activities/archived"),
+    ]);
+    setEvents(active);
+    setArchivedEvents(archived);
   }, []);
 
   useEffect(() => {
-    void apiRequest<Activity[]>("/api/activities")
-      .then(setEvents)
+    void Promise.all([
+      apiRequest<Activity[]>("/api/activities"),
+      apiRequest<Activity[]>("/api/activities/archived"),
+    ])
+      .then(([active, archived]) => {
+        setEvents(active);
+        setArchivedEvents(archived);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Events could not be loaded."))
       .finally(() => setLoading(false));
   }, []);
@@ -276,6 +348,26 @@ export function ActivityWorkspace() {
     }, "Event marked as completed. Attendance is now read-only.");
   }
 
+  async function confirmEventArchive() {
+    if (!archiveTarget) return;
+    const eventId = archiveTarget.id;
+    await perform(async () => {
+      await apiRequest(`/api/activities/${eventId}/archive`, { method: "POST" });
+      await load();
+      setArchiveTarget(null);
+    }, "Event archived. Its attendance and history were preserved.");
+  }
+
+  async function confirmEventRestore() {
+    if (!restoreTarget) return;
+    const eventId = restoreTarget.id;
+    await perform(async () => {
+      await apiRequest(`/api/activities/${eventId}/restore`, { method: "POST" });
+      await load();
+      setRestoreTarget(null);
+    }, "Event restored to the activity register.");
+  }
+
   function requestCorrection(row: Attendance) {
     if (!selected) return;
     setAttendanceModalEventId(null);
@@ -340,6 +432,45 @@ export function ActivityWorkspace() {
     setDraft((previous) => ({ ...previous, [name]: value }));
   }
 
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file for the event photo.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Event photos must be 5 MB or smaller.");
+      return;
+    }
+    setError("");
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    change("imagePath", "");
+  }
+
+  function clearEventImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    change("imagePath", "");
+  }
+
+  const manilaToday = manilaTodayKey();
+  const occupiedEventDates = useMemo(
+    () => new Set(
+      [...events, ...archivedEvents]
+        .filter((event) => event.id !== editing)
+        .map((event) => event.date),
+    ),
+    [archivedEvents, editing, events],
+  );
+  const eventDateError = draft.date && draft.date < manilaToday
+    ? "Past dates cannot be scheduled."
+    : draft.date && occupiedEventDates.has(draft.date)
+      ? "Another event already uses this date."
+      : undefined;
+
   function edit(event: Activity) {
     setEditing(event.id);
     setDraft({
@@ -348,21 +479,30 @@ export function ActivityWorkspace() {
       time: event.time,
       location: event.location,
       details: event.details ?? "",
+      imagePath: event.imagePath ?? "",
       qualifies: Boolean(event.qualifies),
     });
+    setImageFile(null);
+    setImagePreview(resolveUploadUrl(event.imagePath) || null);
     setEventModalOpen(true);
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     void perform(async () => {
+      if (!draft.date) throw new Error("Select an event date.");
+      if (draft.date < manilaToday) throw new Error("Events cannot be scheduled on a past date.");
+      if (occupiedEventDates.has(draft.date)) throw new Error("Only one event can be scheduled per day. Choose another date.");
+      const imagePath = imageFile ? await uploadActivityImage(imageFile) : draft.imagePath || null;
       const result = await apiRequest<{ id: string }>(editing ? `/api/activities/${editing}` : "/api/activities", {
         method: editing ? "PATCH" : "POST",
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, imagePath }),
       });
       await load();
       await show(result.id);
       setDraft(empty);
+      setImageFile(null);
+      setImagePreview(null);
       setEditing(null);
       setEventModalOpen(false);
     }, editing ? "Event updated." : "Event scheduled.");
@@ -371,7 +511,15 @@ export function ActivityWorkspace() {
   function openNewEvent() {
     setEditing(null);
     setDraft(empty);
+    setImageFile(null);
+    setImagePreview(null);
     setEventModalOpen(true);
+  }
+
+  function openArchivedEvents() {
+    setArchivedSearch("");
+    setArchivedPage(1);
+    setArchivedModalOpen(true);
   }
 
   const filteredEvents = useMemo(() => {
@@ -387,6 +535,15 @@ export function ActivityWorkspace() {
     });
   }, [eventFilter, eventSearch, events]);
 
+  const filteredArchivedEvents = useMemo(() => {
+    const query = archivedSearch.trim().toLowerCase();
+    if (!query) return archivedEvents;
+    return archivedEvents.filter((event) =>
+      [event.title, event.location, event.details ?? ""]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [archivedEvents, archivedSearch]);
+
   const eventTotalPages = Math.max(1, Math.ceil(filteredEvents.length / eventPageSize));
   const safeEventPage = Math.min(eventPage, eventTotalPages);
   const visibleEvents = filteredEvents.slice((safeEventPage - 1) * eventPageSize, safeEventPage * eventPageSize);
@@ -394,14 +551,52 @@ export function ActivityWorkspace() {
   const upcomingCount = events.filter(eventIsUpcoming).length;
   const completedCount = events.filter((event) => event.status === "Completed").length;
   const cancelledCount = events.filter((event) => event.status === "Cancelled").length;
+  const archivedTotalPages = Math.max(1, Math.ceil(filteredArchivedEvents.length / archivedPageSize));
+  const safeArchivedPage = Math.min(archivedPage, archivedTotalPages);
+  const visibleArchivedEvents = filteredArchivedEvents.slice(
+    (safeArchivedPage - 1) * archivedPageSize,
+    safeArchivedPage * archivedPageSize,
+  );
 
   const eventForm = (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <label className="grid gap-1 font-semibold sm:col-span-2">Event title<input name="title" aria-label="Event title" className={field} value={draft.title} onChange={(event) => change("title", event.target.value)} required maxLength={255} /></label>
-      <DatePicker label="Date" value={draft.date} onChange={(value) => change("date", value)} min="2000-01-01" max="2100-12-31" placeholder="Select date" triggerClassName="h-11 rounded-coop-control px-3" />
+      <div className="grid content-start gap-1">
+        <DatePicker
+          label="Date"
+          value={draft.date}
+          onChange={(value) => change("date", value)}
+          min={manilaToday}
+          max="2100-12-31"
+          disabledDates={[...occupiedEventDates]}
+          placeholder="Select date"
+          error={eventDateError}
+          triggerClassName="h-11 rounded-coop-control px-3"
+        />
+        {!eventDateError && <p className="text-xs font-normal text-coop-muted">Past dates and dates with an existing event are unavailable.</p>}
+      </div>
       <div className="grid gap-1 font-semibold"><label htmlFor="activity-time">Time</label><StyledSelect id="activity-time" aria-label="Time" value={timeLabel(draft.time) || "Select time"} options={timeOptionLabels} onChange={(label) => change("time", timeValue(label))} placeholder="Select time" className="min-h-11" /></div>
       <label className="grid gap-1 font-semibold sm:col-span-2">Location<input name="location" aria-label="Location" className={field} value={draft.location} onChange={(event) => change("location", event.target.value)} required maxLength={255} /></label>
       <label className="grid gap-1 font-semibold sm:col-span-2">Details<textarea name="details" aria-label="Details" className={`${field} min-h-28`} value={draft.details} onChange={(event) => change("details", event.target.value)} maxLength={4000} /></label>
+      <div className="grid gap-2 sm:col-span-2">
+        <div>
+          <label htmlFor="activity-image" className="font-semibold text-coop-forest">Event photo <span className="font-normal text-sm text-coop-muted">(optional)</span></label>
+          <p id="activity-image-help" className="mt-1 text-sm font-normal text-coop-muted">Shown on the member announcement. JPG, PNG, or WebP up to 5 MB.</p>
+        </div>
+        {imagePreview ? <div className="relative overflow-hidden rounded-coop-control border border-coop-border bg-coop-workspace">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Uploaded event photos may be served by the configured public storage provider. */}
+          <img src={imagePreview} alt="Event photo preview" className="h-48 w-full object-cover sm:h-56" />
+          <div className="absolute right-3 top-3 flex flex-wrap justify-end gap-2">
+            <label htmlFor="activity-image" className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-coop-control border border-white/70 bg-white/95 px-3 py-2 text-sm font-semibold text-coop-forest shadow-md hover:bg-white">Change photo</label>
+            <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-coop-control border border-white/70 bg-white/95 px-3 py-2 text-sm font-semibold text-coop-forest shadow-md hover:bg-white" onClick={clearEventImage}><X className="size-4" aria-hidden="true" />Remove photo</button>
+          </div>
+        </div> : <label htmlFor="activity-image" className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-coop-control border border-dashed border-coop-border bg-coop-workspace px-4 text-center text-sm text-coop-secondary transition hover:border-coop-green hover:bg-coop-subtle">
+          <ImagePlus className="size-6 text-coop-green" aria-hidden="true" />
+          <span className="font-semibold text-coop-forest">Add event photo</span>
+          <span>Members will see it with the event announcement.</span>
+        </label>}
+        <input id="activity-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-describedby="activity-image-help" onChange={handleImageChange} />
+      </div>
       <label className="flex items-start gap-2 text-sm font-semibold text-coop-forest sm:col-span-2"><input name="qualifies" className="mt-1 size-4 accent-coop-green" type="checkbox" checked={draft.qualifies} onChange={(event) => change("qualifies", event.target.checked)} /> <span>Count qualifying attendance in member analytics</span></label>
       <div className="flex flex-wrap justify-end gap-2 sm:col-span-2"><button type="button" className={secondary} onClick={() => setEventModalOpen(false)}>Cancel</button><button type="submit" disabled={busy} className={action}>{editing ? "Save changes" : "Schedule event"}</button></div>
     </form>
@@ -414,16 +609,22 @@ export function ActivityWorkspace() {
         title="Events and Attendance"
         description="Schedule cooperative activities and maintain attendance records."
         actions={(
-          <FormDialog
-            open={eventModalOpen}
-            onOpenChange={setEventModalOpen}
-            title={editing ? "Edit event" : "Schedule an event"}
-            description="Define the activity details and whether attendance should count toward member analytics."
-            trigger={<button type="button" className={action} onClick={openNewEvent}><Plus className="size-4" aria-hidden="true" />New event</button>}
-            contentClassName="w-[min(42rem,calc(100vw-2rem))]"
-          >
-            {eventForm}
-          </FormDialog>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" className={secondary} onClick={openArchivedEvents}>
+              <Archive className="size-4" aria-hidden="true" />
+              Archived events ({archivedEvents.length})
+            </button>
+            <FormDialog
+              open={eventModalOpen}
+              onOpenChange={setEventModalOpen}
+              title={editing ? "Edit event" : "Schedule an event"}
+              description="Define the activity details and whether attendance should count toward member analytics."
+              trigger={<button type="button" className={action} onClick={openNewEvent}><Plus className="size-4" aria-hidden="true" />New event</button>}
+              contentClassName="w-[min(42rem,calc(100vw-2rem))]"
+            >
+              {eventForm}
+            </FormDialog>
+          </div>
         )}
       />
 
@@ -454,7 +655,7 @@ export function ActivityWorkspace() {
             <StyledSelect aria-label="Event status" value={eventFilter} options={["All", "Upcoming", "Past", "Completed", "Cancelled"]} onChange={(value) => { setEventPage(1); setEventFilter(value as EventFilter); }} className="min-h-11 w-full min-w-[11rem] sm:w-44" />
           </div>
 
-          {loading ? <p className="mt-4 text-sm text-coop-muted">Loading events...</p> : visibleEvents.length === 0 ? <div className="mt-4 rounded-coop-control border border-dashed border-coop-border bg-coop-workspace p-5 text-center"><CalendarDays className="mx-auto size-7 text-coop-green" aria-hidden="true" /><p className="mt-2 font-semibold text-coop-forest">{events.length === 0 ? "No events have been scheduled." : "No events match your filters."}</p><p className="mt-1 text-sm text-coop-muted">{events.length === 0 ? "Create an event to start tracking cooperative attendance." : "Try another search or status filter."}</p></div> : <ul className="mt-4 space-y-3">{visibleEvents.map((event) => <li key={event.id} className="rounded-coop-control border border-coop-border bg-coop-workspace p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="break-words text-coop-forest">{event.title}</strong><StatusBadge tone={event.status === "Cancelled" ? "warning" : event.status === "Completed" ? "success" : eventIsUpcoming(event) ? "success" : "neutral"}>{event.status === "Scheduled" && eventIsUpcoming(event) ? "Upcoming" : event.status}</StatusBadge></div><p className="mt-1 text-sm text-coop-muted">{formatEventDate(event.date)} at {event.time} · {event.location}</p>{event.details && <p className="mt-1 line-clamp-2 text-sm text-coop-secondary">{event.details}</p>}{event.cancellationReason && <p className="mt-1 text-sm text-coop-muted">Cancellation reason: {event.cancellationReason}</p>}</div><div className="flex shrink-0 flex-wrap gap-2"><Modal
+          {loading ? <p className="mt-4 text-sm text-coop-muted">Loading events...</p> : visibleEvents.length === 0 ? <div className="mt-4 rounded-coop-control border border-dashed border-coop-border bg-coop-workspace p-5 text-center"><CalendarDays className="mx-auto size-7 text-coop-green" aria-hidden="true" /><p className="mt-2 font-semibold text-coop-forest">{events.length === 0 ? "No events have been scheduled." : "No events match your filters."}</p><p className="mt-1 text-sm text-coop-muted">{events.length === 0 ? "Create an event to start tracking cooperative attendance." : "Try another search or status filter."}</p></div> : <ul className="mt-4 space-y-3">{visibleEvents.map((event) => <li key={event.id} className="rounded-coop-control border border-coop-border bg-coop-workspace p-3"><div className="flex flex-wrap items-start justify-between gap-3"><EventPhoto path={event.imagePath} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="break-words text-coop-forest">{event.title}</strong><StatusBadge tone={event.status === "Cancelled" ? "warning" : event.status === "Completed" ? "success" : eventIsUpcoming(event) ? "success" : "neutral"}>{event.status === "Scheduled" && eventIsUpcoming(event) ? "Upcoming" : event.status}</StatusBadge></div><p className="mt-1 text-sm text-coop-muted">{formatEventDate(event.date)} at {event.time} · {event.location}</p>{event.details && <p className="mt-1 line-clamp-2 text-sm text-coop-secondary">{event.details}</p>}{event.cancellationReason && <p className="mt-1 text-sm text-coop-muted">Cancellation reason: {event.cancellationReason}</p>}</div><div className="flex shrink-0 flex-wrap gap-2"><Modal
               open={attendanceModalEventId === event.id}
               onOpenChange={(open) => {
                 if (open) {
@@ -472,9 +673,112 @@ export function ActivityWorkspace() {
               trigger={<button type="button" className={secondary}>View attendance</button>}
             >
               {selected?.id === event.id ? <AttendanceDetailsBody selected={selected} busy={busy} requestCorrection={requestCorrection} attendanceOpen={!eventIsUpcoming(event)} /> : <p className="py-8 text-center text-sm text-coop-muted">Loading attendance details...</p>}
-            </Modal>{event.status === "Scheduled" && <button type="button" className={secondary} onClick={() => edit(event)}>Edit</button>}</div></div></li>)}</ul>}
+            </Modal>{event.status === "Scheduled" && event.date >= manilaToday && <button type="button" className={secondary} onClick={() => edit(event)}>Edit</button>}{event.status !== "Scheduled" && <button type="button" className={secondary} disabled={busy} onClick={() => setArchiveTarget(event)}><Archive className="size-4" aria-hidden="true" />Archive</button>}</div></div></li>)}</ul>}
           <PaginationControls currentPage={safeEventPage} totalPages={eventTotalPages} totalItems={filteredEvents.length} itemName="events" onPageChange={setEventPage} pageSize={eventPageSize} pageSizeOptions={[5, 10, 20]} onPageSizeChange={(size) => { setEventPageSize(size); setEventPage(1); }} disabled={loading || busy} />
          </section>
+
+      <FormDialog
+        open={archivedModalOpen && !restoreTarget}
+        onOpenChange={(open) => {
+          if (!open) setArchivedModalOpen(false);
+        }}
+        title="Archived events"
+        description="Review closed events removed from the active register. Attendance and audit history remain preserved."
+        contentClassName="w-[min(54rem,calc(100vw-2rem))]"
+      >
+        <div className="space-y-4">
+          <label className="relative block min-w-0">
+            <span className="sr-only">Search archived events</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-coop-muted" aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search archived events"
+              className={`${field} pl-10`}
+              value={archivedSearch}
+              onChange={(event) => {
+                setArchivedSearch(event.target.value);
+                setArchivedPage(1);
+              }}
+              placeholder="Search title, location, or details"
+            />
+          </label>
+
+          {visibleArchivedEvents.length === 0 ? (
+            <div className="grid min-h-44 place-items-center rounded-coop-control border border-dashed border-coop-border bg-coop-workspace p-6 text-center">
+              <div>
+                <Inbox className="mx-auto size-7 text-coop-green" aria-hidden="true" />
+                <h3 className="mt-3 font-bold text-coop-forest">{archivedEvents.length === 0 ? "No archived events" : "No archived events match your search"}</h3>
+                <p className="mt-1 text-sm text-coop-muted">{archivedEvents.length === 0 ? "Completed or cancelled events can be archived from the activity register." : "Try another title, location, or keyword."}</p>
+              </div>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {visibleArchivedEvents.map((event) => (
+                <li key={event.id} className="flex flex-wrap items-center justify-between gap-3 rounded-coop-control border border-coop-border bg-coop-workspace p-4">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <EventPhoto path={event.imagePath} />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="break-words text-coop-forest">{event.title}</strong>
+                        <StatusBadge tone={event.status === "Completed" ? "success" : "warning"}>{event.status}</StatusBadge>
+                      </div>
+                      <p className="mt-1 text-sm text-coop-muted">{formatEventDate(event.date)} at {event.time} · {event.location}</p>
+                      {event.details && <p className="mt-1 line-clamp-2 text-sm text-coop-secondary">{event.details}</p>}
+                    </div>
+                  </div>
+                  <button type="button" className={secondary} disabled={busy} onClick={() => setRestoreTarget(event)}>
+                    <ArchiveRestore className="size-4" aria-hidden="true" />Restore
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <PaginationControls
+            currentPage={safeArchivedPage}
+            totalPages={archivedTotalPages}
+            totalItems={filteredArchivedEvents.length}
+            itemName="archived events"
+            onPageChange={setArchivedPage}
+            pageSize={archivedPageSize}
+            pageSizeOptions={[5, 10, 20]}
+            onPageSizeChange={(size) => {
+              setArchivedPageSize(size);
+              setArchivedPage(1);
+            }}
+            disabled={busy}
+            className="border-t border-coop-border pt-4"
+          />
+        </div>
+      </FormDialog>
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        onOpenChange={(open) => {
+          if (!open && !busy) setArchiveTarget(null);
+        }}
+        title="Archive this event?"
+        description={`“${archiveTarget?.title ?? "This event"}” will leave the active register, but its attendance and history will remain available.`}
+        confirmLabel="Archive event"
+        cancelLabel="Keep event"
+        variant="warning"
+        loading={busy}
+        onConfirm={() => void confirmEventArchive()}
+      />
+
+      <ConfirmDialog
+        open={Boolean(restoreTarget)}
+        onOpenChange={(open) => {
+          if (!open && !busy) setRestoreTarget(null);
+        }}
+        title="Restore this event?"
+        description={`“${restoreTarget?.title ?? "This event"}” will return to the active event register.`}
+        confirmLabel="Restore event"
+        cancelLabel="Keep archived"
+        variant="warning"
+        loading={busy}
+        onConfirm={() => void confirmEventRestore()}
+      />
 
       <Modal
         open={Boolean(correctionRequest)}

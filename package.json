@@ -23,6 +23,8 @@
     "db:seed": "tsx server/src/scripts/seed.ts",
     "db:seed:seasons": "tsx server/src/scripts/seed-seasonal-analytics-sample.ts",
     "db:migrate:activities": "tsx server/src/scripts/migrate-activity-completion.ts",
+    "db:migrate:activity-images": "tsx server/src/scripts/migrate-activity-images.ts",
+    "db:migrate:activity-archive": "tsx server/src/scripts/migrate-activity-archive.ts",
     "db:migrate:membership-upgrades": "tsx server/src/scripts/migrate-membership-upgrades.ts",
     "user:create-associate-test": "tsx server/src/scripts/create-associate-test-account.ts",
     "db:migrate:records": "tsx server/src/scripts/migrate-records.ts",

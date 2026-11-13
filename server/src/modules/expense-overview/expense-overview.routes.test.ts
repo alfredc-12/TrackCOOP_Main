@@ -40,7 +40,7 @@ function overviewStub(seen: { filters?: unknown; query?: unknown } = {}) {
   return {
     plan: () => ({}),
     summary: echo("filters"), trends: echo("filters"), categories: echo("filters"), sources: echo("filters"), drivers: echo("filters"),
-    matrix: echo("filters"), integrity: echo("filters"), budget: echo("filters"), insights: async (value: unknown) => { seen.filters = value; return []; },
+    matrix: echo("filters"), integrity: echo("filters"), insights: async (value: unknown) => { seen.filters = value; return []; },
     options: async () => ({ ok: true }),
     records: echo("query"),
     recordDetail: async (id: string) => (id === "7" ? { id } : null),
@@ -48,7 +48,7 @@ function overviewStub(seen: { filters?: unknown; query?: unknown } = {}) {
   } as unknown as ExpenseOverviewService;
 }
 
-const overviewPaths = ["summary", "trends", "categories", "sources", "drivers", "matrix", "integrity", "budget", "insights", "options", "records", "records/7"];
+const overviewPaths = ["summary", "trends", "categories", "sources", "drivers", "matrix", "integrity", "insights", "options", "records", "records/7"];
 
 test("the Chairman can read every Financial Overview endpoint", async () => {
   const app = appWith((a) => a.use("/api", createExpenseOverviewRouter(authService("chairman"), overviewStub())));
@@ -87,7 +87,7 @@ test("filters are validated once and every panel receives the same parsed filter
   const expected = {
     period: "last_month", startDate: undefined, endDate: undefined, compare: "last_year", categoryIds: ["3", "4"], sourceModules: ["Rental"],
     classes: ["operating", "capital"], amountMin: 100, amountMax: undefined, recordedBy: undefined, postedBy: undefined, seasonId: undefined,
-    budget: undefined, search: "fuel", granularity: undefined,
+    search: "fuel", granularity: undefined,
   };
   assert.deepEqual(seen.filters, expected);
   assert.equal((await request(app).get(`/api/financial-overview/expenses/records?${query}&page=3&pageSize=50&sortBy=amount&sortDirection=asc&view=unposted`).set("Cookie", cookie)).status, 200);

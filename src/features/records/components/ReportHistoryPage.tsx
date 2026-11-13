@@ -173,7 +173,7 @@ export function ReportHistoryPage({
             <ArrowLeft className="size-4" /> Back to Reports
           </Link>
           <PageHeader
-            eyebrow="Records"
+            eyebrow={role === "bookkeeper" ? undefined : "Records"}
             title="Generated Reports"
             description="Review report generation history, filters, linked documents, exports, regenerations, and archived records."
             actions={

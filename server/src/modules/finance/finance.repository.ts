@@ -7,7 +7,6 @@ import { limitOffsetSql } from "../../db/pagination";
 import { withTransaction } from "../../db/transaction";
 import { AppError } from "../../utils/app-error";
 import type { AuthContext } from "../auth/auth.types";
-import { assertExpenseBudget, checkExpenseAgainstBudget } from "../budgets/budget-control";
 import type {
   FinancialCategory,
   FinancialCategoryInput,
@@ -492,15 +491,6 @@ export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinan
     async createRecord(input, auth) {
       assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
-        if (input.recordType === "Expense") {
-          const budgetCheck = await checkExpenseAgainstBudget(connection, {
-            financialCategoryId: input.financialCategoryId,
-            amount: input.amount,
-            expenseDate: input.recordDate,
-            seasonId: input.seasonId ?? null,
-          });
-          assertExpenseBudget(budgetCheck);
-        }
         const [result] = await connection.execute<ResultSetHeader>(
           `INSERT INTO financial_records
              (record_number, payment_reference_id, member_id, financial_category_id, recorded_by,
@@ -638,13 +628,6 @@ export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinan
       assertLegacyFinanceWriteAllowed(mode());
       return withTransaction(async (connection) => {
         const categoryId = await ensureOperatingExpenseCategory(connection, input.expenseType, auth);
-        const budgetCheck = await checkExpenseAgainstBudget(connection, {
-          financialCategoryId: categoryId,
-          amount: input.amount,
-          expenseDate: input.expenseDate,
-          seasonId: input.seasonId ?? null,
-        });
-        assertExpenseBudget(budgetCheck);
         const recordNumber = recordNumberForOperatingExpense(input.expenseDate);
         const remarks = [
           `Operating expense: ${input.expenseType}.`,
@@ -679,7 +662,7 @@ export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinan
         );
         const created = await findOperatingExpenseById(connection, id);
         if (!created) throw new AppError("Operating expense was not found after recording", 500, "OPERATING_EXPENSE_NOT_FOUND");
-        return { ...created, budgetCheck };
+        return created;
       }, databasePool());
     },
 

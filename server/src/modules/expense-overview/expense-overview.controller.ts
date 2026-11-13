@@ -31,7 +31,6 @@ export function createExpenseOverviewController(service: ExpenseOverviewService)
     drivers: asyncHandler(async (request, response) => sendSuccess(response, await service.drivers(filters(request.query)))),
     matrix: asyncHandler(async (request, response) => sendSuccess(response, await service.matrix(filters(request.query)))),
     integrity: asyncHandler(async (request, response) => sendSuccess(response, await service.integrity(filters(request.query)))),
-    budget: asyncHandler(async (request, response) => sendSuccess(response, await service.budget(filters(request.query)))),
     insights: asyncHandler(async (request, response) => sendSuccess(response, await service.insights(filters(request.query)))),
     options: asyncHandler(async (_request, response) => sendSuccess(response, await service.options())),
     records: asyncHandler(async (request, response) => {

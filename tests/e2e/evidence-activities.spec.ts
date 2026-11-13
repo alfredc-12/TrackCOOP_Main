@@ -3,6 +3,16 @@ import mysql, { type RowDataPacket } from "mysql2/promise";
 import { randomUUID } from "node:crypto";
 
 const api="http://127.0.0.1:3218";
+function manilaDateKey(offsetDays = 0) {
+  const date = new Date(Date.now() + offsetDays * 86_400_000);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 test("P40 P41 scheduled event and recorded attendance drive member analytics with audit and permissions", async ({ browser, page, context }) => {
   const db=await mysql.createConnection({host:"127.0.0.1",port:33327,user:"root",database:"trackcoop_evidence_synthetic"});
   const member=await browser.newContext(), bookkeeper=await browser.newContext();
@@ -14,19 +24,21 @@ test("P40 P41 scheduled event and recorded attendance drive member analytics wit
     const token=randomUUID().slice(0,8),code=`EVENT-${token}`, title=`Synthetic assembly ${token}`;
     await db.execute("INSERT INTO member_profiles(member_code,full_name,sector,membership_type,approval_status,official_member_status,application_date,approved_at) VALUES(?,?,'Rice','Associate','Approved','Active','2025-01-01','2025-01-02')",[code,`Event Member ${token}`]);
     const [members]=await db.execute<RowDataPacket[]>("SELECT member_id FROM member_profiles WHERE member_code=?",[code]); const memberId=String(members[0].member_id);
-    const payload={title,date:"2026-10-31",time:"10:30",location:"Synthetic hall",details:"Assembly",qualifies:true};
+    const eventDate=manilaDateKey();
+    const payload={title,date:eventDate,time:"00:00",location:"Synthetic hall",details:"Assembly",qualifies:true};
     expect((await member.request.post(`${api}/api/activities`,{data:payload})).status()).toBe(403);
     expect((await bookkeeper.request.post(`${api}/api/activities`,{data:payload})).status()).toBe(403);
     expect((await context.request.post(`${api}/api/activities`,{data:{...payload,title:""}})).status()).toBe(400);
+    expect((await context.request.post(`${api}/api/activities`,{data:{...payload,title:`Past ${title}`,date:manilaDateKey(-1)}})).status()).toBe(409);
     await page.goto("/portal/chairman/activities"); await expect(page.getByRole("heading",{name:"Events and Attendance"})).toBeVisible(); await page.getByRole("button",{name:"New event"}).click();
     await page.getByLabel("Event title").fill(title);
     await page.getByRole("button",{name:"Date",exact:true}).click();
-    await page.getByRole("button",{name:"Month",exact:true}).click(); await page.getByRole("option",{name:"October",exact:true}).click();
     await page.locator(`[data-date="${payload.date}"]`).click(); await page.getByRole("button",{name:"Confirm",exact:true}).click();
-    await page.getByRole("combobox",{name:"Time"}).click(); await page.getByRole("option",{name:"10:30 AM",exact:true}).click();
+    await page.getByRole("combobox",{name:"Time"}).click(); await page.getByRole("option",{name:"12:00 AM",exact:true}).click();
     await page.getByLabel("Location").fill(payload.location); await page.getByLabel("Details").fill(payload.details);
     await page.getByRole("button",{name:"Schedule event"}).click(); await expect(page.getByRole("status")).toContainText("Event scheduled");
     const [events]=await db.execute<RowDataPacket[]>("SELECT activity_id FROM cooperative_activities WHERE activity_name=?",[title]); expect(events).toHaveLength(1); const eventId=String(events[0].activity_id);
+    expect((await context.request.post(`${api}/api/activities`,{data:{...payload,title:`Duplicate ${title}`}})).status()).toBe(409);
     expect((await member.request.get(`${api}/api/activities/${eventId}`)).status()).toBe(403);
     expect((await member.request.patch(`${api}/api/activities/${eventId}`,{data:payload})).status()).toBe(403);
     expect((await member.request.post(`${api}/api/activities/${eventId}/attendance/scan`,{data:{memberCode:code}})).status()).toBe(403);
@@ -45,7 +57,7 @@ test("P40 P41 scheduled event and recorded attendance drive member analytics wit
     expect((await member.request.post(`${api}/api/activities/${eventId}/attendance`,{data:{memberId}})).status()).toBe(403);
     const detail=await context.request.get(`${api}/api/activities/${eventId}`); const data=(await detail.json()).data; expect(data.attendance).toHaveLength(1); expect(data.attendance[0]).toMatchObject({memberId,status:"Participated"});
     const participationId=data.attendance[0].id;
-    const input={memberId,basisPeriodEnd:"2026-10-31"}; const preview=await context.request.post(`${api}/api/member-indicators/workspace/preview`,{data:input}); expect(preview.status()).toBe(200);
+    const input={memberId,basisPeriodEnd:eventDate}; const preview=await context.request.post(`${api}/api/member-indicators/workspace/preview`,{data:input}); expect(preview.status()).toBe(200);
     const calc=await context.request.post(`${api}/api/member-indicators/workspace/recalculate`,{data:{...input,confirmed:true,previewFingerprint:(await preview.json()).data.previewFingerprint}});expect(calc.status()).toBe(200);
     const [scores]=await db.execute<RowDataPacket[]>("SELECT recency_days,frequency_count FROM member_status_indicators WHERE member_id=? ORDER BY indicator_id DESC LIMIT 1",[memberId]); expect(Number(scores[0].recency_days)).toBe(0); expect(Number(scores[0].frequency_count)).toBe(1);
     expect((await bookkeeper.request.patch(`${api}/api/activities/${eventId}/attendance/${participationId}`,{data:{status:"Voided",reason:"Recorded by mistake"}})).status()).toBe(200);
@@ -56,6 +68,11 @@ test("P40 P41 scheduled event and recorded attendance drive member analytics wit
     const [corrected]=await db.execute<RowDataPacket[]>("SELECT frequency_count FROM member_status_indicators WHERE member_id=? ORDER BY indicator_id DESC LIMIT 1",[memberId]);expect(Number(corrected[0].frequency_count)).toBe(0);
     expect((await context.request.post(`${api}/api/activities/${eventId}/cancel`,{data:{reason:"Attendance test event has ended"}})).status()).toBe(200);
     const [cancelled]=await db.execute<RowDataPacket[]>("SELECT activity_status,is_rfm_qualifying,cancellation_reason FROM cooperative_activities WHERE activity_id=?",[eventId]);expect(cancelled[0].activity_status).toBe("Cancelled");expect(Number(cancelled[0].is_rfm_qualifying)).toBe(0);expect(cancelled[0].cancellation_reason).toBe("Attendance test event has ended");
+    expect((await context.request.post(`${api}/api/activities/${eventId}/archive`)).status()).toBe(200);
+    expect((await context.request.get(`${api}/api/activities/${eventId}`)).status()).toBe(404);
+    const archived=(await (await context.request.get(`${api}/api/activities/archived`)).json()).data; expect(archived.some((event:{id:string})=>event.id===eventId)).toBe(true);
+    expect((await context.request.post(`${api}/api/activities/${eventId}/restore`)).status()).toBe(200);
+    expect((await context.request.get(`${api}/api/activities/${eventId}`)).status()).toBe(200);
     const [status]=await db.execute<RowDataPacket[]>("SELECT official_member_status FROM member_profiles WHERE member_id=?",[memberId]);expect(status[0].official_member_status).toBe("Active");
   } finally {await db.end();await member.close();await bookkeeper.close();}
 });

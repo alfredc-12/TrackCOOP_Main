@@ -15,7 +15,6 @@ import { createExpenseOverviewRepository, type ExpenseOverviewRepository } from 
 import type {
   CategoryTotal,
   DriverItem,
-  ExpenseBudgetContext,
   ExpenseCategories,
   ExpenseDrivers,
   ExpenseInsight,
@@ -57,7 +56,6 @@ export interface ExpenseOverviewService {
   records(query: ExpenseRecordQuery): Promise<ExpenseRecordsPage>;
   recordDetail(id: string): ReturnType<ExpenseOverviewRepository["recordDetail"]>;
   integrity(filters: ExpenseFilters): Promise<ExpenseIntegrity>;
-  budget(filters: ExpenseFilters): Promise<ExpenseBudgetContext>;
   insights(filters: ExpenseFilters): Promise<ExpenseInsight[]>;
   options(): ReturnType<ExpenseOverviewRepository["filterOptions"]>;
   repository: ExpenseOverviewRepository;
@@ -395,16 +393,11 @@ export function createExpenseOverviewService(
     return repository.integrity(filters, p.effective, p.today);
   }
 
-  async function budget(filters: ExpenseFilters): Promise<ExpenseBudgetContext> {
-    const p = plan(filters);
-    return repository.budgetContext(filters, p.effective);
-  }
-
   async function insights(filters: ExpenseFilters): Promise<ExpenseInsight[]> {
     const p = plan(filters);
     if (!p.effective) return [];
-    const [overview, categoryData, driverData, integrityData, budgetData] = await Promise.all([
-      summary(filters), categories(filters), drivers(filters), integrity(filters), budget(filters),
+    const [overview, categoryData, driverData, integrityData] = await Promise.all([
+      summary(filters), categories(filters), drivers(filters), integrity(filters),
     ]);
     const scope = `${p.info.effective.startDate ?? "the first record"} to ${p.info.effective.endDate}`;
     const compared = p.previous ? `${p.previous.startDate} to ${p.previous.endDate}` : null;
@@ -458,13 +451,6 @@ export function createExpenseOverviewService(
     if (unclassified && unclassified.records > 0) {
       items.push({ id: "classification", text: `${unclassified.records} posted ${unclassified.records === 1 ? "record needs" : "records need"} a classification before they can be counted as operating.`, basis: `Posted rows on a category that is not an Expense category, ${scope}.`, drill: { classes: ["unclassified"] } });
     }
-    if (budgetData.available && budgetData.lines.length > 0 && budgetData.unbudgeted.categories.length > 0) {
-      items.push({ id: "unbudgeted", text: `${budgetData.unbudgeted.categories.length} ${budgetData.unbudgeted.categories.length === 1 ? "category has" : "categories have"} posted expenses with no approved budget line covering ${budgetData.unbudgeted.categories.length === 1 ? "it" : "them"}.`, basis: `${formatPeso(budgetData.unbudgeted.amount)} across ${budgetData.unbudgeted.records} records, ${scope}.`, drill: { panel: "budget" } });
-    }
-    const pressured = budgetData.lines.filter((line) => line.state === "over" || line.state === "warning");
-    for (const line of pressured.slice(0, 2)) {
-      items.push({ id: `budget-${line.budgetLineId}`, text: `${line.categoryName} has used ${line.utilization ?? 0}% of its approved ${line.budgetName} limit.`, basis: `${formatPeso(line.spentAmount)} of ${formatPeso(line.limitAmount)}, ${line.coverageStart} to ${line.coverageEnd}.`, drill: { panel: "budget" } });
-    }
     return items;
   }
 
@@ -479,7 +465,6 @@ export function createExpenseOverviewService(
     records,
     recordDetail: (id) => repository.recordDetail(id),
     integrity,
-    budget,
     insights,
     options: () => repository.filterOptions(),
     repository,

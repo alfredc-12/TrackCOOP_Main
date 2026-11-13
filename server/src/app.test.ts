@@ -63,6 +63,20 @@ test("unknown routes return the standard failure envelope", async () => {
   assert.equal(response.body.errors[0].code, "ROUTE_NOT_FOUND");
 });
 
+test("retired Budget Controls API routes are not registered", async () => {
+  const app = createApp({ enableRequestLogging: false, frontendUrl });
+  const [listResponse, createResponse] = await Promise.all([
+    request(app).get("/api/budgets"),
+    request(app).post("/api/budgets").set("Origin", frontendUrl).send({}),
+  ]);
+
+  for (const response of [listResponse, createResponse]) {
+    assert.equal(response.status, 404);
+    assert.equal(response.body.success, false);
+    assert.equal(response.body.errors[0].code, "ROUTE_NOT_FOUND");
+  }
+});
+
 test("browser mutation requests from an untrusted origin are rejected", async () => {
   const response = await request(
     createApp({ enableRequestLogging: false, frontendUrl }),

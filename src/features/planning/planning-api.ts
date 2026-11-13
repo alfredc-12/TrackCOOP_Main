@@ -1,59 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
 
-export type BudgetStatus = "Draft" | "Pending Approval" | "Approved" | "Closed";
-export type BudgetLine = {
-  id: string;
-  financialCategoryId: string;
-  categoryName: string;
-  seasonId: string | null;
-  seasonName: string | null;
-  limitAmount: number;
-  warningPercentage: number;
-  hardLimit: boolean;
-  spentAmount: number;
-  remainingAmount: number;
-  utilizationPercentage: number;
-  warning: boolean;
-  exceeded: boolean;
-};
-export type Budget = {
-  id: string;
-  budgetName: string;
-  coverageStart: string;
-  coverageEnd: string;
-  budgetStatus: BudgetStatus;
-  notes: string | null;
-  totalLimit: number;
-  totalSpent: number;
-  totalRemaining: number;
-  utilizationPercentage: number;
-  lines: BudgetLine[];
-};
-export type BudgetSummary = {
-  approvedBudgetCount: number;
-  totalLimit: number;
-  totalSpent: number;
-  totalRemaining: number;
-  utilizationPercentage: number;
-  warningCount: number;
-  exceededCount: number;
-  unbudgetedExpenseTotal: number;
-};
-export type BudgetLineInput = {
-  financialCategoryId: string;
-  seasonId?: string | null;
-  limitAmount: number;
-  warningPercentage?: number;
-  hardLimit?: boolean;
-};
-export type BudgetInput = {
-  budgetName: string;
-  coverageStart: string;
-  coverageEnd: string;
-  notes?: string | null;
-  lines: BudgetLineInput[];
-};
-
 export type Season = {
   id: string;
   seasonName: string;
@@ -101,24 +47,6 @@ export type SeasonalAnalytics = {
   financialByCategory: Array<{ categoryName: string; recordType: "Income" | "Expense"; amount: number; records: number }>;
   monthlyTrend: Array<{ month: string; productionQuantity: number; productionCost: number; salesTotal: number; incomeTotal: number; expenseTotal: number; netResult: number }>;
 };
-
-export function listBudgets(status?: BudgetStatus) {
-  const query = new URLSearchParams({ page: "1", pageSize: "50" });
-  if (status) query.set("status", status);
-  return apiRequest<Budget[]>(`/api/budgets?${query.toString()}`);
-}
-
-export function getBudgetSummary() {
-  return apiRequest<BudgetSummary>("/api/budgets/summary");
-}
-
-export function createBudget(input: BudgetInput) {
-  return apiRequest<Budget>("/api/budgets", { method: "POST", body: JSON.stringify(input) });
-}
-
-export function updateBudgetStatus(id: string, action: "submit" | "approve" | "close") {
-  return apiRequest<Budget>(`/api/budgets/${encodeURIComponent(id)}/status`, { method: "POST", body: JSON.stringify({ action }) });
-}
 
 export function listSeasons(status?: Season["seasonStatus"]) {
   const query = new URLSearchParams({ page: "1", pageSize: "100" });

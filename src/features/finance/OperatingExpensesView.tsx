@@ -114,7 +114,7 @@ export function OperatingExpensesView() {
     }
     setIsSubmitting(true);
     try {
-      const created = await createOperatingExpense({
+      await createOperatingExpense({
         expenseType: form.expenseType,
         otherDescription: form.expenseType === "Other" ? form.otherDescription.trim() : null,
         amount,
@@ -123,7 +123,6 @@ export function OperatingExpensesView() {
         remarks: form.remarks.trim() || null,
       });
       toast.success("Operating expense recorded and posted.");
-      if (created.budgetCheck?.warning) toast.warning(created.budgetCheck.message);
       setForm((current) => ({ ...current, otherDescription: "", amount: "", remarks: "" }));
       await load();
     } catch (caught) {
@@ -155,7 +154,7 @@ export function OperatingExpensesView() {
 
   return (
     <section className="grid min-w-0 gap-4">
-      <PaymentWorkspaceHeader eyebrow="Bookkeeper · Finance" title="Operating Expenses" icon={TrendingDown}
+      <PaymentWorkspaceHeader title="Operating Expenses" icon={TrendingDown}
         description="Record cooperative operating costs and download the posted expense document for the selected period." />
       <div>
         <div className="rounded-lg border border-[#D9E2D8] bg-white p-3">

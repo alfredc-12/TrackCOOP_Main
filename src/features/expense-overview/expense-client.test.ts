@@ -17,14 +17,14 @@ test("a clean page has a clean address and reads back as the defaults", () => {
 test("every filter survives a round trip through the address bar", () => {
   const query: ExpenseUiQuery = {
     period: "custom", startDate: "2026-01-01", endDate: "2026-03-31", compare: "last_year", categoryIds: ["3", "4"], sourceModules: ["Rental", "POS"],
-    classes: ["operating", "capital"], amountMin: "100", amountMax: "5000.50", recordedBy: "2", postedBy: "1", seasonId: "7", budget: "uncovered",
+    classes: ["operating", "capital"], amountMin: "100", amountMax: "5000.50", recordedBy: "2", postedBy: "1", seasonId: "7",
     search: "diesel", view: "unposted", page: 3, pageSize: 50, sortBy: "amount", sortDirection: "asc",
   };
   assert.deepEqual(parse(paramsFromQuery(query).toString()), query);
 });
 
 test("bad or hostile address-bar values fall back instead of failing", () => {
-  const query = parse("period=forever&compare=never&categoryIds=1,abc,2;DROP&sourceModules=Bank,Rental&classes=bogus&view=nope&sort=password&pageSize=9999&page=-4&dir=sideways&budget=maybe&seasonId=x1&amountMin=-5");
+  const query = parse("period=forever&compare=never&categoryIds=1,abc,2;DROP&sourceModules=Bank,Rental&classes=bogus&view=nope&sort=password&pageSize=9999&page=-4&dir=sideways&seasonId=x1&amountMin=-5");
   assert.equal(query.period, "this_month");
   assert.equal(query.compare, "previous");
   assert.deepEqual(query.categoryIds, ["1"]);
@@ -35,7 +35,6 @@ test("bad or hostile address-bar values fall back instead of failing", () => {
   assert.equal(query.pageSize, 20);
   assert.equal(query.page, 1);
   assert.equal(query.sortDirection, "desc");
-  assert.equal(query.budget, undefined);
   assert.equal(query.seasonId, undefined);
   assert.equal(query.amountMin, undefined);
 });
@@ -80,7 +79,7 @@ test("each active filter becomes a chip that clears only itself and returns to p
 
 test("the More filters badge counts only the filters inside it", () => {
   assert.equal(moreFilterCount(defaultQuery), 0);
-  assert.equal(moreFilterCount({ ...defaultQuery, amountMin: "5", amountMax: "9", recordedBy: "2", budget: "covered" }), 3);
+  assert.equal(moreFilterCount({ ...defaultQuery, amountMin: "5", amountMax: "9", recordedBy: "2", seasonId: "7" }), 3);
 });
 
 test("money and percentages are formatted without inventing values", () => {
