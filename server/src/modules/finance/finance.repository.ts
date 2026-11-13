@@ -163,7 +163,7 @@ function categorySelect() {
             FROM financial_categories`;
 }
 
-function recordSelect() {
+function recordSelect(hasSeason = true) {
   return `SELECT CAST(r.financial_record_id AS CHAR) AS id,
                  r.record_number AS recordNumber,
                  CAST(r.payment_reference_id AS CHAR) AS paymentReferenceId,
@@ -175,7 +175,7 @@ function recordSelect() {
                  r.record_type AS recordType,
                  r.source_module AS sourceModule,
                  CAST(r.source_record_id AS CHAR) AS sourceRecordId,
-                 CAST(r.season_id AS CHAR) AS seasonId,
+                 ${hasSeason ? "CAST(r.season_id AS CHAR)" : "NULL"} AS seasonId,
                  r.amount,
                  r.record_date AS recordDate,
                  r.record_status AS recordStatus,
@@ -268,6 +268,18 @@ export interface FinanceRepository {
 
 export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinanceMode = controlledFinanceMode): FinanceRepository {
   const databasePool = () => pool ?? getPool();
+
+  // Older schemas do not have the optional seasonal association. Retry only
+  // this specific missing column; other SQL errors must remain visible.
+  async function selectLedgerRecords(tail: string, values: Array<string | number>) {
+    try {
+      return await databasePool().execute<RecordRow[]>(`${recordSelect()} ${tail}`, values);
+    } catch (error) {
+      const dbError = error as { code?: string; sqlMessage?: string };
+      if (dbError.code !== "ER_BAD_FIELD_ERROR" || dbError.sqlMessage !== "Unknown column 'r.season_id' in 'field list'") throw error;
+      return databasePool().execute<RecordRow[]>(`${recordSelect(false)} ${tail}`, values);
+    }
+  }
 
   async function ensureOperatingExpenseCategory(
     connection: PoolConnection,
@@ -447,9 +459,8 @@ export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinan
       const orderDirection = query.sortDirection === "asc" ? "ASC" : "DESC";
       const offset = (query.page - 1) * query.pageSize;
 
-      const [rows] = await databasePool().execute<RecordRow[]>(
-        `${recordSelect()}
-         ${whereSql}
+      const [rows] = await selectLedgerRecords(
+        `${whereSql}
          ORDER BY ${query.sortBy === "createdAt" ? "r.financial_record_id" : sortColumns[query.sortBy]} ${orderDirection}, r.financial_record_id DESC
          ${limitOffsetSql(query.pageSize, offset)}`,
         values,
@@ -470,8 +481,8 @@ export function createFinanceRepository(pool?: Pool, mode: () => ControlledFinan
     },
 
     async findRecordById(id) {
-      const [rows] = await databasePool().execute<RecordRow[]>(
-        `${recordSelect()} WHERE r.financial_record_id = ? LIMIT 1`,
+      const [rows] = await selectLedgerRecords(
+        `WHERE r.financial_record_id = ? LIMIT 1`,
         [id],
       );
       return rows[0] ? mapRecord(rows[0]) : null;

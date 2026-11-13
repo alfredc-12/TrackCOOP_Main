@@ -189,6 +189,13 @@ for (const width of [1440, 768, 390])
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBeTruthy();
+    const expenses = page.getByRole("region", { name: "Where Money Goes" });
+    await expect(expenses.getByRole("button", { name: /expense records$/ })).toHaveCount(3);
+    await expect(expenses.getByRole("button", { name: "View all 4 categories" })).toBeVisible();
+    await expenses.getByRole("button", { name: "View all 4 categories" }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "View Office supplies expense records" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.screenshot({
       path: info.outputPath(`overview-${width}.png`),
       fullPage: true,

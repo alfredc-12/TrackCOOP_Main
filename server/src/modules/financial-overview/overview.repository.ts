@@ -279,7 +279,7 @@ export function createOverviewRepository(
         ? await totals(c, recordScope(f, period.previous, caps))
         : null;
     const [reviews] = await c.execute<Row[]>(
-      `SELECT SUM(${reviewSql}) AS records,SUM(fr.record_status='Active' AND fr.record_type='Income' AND fr.approved_by IS NULL) AS unpostedIncome,SUM(fr.record_status='Active' AND fr.record_type='Expense' AND fr.approved_by IS NULL) AS unpostedExpense,SUM(${reviewSql} AND ${classificationIssue}) AS classification,SUM(${reviewSql} AND ${sourceIssue}) AS source,SUM(${reviewSql} AND ${relationshipIssueSql}) AS relationships,SUM(fr.record_status='Active' AND fr.approved_by IS NOT NULL AND fr.record_type IN ('Income','Expense') AND NOT ${includedSql}) AS excluded FROM ${from}${whereSql(q)}`,
+      `SELECT /*+ NO_MERGE(flags) */ SUM(flags.needs_review) AS records,SUM(flags.unposted_income) AS unpostedIncome,SUM(flags.unposted_expense) AS unpostedExpense,SUM(flags.needs_review AND flags.classification_issue) AS classification,SUM(flags.needs_review AND flags.source_issue) AS source,SUM(flags.needs_review AND flags.relationship_issue) AS relationships,SUM(flags.excluded) AS excluded FROM (SELECT ${reviewSql} AS needs_review,(fr.record_status='Active' AND fr.record_type='Income' AND fr.approved_by IS NULL) AS unposted_income,(fr.record_status='Active' AND fr.record_type='Expense' AND fr.approved_by IS NULL) AS unposted_expense,${classificationIssue} AS classification_issue,${sourceIssue} AS source_issue,${relationshipIssueSql} AS relationship_issue,(fr.record_status='Active' AND fr.approved_by IS NOT NULL AND fr.record_type IN ('Income','Expense') AND NOT ${includedSql}) AS excluded FROM ${from}${whereSql(q)}) flags`,
       q.values,
     );
     const [categoryRows] = await c.execute<Row[]>(
@@ -346,12 +346,16 @@ export function createOverviewRepository(
       `SELECT DATE_FORMAT(fr.record_date,'%Y-%m-%d') AS day,fr.record_type AS type,COALESCE(SUM(fr.amount),0) AS amount,COUNT(*) AS records FROM ${from}${whereSql({ ...q, clauses: [...q.clauses, includedSql] })} GROUP BY fr.record_date,fr.record_type ORDER BY fr.record_date`,
       q.values,
     );
+    // Both inputs are ordered by date. Advance once instead of rescanning every
+    // historical daily aggregate for each reporting bucket.
+    let dailyIndex = 0;
     const trend = buckets.map((b) => {
       let incoming = BigInt(0),
         outgoing = BigInt(0),
         records = 0;
-      for (const r of daily) {
-        if (String(r.day) < b.startDate || String(r.day) > b.endDate) continue;
+      while (dailyIndex < daily.length && String(daily[dailyIndex].day) < b.startDate) dailyIndex++;
+      while (dailyIndex < daily.length && String(daily[dailyIndex].day) <= b.endDate) {
+        const r = daily[dailyIndex++];
         if (r.type === "Income") incoming += cents(money(r, "amount"));
         else outgoing += cents(money(r, "amount"));
         records += n(r, "records");
