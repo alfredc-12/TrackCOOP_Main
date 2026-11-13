@@ -144,6 +144,18 @@ export function FinancialOverviewClient() {
       setExporting("");
     }
   };
+  // Keep the paired previews balanced without stretching a shorter card.
+  // The drawer still exposes every category when one list is longer.
+  const categoryPreviewCount = Math.min(
+    6,
+    Math.max(
+      3,
+      Math.min(
+        report?.categories.income.length ?? 0,
+        report?.categories.expense.length ?? 0,
+      ),
+    ),
+  );
   const ranks = (
     rows: CategoryTotal[],
     kind: "income" | "expense",
@@ -154,7 +166,7 @@ export function FinancialOverviewClient() {
       <div
         className={`${styles.rank} ${kind === "expense" ? styles.expense : ""}`}
       >
-        {(expanded ? rows : rows.slice(0, 6)).map((row) => (
+        {(expanded ? rows : rows.slice(0, categoryPreviewCount)).map((row) => (
           <button
             type="button"
             key={row.id}
@@ -199,7 +211,7 @@ export function FinancialOverviewClient() {
             this scope.
           </p>
         )}
-        {!expanded && rows.length > 6 && (
+        {!expanded && rows.length > categoryPreviewCount && (
           <Button
             variant="ghost"
             onClick={() =>

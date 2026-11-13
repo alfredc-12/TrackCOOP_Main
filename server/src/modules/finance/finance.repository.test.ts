@@ -43,3 +43,31 @@ test("ledger query schema rejects bad filters but keeps existing queries valid",
     assert.equal(listFinancialRecordsQuerySchema.safeParse(bad).success, false, JSON.stringify(bad));
   }
 });
+
+test("ledger reads preserve season values when supported and fall back only for a missing season column", async () => {
+  const query = listFinancialRecordsQuerySchema.parse({ pageSize: 5 });
+  for (const hasSeason of [true, false]) {
+    const calls: string[] = [];
+    const pool = { async execute(sql: string) {
+      calls.push(sql);
+      if (!hasSeason && sql.includes("CAST(r.season_id AS CHAR)")) {
+        throw Object.assign(new Error("missing column"), { code: "ER_BAD_FIELD_ERROR", sqlMessage: "Unknown column 'r.season_id' in 'field list'" });
+      }
+      if (sql.includes("COUNT(*) AS total")) return [[{ total: 1 }], []];
+      return [[{ id: "1", amount: "12.00", seasonId: hasSeason ? "7" : null }], []];
+    } } as unknown as Pool;
+    const repo = createFinanceRepository(pool);
+    const list = await repo.listRecords(query);
+    const detail = await repo.findRecordById("1");
+    assert.equal(list.records[0].seasonId, hasSeason ? "7" : null);
+    assert.equal(detail?.seasonId, hasSeason ? "7" : null);
+    assert.equal(calls.filter(sql => sql.includes("NULL AS seasonId")).length, hasSeason ? 0 : 2);
+    assert.equal(list.total, 1);
+  }
+});
+
+test("ledger does not hide unrelated database errors", async () => {
+  const error = Object.assign(new Error("different missing column"), { code: "ER_BAD_FIELD_ERROR", sqlMessage: "Unknown column 'r.amount' in 'field list'" });
+  const pool = { async execute() { throw error; } } as unknown as Pool;
+  await assert.rejects(createFinanceRepository(pool).listRecords(listFinancialRecordsQuerySchema.parse({})), e => e === error);
+});
