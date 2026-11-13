@@ -1,7 +1,7 @@
 -- ============================================================================
--- TRACKCOOP RDS / PHPMYADMIN COMPATIBLE DATABASE - VERSION 5
+-- TRACKCOOP RDS / PHPMYADMIN COMPATIBLE DATABASE - VERSION 6 (FRESH ONLY)
 -- Target DBMS : MySQL 8.0+ / MariaDB 10.6+
--- Database    : currently selected database
+-- Database    : currently selected database (fresh/disposable ONLY)
 -- Purpose     : Complete database for the TrackCOOP public website, portal,
 --               membership, share capital, payments, finance, rental, POS,
 --               documents, reports, announcements, inquiries, analytics,
@@ -22,7 +22,7 @@ SET time_zone = '+08:00';
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ============================================================================
--- RESET EXISTING TRACKCOOP OBJECTS
+-- RESET EXISTING TRACKCOOP OBJECTS - DESTRUCTIVE; NEVER RUN ON POPULATED DB
 -- ============================================================================
 DROP VIEW IF EXISTS `v_member_share_capital_summary`;
 
@@ -35,6 +35,33 @@ DROP VIEW IF EXISTS `v_financial_monthly_summary`;
 DROP VIEW IF EXISTS `v_barangay_member_distribution`;
 
 DROP VIEW IF EXISTS `v_dashboard_financial_overview`;
+
+-- New tables are also dropped when recreating a fully fresh database.
+DROP TABLE IF EXISTS `finance_evidence_upload_events`;
+DROP TABLE IF EXISTS `finance_evidence_upload_intents`;
+DROP TABLE IF EXISTS `payment_receipt_attempt_events`;
+DROP TABLE IF EXISTS `payment_receipt_attempts`;
+DROP TABLE IF EXISTS `finance_manual_evidence_events`;
+DROP TABLE IF EXISTS `finance_manual_evidence_links`;
+DROP TABLE IF EXISTS `document_versions`;
+DROP TABLE IF EXISTS `managed_activity_attendance`;
+DROP TABLE IF EXISTS `finance_exception_events`;
+DROP TABLE IF EXISTS `finance_exception_cases`;
+DROP TABLE IF EXISTS `finance_policy_revisions`;
+DROP TABLE IF EXISTS `finance_policy_heads`;
+DROP TABLE IF EXISTS `finance_controlled_operation_events`;
+DROP TABLE IF EXISTS `finance_controlled_operations`;
+DROP TABLE IF EXISTS `budget_guard_operations`;
+DROP TABLE IF EXISTS `budget_control_mutex`;
+DROP TABLE IF EXISTS `budget_expense_assignments`;
+DROP TABLE IF EXISTS `budget_lines`;
+DROP TABLE IF EXISTS `budgets`;
+DROP TABLE IF EXISTS `production_records`;
+DROP TABLE IF EXISTS `seasons`;
+DROP TABLE IF EXISTS `patronage_capital_transfers`;
+DROP TABLE IF EXISTS `dividend_action_history`;
+DROP TABLE IF EXISTS `member_dividends`;
+DROP TABLE IF EXISTS `dividend_declarations`;
 
 DROP TABLE IF EXISTS `member_sectors`;
 DROP TABLE IF EXISTS `membership_application_sectors`;
@@ -2344,6 +2371,674 @@ CREATE TABLE email_webhook_events (
     CONSTRAINT uq_email_webhook_svix UNIQUE (svix_id),
     KEY idx_email_webhook_email (resend_email_id)
 ) ENGINE = InnoDB;
+
+
+-- ============================================================================
+-- 12A. CONSOLIDATED FRESH-INSTALL SCHEMA (MIGRATION STRUCTURES ONLY)
+-- ============================================================================
+-- This is a DESTROY-AND-RECREATE baseline. NEVER run against production,
+-- trackcoopdb_main_2, or any database with data you wish to retain.
+-- The independently versioned migration files remain for existing databases.
+-- Do not apply them again to a fresh schema created by this file.
+-- No historical finance backfill, migration of existing records or activation
+-- of unfinished finance/evidence workflows is performed here.
+
+-- 12A.1 Share capital dividends and decisions (no ledger backfill)
+CREATE TABLE IF NOT EXISTS dividend_declarations (
+    dividend_declaration_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    declaration_name VARCHAR(160) NOT NULL,
+    coverage_start DATE NOT NULL,
+    coverage_end DATE NOT NULL,
+    declared_at DATETIME NULL,
+    available_at DATETIME NULL,
+    total_declared_amount DECIMAL(14, 2) NOT NULL,
+    calculation_method VARCHAR(80) NOT NULL,
+    dividend_rate DECIMAL(9, 6) NULL,
+    declaration_status ENUM('Draft', 'Approved', 'Published', 'Cancelled') NOT NULL DEFAULT 'Draft',
+    notes VARCHAR(1000) NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    approved_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_dividend_declaration_name UNIQUE (declaration_name),
+    CONSTRAINT fk_dividend_declaration_creator FOREIGN KEY (created_by)
+        REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_dividend_declaration_approver FOREIGN KEY (approved_by)
+        REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT chk_dividend_declaration_dates CHECK (coverage_end >= coverage_start),
+    CONSTRAINT chk_dividend_declaration_amount CHECK (total_declared_amount >= 0)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS member_dividends (
+    member_dividend_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    dividend_declaration_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NOT NULL,
+    dividend_amount DECIMAL(14, 2) NOT NULL,
+    dividend_status ENUM(
+        'Pending',
+        'Available',
+        'Withdrawal Requested',
+        'Withdrawn',
+        'Added to Share Capital',
+        'Cancelled',
+        'Reversed'
+    ) NOT NULL DEFAULT 'Pending',
+    member_decision ENUM('Withdraw', 'Add to Share Capital') NULL,
+    available_at DATETIME NULL,
+    decided_at DATETIME NULL,
+    processed_at DATETIME NULL,
+    processed_by BIGINT UNSIGNED NULL,
+    share_capital_transaction_id BIGINT UNSIGNED NULL,
+    withdrawal_reference VARCHAR(190) NULL,
+    processing_notes VARCHAR(1000) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_member_dividend_declaration UNIQUE (dividend_declaration_id, member_id),
+    KEY idx_member_dividend_member_status (member_id, dividend_status, created_at),
+    KEY idx_member_dividend_declaration_status (dividend_declaration_id, dividend_status),
+    CONSTRAINT fk_member_dividend_declaration FOREIGN KEY (dividend_declaration_id)
+        REFERENCES dividend_declarations (dividend_declaration_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_member_dividend_member FOREIGN KEY (member_id)
+        REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_member_dividend_processor FOREIGN KEY (processed_by)
+        REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_member_dividend_capital_transaction FOREIGN KEY (share_capital_transaction_id)
+        REFERENCES share_capital_transactions (share_capital_transaction_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT chk_member_dividend_amount CHECK (dividend_amount >= 0)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS dividend_action_history (
+    dividend_action_history_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    member_dividend_id BIGINT UNSIGNED NOT NULL,
+    previous_status VARCHAR(40) NULL,
+    new_status VARCHAR(40) NOT NULL,
+    action_name VARCHAR(100) NOT NULL,
+    remarks VARCHAR(1000) NULL,
+    performed_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_dividend_action_history_dividend_created (member_dividend_id, created_at),
+    UNIQUE KEY uq_dividend_action_history_status (member_dividend_id, new_status),
+    CONSTRAINT fk_dividend_action_member_dividend FOREIGN KEY (member_dividend_id)
+        REFERENCES member_dividends (member_dividend_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_dividend_action_performer FOREIGN KEY (performed_by)
+        REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+
+-- 12A.2 Dividend field extensions
+-- Store the CDA-aligned Interest on Share Capital inputs and monthly-share-month basis.
+-- Apply manually after 20261007_share_capital_ledger_and_dividends.sql.
+
+ALTER TABLE dividend_declarations
+    ADD COLUMN net_surplus DECIMAL(14, 2) NULL AFTER total_declared_amount,
+    ADD COLUMN statutory_reserves DECIMAL(14, 2) NULL AFTER net_surplus,
+    ADD COLUMN share_capital_interest_allocation_rate DECIMAL(9, 6) NULL AFTER statutory_reserves,
+    ADD COLUMN interest_rate DECIMAL(18, 12) NULL AFTER share_capital_interest_allocation_rate,
+    ADD COLUMN total_average_share_month DECIMAL(18, 2) NULL AFTER interest_rate;
+
+ALTER TABLE member_dividends
+    ADD COLUMN total_share_months DECIMAL(18, 2) NOT NULL DEFAULT 0.00 AFTER dividend_amount,
+    ADD COLUMN average_share_month DECIMAL(18, 2) NOT NULL DEFAULT 0.00 AFTER total_share_months;
+
+
+-- Store the member's selected dividend payout method and protected transfer details.
+-- QR images are kept as small data URLs so the Bookkeeper can verify them before payout.
+
+ALTER TABLE member_dividends
+    ADD COLUMN withdrawal_method ENUM('Cash', 'Online Transfer') NULL AFTER member_decision,
+    ADD COLUMN withdrawal_provider VARCHAR(80) NULL AFTER withdrawal_method,
+    ADD COLUMN withdrawal_account_name VARCHAR(190) NULL AFTER withdrawal_provider,
+    ADD COLUMN withdrawal_account_number VARCHAR(190) NULL AFTER withdrawal_account_name,
+    ADD COLUMN withdrawal_qr_code MEDIUMTEXT NULL AFTER withdrawal_account_number;
+
+
+-- Store optional proof attached by the Bookkeeper when completing a dividend withdrawal.
+ALTER TABLE member_dividends
+    ADD COLUMN withdrawal_receipt MEDIUMTEXT NULL AFTER withdrawal_qr_code,
+    ADD COLUMN withdrawal_receipt_name VARCHAR(190) NULL AFTER withdrawal_receipt;
+
+ALTER TABLE member_dividends MODIFY COLUMN dividend_status ENUM(
+ 'Pending','Available','Withdrawal Requested','Capitalization Requested','Withdrawn',
+ 'Added to Share Capital','Cancelled','Reversed'
+) NOT NULL DEFAULT 'Pending';
+CREATE INDEX idx_dividend_declaration_period_status ON dividend_declarations(declaration_status,coverage_start,coverage_end);
+
+
+-- 12A.3 Historical patronage capital transfer table
+-- Additive: preserve original refund amounts, payouts, and capital history.
+CREATE TABLE IF NOT EXISTS patronage_capital_transfers (
+    transfer_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    patronage_allocation_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(14, 2) NOT NULL,
+    request_key VARCHAR(36) NOT NULL,
+    transfer_status ENUM('Pending', 'Approved', 'Rejected') NOT NULL DEFAULT 'Pending',
+    requested_by BIGINT UNSIGNED NOT NULL,
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_by BIGINT UNSIGNED NULL,
+    processed_at DATETIME NULL,
+    processing_notes VARCHAR(500) NULL,
+    share_capital_transaction_id BIGINT UNSIGNED NULL,
+    UNIQUE KEY uq_patronage_capital_request (request_key),
+    KEY idx_patronage_capital_allocation (patronage_allocation_id, transfer_status),
+    KEY idx_patronage_capital_member (member_id, requested_at),
+    CONSTRAINT fk_patronage_capital_allocation FOREIGN KEY (patronage_allocation_id)
+        REFERENCES patronage_allocations (patronage_allocation_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_patronage_capital_member FOREIGN KEY (member_id)
+        REFERENCES member_profiles (member_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_patronage_capital_requester FOREIGN KEY (requested_by)
+        REFERENCES users (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_patronage_capital_processor FOREIGN KEY (processed_by)
+        REFERENCES users (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_patronage_capital_transaction FOREIGN KEY (share_capital_transaction_id)
+        REFERENCES share_capital_transactions (share_capital_transaction_id) ON DELETE RESTRICT,
+    CONSTRAINT chk_patronage_capital_amount CHECK (amount > 0)
+) ENGINE = InnoDB;
+
+
+-- 12A.4 Seasons, production, budgets and nullable season links
+-- Seasonal analytics and budget controls.
+-- Existing financial and POS records remain valid; nullable season links keep
+-- historical records available while the cooperative assigns them gradually.
+
+CREATE TABLE IF NOT EXISTS seasons (
+    season_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    season_name VARCHAR(120) NOT NULL,
+    season_type VARCHAR(80) NOT NULL,
+    season_year SMALLINT UNSIGNED NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    season_status ENUM('Draft', 'Active', 'Closed') NOT NULL DEFAULT 'Draft',
+    description TEXT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_seasons_name_year UNIQUE (season_name, season_year),
+    CONSTRAINT fk_seasons_created_by FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT chk_seasons_date_range CHECK (end_date >= start_date)
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_seasons_status_dates ON seasons (season_status, start_date, end_date);
+
+CREATE TABLE IF NOT EXISTS production_records (
+    production_record_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    season_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NULL,
+    barangay VARCHAR(120) NULL,
+    sector VARCHAR(120) NOT NULL,
+    crop_name VARCHAR(160) NOT NULL,
+    area_planted DECIMAL(14, 3) NULL,
+    area_unit VARCHAR(40) NULL,
+    quantity_produced DECIMAL(14, 3) NOT NULL,
+    quantity_unit VARCHAR(40) NOT NULL DEFAULT 'kg',
+    production_cost DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    harvest_date DATE NULL,
+    production_status ENUM('Draft', 'Recorded', 'Verified', 'Harvested', 'Cancelled') NOT NULL DEFAULT 'Recorded',
+    remarks TEXT NULL,
+    recorded_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_production_season FOREIGN KEY (season_id) REFERENCES seasons (season_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_production_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_production_recorded_by FOREIGN KEY (recorded_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_production_season_status ON production_records (season_id, production_status, harvest_date);
+CREATE INDEX idx_production_crop ON production_records (crop_name, sector);
+CREATE INDEX idx_production_member ON production_records (member_id, season_id);
+
+CREATE TABLE IF NOT EXISTS budgets (
+    budget_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    budget_name VARCHAR(160) NOT NULL,
+    coverage_start DATE NOT NULL,
+    coverage_end DATE NOT NULL,
+    budget_status ENUM('Draft', 'Pending Approval', 'Approved', 'Closed') NOT NULL DEFAULT 'Draft',
+    notes TEXT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    approved_by BIGINT UNSIGNED NULL,
+    approved_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT chk_budgets_date_range CHECK (coverage_end >= coverage_start),
+    CONSTRAINT fk_budgets_created_by FOREIGN KEY (created_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_budgets_approved_by FOREIGN KEY (approved_by) REFERENCES users (user_id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_budgets_status_dates ON budgets (budget_status, coverage_start, coverage_end);
+
+CREATE TABLE IF NOT EXISTS budget_lines (
+    budget_line_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    budget_id BIGINT UNSIGNED NOT NULL,
+    financial_category_id SMALLINT UNSIGNED NOT NULL,
+    season_id BIGINT UNSIGNED NULL,
+    limit_amount DECIMAL(14, 2) NOT NULL,
+    warning_percentage DECIMAL(5, 2) NOT NULL DEFAULT 80.00,
+    hard_limit TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_budget_line_category_scope UNIQUE (budget_id, financial_category_id, season_id),
+    CONSTRAINT fk_budget_lines_budget FOREIGN KEY (budget_id) REFERENCES budgets (budget_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_budget_lines_category FOREIGN KEY (financial_category_id) REFERENCES financial_categories (financial_category_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_budget_lines_season FOREIGN KEY (season_id) REFERENCES seasons (season_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT chk_budget_line_amount CHECK (limit_amount >= 0),
+    CONSTRAINT chk_budget_line_warning CHECK (warning_percentage > 0 AND warning_percentage <= 100)
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_budget_lines_category ON budget_lines (financial_category_id, season_id);
+
+SET @trackcoop_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE financial_records ADD COLUMN season_id BIGINT UNSIGNED NULL, ADD INDEX idx_financial_record_season (season_id, record_date)',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'financial_records'
+      AND column_name = 'season_id'
+);
+PREPARE trackcoop_stmt FROM @trackcoop_sql;
+EXECUTE trackcoop_stmt;
+DEALLOCATE PREPARE trackcoop_stmt;
+
+SET @trackcoop_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE pos_sales ADD COLUMN season_id BIGINT UNSIGNED NULL, ADD INDEX idx_pos_sales_season (season_id, sale_date)',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'pos_sales'
+      AND column_name = 'season_id'
+);
+PREPARE trackcoop_stmt FROM @trackcoop_sql;
+EXECUTE trackcoop_stmt;
+DEALLOCATE PREPARE trackcoop_stmt;
+
+
+-- 12A.5 Budget guards, controlled financial workflow, policy heads and exception cases
+-- PR 1B: optional, explicit attribution; no historical rows are backfilled.
+CREATE TABLE budget_expense_assignments (
+  financial_record_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  budget_line_id BIGINT UNSIGNED NOT NULL,
+  commitment_state ENUM('None','Pending') NOT NULL DEFAULT 'None',
+  assigned_by BIGINT UNSIGNED NOT NULL,
+  assigned_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_budget_assignment_line (budget_line_id, commitment_state),
+  CONSTRAINT fk_budget_assignment_record FOREIGN KEY (financial_record_id) REFERENCES financial_records(financial_record_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_budget_assignment_line FOREIGN KEY (budget_line_id) REFERENCES budget_lines(budget_line_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_budget_assignment_actor FOREIGN KEY (assigned_by) REFERENCES users(user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- Participating controlled writers serialize selection, spend and budget transitions.
+-- Legacy writers are not connected; activation requires PR 1C integration.
+CREATE TABLE budget_control_mutex (
+  mutex_id TINYINT UNSIGNED NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+INSERT INTO budget_control_mutex (mutex_id) VALUES (1);
+
+-- Idempotency is recorded in the same transaction as the future controlled post.
+CREATE TABLE budget_guard_operations (
+  operation_key CHAR(64) NOT NULL PRIMARY KEY,
+  request_hash CHAR(64) NOT NULL,
+  operation_reference VARCHAR(120) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB;
+
+
+-- PR 1C: workflow metadata only; never backfills or changes existing financial rows.
+CREATE TABLE finance_controlled_operations (
+  operation_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  financial_record_id BIGINT UNSIGNED NOT NULL,
+  maker_id BIGINT UNSIGNED NOT NULL,
+  idempotency_key CHAR(64) NOT NULL,
+  creation_hash CHAR(64) NULL,
+  workflow_state ENUM('DRAFT','INCOMPLETE_EVIDENCE','CONFIGURATION_BLOCKED','BUDGET_BLOCKED','PENDING_APPROVAL','UNBUDGETED_REVIEWED','REJECTED','ROUTINE_POST_ELIGIBLE','APPROVED_FOR_POSTING','POSTED','CORRECTION_REQUESTED') NOT NULL DEFAULT 'DRAFT',
+  version INT UNSIGNED NOT NULL DEFAULT 1,
+  threshold_version INT UNSIGNED NULL,
+  restriction_version INT UNSIGNED NULL,
+  budget_basis CHAR(64) NULL,
+  record_fingerprint CHAR(64) NULL,
+  evidence_fingerprint CHAR(64) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_controlled_financial_record (financial_record_id),
+  UNIQUE KEY uq_controlled_idempotency (idempotency_key),
+  KEY idx_controlled_state (workflow_state, created_at),
+  CONSTRAINT fk_controlled_record FOREIGN KEY (financial_record_id) REFERENCES financial_records(financial_record_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_controlled_maker FOREIGN KEY (maker_id) REFERENCES users(user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE finance_controlled_operation_events (
+  event_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  operation_id BIGINT UNSIGNED NOT NULL,
+  operation_version INT UNSIGNED NOT NULL,
+  actor_id BIGINT UNSIGNED NOT NULL,
+  event_type VARCHAR(40) NOT NULL,
+  previous_state VARCHAR(40) NULL,
+  next_state VARCHAR(40) NOT NULL,
+  reason VARCHAR(2000) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_controlled_event_version (operation_id, operation_version),
+  CONSTRAINT fk_controlled_event_operation FOREIGN KEY (operation_id) REFERENCES finance_controlled_operations(operation_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_controlled_event_actor FOREIGN KEY (actor_id) REFERENCES users(user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- PR 1A: append-only policy revisions and serialized version heads.
+-- Adds no policy amount, category, approval or activation.
+CREATE TABLE finance_policy_heads (
+  policy_kind ENUM('threshold','restrictions') NOT NULL PRIMARY KEY,
+  current_version INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+INSERT INTO finance_policy_heads (policy_kind) VALUES ('threshold'), ('restrictions');
+
+CREATE TABLE finance_policy_revisions (
+  revision_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  policy_kind ENUM('threshold','restrictions') NOT NULL,
+  version INT UNSIGNED NOT NULL,
+  state ENUM('DRAFT','APPROVED') NOT NULL,
+  configuration JSON NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  approved_by BIGINT UNSIGNED NULL,
+  approved_at DATETIME(3) NULL,
+  effective_at DATETIME(3) NULL,
+  UNIQUE KEY uq_finance_policy_kind_version (policy_kind, version),
+  KEY idx_finance_policy_effective (policy_kind, state, effective_at, version),
+  CONSTRAINT fk_finance_policy_kind FOREIGN KEY (policy_kind) REFERENCES finance_policy_heads(policy_kind),
+  CONSTRAINT fk_finance_policy_creator FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_policy_approver FOREIGN KEY (approved_by) REFERENCES users(user_id) ON DELETE RESTRICT,
+  CONSTRAINT chk_finance_policy_approval CHECK ((state = 'DRAFT' AND approved_by IS NULL AND approved_at IS NULL AND effective_at IS NULL) OR (state = 'APPROVED' AND approved_by IS NOT NULL AND approved_at IS NOT NULL AND effective_at IS NOT NULL))
+) ENGINE=InnoDB;
+
+
+-- Case workflow metadata only; does not change finance or payment records.
+CREATE TABLE finance_exception_cases (
+ case_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ fingerprint CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ source_type ENUM('payment_reference','financial_record','controlled_operation') NOT NULL,
+ source_id BIGINT UNSIGNED NOT NULL,
+ exception_code VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ severity ENUM('Critical','High','Medium','Informational') NOT NULL,
+ case_state ENUM('Open','Under Review','Awaiting Evidence','Escalated','Resolved','Closed','Reopened') NOT NULL,
+ version INT UNSIGNED NOT NULL DEFAULT 1,
+ assigned_to BIGINT UNSIGNED NULL,
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY uq_finance_exception_fingerprint (fingerprint),
+ KEY ix_finance_exception_queue (case_state,severity,updated_at),
+ KEY ix_finance_exception_source (source_type,source_id),
+ CONSTRAINT fk_finance_exception_creator FOREIGN KEY(created_by) REFERENCES users(user_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_finance_exception_assignee FOREIGN KEY(assigned_to) REFERENCES users(user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE finance_exception_events (
+ event_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ case_id BIGINT UNSIGNED NOT NULL,
+ event_version INT UNSIGNED NOT NULL,
+ actor_id BIGINT UNSIGNED NOT NULL,
+ actor_role ENUM('chairman','bookkeeper') NOT NULL,
+ assigned_to BIGINT UNSIGNED NULL,
+ event_code VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ previous_state VARCHAR(32) NULL,
+ next_state VARCHAR(32) NOT NULL,
+ reason_code VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ request_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ request_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ UNIQUE KEY uq_finance_exception_event_version (case_id,event_version),
+ UNIQUE KEY uq_finance_exception_event_key (request_key),
+ CONSTRAINT fk_finance_exception_event_case FOREIGN KEY(case_id) REFERENCES finance_exception_cases(case_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_finance_exception_event_actor FOREIGN KEY(actor_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_finance_exception_event_assignee FOREIGN KEY(assigned_to) REFERENCES users(user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- 12A.6 Managed activity attendance and lifecycle
+-- Additive event-management fields. Existing activities stay scheduled and retain
+-- their recorded qualification. Legacy participation rows are left untouched.
+ALTER TABLE cooperative_activities
+  ADD COLUMN activity_time TIME NULL,
+  ADD COLUMN activity_location VARCHAR(255) NULL,
+  ADD COLUMN activity_status ENUM('Scheduled','Cancelled') NOT NULL DEFAULT 'Scheduled';
+
+-- A separate ownership key enforces one attendance record for each new managed
+-- event and member without rewriting legacy participation history.
+CREATE TABLE managed_activity_attendance (
+  activity_id BIGINT UNSIGNED NOT NULL,
+  member_id BIGINT UNSIGNED NOT NULL,
+  participation_id BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (activity_id, member_id),
+  UNIQUE KEY uq_managed_participation (participation_id),
+  CONSTRAINT fk_managed_activity FOREIGN KEY (activity_id) REFERENCES cooperative_activities (activity_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_managed_member FOREIGN KEY (member_id) REFERENCES member_profiles (member_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_managed_participation FOREIGN KEY (participation_id) REFERENCES member_activity_participation (participation_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- Add an explicit lifecycle for managed events and retain the reason for cancellation.
+-- Apply after 20261108_activity_management.sql.
+
+ALTER TABLE cooperative_activities
+  MODIFY COLUMN activity_status ENUM('Scheduled','Completed','Cancelled') NOT NULL DEFAULT 'Scheduled',
+  ADD COLUMN cancellation_reason TEXT NULL AFTER activity_status,
+  ADD COLUMN completed_at DATETIME NULL AFTER cancellation_reason;
+
+
+-- 12A.7 Document version history and production-compatible metadata
+CREATE TABLE IF NOT EXISTS document_versions (
+  document_version_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  document_id BIGINT UNSIGNED NOT NULL,
+  version_number INT UNSIGNED NOT NULL,
+  original_file_name VARCHAR(255) NOT NULL,
+  stored_file_name VARCHAR(255) NOT NULL,
+  storage_path VARCHAR(500) NOT NULL,
+  mime_type VARCHAR(120) NOT NULL,
+  file_extension VARCHAR(20) NOT NULL,
+  file_size_bytes BIGINT UNSIGNED NOT NULL,
+  checksum_sha256 CHAR(64) NOT NULL,
+  change_note TEXT NULL,
+  uploaded_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_document_versions_number UNIQUE (document_id, version_number),
+  CONSTRAINT fk_document_versions_document FOREIGN KEY (document_id)
+    REFERENCES documents(document_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT fk_document_versions_uploader FOREIGN KEY (uploaded_by)
+    REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  INDEX idx_document_versions_created (document_id, created_at)
+) ENGINE=InnoDB;
+ALTER TABLE document_versions
+ MODIFY uploaded_by BIGINT UNSIGNED NULL,
+ MODIFY file_size_bytes BIGINT UNSIGNED NULL,
+ MODIFY checksum_sha256 CHAR(64) NULL;
+-- document_access_logs already includes its document_versions FK in the base DDL.
+ALTER TABLE documents
+ ADD COLUMN related_module VARCHAR(80) NULL,
+ ADD COLUMN related_record_id BIGINT UNSIGNED NULL,
+ ADD COLUMN related_record_reference VARCHAR(120) NULL,
+ ADD COLUMN relationship_type VARCHAR(80) NULL,
+ ADD COLUMN document_date DATE NULL,
+ ADD COLUMN current_version INT UNSIGNED NOT NULL DEFAULT 1,
+ ADD COLUMN tags TEXT NULL,
+ ADD COLUMN internal_note TEXT NULL,
+ ADD COLUMN archived_by BIGINT UNSIGNED NULL,
+ ADD COLUMN archived_at DATETIME NULL,
+ ADD COLUMN archive_reason TEXT NULL;
+CREATE INDEX idx_documents_records_filters ON documents(category,related_module,expiration_date);
+
+
+-- 12A.8 Patronage, share capital and member analytics columns matching evolved finance workflows
+ALTER TABLE patronage_periods
+ ADD COLUMN capital_interest_pool DECIMAL(14,2) NOT NULL DEFAULT 0.00;
+ALTER TABLE patronage_allocations
+ MODIFY COLUMN payment_status ENUM('Pending','Withdrawal Requested','Paid','Added to Share Capital') NOT NULL DEFAULT 'Pending',
+ ADD COLUMN member_decision ENUM('Withdraw','Add to Share Capital') NULL,
+ ADD COLUMN decided_at DATETIME NULL,
+ ADD COLUMN share_capital_transaction_id BIGINT UNSIGNED NULL,
+ ADD COLUMN refund_destination ENUM('Undecided','Cash','Share Capital') NOT NULL DEFAULT 'Undecided',
+ ADD COLUMN capitalized_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+ ADD COLUMN weighted_average_capital DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+ ADD COLUMN capital_share_percent DECIMAL(9,6) NOT NULL DEFAULT 0.000000,
+ ADD COLUMN interest_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+ ADD COLUMN interest_payment_status ENUM('Pending','Paid') NOT NULL DEFAULT 'Paid',
+ ADD COLUMN interest_paid_at DATETIME NULL,
+ ADD COLUMN interest_paid_by BIGINT UNSIGNED NULL,
+ ADD COLUMN interest_payment_notes VARCHAR(500) NULL,
+ ADD CONSTRAINT fk_patronage_allocation_capital_transaction
+  FOREIGN KEY (share_capital_transaction_id) REFERENCES share_capital_transactions(share_capital_transaction_id) ON UPDATE CASCADE ON DELETE SET NULL,
+ ADD CONSTRAINT fk_patronage_allocation_interest_payer
+  FOREIGN KEY (interest_paid_by) REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE SET NULL;
+CREATE INDEX idx_patronage_allocation_interest_status ON patronage_allocations(patronage_period_id,interest_payment_status);
+CREATE INDEX idx_patronage_allocation_decision ON patronage_allocations(member_id,payment_status,decided_at);
+ALTER TABLE share_capital_accounts
+ ADD COLUMN total_patronage_refunds_added DECIMAL(14,2) NOT NULL DEFAULT 0.00;
+ALTER TABLE share_capital_payments
+ ADD COLUMN source_type ENUM('Contribution','Patronage Refund','Capital Interest','Adjustment') NOT NULL DEFAULT 'Contribution',
+ ADD COLUMN patronage_allocation_id BIGINT UNSIGNED NULL,
+ ADD CONSTRAINT uq_share_capital_patronage_allocation UNIQUE(patronage_allocation_id);
+ALTER TABLE share_capital_transactions
+ MODIFY COLUMN transaction_type ENUM(
+ 'Initial Share Capital','Additional Capital Contribution','Dividend Added to Share Capital',
+ 'Patronage Refund Added to Share Capital','Capital Adjustment Credit','Capital Adjustment Debit','Reversal'
+ ) NOT NULL;
+ALTER TABLE member_status_indicators MODIFY COLUMN basis_summary MEDIUMTEXT NULL;
+CREATE INDEX idx_member_indicator_basis_selection ON member_status_indicators(member_id,basis_period_end,computed_at,indicator_id);
+ALTER TABLE member_status_history MODIFY COLUMN changed_by BIGINT UNSIGNED NOT NULL;
+ALTER TABLE request_status_history MODIFY COLUMN changed_by BIGINT UNSIGNED NULL;
+CREATE INDEX idx_reports_register ON reports(report_category,generation_status,generated_at);
+
+
+-- 12A.9 Draft PR #18 metadata only; workflows remain disabled / incomplete
+-- Unverified evidence relationship metadata only. No historical backfill or posting changes.
+CREATE TABLE finance_manual_evidence_links (
+  link_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  financial_record_id BIGINT UNSIGNED NOT NULL,
+  document_id BIGINT UNSIGNED NOT NULL,
+  document_version INT UNSIGNED NOT NULL,
+  document_checksum CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  supersedes_link_id BIGINT UNSIGNED NULL,
+  link_status ENUM('ACTIVE','REPLACED','REVOKED') NOT NULL DEFAULT 'ACTIVE',
+  version INT UNSIGNED NOT NULL DEFAULT 1,
+  active_slot TINYINT GENERATED ALWAYS AS (CASE WHEN link_status='ACTIVE' THEN 1 ELSE NULL END) STORED,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_manual_evidence_active_record (financial_record_id, active_slot),
+  UNIQUE KEY uq_manual_evidence_document_history (document_id),
+  KEY ix_manual_evidence_history (financial_record_id, link_id),
+  CONSTRAINT fk_manual_evidence_record FOREIGN KEY (financial_record_id) REFERENCES financial_records(financial_record_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_manual_evidence_document FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_manual_evidence_actor FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_manual_evidence_predecessor FOREIGN KEY (supersedes_link_id) REFERENCES finance_manual_evidence_links(link_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE finance_manual_evidence_events (
+  event_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  link_id BIGINT UNSIGNED NOT NULL,
+  link_version INT UNSIGNED NOT NULL,
+  actor_id BIGINT UNSIGNED NOT NULL,
+  event_type ENUM('LINKED','REPLACED','REVOKED') NOT NULL,
+  replacement_link_id BIGINT UNSIGNED NULL,
+  reason VARCHAR(2000) NULL,
+  request_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  request_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_manual_evidence_event_version (link_id,link_version),
+  UNIQUE KEY uq_manual_evidence_request (request_key),
+  CONSTRAINT fk_manual_evidence_event_link FOREIGN KEY (link_id) REFERENCES finance_manual_evidence_links(link_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_manual_evidence_event_actor FOREIGN KEY (actor_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_manual_evidence_event_replacement FOREIGN KEY (replacement_link_id) REFERENCES finance_manual_evidence_links(link_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- Forward-only receipt attempt journal. No backfill and no deletion of old files.
+CREATE TABLE payment_receipt_attempts (
+  attempt_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  payment_receipt_id BIGINT UNSIGNED NOT NULL,
+  attempt_number INT UNSIGNED NOT NULL,
+  object_key VARCHAR(500) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  attempt_state ENUM('PREPARED','STORED','FINALIZED','FAILED','SUPERSEDED') NOT NULL DEFAULT 'PREPARED',
+  upload_checksum CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  upload_size BIGINT UNSIGNED NULL,
+  document_id BIGINT UNSIGNED NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_receipt_attempt_number (payment_receipt_id,attempt_number),
+  UNIQUE KEY uq_receipt_attempt_object (object_key),
+  KEY ix_receipt_attempt_recovery (attempt_state,updated_at),
+  CONSTRAINT fk_receipt_attempt_receipt FOREIGN KEY(payment_receipt_id) REFERENCES payment_receipts(payment_receipt_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_receipt_attempt_document FOREIGN KEY(document_id) REFERENCES documents(document_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE payment_receipt_attempt_events (
+  event_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  attempt_id BIGINT UNSIGNED NOT NULL,
+  event_type ENUM('PREPARED','STORED','FINALIZED','FAILED','SUPERSEDED') NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_receipt_attempt_event (attempt_id,event_type),
+  CONSTRAINT fk_receipt_attempt_event FOREIGN KEY(attempt_id) REFERENCES payment_receipt_attempts(attempt_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- Forward-only upload intent. Existing source/document data is not backfilled.
+CREATE TABLE finance_evidence_upload_intents (
+ intent_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ financial_record_id BIGINT UNSIGNED NOT NULL,
+ source_owner_id BIGINT UNSIGNED NOT NULL,
+ uploaded_by BIGINT UNSIGNED NOT NULL,
+ request_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ request_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ object_key VARCHAR(500) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ storage_provider ENUM('S3') NOT NULL,
+ expected_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ expected_size BIGINT UNSIGNED NOT NULL,
+ expected_mime VARCHAR(120) NOT NULL,
+ document_id BIGINT UNSIGNED NULL,
+ document_version INT UNSIGNED NULL,
+ object_version VARCHAR(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+ intent_state ENUM('PREPARED','FINALIZED','FAILED','RECOVERY_REQUIRED') NOT NULL DEFAULT 'PREPARED',
+ generation INT UNSIGNED NOT NULL DEFAULT 1,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY uq_evidence_intent_request(request_key),
+ UNIQUE KEY uq_evidence_intent_object(object_key),
+ UNIQUE KEY uq_evidence_intent_document(document_id),
+ KEY ix_evidence_intent_source(financial_record_id,intent_state),
+ CONSTRAINT ck_evidence_intent_size CHECK(expected_size > 0 AND expected_size <= 10485760),
+ CONSTRAINT ck_evidence_intent_generation CHECK(generation > 0),
+ CONSTRAINT ck_evidence_intent_finalized CHECK(intent_state <> 'FINALIZED' OR (document_id IS NOT NULL AND document_version IS NOT NULL AND document_version > 0 AND object_version IS NOT NULL AND CHAR_LENGTH(object_version) > 0)),
+ CONSTRAINT fk_evidence_intent_source FOREIGN KEY(financial_record_id) REFERENCES financial_records(financial_record_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_evidence_intent_owner FOREIGN KEY(source_owner_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_evidence_intent_actor FOREIGN KEY(uploaded_by) REFERENCES users(user_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_evidence_intent_document FOREIGN KEY(document_id) REFERENCES documents(document_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE finance_evidence_upload_events (
+ event_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ intent_id BIGINT UNSIGNED NOT NULL,
+ generation INT UNSIGNED NOT NULL,
+ actor_id BIGINT UNSIGNED NOT NULL,
+ event_type ENUM('PREPARED','FINALIZED','FAILED','RECOVERY_REQUIRED') NOT NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ UNIQUE KEY uq_evidence_upload_event_version(intent_id,generation),
+ CONSTRAINT fk_evidence_upload_event_intent FOREIGN KEY(intent_id) REFERENCES finance_evidence_upload_intents(intent_id) ON DELETE RESTRICT,
+ CONSTRAINT fk_evidence_upload_event_actor FOREIGN KEY(actor_id) REFERENCES users(user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- Additive S3 object binding for finalized upload intents; no historical backfill.
+ALTER TABLE finance_evidence_upload_intents
+ ADD COLUMN storage_bucket VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+ ADD COLUMN source_snapshot_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ MODIFY COLUMN intent_state ENUM('PREPARED','UPLOADING','FINALIZED','FAILED','RECOVERY_REQUIRED') NOT NULL DEFAULT 'PREPARED';
+
+ALTER TABLE finance_evidence_upload_events
+ MODIFY COLUMN event_type ENUM('PREPARED','UPLOADING','FINALIZED','FAILED','RECOVERY_REQUIRED') NOT NULL;
+
+-- End of fresh-install schema convergence.
 
 SET FOREIGN_KEY_CHECKS = 1;
 
