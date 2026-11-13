@@ -33,3 +33,17 @@ Verification on synthetic fixtures:
 These results establish request behavior and response compatibility, not a measured
 production speedup. No live database queries or financial mutations were used for
 this verification. No deployment or policy activation is implied.
+
+## Optional profile metadata
+
+The dashboard profile read tolerates malformed saved livelihood JSON or entries
+that fail livelihood validation. These previously caused the whole dashboard GET
+to return 400 (or 500 for malformed JSON). The response now marks
+`member.livelihoodsUnavailable=true` and omits the invalid optional details; the
+page displays a warning while keeping the member's other records available.
+Stored values are not rewritten. Profile writes retain strict validation, and
+database failures continue to fail rather than returning invented empty data.
+The frontend also includes the HTTP status and API error message in diagnostic
+errors. Route-level regression tests use the real controller/service/repository
+with a synthetic pool, covering invalid legacy entries, future dates, duplicate
+activities, malformed JSON, valid data, strict writes and genuine database errors.

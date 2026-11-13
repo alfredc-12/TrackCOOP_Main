@@ -359,7 +359,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
     return member;
   }
 
-  async function selectMemberProfile(auth: AuthContext) {
+  async function selectMemberProfile(auth: AuthContext, tolerateInvalidLivelihoods = false) {
       const [members] = await databasePool().execute<SelfProfileRow[]>(
         `SELECT m.membership_type, m.contact_number, m.email, m.barangay, m.municipality, m.province, m.livelihoods,
                 COALESCE(m.occupation, (
@@ -372,7 +372,14 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       );
       const member = members[0];
       if (!member) throw new AppError("Member profile not found", 404, "MEMBER_PROFILE_NOT_FOUND");
-      return { ...member, livelihoods: readLivelihoods(member.livelihoods) };
+      try {
+        return { ...member, livelihoods: readLivelihoods(member.livelihoods), livelihoodsUnavailable: false };
+      } catch (error) {
+        if (!tolerateInvalidLivelihoods || !(error instanceof SyntaxError || (error instanceof AppError && error.code === "INVALID_LIVELIHOODS"))) throw error;
+        // Invalid optional profile metadata must not hide the member's other
+        // dashboard records. Preserve the stored value and flag the omission.
+        return { ...member, livelihoods: [], livelihoodsUnavailable: true };
+      }
   }
 
   return {
@@ -650,7 +657,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
         [member.member_id],
       ).catch(() => [[] as RowDataPacket[]])),
         read(async () => hasFinancialAccess && query.includeFinancialSummary !== "false" ? selectMemberFinancialSummary(databasePool(), member.member_id, query) : null),
-        read(async () => selectMemberProfile(auth)),
+        read(async () => selectMemberProfile(auth, true)),
       ]);
       const validatedShareCapital = Number(shareCapitalRows[0]?.validatedTotal || 0);
       const recentActivity = [...rentalPayments, ...sales, ...(canAccessMemberFinancials(member) ? [...deposits, ...pendingDeposits, ...dividendActivities] : []), ...rentals, ...announcements]
@@ -698,6 +705,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           membershipType: member.membership_type,
           occupation: memberProfile.occupation,
           livelihoods: memberProfile.livelihoods,
+          livelihoodsUnavailable: memberProfile.livelihoodsUnavailable,
           code: member.member_code,
           memberSince: member.approved_at ?? member.application_date ?? member.created_at ?? member.true_member_since ?? null,
           contact_number: member.contact_number,

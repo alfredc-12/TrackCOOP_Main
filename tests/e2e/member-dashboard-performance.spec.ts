@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function fixture(page: Page) {
+async function fixture(page: Page, options: { livelihoodsUnavailable?: boolean; failDashboard?: boolean } = {}) {
   const requests: URL[] = [];
   let hold: Promise<void> | undefined;
   let holdFor: (url: URL) => boolean = () => true;
@@ -14,10 +14,11 @@ async function fixture(page: Page) {
     const envelope = (data: unknown) => ({ success: true, data });
     if (url.pathname === "/api/auth/me") return route.fulfill({ json: envelope({ id: "7", displayName: "Performance Member", email: "member@example.invalid", role: "member" }) });
     if (url.pathname === "/api/members/me/dashboard") {
+      if (options.failDashboard) return route.fulfill({ status: 400, json: { error: "Synthetic dashboard validation failed" } });
       if (hold && holdFor(url)) await hold;
       return route.fulfill({ json: {
         isLinked: true, membershipType: "True Member", canAccessFinancials: true,
-        member: { code: "PERF-7", livelihoods: [], occupation: "Farmer", memberSince: "2026-01-01" },
+        member: { code: "PERF-7", livelihoods: [], livelihoodsUnavailable: options.livelihoodsUnavailable ?? false, occupation: "Farmer", memberSince: "2026-01-01" },
         shareCapital: { total: 3000 }, recentActivity: [], recentCapitalContributions: [], unreadUpdates: {},
         stats: { announcements: 0, purchases: 1, deposits: 1, rentals: 0 }, referrals: { code: "REF-PERF-7", items: [] },
         memberFinancialSummary: url.searchParams.get("includeFinancialSummary") === "true" ? {
@@ -121,4 +122,22 @@ test("a financial update requests fresh data even while a background refresh is 
     await page.evaluate(() => window.dispatchEvent(new Event("trackcoop:patronage-updated")));
     await expect.poll(() => data.count("/api/members/me/dashboard")).toBe(3);
   } finally { data.resume(); }
+});
+
+test("unavailable saved livelihood metadata does not hide the member dashboard", async ({ page }) => {
+  await fixture(page, { livelihoodsUnavailable: true });
+  await page.goto("/member_dashboard");
+  await expect(page.getByRole("button", { name: "View My Savings", exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Some saved crop and livelihood details could not be displayed." })).toBeVisible();
+  await expect(page.getByText("₱3,000.00", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "We couldn" })).toHaveCount(0);
+});
+
+test("failed dashboard requests retain the HTTP status and API message for diagnosis", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  await fixture(page, { failDashboard: true });
+  await page.goto("/member_dashboard");
+  await expect(page.getByRole("alert").filter({ hasText: "We couldn" })).toBeVisible();
+  await expect.poll(() => errors.some(error => error.includes("HTTP 400") && error.includes("Synthetic dashboard validation failed"))).toBe(true);
 });

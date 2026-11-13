@@ -101,12 +101,15 @@ test("chairman reviews and approves an existing associate upgrade", async ({ pag
     return route.fulfill({ json: envelope([]) });
   });
   await page.goto("/chairman/members");
+  await page.getByRole("button", { name: "True Membership Applications (1)", exact: true }).click();
   await page.getByRole("button", { name: "Review application", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Validated Share Capital:", { exact: false })).toBeVisible();
   await dialog.getByLabel("Decision reason").fill("Capital and membership requirements verified.");
   await dialog.getByRole("button", { name: "Approve True Membership" }).click();
+  await expect(dialog.getByText("No pending upgrade applications.", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "True Membership Applications (0)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "True Membership Applications (0)", exact: true })).toBeFocused();
   expect(decision).toEqual({ decision: "Approved", reason: "Capital and membership requirements verified." });
 });

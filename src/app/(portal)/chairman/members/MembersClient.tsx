@@ -872,7 +872,6 @@ function MembersWorkspace({ context, initialTab }: { context: string; initialTab
 
   return (
     <div className="grid gap-6">
-      <MembershipUpgradeReviews onChanged={() => { void loadDirectory(); }} />
       <div className="flex flex-col gap-5 border-b border-[#CAD8CB] pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.34em] text-[#D99A0B]">People</p>
@@ -882,6 +881,7 @@ function MembersWorkspace({ context, initialTab }: { context: string; initialTab
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <MembershipUpgradeReviews onChanged={() => { void loadDirectory(); }} />
           {rfmReturn && <a href={rfmReturn} className="inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-[#123D2A] underline underline-offset-4">Back to Member Indicators</a>}
 
           {activeTab !== "history" ? (
