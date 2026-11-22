@@ -36,6 +36,7 @@ storage/uploads/*
 !storage/uploads/.gitkeep
 storage/protected/*
 !storage/protected/.gitkeep
+database-backups/
 
 # TypeScript / Next generated
 *.tsbuildinfo

@@ -1,4 +1,8 @@
 export const ANALYTICS_SECTORS = ["Rice", "Corn", "Fishery", "Livestock", "High-value crops (gulayan)", "Coffee"] as const;
+export const ANALYTICS_OCCUPATIONS = [
+  "Farmer", "Fisherfolk", "Livestock raiser", "Poultry raiser", "Aquaculture worker", "Agricultural worker",
+  "Fish vendor", "Entrepreneur", "Government employee", "Private employee", "Self-employed", "Student", "Retired", "Unemployed",
+] as const;
 export const ENGAGEMENT_LABELS = ["Active", "Needs Monitoring", "Inactive", "Not Yet Scored"] as const;
 export type EngagementLabel = typeof ENGAGEMENT_LABELS[number];
 export type AnalyticsFilters = {
@@ -9,6 +13,7 @@ export type AnalyticsFilters = {
 export type AnalyticsSelection = { kind?: string; value?: string; sector?: string };
 export type AnalyticsMember = {
   municipality?: string | null; province?: string | null;
+  occupation?: string | null;
   selectedSectors?: string[];
   memberCode?: string; fullName?: string;
   id: string; barangay: string | null; sector: string | null; membershipType: string;
@@ -18,6 +23,7 @@ export type AnalyticsMember = {
 export type AnalyticsApplication = {
   id: string; memberId: string | null; source: string; submittedAt: string;
   requestedType: string; status: string; barangay: string | null; sector: string | null;
+  dateOfBirth?: string | null; civilStatus?: string | null; occupation?: string | null;
 };
 export type AnalyticsHistory = { id: string; status: string; at: string };
 export type AnalyticsIndicator = {
@@ -44,10 +50,18 @@ export type AnalyticsSources = {
   capabilities: Record<string, boolean>;
 };
 export type CountItem = { name: string; count: number };
+export type DemographicDistribution = { label: string; count: number };
+export type MemberDemographicProfile = {
+  withDateOfBirth: number;
+  withoutDateOfBirth: number;
+  ageBands: DemographicDistribution[];
+  civilStatuses: DemographicDistribution[];
+  occupations: DemographicDistribution[];
+};
 export type Cohort = { month: string; days: number; total: number; mature: number; participated: number; rate: number | null };
 export type AnalyticsResult = {
   mapGeography?: Array<{ barangay: string; municipality?: string | null; province?: string | null; totalMembers: number;
-    trueMembers: number; associates: number; sectorCounts: Record<string, number>; engagementCounts: Record<string, number>; newApprovals: number; change: number }>;
+    trueMembers: number; associates: number; sectorCounts: Record<string, number>; occupationCounts: Record<string, number>; engagementCounts: Record<string, number>; newApprovals: number; change: number }>;
   generatedAt: string; filters: AnalyticsFilters; population: number;
   options: { barangays: string[]; sectors: readonly string[] };
   availability: { capital: boolean; engagement: boolean; participation: boolean; recruitment: boolean; referrals: boolean };
@@ -69,10 +83,11 @@ export type AnalyticsResult = {
     overdue: number; provisional: number; reconciled: number; unknown: number;
     completions: Array<{ month: string; count: number }>; medianDays: number | null; averageDays: number | null };
   unassignedSectorCount?: number;
+  demographicProfile: MemberDemographicProfile;
   sectors: CountItem[];
   sectorDetails: Array<{ sector: string; members: number; newApprovals: number; previousMembers: number; change: number; engagement: CountItem[]; eligibleCapital: number; completedCapital: number; completionRate: number | null; recruitment: Array<{ month: string; count: number }> }>;
   geography: Array<{ barangay: string; totalMembers: number; trueMembers: number; associates: number;
-    sectorCounts: Record<string, number>; engagementCounts: Record<string, number>;
+    sectorCounts: Record<string, number>; occupationCounts: Record<string, number>; engagementCounts: Record<string, number>;
     newApprovals: number; previousMembers: number; change: number;
     cells: Array<{ sector: string; members: number; newApprovals: number; engaged: number; change: number; periodChange: number }> }>;
   recruitment: { monthly: Array<{ month: string; count: number }>; yearly: Array<{ year: string; count: number }>;

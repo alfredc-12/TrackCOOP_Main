@@ -11,6 +11,10 @@ import {
   type SettingsRepository,
 } from "./settings.repository";
 import { byKey } from "./settings.registry";
+import {
+  requestAutomaticBackupReload,
+  runManualDatabaseBackup,
+} from "../../backup/automatic-backup";
 const change = z
   .object({
     key: z.string().min(1).max(160),
@@ -50,6 +54,19 @@ export function createSettingsRouter(
     "/system-settings/catalog",
     ...access,
     asyncHandler(async (_r, res) => sendSuccess(res, await repo.catalog())),
+  );
+  router.post(
+    "/system-settings/backups/run",
+    ...access,
+    asyncHandler(async (_req, res) => {
+      const backup = await runManualDatabaseBackup();
+      await new Promise<void>((resolve, reject) => {
+        res.download(backup.outputFile, backup.downloadName, (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }),
   );
   router.get(
     "/system-settings/high-value-crops",
@@ -120,11 +137,11 @@ export function createSettingsRouter(
         z.object({ changes: z.array(change).min(1).max(32) }).strict(),
         req.body,
       );
-      return sendSuccess(
-        res,
-        await repo.save(body.changes, req.auth!.user.id),
-        { message: "Settings saved. The activity history has been updated." },
-      );
+      const data = await repo.save(body.changes, req.auth!.user.id);
+      requestAutomaticBackupReload();
+      return sendSuccess(res, data, {
+        message: "Settings saved. The activity history has been updated.",
+      });
     }),
   );
   router.put(
@@ -169,6 +186,7 @@ export function createSettingsRouter(
         [{ key: d.key, value, expectedRevision: body.expectedRevision }],
         req.auth!.user.id,
       );
+      requestAutomaticBackupReload();
       return sendSuccess(
         res,
         data.settings.find((s) => s.key === d.key),

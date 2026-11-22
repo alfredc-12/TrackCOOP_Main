@@ -276,6 +276,20 @@
   gap: 12px;
   padding-top: 18px;
 }
+.backupAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--coop-border, #cad8cb);
+  border-radius: 10px;
+  background: var(--coop-field, #f7f8f3);
+}
+.backupAction .help {
+  margin-top: 4px;
+}
 .technical {
   padding: 0 4px;
   font-size: 13px;
@@ -655,6 +669,13 @@
   }
   .panel {
     padding: 14px;
+  }
+  .backupAction {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .backupAction button {
+    width: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {

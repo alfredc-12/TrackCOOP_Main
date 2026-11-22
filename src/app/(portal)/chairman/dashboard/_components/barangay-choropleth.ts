@@ -4,7 +4,7 @@ import { BATANGAS_MUNICIPALITIES, normalizeMunicipality } from "../../../../../l
 export type BarangayProperties = { adm4_en: string; adm4_psgc: number | string; adm3_psgc: number; adm2_psgc: number; municipality?: string };
 export type BarangayBoundary = Feature<Polygon | MultiPolygon, BarangayProperties>;
 export type BarangayBoundaries = FeatureCollection<Polygon | MultiPolygon, BarangayProperties>;
-export type BarangayMembers = { barangay: string; municipality?: string | null; province?: string | null; totalMembers: number; sectorCounts?: { sector: string; count: number }[] };
+export type BarangayMembers = { barangay: string; municipality?: string | null; province?: string | null; totalMembers: number; sectorCounts?: { sector: string; count: number }[]; occupationCounts?: Record<string, number> };
 export type HeatBin = { min: number; max: number; color: string };
 
 export const zeroMemberColor = "#eef2ec";
@@ -67,17 +67,18 @@ export function barangayFill(totalMembers: number, bins: HeatBin[]) {
 }
 
 export function joinBarangayMembers(boundaries: BarangayBoundaries, demographics: BarangayMembers[]) {
-  const members = new Map<string, { totalMembers: number; sectors: Map<string, number> }>();
+  const members = new Map<string, { totalMembers: number; sectors: Map<string, number>; occupations: Map<string, number> }>();
   const sectorNames = new Set<string>();
   for (const row of demographics) {
     const key = resolveBarangayId(boundaries, row);
     if (!key) continue;
-    const aggregate = members.get(key) ?? { totalMembers: 0, sectors: new Map<string, number>() };
+    const aggregate = members.get(key) ?? { totalMembers: 0, sectors: new Map<string, number>(), occupations: new Map<string, number>() };
     aggregate.totalMembers += count(row.totalMembers);
     for (const sector of row.sectorCounts ?? []) {
       sectorNames.add(sector.sector);
       aggregate.sectors.set(sector.sector, (aggregate.sectors.get(sector.sector) ?? 0) + count(sector.count));
     }
+    for (const [occupation, occupationCount] of Object.entries(row.occupationCounts ?? {})) aggregate.occupations.set(occupation, (aggregate.occupations.get(occupation) ?? 0) + count(occupationCount));
     members.set(key, aggregate);
   }
   const sectors = [...sectorNames];
@@ -97,6 +98,7 @@ export function joinBarangayMembers(boundaries: BarangayBoundaries, demographics
       canDrilldown: nameCounts.get(normalizeBarangayName(feature.properties.adm4_en)) === 1,
       totalMembers: aggregate?.totalMembers ?? 0,
       sectorCounts: sectors.map((sector) => ({ sector, count: aggregate?.sectors.get(sector) ?? 0 })),
+      occupationCounts: Object.fromEntries(aggregate?.occupations ?? []),
     };
   });
   const unmapped = demographics.filter((row) => !resolveBarangayId(boundaries, row));

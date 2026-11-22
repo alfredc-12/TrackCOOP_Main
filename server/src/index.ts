@@ -2,6 +2,7 @@ import { app } from "./app";
 import { env } from "./config/env";
 import { closePool } from "./db/pool";
 import { logger } from "./utils/logger";
+import { startAutomaticBackupScheduler } from "./backup/automatic-backup";
 
 const port = env.PORT ?? env.API_PORT;
 const server = app.listen(port, "0.0.0.0", () => {
@@ -10,9 +11,11 @@ const server = app.listen(port, "0.0.0.0", () => {
     port,
   });
 });
+const backupScheduler = startAutomaticBackupScheduler();
 
 function shutdown(signal: string) {
   logger.info("shutdown requested", { signal });
+  backupScheduler.stop();
 
   server.close(async (error) => {
     if (error) {

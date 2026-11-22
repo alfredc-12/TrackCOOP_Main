@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
+import { env } from "@/config/env";
 import type {
   SettingsCatalog,
   SettingEntry,
@@ -19,6 +20,34 @@ export const saveSettings = (settings: SettingEntry[], draft: DraftValues) =>
       })),
     }),
   });
+
+export async function downloadDatabaseBackup() {
+  const response = await fetch(`${env.apiUrl}/api/system-settings/backups/run`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string }
+      | null;
+    throw new Error(payload?.message ?? "The database backup could not be created.");
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const quotedName = disposition.match(/filename="([^"]+)"/i)?.[1];
+  const filename = encodedName
+    ? decodeURIComponent(encodedName)
+    : quotedName || `trackcoop-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.sql`;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 export const object = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v)
     ? (v as Record<string, unknown>)

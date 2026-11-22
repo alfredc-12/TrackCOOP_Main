@@ -13,14 +13,15 @@ import styles from "./DemographicsMap.module.css";
 
 const number = (value: number) => value.toLocaleString("en-PH");
 
-type GeographicAnalytics = Pick<BarangayMembers, "barangay" | "municipality" | "province"> & { trueMembers: number; associates: number; engagementCounts: Record<string, number>; newApprovals: number; change: number };
+type GeographicAnalytics = Pick<BarangayMembers, "barangay" | "municipality" | "province" | "occupationCounts"> & { trueMembers: number; associates: number; engagementCounts: Record<string, number>; newApprovals: number; change: number };
 function BarangayInfo({ area, detail, expanded = false }: { area: BarangayArea; detail?: GeographicAnalytics; expanded?: boolean }) {
+  const occupationCounts = detail?.occupationCounts ?? area.occupationCounts ?? {};
   return <div className={styles.info}>
     <h3>{area.label}</h3>
     <dl>
       <div className={styles.total}><dt>Total members</dt><dd>{number(area.totalMembers)}</dd></div>
       {detail && <><div><dt>True Members</dt><dd>{number(detail.trueMembers)}</dd></div><div><dt>Associates</dt><dd>{number(detail.associates)}</dd></div></>}
-      {area.sectorCounts.map((sector) => <div key={sector.sector}><dt>{sector.sector}</dt><dd>{number(sector.count)}</dd></div>)}
+      {Object.entries(occupationCounts).filter(([, count]) => count > 0).map(([occupation, count]) => <div key={`occupation-${occupation}`}><dt>{occupation}</dt><dd>{number(count)}</dd></div>)}
       {detail && expanded && <><div><dt>New approvals in period</dt><dd>{number(detail.newApprovals)}</dd></div><div><dt>Yearly member change</dt><dd>{detail.change > 0 ? "+" : ""}{number(detail.change)}</dd></div>{Object.entries(detail.engagementCounts).map(([label, count]) => <div key={label}><dt>{label}</dt><dd>{number(count)}</dd></div>)}</>}
     </dl>
     {!area.totalMembers && <p>No member records in the current results.</p>}
@@ -124,6 +125,7 @@ export default function DemographicsMap({ demographics, analytics, memberLink, h
       details.set(id, previous ? { ...row,
         trueMembers: previous.trueMembers + row.trueMembers, associates: previous.associates + row.associates,
         newApprovals: previous.newApprovals + row.newApprovals, change: previous.change + row.change,
+        occupationCounts: Object.fromEntries([...new Set([...Object.keys(previous.occupationCounts ?? {}), ...Object.keys(row.occupationCounts ?? {})])].map(key => [key, (previous.occupationCounts?.[key] ?? 0) + (row.occupationCounts?.[key] ?? 0)])),
         engagementCounts: Object.fromEntries([...new Set([...Object.keys(previous.engagementCounts), ...Object.keys(row.engagementCounts)])].map(key => [key, (previous.engagementCounts[key] ?? 0) + (row.engagementCounts[key] ?? 0)])),
       } : row);
     }
@@ -173,7 +175,7 @@ export default function DemographicsMap({ demographics, analytics, memberLink, h
       <MapContainer ref={mapRef} bounds={bounds} boundsOptions={{ paddingTopLeft: [24, 72], paddingBottomRight: [24, 112] }} scrollWheelZoom={false} zoomControl={false} zoomSnap={0.25} className={styles.canvas}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' opacity={0.65} />
         <ZoomControl position="bottomright" />
-        {model.areas.map((area) => <BarangayPolygon key={area.id} area={area} fill={barangayFill(area.totalMembers, model.bins)} register={register} detail={analytics ? analyticsByArea.get(area.id) ?? { barangay: area.barangay, trueMembers: 0, associates: 0, engagementCounts: {}, newApprovals: 0, change: 0 } : undefined} memberLink={memberLink} dimmed={Boolean(legendRange && (area.totalMembers < legendRange.min || area.totalMembers > legendRange.max))} highlighted={area.id === highlightedId} />)}
+      {model.areas.map((area) => <BarangayPolygon key={area.id} area={area} fill={barangayFill(area.totalMembers, model.bins)} register={register} detail={analytics ? analyticsByArea.get(area.id) ?? { barangay: area.barangay, trueMembers: 0, associates: 0, occupationCounts: {}, engagementCounts: {}, newApprovals: 0, change: 0 } : undefined} memberLink={memberLink} dimmed={Boolean(legendRange && (area.totalMembers < legendRange.min || area.totalMembers > legendRange.max))} highlighted={area.id === highlightedId} />)}
       </MapContainer>
 
       <div className={styles.controls}>

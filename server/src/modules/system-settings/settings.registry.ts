@@ -58,6 +58,8 @@ const percentage = z
     "Use at most two decimal places.",
   );
 const whole = z.number().int().positive().max(87600);
+const backupIntervalHours = z.number().int().min(1).max(8760);
+const backupRetentionDays = z.number().int().min(1).max(3650);
 const score = z.number().int().min(1).max(5);
 const thresholds = z
   .object({
@@ -143,6 +145,11 @@ export const categories = [
     id: "inventory",
     label: "Inventory Controls",
     help: "Stock safeguards enforced by the system.",
+  },
+  {
+    id: "backups",
+    label: "Database Backups",
+    help: "Control the optional server-side database backup schedule.",
   },
 ];
 export const definitions: SettingDefinition[] = [
@@ -375,6 +382,41 @@ export const definitions: SettingDefinition[] = [
     fallback: [...HIGH_VALUE_CROP_NAMES_FALLBACK],
     editable: true,
     schema: cropList,
+  },
+  {
+    key: "backups.enabled",
+    category: "backups",
+    group: "backups",
+    label: "Automatic database backups",
+    help: "When enabled, the server creates timestamped MySQL database dumps on the configured schedule. Uploaded files and media are not included.",
+    kind: "boolean",
+    fallback: false,
+    editable: true,
+    schema: z.boolean(),
+  },
+  {
+    key: "backups.interval_hours",
+    category: "backups",
+    group: "backups",
+    label: "Backup interval",
+    help: "How often the server should create a database backup. Changes apply to the running scheduler after saving.",
+    kind: "number",
+    unit: "hours",
+    fallback: 24,
+    editable: true,
+    schema: backupIntervalHours,
+  },
+  {
+    key: "backups.retention_days",
+    category: "backups",
+    group: "backups",
+    label: "Backup retention",
+    help: "Backups older than this number of days are removed from the configured server backup directory. Keep that directory protected and separate from the application source.",
+    kind: "number",
+    unit: "days",
+    fallback: 14,
+    editable: true,
+    schema: backupRetentionDays,
   },
 ];
 export const byKey = new Map(definitions.map((d) => [d.key, d]));

@@ -70,6 +70,19 @@ export type DemographicData = {
   sectorCounts?: { sector: string; count: number }[];
 };
 
+export type DemographicDistribution = {
+  label: string;
+  count: number;
+};
+
+export type MemberDemographicProfile = {
+  withDateOfBirth: number;
+  withoutDateOfBirth: number;
+  ageBands: DemographicDistribution[];
+  civilStatuses: DemographicDistribution[];
+  occupations: DemographicDistribution[];
+};
+
 export type InventoryAlert = {
   productId: string;
   productName: string;
@@ -158,6 +171,7 @@ export interface ChairmanDashboardData {
   membershipTrend: { month: string, members: number }[];
   incomeSources: IncomeSource[];
   demographics: DemographicData[];
+  demographicProfile: MemberDemographicProfile;
   operationsSnapshot: OperationsSnapshot;
   productShopAnalytics: ProductShopAnalytics;
   referralAnalytics: ReferralAnalytics;

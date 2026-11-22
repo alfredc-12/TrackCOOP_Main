@@ -63,6 +63,23 @@ test("patronage policy follows share capital and validates its surplus allocatio
   assert.equal(validateValue(memberRate, 4.25), 4.25);
   for (const invalid of [0, -1, 100.01, 3.125, NaN]) assert.throws(() => validateValue(memberRate, invalid));
 });
+test("database backup settings expose only bounded scheduler controls", () => {
+  assert.equal(
+    categories[categories.length - 1].id,
+    "backups",
+  );
+  const enabled = byKey.get("backups.enabled")!,
+    interval = byKey.get("backups.interval_hours")!,
+    retention = byKey.get("backups.retention_days")!;
+  assert.equal(enabled.editable, true);
+  assert.equal(interval.fallback, 24);
+  assert.equal(retention.fallback, 14);
+  assert.equal(validateValue(enabled, true), true);
+  assert.equal(validateValue(interval, 12), 12);
+  assert.equal(validateValue(retention, 30), 30);
+  assert.throws(() => validateValue(interval, 0));
+  assert.throws(() => validateValue(retention, 3651));
+});
 test("unapproved referral rewards are read-only; historical stored values remain readable", () => {
  const d=byKey.get("referrals.reward_policy")!;
  assert.equal(d.editable,false);

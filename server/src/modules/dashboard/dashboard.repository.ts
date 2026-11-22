@@ -6,6 +6,7 @@ import type {
   ChairmanDashboardData,
   DashboardFilters,
   InventoryAlert,
+  MemberDemographicProfile,
   ProductShopAnalytics,
 } from "./dashboard.types";
 import { getFinancialTransparency } from "../finance/financial-transparency";
@@ -381,6 +382,72 @@ export class DashboardRepository {
       demographicMap.set(locationKey, current);
     }
 
+    // Demographic profile is sourced from approved member records and the
+    // converted membership application so existing member data is not duplicated.
+    const demographicProfileWhere = ["m.approval_status = 'Approved'"];
+    const demographicProfileParams: Array<string | number> = [];
+    if (filters.barangay) {
+      demographicProfileWhere.push("m.barangay = ?");
+      demographicProfileParams.push(filters.barangay);
+    }
+    if (filters.memberType) {
+      demographicProfileWhere.push("m.membership_type = ?");
+      demographicProfileParams.push(filters.memberType);
+    }
+    const latestApplicationJoin = `LEFT JOIN membership_applications a
+      ON a.membership_application_id = (
+        SELECT latest.membership_application_id
+          FROM membership_applications latest
+         WHERE latest.converted_member_id = m.member_id
+         ORDER BY latest.membership_application_id DESC
+         LIMIT 1
+      )`;
+    const profileQuery = (select: string, groupBy: string, orderBy = "count DESC") =>
+      pool.query<RowDataPacket[]>(
+        `SELECT ${select}, COUNT(*) AS count
+           FROM member_profiles m
+           ${latestApplicationJoin}
+          WHERE ${demographicProfileWhere.join(" AND ")}
+          GROUP BY ${groupBy}
+          ORDER BY ${orderBy}`,
+        demographicProfileParams,
+      ).catch(() => [[] as RowDataPacket[]]);
+
+    const [[ageRows], [civilStatusRows], [occupationRows]] = await Promise.all([
+      profileQuery(
+        `CASE
+           WHEN a.date_of_birth IS NULL THEN 'Not recorded'
+           WHEN TIMESTAMPDIFF(YEAR, a.date_of_birth, CURRENT_DATE()) < 18 THEN 'Under 18'
+           WHEN TIMESTAMPDIFF(YEAR, a.date_of_birth, CURRENT_DATE()) < 30 THEN '18-29'
+           WHEN TIMESTAMPDIFF(YEAR, a.date_of_birth, CURRENT_DATE()) < 45 THEN '30-44'
+           WHEN TIMESTAMPDIFF(YEAR, a.date_of_birth, CURRENT_DATE()) < 60 THEN '45-59'
+           ELSE '60+'
+         END AS label`,
+        "label",
+      ),
+      profileQuery(
+        `COALESCE(NULLIF(TRIM(a.civil_status), ''), 'Not recorded') AS label`,
+        "label",
+      ),
+      profileQuery(
+        `COALESCE(NULLIF(TRIM(a.occupation), ''), 'Not recorded') AS label`,
+        "label",
+      ),
+    ]);
+    const toDistribution = (rows: RowDataPacket[]) => rows.map((row) => ({
+      label: String(row.label),
+      count: numberValue(row.count),
+    }));
+    const ageBands = toDistribution(ageRows);
+    const withoutDateOfBirth = ageBands.find((row) => row.label === "Not recorded")?.count ?? 0;
+    const demographicProfile: MemberDemographicProfile = {
+      withDateOfBirth: Math.max(0, numberValue(memberStats.total) - withoutDateOfBirth),
+      withoutDateOfBirth,
+      ageBands,
+      civilStatuses: toDistribution(civilStatusRows),
+      occupations: toDistribution(occupationRows).slice(0, 8),
+    };
+
     const referralDateFilter = getDateFilter(period, "r.created_at");
     const referralWhere = ["1 = 1"];
     if (referralDateFilter.clause) {
@@ -616,6 +683,7 @@ export class DashboardRepository {
           sectorCounts: row.sectorCounts.sort((a, b) => b.count - a.count),
         }))
         .sort((a, b) => b.totalMembers - a.totalMembers),
+      demographicProfile,
       operationsSnapshot: {
         pos: { totalSales: totalPosSales, transactions: posTransactions, productsSold },
         rental: {

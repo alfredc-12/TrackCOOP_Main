@@ -16,6 +16,7 @@ import type {
 
 type MemberProfileRow = RowDataPacket & {
   member_id: number | string;
+  full_name?: string | null;
   membership_type?: string;
   member_code?: string | null;
   referral_code?: string | null;
@@ -386,7 +387,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       let members: MemberProfileRow[];
       try {
         [members] = await databasePool().execute<MemberProfileRow[]>(
-          `SELECT member_id, membership_type, member_code, referral_code, application_date, approved_at, true_member_since, created_at,
+          `SELECT member_id, full_name, membership_type, member_code, referral_code, application_date, approved_at, true_member_since, created_at,
                   share_capital_deadline, contact_number, email, barangay, municipality, province, sector
              FROM member_profiles
             WHERE user_id = ?`,
@@ -395,7 +396,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
       } catch {
         // Keep the dashboard available while the referral migration is still pending.
         [members] = await databasePool().execute<MemberProfileRow[]>(
-          `SELECT member_id, membership_type, member_code, application_date, approved_at, true_member_since, created_at,
+          `SELECT member_id, full_name, membership_type, member_code, application_date, approved_at, true_member_since, created_at,
                   share_capital_deadline, contact_number, email, barangay, municipality, province, sector
              FROM member_profiles
             WHERE user_id = ?`,
@@ -701,6 +702,7 @@ export function createMemberSelfRepository(pool?: Pool): MemberSelfRepository {
           items: referralItems,
         },
         member: {
+          fullName: member.full_name,
           membershipType: member.membership_type,
           occupation: memberProfile.occupation,
           livelihoods: memberProfile.livelihoods,

@@ -14,6 +14,8 @@ import {
   WalletCards,
   Sprout,
   HandCoins,
+  Database,
+  Download,
 } from "lucide-react";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +27,7 @@ import { SettingControl } from "./SettingControl";
 import {
   getSettingsCatalog,
   saveSettings,
+  downloadDatabaseBackup,
   describeValue,
   draftError,
   type SettingsCatalog,
@@ -39,6 +42,7 @@ const icons = {
   referrals: Gift,
   indicators: Activity,
   inventory: Boxes,
+  backups: Database,
 };
 export function SystemSettingsClient() {
   const [resource, setResource] = useState<{
@@ -51,6 +55,7 @@ export function SystemSettingsClient() {
     [touched, setTouched] = useState<string[]>([]),
     [category, setCategory] = useState("membership"),
     [saving, setSaving] = useState(false),
+    [backupBusy, setBackupBusy] = useState(false),
     [confirm, setConfirm] = useState<"save" | "refresh" | null>(null),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
@@ -127,6 +132,26 @@ export function SystemSettingsClient() {
     }));
     setTouched((t) => t.filter((key) => !selected.some((s) => s.key === key)));
     setError("");
+  };
+  const backupNow = async () => {
+    if (backupBusy || saving) return;
+    setBackupBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await downloadDatabaseBackup();
+      setMessage(
+        "Backup created and downloaded. If object storage is configured, a copy was saved there too.",
+      );
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "The database backup could not be created.",
+      );
+    } finally {
+      setBackupBusy(false);
+    }
   };
   async function apply() {
     if (confirm === "refresh") {
@@ -337,6 +362,28 @@ export function SystemSettingsClient() {
                       </div>
                     </section>
                   ))}
+                  {category === "backups" && (
+                    <div className={styles.backupAction}>
+                      <div>
+                        <h3>Manual backup</h3>
+                        <p className={styles.help}>
+                          Create a fresh SQL copy now and download it. This works
+                          even when automatic scheduling is disabled.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={backupBusy}
+                        loadingLabel="Creating backup..."
+                        disabled={saving}
+                        onClick={() => void backupNow()}
+                      >
+                        <Download className="size-4" aria-hidden="true" />
+                        Back up now
+                      </Button>
+                    </div>
+                  )}
                   {selected.some((s) => s.editable) && (
                     <div className={styles.saveBar}>
                       <p className={styles.hint}>

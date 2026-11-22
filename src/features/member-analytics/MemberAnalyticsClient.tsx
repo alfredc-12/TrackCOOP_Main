@@ -24,6 +24,15 @@ const capitalShortLabels: Record<string, string> = {
 function Panel({ title, description, action, children, available = true, icon: Icon, tone = "neutral" }: { title: string; description: string; action?: ReactNode; children: ReactNode; available?: boolean; icon?: LucideIcon; tone?: AnalyticsTone }) {
   return <section className={styles.panel}><header className={styles.panelHeader}><div className={styles.panelHeading}>{Icon && <span className={styles.sectionIcon} data-tone={tone}><Icon aria-hidden="true" className="size-5" /></span>}<div><h2>{title}</h2><p>{description}</p></div></div>{action}</header><div className={styles.body}>{available ? children : <p className={styles.notice}>This analysis is unavailable because a required source table is missing. Open Definitions & coverage for the exact source gap. Missing data is not zero.</p>}</div></section>;
 }
+function DemographicList({ title, description, rows, total, columns = false }: { title: string; description?: string; rows: Array<{ label: string; count: number }>; total: number; columns?: boolean }) {
+  return <div className="h-fit self-start rounded-lg border border-[#DDE8D8] bg-[#F8FAF7] p-3">
+    <div className="flex items-start justify-between gap-3">
+      <div><h3 className="text-sm font-bold text-[#123D2A]">{title}</h3>{description && <p className="mt-0.5 text-[11px] leading-4 text-coop-muted">{description}</p>}</div>
+      <span className="shrink-0 rounded-full bg-[#EAF3E8] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[#365F4A]">{n(rows.length)} categories</span>
+    </div>
+    <div className={`mt-3 ${columns ? "grid gap-x-5 gap-y-2 sm:grid-cols-3" : "space-y-2"}`}>{rows.length ? rows.map(row => <div key={row.label} className="flex items-center justify-between gap-3 text-xs"><span className="min-w-0 text-[#5D6D63]">{row.label}</span><strong className="shrink-0 tabular-nums text-[#123D2A]">{n(row.count)} <span className="font-normal text-[#6C7A70]">({percent(total ? row.count / total * 100 : null)})</span></strong></div>) : <p className="text-xs text-[#6C7A70]">No recorded data.</p>}</div>
+  </div>;
+}
 function InsightRow({ insight, tone, action }: { insight: AnalyticsResult["insights"][number]; tone: AnalyticsTone; action: ReactNode }) {
   const Icon = signalIcons[tone];
   return <article className={styles.insight}><div className={styles.insightHeading}><span className={styles.insightIcon} data-tone={tone}><Icon aria-hidden="true" className="size-4" /></span><div className="min-w-0"><h3>{insight.title}</h3><p>{insight.detail}</p><p className="text-coop-muted">{insight.formula} {insight.caveat}</p></div></div>{action}</article>;
@@ -58,6 +67,7 @@ function AnalyticsWorkspace({ today, initial }: { today: string; initial: Analyt
   const chartOpen = (kind: Exclude<AnalyticsOverlay, null>["kind"], value?: string) => { returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setOverlay({ kind, value }); };
   const management = (label: string, selection: AnalyticsSelection = {}) => <Link className={styles.textAction} href={analyticsMemberLink(applied, selection)}>{label}<ArrowUpRight className="size-4" aria-hidden="true" /></Link>;
   const exportReport = async () => { setExporting(true); try { await downloadAnalytics(applied); } catch (e) { setError(e instanceof Error ? e.message : "Export failed."); } finally { setExporting(false); } };
+  const mappedMemberCount = data ? (data.mapGeography ?? data.geography).reduce((total, row) => total + row.totalMembers, 0) : 0;
   const groupedGrowth = new Map<string, AnalyticsResult["growth"][number]>();
   for (const g of data?.growth ?? []) {
     const key = interval === "Yearly" ? g.month.slice(0, 4) : interval === "Quarterly" ? `${g.month.slice(0, 4)} Q${Math.ceil(Number(g.month.slice(5, 7)) / 3)}` : g.month;
@@ -112,6 +122,18 @@ function AnalyticsWorkspace({ today, initial }: { today: string; initial: Analyt
       </div>
       <Panel icon={MapPinned} title="Members across Batangas" description="Recorded membership across all Batangas barangay boundaries" action={action("Compare Barangays & Sectors", "matrix")}>
         <DemographicsMap demographics={(data.mapGeography ?? data.geography).map(g => ({ ...g, sectorCounts: Object.entries(g.sectorCounts).map(([sector, count]) => ({ sector, count })) }))} analytics={data.mapGeography ?? data.geography} memberLink={barangay => analyticsMemberLink(applied, { kind: "barangay", value: barangay })} highlightBarangay={mapHighlight} />
+        <div className="mt-5 border-t border-[#EEF2EC] pt-5">
+          <h3 className="text-lg font-bold text-[#123D2A]">Member demographic profile</h3>
+          <p className="mt-1 text-sm text-coop-muted">Based on {n(data.population)} filtered approved members. This profile is for the full filtered population, not only the barangay selected on the map.</p>
+          <div className="mt-4 grid items-start gap-3 sm:grid-cols-2">
+            <DemographicList title="Age group" rows={data.demographicProfile.ageBands} total={data.population} />
+            <DemographicList title="Civil status" rows={data.demographicProfile.civilStatuses} total={data.population} />
+            <div className="sm:col-span-2">
+              <DemographicList title="Occupation" description="Members may have more than one recorded occupation." rows={data.demographicProfile.occupations} total={data.population} columns />
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-coop-muted">Date of birth recorded for {n(data.demographicProfile.withDateOfBirth)} members; {n(data.demographicProfile.withoutDateOfBirth)} members have no date of birth recorded. The map currently has {n(mappedMemberCount)} members matched to barangay boundaries; the remaining {n(Math.max(0, data.population - mappedMemberCount))} may have no matching map boundary.</p>
+        </div>
       </Panel>
       <div className={styles.twoColumns}>
         <Panel icon={ChartColumnIncreasing} tone="good" available={data.availability.recruitment} title="Recruitment performance" description="Actual approvals · strongest recorded periods" action={action("Details & journey", "recruitment")}>

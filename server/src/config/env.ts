@@ -124,6 +124,8 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: optionalTrimmedString,
   S3_FORCE_PATH_STYLE: booleanString.default(false),
   S3_PUBLIC_BASE_URL: optionalTrimmedString,
+  BACKUP_S3_BUCKET: optionalTrimmedString,
+  BACKUP_S3_PREFIX: z.string().trim().min(1).max(200).default("database-backups"),
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   AUTH_LOGIN_RATE_LIMIT: z.coerce.number().int().min(1).max(100).default(10),

@@ -1135,6 +1135,18 @@ export default function MemberDashboardPage() {
       <main className="flex-1">
         <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${activeTab === "Dashboard" || activeTab === "Financial" || activeTab === "Member & Share" || activeTab === "Rental" || activeTab === "Store" || activeTab === "Profile" ? "py-3" : "py-8"}`}>
 
+          {dashboardData?.isLinked !== false && dashboardData?.member?.fullName ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#DDE8D8] bg-white px-4 py-3 shadow-sm sm:px-5" aria-label="Current member">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6C7A70]">Member dashboard</p>
+                <p className="truncate text-base font-bold text-[#173626] sm:text-lg">{dashboardData.member.fullName}</p>
+              </div>
+              <span className="rounded-full bg-[#EDF6EE] px-3 py-1 text-xs font-semibold text-[#1F6B43]">
+                {dashboardData.member.code || "Member"} · {membershipLabel}
+              </span>
+            </div>
+          ) : null}
+
           {/* ======================= DASHBOARD TAB ======================= */}
           {activeTab === "Dashboard" && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1155,7 +1167,7 @@ export default function MemberDashboardPage() {
                     <div className={`grid items-center ${isAssociate ? "gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-10" : "gap-5 md:grid-cols-[1fr_20rem]"}`}>
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2F7D57]">My cooperative</p>
-                        <h1 id="member-dashboard-heading" className="mt-2 text-2xl font-bold tracking-tight text-[#173626] sm:text-3xl">Welcome back, {user?.displayName?.split(" ")[0] || "Member"}</h1>
+                        <h1 id="member-dashboard-heading" className="mt-2 text-2xl font-bold tracking-tight text-[#173626] sm:text-3xl">Welcome back, {dashboardData?.member?.fullName || user?.displayName || "Member"}</h1>
                         <div className={`flex flex-wrap items-center ${isAssociate ? "mt-4 gap-2" : "mt-3 gap-3"}`}>
                           <span className="rounded-full border border-[#CFE2D1] bg-[#EDF6EE] px-3 py-1 text-sm font-bold text-coop-forest">{membershipLabel}</span>
                           {isAssociate && <TrueMembershipApplication open={upgradeOpen} onOpenChange={setUpgradeOpen} onStatus={setUpgradeStatus} />}

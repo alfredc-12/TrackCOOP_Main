@@ -1,5 +1,5 @@
 import { addDays, capitalStages, daysBetween, localDate, normalizeBarangay } from "./member-analytics.filters";
-import { ANALYTICS_SECTORS, ENGAGEMENT_LABELS, type AnalyticsFilters, type AnalyticsIndicator, type AnalyticsMember, type AnalyticsResult, type AnalyticsSelection, type AnalyticsSources } from "./member-analytics.types";
+import { ANALYTICS_OCCUPATIONS, ANALYTICS_SECTORS, ENGAGEMENT_LABELS, type AnalyticsApplication, type AnalyticsFilters, type AnalyticsIndicator, type AnalyticsMember, type AnalyticsResult, type AnalyticsSelection, type AnalyticsSources } from "./member-analytics.types";
 import { NASUGBU_BARANGAYS } from "./nasugbu-barangays";
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
@@ -80,6 +80,45 @@ export function createAnalyticsEngine(source: AnalyticsSources, filters: Analyti
     (!filters.capitalStage || m.capital.stage === filters.capitalStage) &&
     (!filters.source || (appByMember.get(m.id) ?? []).some(a => a.source === filters.source)));
   const members = population(filters.asOf);
+  const demographicApplications = (member: AnalyticsMember) => (appByMember.get(member.id) ?? [])
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  const ageBand = (dateOfBirth: string | null | undefined) => {
+    if (!dateOfBirth) return "Not recorded";
+    const birth = new Date(`${dateOfBirth}T00:00:00Z`);
+    const reference = new Date(`${filters.asOf}T00:00:00Z`);
+    if (Number.isNaN(birth.getTime()) || birth > reference) return "Not recorded";
+    let age = reference.getUTCFullYear() - birth.getUTCFullYear();
+    const beforeBirthday = reference.getUTCMonth() < birth.getUTCMonth() || (reference.getUTCMonth() === birth.getUTCMonth() && reference.getUTCDate() < birth.getUTCDate());
+    if (beforeBirthday) age--;
+    if (age < 18) return "Under 18";
+    if (age < 30) return "18-29";
+    if (age < 45) return "30-44";
+    if (age < 60) return "45-59";
+    return "60+";
+  };
+  const distribution = (values: string[], preferredOrder: string[] = []) => [...grouped(values.filter(Boolean), value => value).entries()]
+    .map(([label, rows]) => ({ label, count: rows.length }))
+    .sort((a, b) => {
+      const first = preferredOrder.indexOf(a.label), second = preferredOrder.indexOf(b.label);
+      if (first !== -1 || second !== -1) return (first === -1 ? preferredOrder.length : first) - (second === -1 ? preferredOrder.length : second);
+      return b.count - a.count || a.label.localeCompare(b.label);
+    });
+  const applicationValue = (applications: AnalyticsApplication[], field: "dateOfBirth" | "civilStatus" | "occupation") => applications.find(application => Boolean(application[field]))?.[field] ?? null;
+  const occupationText = (member: AnalyticsMember) => member.occupation?.trim() || applicationValue(demographicApplications(member), "occupation");
+  const occupationTokens = (member: AnalyticsMember) => String(occupationText(member) || "").split(";").map(value => value.trim()).filter(Boolean);
+  const occupationCountsFor = (rows: AnalyticsMember[]) => Object.fromEntries([
+    ...ANALYTICS_OCCUPATIONS.map(label => [label, rows.filter(member => occupationTokens(member).includes(label)).length] as const),
+    ["Other occupation", rows.filter(member => occupationTokens(member).some(value => !(ANALYTICS_OCCUPATIONS as readonly string[]).includes(value))).length] as const,
+  ]);
+  const demographicRows = members.map(member => ({ member, applications: demographicApplications(member) }));
+  const demographicValue = (row: typeof demographicRows[number], field: "dateOfBirth" | "civilStatus" | "occupation") => field === "occupation" ? row.member.occupation?.trim() || applicationValue(row.applications, field) : applicationValue(row.applications, field);
+  const demographicProfile = {
+    withDateOfBirth: demographicRows.filter(row => Boolean(demographicValue(row, "dateOfBirth"))).length,
+    withoutDateOfBirth: demographicRows.filter(row => !demographicValue(row, "dateOfBirth")).length,
+    ageBands: distribution(demographicRows.map(row => ageBand(demographicValue(row, "dateOfBirth"))), ["Under 18", "18-29", "30-44", "45-59", "60+", "Not recorded"]),
+    civilStatuses: distribution(demographicRows.map(row => String(demographicValue(row, "civilStatus") || "Not recorded").trim())),
+    occupations: Object.entries(occupationCountsFor(members)).map(([label, count]) => ({ label, count })),
+  };
   type SnapshotMember = typeof members[number];
   const before = population(addDays(filters.start, -1));
   const atEnd = population(filters.end);
@@ -144,7 +183,8 @@ export function createAnalyticsEngine(source: AnalyticsSources, filters: Analyti
     const rows = members.filter(m => normalizeBarangay(m.barangay || "Unspecified") === normalizeBarangay(barangay));
     const previous = priorMembers.filter(m => normalizeBarangay(m.barangay || "Unspecified") === normalizeBarangay(barangay));
     return { barangay, totalMembers: rows.length, trueMembers: rows.filter(m => m.membershipType === "True Member").length, associates: rows.filter(m => m.membershipType === "Associate").length,
-      sectorCounts: Object.fromEntries(ANALYTICS_SECTORS.map(s => [s, rows.filter(m => m.sector === s).length])),
+       sectorCounts: Object.fromEntries(ANALYTICS_SECTORS.map(s => [s, rows.filter(m => m.sector === s).length])),
+       occupationCounts: occupationCountsFor(rows),
       engagementCounts: Object.fromEntries(ENGAGEMENT_LABELS.map(s => [s, rows.filter(m => m.engagement === s).length])),
       newApprovals: rows.filter(periodApproval).length, previousMembers: previous.length, change: rows.length - previous.length,
       cells: ANALYTICS_SECTORS.map(sector => { const cell = rows.filter(m => m.sector === sector); return { sector, members: cell.length, newApprovals: cell.filter(periodApproval).length, engaged: cell.filter(m => m.engagement === "Active").length, change: cell.length - previous.filter(m => m.sector === sector).length, periodChange: cell.length - before.filter(m => m.sector === sector && normalizeBarangay(m.barangay || "Unspecified") === normalizeBarangay(barangay)).length }; }) };
@@ -162,7 +202,8 @@ export function createAnalyticsEngine(source: AnalyticsSources, filters: Analyti
     return { barangay: location.barangay || "Unspecified", municipality: location.municipality, province: location.province,
       totalMembers: rows.length, trueMembers: rows.filter(m => m.membershipType === "True Member").length,
       associates: rows.filter(m => m.membershipType === "Associate").length,
-      sectorCounts: Object.fromEntries(ANALYTICS_SECTORS.map(s => [s, rows.filter(m => m.sector === s).length])),
+       sectorCounts: Object.fromEntries(ANALYTICS_SECTORS.map(s => [s, rows.filter(m => m.sector === s).length])),
+       occupationCounts: occupationCountsFor(rows),
       engagementCounts: Object.fromEntries(ENGAGEMENT_LABELS.map(s => [s, rows.filter(m => m.engagement === s).length])),
       newApprovals: rows.filter(periodApproval).length, change: rows.length - previous.length };
   });
@@ -240,6 +281,7 @@ export function createAnalyticsEngine(source: AnalyticsSources, filters: Analyti
       provisional: members.filter(m => m.membershipType === "Associate" && provisional(m)).length, reconciled: members.filter(m => m.capital.known).length, unknown: members.filter(m => !m.capital.known).length,
       completions: monthList.map(month => ({ month, count: members.filter(m => (m.membershipType === "True Member" || provisional(m)) && completionDate(m)?.startsWith(month) && completionDate(m)! >= filters.start && completionDate(m)! <= filters.end).length })), medianDays: stats.median, averageDays: stats.average },
     unassignedSectorCount: members.filter(m=>!m.selectedSectors?.length && !m.sector).length,
+    demographicProfile,
     sectors: ANALYTICS_SECTORS.map(name => ({ name, count: members.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(name)).length })), geography, mapGeography,
     sectorDetails: ANALYTICS_SECTORS.map(sector => { const rows = members.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(sector)), previous = priorMembers.filter(m => (m.selectedSectors?.length ? m.selectedSectors : [m.sector]).includes(sector)), sectorEligible = rows.filter(m => m.membershipType === "True Member"); const sectorComplete = sectorEligible.filter(m => m.capital.known && m.capital.balance >= source.settings.target); return { sector, members: rows.length, newApprovals: rows.filter(periodApproval).length, previousMembers: previous.length, change: rows.length - previous.length,
       engagement: ENGAGEMENT_LABELS.map(name => ({ name, count: rows.filter(m => m.engagement === name).length })), eligibleCapital: sectorEligible.length, completedCapital: sectorComplete.length, completionRate: sectorEligible.some(m => !m.capital.known) ? null : rate(sectorComplete.length, sectorEligible.length), recruitment: monthList.map(month => ({ month, count: rows.filter(m => periodApproval(m) && m.approved!.startsWith(month)).length })) }; }),

@@ -127,6 +127,28 @@ function SectionHeader({ title, subtitle, href, hrefLabel = "View All", icon: Ic
   );
 }
 
+function DistributionList({ title, rows }: { title: string; rows: { label: string; count: number }[] }) {
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  return (
+    <div className="rounded-xl border border-[#DDE8D8] bg-[#FBFCF9] p-3">
+      <h3 className="text-xs font-bold text-[#123D2A]">{title}</h3>
+      <div className="mt-3 space-y-2">
+        {rows.length ? rows.map((row) => (
+          <div key={`${title}-${row.label}`}>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="truncate text-[#5D6D63]">{row.label}</span>
+              <span className="shrink-0 font-bold text-[#123D2A]">{formatNumber(row.count)} <span className="font-medium text-[#8A988E]">({total ? Math.round((row.count / total) * 100) : 0}%)</span></span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#EAF0E9]">
+              <div className="h-full rounded-full bg-[#1F6B43]" style={{ width: `${total ? Math.max(3, (row.count / total) * 100) : 0}%` }} />
+            </div>
+          </div>
+        )) : <p className="text-xs text-[#6C7A70]">No recorded data yet.</p>}
+      </div>
+    </div>
+  );
+}
+
 const PERIOD_OPTIONS = [
   { value: "all", label: "All Time" },
   { value: "today", label: "Today" },
@@ -223,6 +245,31 @@ function getPresentationDashboardData(filters: DashboardFilters): ChairmanDashbo
       { source: "Equipment Rental", amount: 183500, pct: 30 },
     ],
     demographics,
+    demographicProfile: {
+      withDateOfBirth: 231,
+      withoutDateOfBirth: 18,
+      ageBands: [
+        { label: "30-44", count: 82 },
+        { label: "45-59", count: 76 },
+        { label: "60+", count: 54 },
+        { label: "18-29", count: 19 },
+        { label: "Not recorded", count: 18 },
+      ],
+      civilStatuses: [
+        { label: "Married", count: 142 },
+        { label: "Single", count: 81 },
+        { label: "Widowed", count: 8 },
+        { label: "Separated", count: 2 },
+        { label: "Not recorded", count: 16 },
+      ],
+      occupations: [
+        { label: "Farmer", count: 126 },
+        { label: "Fisherfolk", count: 54 },
+        { label: "Livestock raiser", count: 31 },
+        { label: "Other", count: 20 },
+        { label: "Not recorded", count: 18 },
+      ],
+    },
     operationsSnapshot: {
       pos: { totalSales: 428750, transactions: 386, productsSold: 712 },
       rental: { totalIncome: 183500, completed: 41, pending: 9, upcoming: 14 },
@@ -447,6 +494,13 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
   const memberHealth = { active: h.active ?? 0, needsMonitoring: h.needsMonitoring ?? 0, inactive: h.inactive ?? 0 };
   const revenueTrend = d.revenueTrend || [];
   const demographics = d.demographics || [];
+  const demographicProfile = d.demographicProfile || {
+    withDateOfBirth: 0,
+    withoutDateOfBirth: 0,
+    ageBands: [],
+    civilStatuses: [],
+    occupations: [],
+  };
   const actionItems = d.actionItems || [];
   const sp = d.shareCapitalProgress;
   const shareCapitalProgress = { reachedMinimum: sp.reachedMinimum ?? 0, belowMinimum: sp.belowMinimum ?? 0, contributingMembers: sp.contributingMembers ?? 0, reachedMaximum: sp.reachedMaximum ?? 0, totalMembers: sp.totalMembers ?? 0 };
@@ -920,8 +974,8 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
 
           {/* Barangay map: the supplied polygons carry all local member details. */}
           <section className="min-w-0 rounded-xl border border-[#D5E0D5] bg-white p-4 shadow-[0_4px_12px_rgba(18,61,42,0.06)] sm:p-5">
-            <SectionHeader title="Barangay Recruitment Analytics" />
-            <p className="mt-1 text-sm leading-6 text-[var(--portal-muted)]">Recorded member counts across all Batangas barangays.</p>
+            <SectionHeader title="Members across Batangas" />
+            <p className="mt-1 text-sm leading-6 text-[var(--portal-muted)]">Recorded membership across all Batangas barangay boundaries.</p>
             <div className="mt-4"><DemographicsMap demographics={demographics} /></div>
             <details className="mt-4 rounded-lg bg-[var(--portal-field)] p-3 sm:p-4">
               <summary className="cursor-pointer text-sm font-semibold text-[var(--portal-forest)]">Recruitment insights</summary>
@@ -973,6 +1027,18 @@ export function DashboardClient({ mode = "member" }: { mode?: "member" | "financ
                   </div>
               </div>
             </details>
+            <div className="mt-5 border-t border-[#EEF2EC] pt-5">
+              <SectionHeader title="Member demographic profile" />
+              <p className="mt-1 text-sm leading-6 text-[var(--portal-muted)]">Descriptive summary of approved members using recorded membership application data.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <DistributionList title="Age group" rows={demographicProfile.ageBands} />
+                <DistributionList title="Civil status" rows={demographicProfile.civilStatuses} />
+                <div className="sm:col-span-2">
+                  <DistributionList title="Occupation" rows={demographicProfile.occupations} />
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-[#6C7A70]">Date of birth recorded for {formatNumber(demographicProfile.withDateOfBirth)} members; {formatNumber(demographicProfile.withoutDateOfBirth)} members have no date of birth recorded.</p>
+            </div>
           </section>
         </div>
 

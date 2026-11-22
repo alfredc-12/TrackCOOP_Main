@@ -22,6 +22,7 @@
     "db:check": "tsx server/src/scripts/check-database.ts",
     "db:seed": "tsx server/src/scripts/seed.ts",
     "db:seed:seasons": "tsx server/src/scripts/seed-seasonal-analytics-sample.ts",
+    "db:seed:demographics": "tsx server/src/scripts/seed-demographic-occupations-sample.ts",
     "db:migrate:activities": "tsx server/src/scripts/migrate-activity-completion.ts",
     "db:migrate:activity-images": "tsx server/src/scripts/migrate-activity-images.ts",
     "db:migrate:activity-archive": "tsx server/src/scripts/migrate-activity-archive.ts",
