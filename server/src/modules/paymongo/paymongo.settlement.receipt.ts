@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+import { createHash, randomUUID } from "node:crypto";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import PDFDocument from "pdfkit";
 import { getPool } from "../../db/pool";
 import { withTransaction } from "../../db/transaction";
@@ -54,6 +54,14 @@ function mysqlDateTime(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 19).replace("T", " ") : null;
 }
 
+// Bind the rendered content to the rows re-read while holding the receipt and
+// joined payment-reference locks. A changed source must be retried, not linked
+// to a PDF rendered from an older snapshot.
+function receiptSourceSnapshot(row: ReceiptRow) {
+  const time = (value: Date | null) => value ? new Date(value).toISOString() : null;
+  return JSON.stringify([row.paymentReferenceId,row.receiptId,row.receiptNumber,row.memberId,row.issuedBy,String(row.amount),row.paymentChannel,row.provider,row.validationSource,row.subjectReference,time(row.paymentDate),time(row.validatedAt),row.payerName,row.payerEmail,row.paymentPurpose,row.trackcoopReference,time(row.reversedAt)]);
+}
+
 export async function queuePaymentReceipt(connection: PoolConnection, input: {
   paymentReferenceId: string;
   memberId: string | null;
@@ -74,12 +82,16 @@ export async function queuePaymentReceipt(connection: PoolConnection, input: {
         payment_date, validated_at, processing_status, issued_by, issued_at)
      VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, UTC_TIMESTAMP())
      ON DUPLICATE KEY UPDATE
-       member_id = COALESCE(member_id, VALUES(member_id)),
-       validation_source = VALUES(validation_source),
-       subject_reference = VALUES(subject_reference),
-       payment_date = COALESCE(payment_date, VALUES(payment_date)),
-       validated_at = COALESCE(validated_at, VALUES(validated_at)),
-       processing_status = CASE WHEN document_id IS NULL THEN 'Pending' ELSE 'Generated' END`,
+       member_id = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN member_id ELSE COALESCE(member_id, VALUES(member_id)) END,
+       validation_source = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN validation_source ELSE VALUES(validation_source) END,
+       subject_reference = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN subject_reference ELSE VALUES(subject_reference) END,
+       payment_date = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN payment_date ELSE COALESCE(payment_date, VALUES(payment_date)) END,
+       validated_at = CASE WHEN processing_status = 'Processing' OR document_id IS NOT NULL THEN validated_at ELSE COALESCE(validated_at, VALUES(validated_at)) END,
+       processing_status = CASE
+         WHEN document_id IS NOT NULL THEN 'Generated'
+         WHEN processing_status = 'Processing' THEN 'Processing'
+         ELSE 'Pending'
+       END`,
     [input.paymentReferenceId, input.memberId, receiptNumber, input.amount,
       input.paymentChannel, input.provider, input.validationSource, input.subjectReference,
       mysqlDate(input.paymentDate), mysqlDateTime(input.validatedAt), input.actorUserId],
@@ -150,18 +162,30 @@ function renderReceipt(row: ReceiptRow) {
   return complete;
 }
 
-async function writeDeterministicReceipt(row: ReceiptRow) {
-  const buffer = await renderReceipt(row);
+function receiptAttemptKey(row: ReceiptRow) {
   const year = String((row.validatedAt ?? new Date()).getUTCFullYear());
-  const key = `generated/receipts/${year}/payment-${row.paymentReferenceId}.pdf`;
+  return `generated/receipts/${year}/payment-${row.paymentReferenceId}-${randomUUID()}.pdf`;
+}
+
+async function writeReceiptAttempt(row: ReceiptRow, key: string) {
+  const buffer = await renderReceipt(row);
+  // Concurrent attempts must never overwrite the bytes of an already linked
+  // receipt. The winning transaction records its own attempt's unique key.
   const storagePath = normalizeProtectedStoragePath(key);
   await storageProvider().put({
     key,
     visibility: "protected",
     body: buffer,
     contentType: "application/pdf",
+    ifAbsent: true,
   });
   return { buffer, storagePath };
+}
+
+async function finishAttempt(connection: PoolConnection, attemptId: string, state: "FINALIZED" | "FAILED" | "SUPERSEDED", documentId: string | null = null) {
+  const [result] = await connection.execute<ResultSetHeader>("UPDATE payment_receipt_attempts SET attempt_state=?,document_id=? WHERE attempt_id=? AND attempt_state IN ('PREPARED','STORED')",[state,documentId,attemptId]);
+  if (result.affectedRows !== 1) throw new Error("Receipt attempt changed");
+  await connection.execute("INSERT INTO payment_receipt_attempt_events(attempt_id,event_type) VALUES(?,?)",[attemptId,state]);
 }
 
 export interface PaymentReceiptService {
@@ -215,23 +239,30 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
             WHERE payment_reference_id = ?`,
           [paymentReferenceId],
         );
-        return { ...row, processingStatus: "Processing" as const };
+        const key=receiptAttemptKey(row);
+        const [attempt]=await connection.execute<ResultSetHeader>("INSERT INTO payment_receipt_attempts(payment_receipt_id,attempt_number,object_key) VALUES(?,?,?)",[row.receiptId,Number(row.attemptCount)+1,key]);
+        await connection.execute("INSERT INTO payment_receipt_attempt_events(attempt_id,event_type) VALUES(?,'PREPARED')",[attempt.insertId]);
+        // The row lock serializes claims; attempt_count is the durable generation.
+        return { ...row, attemptCount: Number(row.attemptCount) + 1, processingStatus: "Processing" as const, attemptId:String(attempt.insertId), objectKey:key };
       }, databasePool());
-      if (!claimed || claimed.processingStatus === "Generated") return claimed;
+      if (!claimed || claimed.processingStatus === "Generated" || !("attemptId" in claimed)) return claimed;
       try {
-        const file = await writeDeterministicReceipt(claimed);
+        const file = await writeReceiptAttempt(claimed,claimed.objectKey);
+        await withTransaction(async (connection) => {
+          const [stored]=await connection.execute<ResultSetHeader>("UPDATE payment_receipt_attempts SET attempt_state='STORED',upload_checksum=?,upload_size=? WHERE attempt_id=? AND attempt_state='PREPARED'",[createHash("sha256").update(file.buffer).digest("hex"),file.buffer.length,claimed.attemptId]);
+          if(stored.affectedRows!==1) throw new Error("Receipt attempt changed");
+          await connection.execute("INSERT INTO payment_receipt_attempt_events(attempt_id,event_type) VALUES(?,'STORED')",[claimed.attemptId]);
+        },databasePool());
         await withTransaction(async (connection) => {
           const current = await selectReceipt(connection, paymentReferenceId, true);
-          if (!current || current.processingStatus === "Generated") return;
-          const [documentRows] = await connection.execute<(RowDataPacket & { id: string })[]>(
-            `SELECT CAST(document_id AS CHAR) AS id FROM documents
-              WHERE related_module = 'Payment' AND related_record_id = ?
-                AND relationship_type = 'Payment Receipt' LIMIT 1 FOR UPDATE`,
-            [paymentReferenceId],
-          );
-          let documentId = documentRows[0]?.id;
-          if (!documentId) {
-            const document = await createCentralDocument(connection, {
+          if (!current || current.processingStatus !== "Processing" || current.documentId || Number(current.attemptCount) !== claimed.attemptCount) {
+            await finishAttempt(connection,claimed.attemptId,"SUPERSEDED");
+            return;
+          }
+          if (receiptSourceSnapshot(current) !== receiptSourceSnapshot(claimed)) throw new Error("Receipt source changed; retry required");
+          // Do not infer historical provenance from matching document metadata.
+          // The locked receipt row is the sole authority for its linked document.
+          const document = await createCentralDocument(connection, {
               uploadedBy: current.issuedBy,
               uploaderRole: "system",
               memberId: current.memberId,
@@ -249,15 +280,16 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
               relatedRecordId: paymentReferenceId,
               relatedRecordReference: current.trackcoopReference,
               relationshipType: "Payment Receipt",
-            });
-            documentId = String(document.documentId);
-          }
-          await connection.execute(
+          });
+          const documentId = String(document.documentId);
+          const [generated] = await connection.execute<ResultSetHeader>(
             `UPDATE payment_receipts SET document_id = ?, processing_status = 'Generated',
                     generated_at = UTC_TIMESTAMP(), last_error_code = NULL,
-                    last_error_message = NULL WHERE payment_reference_id = ?`,
-            [documentId, paymentReferenceId],
+                    last_error_message = NULL WHERE payment_reference_id = ? AND processing_status = 'Processing' AND document_id IS NULL AND attempt_count = ?`,
+            [documentId, paymentReferenceId, claimed.attemptCount],
           );
+          if (generated.affectedRows !== 1) throw new Error("Receipt attempt no longer owns finalization");
+          await finishAttempt(connection,claimed.attemptId,"FINALIZED",documentId);
           if (current.paymentPurpose === "POS/Product" && current.paymentChannel === "Cash" && current.memberId) {
             await connection.execute(
               `INSERT INTO notifications
@@ -281,14 +313,18 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
         }, databasePool());
       } catch (error) {
         const safe = safeError(error);
-        await databasePool().execute(
+        await withTransaction(async (connection) => {
+        const current = await selectReceipt(connection, paymentReferenceId, true);
+        await finishAttempt(connection,claimed.attemptId,"FAILED");
+        if (!current || current.processingStatus !== "Processing" || current.documentId || Number(current.attemptCount) !== claimed.attemptCount) return;
+        const [failed] = await connection.execute<ResultSetHeader>(
           `UPDATE payment_receipts SET processing_status = 'Failed',
                   last_error_code = ?, last_error_message = ?
-            WHERE payment_reference_id = ?`,
-          [safe.code, safe.message, paymentReferenceId],
+            WHERE payment_reference_id = ? AND processing_status = 'Processing' AND document_id IS NULL AND attempt_count = ?`,
+          [safe.code, safe.message, paymentReferenceId, claimed.attemptCount],
         );
-        if (claimed.attemptCount + 1 >= 3) {
-          await databasePool().execute(
+        if (failed.affectedRows && claimed.attemptCount >= 3) {
+          await connection.execute(
             `INSERT INTO notifications
                (user_id, notification_type, title, message, related_entity_type, related_entity_id)
              SELECT u.user_id, 'Payment', 'Payment receipt could not be generated',
@@ -304,6 +340,7 @@ export function createPaymentReceiptService(pool?: Pool): PaymentReceiptService 
             [claimed.receiptNumber, paymentReferenceId, paymentReferenceId],
           ).catch(() => undefined);
         }
+        }, databasePool());
       }
       return this.getStatus(paymentReferenceId);
     },

@@ -5,6 +5,13 @@ import { createApp } from "./app";
 
 const frontendUrl = "http://localhost:3000";
 
+test("financial evidence diagnostic is not mounted before source-scoped authorization is ready", async () => {
+  const response = await request(createApp({ enableRequestLogging: false, frontendUrl }))
+    .get("/api/finance/evidence/payment-references/1/receipt");
+  assert.equal(response.status, 404);
+  assert.equal(response.body.errors[0].code, "ROUTE_NOT_FOUND");
+});
+
 test("GET /api/health returns the standard success envelope", async () => {
   const response = await request(
     createApp({ enableRequestLogging: false, frontendUrl }),

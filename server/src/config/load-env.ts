@@ -17,6 +17,13 @@ export function loadServerEnv() {
     return;
   }
 
+  // Node's test runner marks each test worker before loading application modules.
+  // Never import a developer's real .env into that process.
+  if (process.env.NODE_TEST_CONTEXT) {
+    loaded = true;
+    return;
+  }
+
   loadEnv({
     path: getServerEnvPath(),
     quiet: true,

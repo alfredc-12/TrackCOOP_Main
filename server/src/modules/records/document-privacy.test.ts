@@ -80,7 +80,7 @@ test("member visibility binds the owner as an exact BIGINT without exposing an o
 });
 
 /** Mock only the database/storage boundaries; exercise the real router and document service. */
-function setup(t: TestContext, role: RoleSlug = "member", memberId: string | null = "101", documents = fixtures) {
+function setup(t: TestContext, role: RoleSlug = "member", memberId: string | null = "101", documents = fixtures, evidenceIds:string[] = [], evidenceError?:string) {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const writes: Array<{ sql: string; values: unknown[] }> = [];
   let historyReads = 0;
@@ -120,6 +120,10 @@ function setup(t: TestContext, role: RoleSlug = "member", memberId: string | nul
       return [[{ id: "1", user: "Synthetic staff", action: "View", description: "Synthetic audit" }], []];
     }
     if (sql.includes("SELECT file_path AS storagePath")) return [[{ storagePath: `public/uploads/documents/${values[0]}.pdf` }], []];
+    if (sql.includes("FROM finance_manual_evidence_links") || sql.includes("FROM finance_evidence_upload_intents")) {
+      if(evidenceError) throw Object.assign(new Error("synthetic database error"),{code:evidenceError});
+      return [evidenceIds.includes(String(values[0])) ? [{ found: 1 }] : [], []];
+    }
     if (sql.includes("WHERE d.document_id = ?")) {
       const found = documents.find((f) => f.id === values[0]);
       return [found ? [row(found, sql)] : [], []];
@@ -143,7 +147,17 @@ function setup(t: TestContext, role: RoleSlug = "member", memberId: string | nul
   t.mock.method(pool, "execute", async () => { throw new Error("Unexpected real-DB execution path"); });
   const connection = {
     async beginTransaction() { transactions += 1; },
-    async query(sql: string, values: unknown[]) { writes.push({ sql, values }); return [{ affectedRows: 1 }, []]; },
+    async query(sql: string, values: unknown[]) {
+      if(sql.includes("SELECT file_path AS storagePath")) {
+        const f=documents.find(item=>item.id===String(values[0]));
+        return [f ? [{storagePath:`public/uploads/documents/${f.id}.pdf`,memberId:f.memberId,accessLevel:f.accessLevel,category:f.category,documentType:f.documentType,fileName:`synthetic-${f.id}.pdf`,mimeType:"application/pdf"}] : [],[]];
+      }
+      if(sql.includes("FROM finance_manual_evidence_links") || sql.includes("FROM finance_evidence_upload_intents")) {
+        if(evidenceError) throw Object.assign(new Error("synthetic database error"),{code:evidenceError});
+        return [evidenceIds.includes(String(values[0])) ? [{found:1}] : [],[]];
+      }
+      writes.push({ sql, values }); return [{ affectedRows: 1 }, []];
+    },
     async commit() { commits += 1; },
     async rollback() {},
     release() {},
@@ -167,6 +181,25 @@ function setup(t: TestContext, role: RoleSlug = "member", memberId: string | nul
   };
   return { app, get, queries, writes, read, counters: () => ({ historyReads, transactions, commits }) };
 }
+
+test("direct document file rejects evidence-linked documents without reading general storage",async t=>{
+  const api=setup(t,"chairman","101",fixtures,["1"]);
+  const response=await api.get("/api/documents/1/file?action=download");
+  assert.equal(response.status,404);
+  assert.equal(api.read.mock.callCount(),0);
+});
+
+test("ordinary file access survives missing additive evidence tables but not other lookup errors",async t=>{
+  const legacy=setup(t,"chairman","101",fixtures,[],"ER_NO_SUCH_TABLE");
+  assert.equal((await legacy.get("/api/documents/1/file?action=download")).status,200);
+  assert.equal(legacy.read.mock.callCount(),1);
+});
+
+test("evidence lookup errors do not fall through to general storage",async t=>{
+  const api=setup(t,"chairman","101",fixtures,[],"ER_LOCK_WAIT_TIMEOUT");
+  assert.equal((await api.get("/api/documents/1/file?action=download")).status,500);
+  assert.equal(api.read.mock.callCount(),0);
+});
 
 for (const [label, owner] of [["True Member", "101"], ["Associate Member", "202"]] as const) {
   test(`${label} list, counts, summary and uploader facets expose only permitted documents`, async (t) => {
